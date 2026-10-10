@@ -1,7 +1,7 @@
 // Composes a repository into one main town plus one town per workspace group (apps/, packages/, tools/ ...),
 // each sized by its own land, joined to the main town by highways across open country.
 import type { RepoData } from "./extract";
-import { area, densify, fnv1a, warper, type Pt } from "./geometry";
+import { area, centroid, densify, fnv1a, warper, type Pt } from "./geometry";
 import { buildNodes, layoutTown, outlineFor, type Options, type Road, type Town } from "./town";
 
 export interface Region {
@@ -68,7 +68,6 @@ export function composeRegion(data: RepoData, options: Options): Region {
         distance += GAP / 2;
         centre = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
       }
-      highways.push({ pts: [{ x: 0, y: 0 }, centre], cls: "highway" });
     }
     placed.push({ centre, radius });
     const outline = outlineFor(part.nodes.root.gross, centre, part.key);
@@ -77,7 +76,33 @@ export function composeRegion(data: RepoData, options: Options): Region {
     town.stats.docs = part.nodes.docs;
     towns.push(town);
   });
-  const warp = warper(fnv1a(data.name) ^ 0x51ed27, [[30, 700]]);
+  // Highways join real roads: from the end of a major road on one town edge to one on the other, never from behind.
+  const RANK = ["lane", "street", "collector", "avenue", "boulevard"];
+  const gate = (town: Town, toward: Pt): Pt => {
+    const c = centroid(town.outline);
+    const reach = Math.max(...town.outline.map((p) => Math.hypot(p.x - c.x, p.y - c.y)));
+    const ends = town.roads.flatMap((r) => [
+      { p: r.pts[0], rank: RANK.indexOf(r.cls) },
+      { p: r.pts[r.pts.length - 1], rank: RANK.indexOf(r.cls) },
+    ]);
+    const edge = ends.filter((e) => Math.hypot(e.p.x - c.x, e.p.y - c.y) >= 0.8 * reach);
+    const pool = edge.length ? edge : ends;
+    const best = Math.max(...pool.map((e) => e.rank));
+    const major = pool.filter((e) => e.rank >= Math.min(best, 2));
+    return major.sort((a, b) => Math.hypot(a.p.x - toward.x, a.p.y - toward.y) - Math.hypot(b.p.x - toward.x, b.p.y - toward.y))[0]?.p ?? c;
+  };
+  for (const town of towns.slice(1)) {
+    const from = gate(towns[0], centroid(town.outline));
+    const to = gate(town, centroid(towns[0].outline));
+    highways.push({ pts: [from, to], cls: "highway" });
+  }
+  const bend = warper(fnv1a(data.name) ^ 0x51ed27, [[30, 700]]);
+  // The bend fades to nothing at both ends, so a highway meets its roads exactly.
+  const warp = (p: Pt, i: number, all: Pt[]): Pt => {
+    const s = Math.sin((Math.PI * i) / Math.max(1, all.length - 1));
+    const q = bend(p);
+    return { x: p.x + (q.x - p.x) * s, y: p.y + (q.y - p.y) * s };
+  };
   return {
     name: data.name,
     towns,

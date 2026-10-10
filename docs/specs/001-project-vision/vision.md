@@ -24,6 +24,12 @@ town and stay put as the code changes.
 - **Fitting**: a small library becomes a hamlet, a monorepo an archipelago, a monolith a city with an old town.
 - **Honest about time**: history is part of the input, so old code sits at the core and new suburbs at the edge, and
   vacant and rebuilt land shows where code was replaced.
+- **A city that shows health**: each file becomes a building whose size, height, windows, lit windows, rooftop
+  details and colour carry the repository's dimensions (tests, test coverage, cyclomatic and cognitive complexity,
+  code smells). Filters choose which dimensions show, several at once, so the state of a whole city or a single
+  neighbourhood reads at a glance.
+- **A city with a past**: because history is the input, the city can be replayed through time, as an animation or a
+  video of the repository growing, being rebuilt and being cleared.
 - **A ground for more**: the ground plan is the base for buildings, statistics, a 3D walk and games played on the city.
 
 ## Principles

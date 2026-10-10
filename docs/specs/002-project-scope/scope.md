@@ -19,7 +19,12 @@ The first deliverable is the **ground plan**: the city without buildings, as def
 
 These shape today's design but are not part of the first deliverable.
 
-- Buildings on lots.
+- Buildings on lots, with dimensions as visual channels: building size, height, windows, lit windows, rooftop objects
+  (antennas and the like for specific cases) and colour.
+- Filters that map metrics onto those channels (test coverage, cyclomatic complexity, cognitive complexity, code
+  smells), several at once, per city or per neighbourhood.
+- Tests as a dimension of the source they cover, shown on that source's building.
+- History playback: animating the city through its history and exporting it as a video.
 - Private repositories, connected by their owner.
 - A local, offline build for any folder on disk, as a Rust port that matches the TypeScript output.
 - Statistics overlays, a 3D walk camera, games played on the city, and strangler-pattern detection (old versus new

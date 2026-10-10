@@ -49,7 +49,8 @@ Each concept has one name; the names in brackets are not used.
   commit always yields the same plat and the same city.
 - A committed lockfile overrides the fold. A folder without git keeps its plat as local state.
 - The fold reads commits and trees only; it never needs file contents.
-- A node's identity is its path.
+- A file's identity follows exact renames: the fold carries it through every commit that moves a file unchanged
+  (equal blob ids, no contents needed). A folder's identity is its path.
 
 ## Land use and mass
 
@@ -58,7 +59,8 @@ Each concept has one name; the names in brackets are not used.
 - Weights: source 1; config, assets, CI and tools, docs 0.5; tests and examples 0.3; fixtures, generated and vendored
   0.05.
 - Mass is the weighted file count of a subtree. Mass drives the tier, the road class and the archetype, never the order.
-- Tests and fixtures are not files of the ground plan: they take no land.
+- Tests and fixtures are not files of the ground plan: they take no land. Tests are a dimension of the source they
+  cover, shown later on that source's building.
 - Docs are parks: each doc adds half a lot of park land to its folder.
 - Every other file takes a share of a lot: files of one land use in one folder share lots, `round(1 / weight)` files
   per lot (one source file, two config files, twenty fixtures-like generated files).
@@ -98,6 +100,11 @@ is therefore readable as distance from the core, and newcomers join the edges.
   contiguous run.
 - Chains of folders without land of their own and with a single child collapse into one.
 - Land between collectors or bigger roads is a ward.
+- Long cuts jog: where a cut meets a crossing road, its continuation may shift sideways, so no straight road crosses a
+  whole district.
+- The plat remembers every cut: its position, tilt and class. A folder that grows first fills its reserve plots, then
+  its cut moves only when its land leaves a hysteresis band. The cuts of the top two folder levels form the fixed
+  frame and only move on an archetype switch.
 
 ## Archetypes
 
@@ -114,15 +121,16 @@ is therefore readable as distance from the core, and newcomers join the edges.
 Edges carry meaning:
 
 - A repository is one cohesive town. Each workspace group becomes its own town, sized by its land, its members as
-  districts, joined to the main town by a highway across open country.
+  districts, joined to the main town by a highway across open country. A highway joins a major road where that road
+  meets the town edge, never the back of a block.
 - **Parks** hold docs.
 - **Reserve plots** hold room for growth inside neighbourhoods.
 
 ## Deletion
 
 - A deleted file leaves a vacant lot; nothing moves.
-- A folder whose vacant share passes the renewal threshold is renewed: its own vacant lots and wholly vacant child
-  streets clear, and its street is re-laid. Renewal is local; it never cascades into child folders.
+- A folder whose direct children are more than half vacant is renewed: its own vacant lots and wholly vacant child
+  land clears, and its land is re-laid. Renewal is local; it never cascades into child folders.
 
 ## Archetype switch
 
