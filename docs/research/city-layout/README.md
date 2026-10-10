@@ -9,3 +9,4 @@ Follow the references below only as needed; never upfront.
 - ./procedural-city-generation.md - when choosing procedural techniques for organic-looking streets and parcels
 - ./visual-style-and-rendering.md - when choosing projection, style, palette, labels or rendering stack
 - ./tree-shape-to-archetype.md - when classifying a folder tree and picking its city archetype
+- ./variants/README.md - when judging an owner decision by its rendered variants on real repositories
