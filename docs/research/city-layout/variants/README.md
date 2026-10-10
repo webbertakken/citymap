@@ -13,6 +13,9 @@ will finally look. The street-tree sheets are superseded by the neighbourhood pr
 
 ## Neighbourhood prototype (current)
 
+**STATE A** is git tag `state-a`: this prototype as the owner approved it, the reference look for later work. Check
+it out to compare.
+
 The street-tree sheets looked like fishbones, not cities. The current prototype follows the procedural-generation
 report's backbone instead, with rules of our own:
 
