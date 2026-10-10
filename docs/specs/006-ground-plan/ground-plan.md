@@ -12,11 +12,16 @@ Each concept has one name; the names in brackets are not used.
 
 | Term | Meaning |
 | --- | --- |
-| city | The ground plan of one repository. |
+| city | The ground plan of one repository: one or more towns. |
+| town | One cohesive settlement: the main town, or the town of a workspace group. |
+| workspace group | A folder holding two or more workspace members whose land is mostly source (`apps/`, `packages/`). |
 | node | A folder or a file in the tree. |
-| district | A folder at the top one or two levels; one coherent fabric (grain, orientation, block shape). |
-| street | The road a folder owns; its children front it. |
-| block | An ordered grid of lots fronting one street. |
+| district | A folder with real weight; one coherent fabric (grain, orientation, block shape). |
+| ward | Land bounded by collectors or bigger roads; it takes one tint and the name of its heaviest folder. |
+| neighbourhood | A folder small enough to flatten: one block grid holding all its files. |
+| cut | A straight division of land between ordered folders; every cut is a street. |
+| street | A road; local streets run between blocks. |
+| block | Land between streets, holding lots back to back. |
 | lot | The land of one file (not "parcel"). |
 | lot class | A lot's frontage in modules, 1 to 4. |
 | module | The lot frontage unit, 0.4 u. |
@@ -26,7 +31,10 @@ Each concept has one name; the names in brackets are not used.
 | island | The land of one workspace member, surrounded by water. |
 | mainland | The land of everything outside workspace members. |
 | vacant lot | The lot of a deleted file, kept empty. |
-| renewal | Clearing a folder's vacant lots and re-laying its street. |
+| renewal | Clearing a folder's vacant lots and re-laying its land. |
+| reserve plot | A block with no lots yet: room for growth. |
+| park | Land of docs. |
+| density | The setting for land per lot, from suburban to dense core. |
 | old town | A city kept whole, as an island, when its archetype switches. |
 | land use | The role of a file (source, tests, fixtures and so on), from path rules. |
 | mass | Land-use weighted file count of a node's subtree. |
@@ -50,6 +58,10 @@ Each concept has one name; the names in brackets are not used.
 - Weights: source 1; config, assets, CI and tools, docs 0.5; tests and examples 0.3; fixtures, generated and vendored
   0.05.
 - Mass is the weighted file count of a subtree. Mass drives the tier, the road class and the archetype, never the order.
+- Tests and fixtures are not files of the ground plan: they take no land.
+- Docs are parks: each doc adds half a lot of park land to its folder.
+- Every other file takes a share of a lot: files of one land use in one folder share lots, `round(1 / weight)` files
+  per lot (one source file, two config files, twenty fixtures-like generated files).
 
 ## Dimensions
 
@@ -61,22 +73,31 @@ Each concept has one name; the names in brackets are not used.
 | Lot | frontage one module times its lot class; depth half the block depth (1:2 to 1:6) |
 | Neighbourhood | 3 to 8 blocks across between collectors |
 
-Lot classes are quantised and hysteretic: a lot changes class only when its measure leaves its band by a margin.
+- A lot is one module of frontage; lots widen to fill their block, up to lot class 4; spare frontage stays garden and
+  spare blocks stay reserve plots.
+- Density is a setting (a slider), 50% by default: a folder's land is its lot area over density, plus a road margin.
+  Low density gives suburban plots, high density narrow plots in a dense core.
 
 ## Order
 
-Siblings are ordered by first appearance in history, then by byte-wise path. Order never depends on size, locale,
-randomness or runtime hashing. Age is therefore readable as distance from the core.
+Siblings are ordered by first appearance in history, then by byte-wise path, and arranged centre-out: the oldest in
+the middle, the next alternately either side. Order never depends on size, locale, randomness or runtime hashing. Age
+is therefore readable as distance from the core, and newcomers join the edges.
 
 ## Structure
 
-- Every folder owns a street. Its children front the street in order, each on the side that is shorter when it first
-  appears; a child's side never changes after that.
-- A folder's files pack into blocks: ordered grids of integer lots, up to 4 rows deep, filled in order.
-- Chains of folders without files and with a single child collapse into one street.
-- Growth runs outward: a new child goes to the far end of its street; a full block extends along its street; a full
-  street takes its parent's reserve. A fixed frame is never re-divided.
-- Slack is reserved once per block, never compounded per level.
+- A town's outline is an irregular octagon of the town's land.
+- The outline is cut recursively between a folder's ordered children (child folders, its own lots, its park): each
+  cut splits the list where the land is halved, across the longer extent of the land, with a small path-seeded tilt.
+- Every cut is a street. Its class follows the tier of the land it separates: city land gets a boulevard on its
+  first cut and avenues after; town land an avenue then collectors; village land a collector then streets. A town
+  therefore has at most one boulevard, and local streets carry most of the length.
+- A folder with under nine blocks of land, or without child folders, flattens into a neighbourhood: its files in order
+  (own files first, then child folders by first appearance), on one block grid aligned with its longest frontage.
+- Blocks fill in serpentine order; lots run out along one side and back along the other, so a folder stays one
+  contiguous run.
+- Chains of folders without land of their own and with a single child collapse into one.
+- Land between collectors or bigger roads is a ward.
 
 ## Archetypes
 
@@ -92,9 +113,10 @@ randomness or runtime hashing. Age is therefore readable as distance from the co
 
 Edges carry meaning:
 
-- **Water** separates workspace members: each member is an island, the rest is the mainland.
-- **Parks** hold docs and assets.
-- **Fringe belts** (park, sparse roads) separate districts and hold the growth reserve.
+- A repository is one cohesive town. Each workspace group becomes its own town, sized by its land, its members as
+  districts, joined to the main town by a highway across open country.
+- **Parks** hold docs.
+- **Reserve plots** hold room for growth inside neighbourhoods.
 
 ## Deletion
 

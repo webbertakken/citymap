@@ -18,6 +18,8 @@ import {
   type Rect,
 } from "./layout";
 import { render, type Scene } from "./render";
+import { centroid } from "./geometry";
+import { composeRegion } from "./region";
 
 const CACHE = join(homedir(), ".cache/citymap");
 const HERE = import.meta.dir;
@@ -269,9 +271,11 @@ function composeFrame(data: RepoData, members: string[]): Plan {
 }
 
 // Step mode: per-commit share of surviving files that moved, split by whether the commit deleted anything.
+// LAYOUT=towns measures the neighbourhood prototype (snapshot only, no vacant lots) instead of the street tree.
+const townLayout = process.env.LAYOUT === "towns";
 if (stepMode) {
   const rows: string[] = [];
-  for (const { mode, caption } of MODES) {
+  for (const { mode, caption } of townLayout ? MODES.slice(0, 1) : MODES) {
     let previous: Map<string, [number, number]> | null = null;
     let previousLive = new Set<string>();
     const all: number[] = [];
@@ -285,6 +289,43 @@ if (stepMode) {
           folderFirstSeen[folder] = Math.min(folderFirstSeen[folder] ?? Infinity, f.firstSeen);
         }
       const live = files.filter((f) => !f.ghost);
+      if (townLayout) {
+        const region = composeRegion(
+          {
+            name: repo,
+            head: frame.sha,
+            files: live,
+            folderFirstSeen,
+            members: membersAt(
+              frame.sha,
+              live.map((f) => f.path),
+            ),
+          },
+          { density: 0.5, order: "centre-out", warp: true },
+        );
+        const townCentres = new Map(
+          region.towns.flatMap((town) =>
+            town.lots.map((l) => [l.path, [centroid(l.pts).x, centroid(l.pts).y] as [number, number]]),
+          ),
+        );
+        const ids = new Set(townCentres.keys());
+        if (previous) {
+          let survivors = 0;
+          let shifted = 0;
+          for (const [id, [x, y]] of townCentres) {
+            const before = previous.get(id);
+            if (!before) continue;
+            survivors++;
+            if (Math.hypot(x - before[0], y - before[1]) > 2) shifted++;
+          }
+          const share = survivors ? shifted / survivors : 0;
+          all.push(share);
+          if ([...previousLive].some((id) => !ids.has(id))) deleting.push(share);
+        }
+        previous = townCentres;
+        previousLive = ids;
+        continue;
+      }
       const plan = composeFrame(
         { name: repo, head: frame.sha, files, folderFirstSeen, members: [] },
         membersAt(

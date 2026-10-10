@@ -9,7 +9,55 @@ view.
 
 This is a topology-only prototype. It has no organic layer, no archetype frame beyond workspace islands, and no
 persistent plat (frozen sides, reserved slack). Read the sheets for what each decision does, not for how the city
-will finally look.
+will finally look. The street-tree sheets are superseded by the neighbourhood prototype below.
+
+## Neighbourhood prototype (current)
+
+The street-tree sheets looked like fishbones, not cities. The current prototype follows the procedural-generation
+report's backbone instead, with rules of our own:
+
+- **Land**: tests and fixtures get no land; docs become parks; everything else takes shared lots (`round(1 / weight)`
+  files per lot).
+- **Towns**: the main town holds the repository; every workspace group (a folder with two or more members, mostly
+  source, such as `packages/`) becomes its own town, sized by its land and joined by a highway.
+- **Cuts are streets**: a town's outline is cut recursively between its folders in first-seen order, arranged
+  centre-out so the oldest code sits in the middle. A cut takes the class of the land it separates (city: boulevard,
+  town: avenue, village: collector), so a town has at most one boulevard and local streets dominate.
+- **Neighbourhoods**: folders under nine blocks of land flatten into one neighbourhood with its own block grid
+  (6 u by 12 u), aligned to its main frontage; lots sit back to back, widening up to lot class 4 to fill their block;
+  spare blocks are dashed reserve plots.
+- **Wards**: land between collectors or bigger roads takes its own tint and the name of its heaviest folder.
+- **Organic layer**: one smooth, seeded warp scaled to the town bends every road and block.
+- **Density**: a setting; it sets land per lot, so it acts as grain (suburban big plots to dense narrow plots).
+
+Sheets: `img/towns-towns-<repo>.webp` (plan), `img/towns-density-<repo>.webp` (35, 50, 65% at one scale),
+`img/towns-hero-<repo>.webp` (2:1 dimetric). Generate with `bun towns.ts all`.
+
+| Repo | Lots | Lot coverage of land | Local street share | Long straight roads | Lots without room |
+| --- | --- | --- | --- | --- | --- |
+| takken.io | 244 | 21.8% | 88% | 9 | 0 |
+| react | 2,019 | 39.1% | 76% | 10 | 5 |
+| redux | 92 | 17.2% | 80% | 5 | 0 |
+| next.js | 8,032 | 37.5% | 81% | 24 | 8 |
+| game-ci-cli | 702 | 28% | 80% | 6 | 0 |
+| livediagram | 4,121 | 36.3% | 74% | 9 | 10 |
+| studio-worker | 101 | 27.7% | 100% | 3 | 0 |
+| home-assistant | 13,198 | 45% | 80% | 2 | 8 |
+| typescript | 929 | 38.5% | 80% | 8 | 1 |
+| rust | 6,237 | 31.3% | 72% | 3 | 23 |
+
+"Long straight roads" counts roads longer than 45% of their town's diameter that stay within 0.5% of a straight line.
+Small towns still have too many: the warp bends less than a cut is long, and every cut runs wall to wall.
+
+Stability, per commit, share of surviving files that moved (snapshot layout, no plat, compaction):
+
+| Window | Street tree | Neighbourhoods | Deleting commits: street tree | Deleting commits: neighbourhoods |
+| --- | --- | --- | --- | --- |
+| react 2019, 150 commits | 0.8% | 0.9% | 7.9% | 13.5% |
+| takken.io 2020, 100 commits | 9% | 27.2% | 35% | 70% |
+
+Cutting a town's outline re-divides land when a folder grows, so small towns move more. Reserve plots and remembered
+cut positions (the plat) are the remedy to measure next.
 
 ## Sheets
 
@@ -106,6 +154,8 @@ bun generate.ts all
 bun history.ts react 2014-06-01 2016-06-01 2017-09-01 2017-11-01 2020-01-01 head
 bun history.ts react switch 2017-09-01 2017-11-01 head
 bun history.ts react steps:2019-01-01:150
+LAYOUT=towns bun history.ts react steps:2019-01-01:150
+bun towns.ts all
 ```
 
 Clones are blob-less (`git clone --filter=blob:none`); history replay runs with `GIT_NO_LAZY_FETCH=1` so it never
