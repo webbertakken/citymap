@@ -6,7 +6,7 @@ import { area2, type Pt } from "../fixed/polygon";
 import { densify, memoised, warper } from "../fixed/warp";
 import type { TownPlat } from "../plat/plat";
 import type { TreeNode } from "../tree/tree";
-import { tint, toPoly, type Ctx, type LayoutOptions, type PlatEvent } from "./context";
+import { tint, toPoly, type Ctx, type LayoutOptions, type PlatEvent, type TownCache } from "./context";
 import { diameterOf } from "./cut";
 import { partition } from "./partition";
 
@@ -15,6 +15,8 @@ export interface LaidTown {
   readonly plat: TownPlat;
   readonly events: readonly PlatEvent[];
 }
+
+const LABEL_MILLE = 15;
 
 /** Warps last from lay to lay: one memoised warp per town and diameter, the oldest dropped beyond a bound. */
 const WARPS = new Map<string, (q: Pt) => Pt>();
@@ -61,7 +63,15 @@ export function layoutTown(
   plat: TownPlat,
   options: LayoutOptions,
   rootForm?: Form,
+  cache?: TownCache,
 ): LaidTown {
+  // A town's cached folders hold only while its constants do: its options, its land and its root.
+  const landArea2 = area2(outline);
+  const constants = `${options.order}|${options.jog}|${options.densityPct}|${landArea2}|${root.path}`;
+  if (cache && cache.constants !== constants) {
+    cache.constants = constants;
+    cache.entries.clear();
+  }
   const ctx: Ctx = {
     options,
     plat: structuredClone(plat),
@@ -73,7 +83,8 @@ export function layoutTown(
     lots: [],
     districts: [],
     water: [],
-    landArea2: area2(outline),
+    landArea2,
+    cache,
     form: "neighbourhood",
     overflow: 0,
     lotArea2: 0,
@@ -99,7 +110,10 @@ export function layoutTown(
     roads: laid.roads,
     blocks: laid.blocks.map((b) => ({ ...b, district: tint(b.district) })),
     lots: laid.lots.map((l) => ({ ...l, district: tint(l.district) })),
-    districts: laid.districts,
+    // A folder is labelled when it is top-level or holds at least 15 ‰ of the town's mass; wards always.
+    districts: laid.districts.filter(
+      (d) => d.ward || d.depth === 1 || d.massMille * 1000 >= LABEL_MILLE * root.massMille,
+    ),
     stats: {
       lots: ctx.lots.filter((l) => !l.vacant).length,
       overflow: ctx.overflow,

@@ -10,7 +10,7 @@ import { densify, warper } from "../fixed/warp";
 import { classifyLandUse, landKey, type LandUse } from "../land-use/land-use";
 import { emptyTownPlat, type OldTown, type Plat } from "../plat/plat";
 import type { Snapshot } from "../snapshot/snapshot";
-import type { PlatEvent } from "../town/context";
+import type { PlatEvent, TownCache } from "../town/context";
 import { layoutTown } from "../town/layout";
 import { buildTree } from "../tree/tree";
 import { workspaceGroups } from "../workspace/workspace";
@@ -25,10 +25,20 @@ export interface Options {
   readonly warp: boolean;
 }
 
-/** The plat and the runtime state a fold carries between commits: each town as last laid, to freeze on a switch. */
+/** The locality caches of a fold, per town, and how often they spared a folder its layout. */
+export interface FoldCache {
+  readonly towns: Record<string, TownCache>;
+  hits: number;
+}
+
+/**
+ * The plat and the runtime state a fold carries between commits: each town as last laid (to freeze on a switch), and
+ * the locality cache. Only the plat is persisted.
+ */
 export interface FoldState {
   readonly plat: Plat;
   readonly last: Readonly<Record<string, Town>>;
+  readonly cache?: FoldCache;
 }
 
 const GROWTH_PCT = 135;
@@ -224,7 +234,12 @@ export function layCity(
     // A town is laid in its own coordinates, about its centre, then set down where it stands: a town that moves
     // outward moves whole, and its cuts, grids and warp never shift inside it.
     const outline = outlineFor(townPlat.area2, { x: 0, y: 0 }, part.key);
-    const laid = layoutTown(part.name, part.key, tree, outline, townPlat, options, rootForm);
+    const cache = state.cache
+      ? (state.cache.towns[part.key] ??= { constants: "", entries: new Map(), hits: 0 })
+      : undefined;
+    const hitsBefore = cache?.hits ?? 0;
+    const laid = layoutTown(part.name, part.key, tree, outline, townPlat, options, rootForm, cache);
+    if (state.cache && cache) state.cache.hits += cache.hits - hitsBefore;
     events.push(...laid.events);
     plat.towns[part.key] = laid.plat;
     const town: Town = { ...translateTown(laid.town, centre), stats: { ...laid.town.stats, offLand, docs } };
@@ -265,7 +280,7 @@ export function layCity(
       towns: finalTowns,
       highways: options.warp ? highways.map((h) => ({ ...h, pts: fade(densify(h.pts, 80, false)) })) : highways,
     },
-    state: { plat, last },
+    state: state.cache ? { plat, last, cache: state.cache } : { plat, last },
     events,
   };
 }
