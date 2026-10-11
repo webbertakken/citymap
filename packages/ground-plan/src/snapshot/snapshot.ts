@@ -17,6 +17,8 @@ export interface Snapshot {
   readonly index: number;
   readonly files: readonly FileEntry[];
   readonly folderFirstSeen: ReadonlyMap<string, number>;
+  /** Member folders declared by the root workspace manifests, when the history reader read them; sorted. */
+  readonly workspaces?: readonly string[];
 }
 
 export const MAX_FILES = 2_000_000;
@@ -53,7 +55,7 @@ function parseFile(value: unknown, at: number): FileEntry {
 /** Validates untrusted input as a snapshot, or rejects it with a named code. */
 export function parseSnapshot(input: unknown): Snapshot {
   if (!isRecord(input)) return reject("snapshot/bad-shape", "a snapshot is an object");
-  const { repository, commit, index, files, folderFirstSeen } = input;
+  const { repository, commit, index, files, folderFirstSeen, workspaces } = input;
   if (typeof repository !== "string" || repository.length === 0)
     return reject("snapshot/bad-shape", "a snapshot names its repository");
   if (typeof commit !== "string" || !COMMIT.test(commit))
@@ -75,10 +77,16 @@ export function parseSnapshot(input: unknown): Snapshot {
     if (order === 0) reject("snapshot/duplicate-path", `file ${i} repeats a path`, { at: i });
     if (order > 0) reject("snapshot/not-sorted", `file ${i} is out of order`, { at: i });
   }
+  if (
+    workspaces !== undefined &&
+    !(Array.isArray(workspaces) && workspaces.every((w): w is string => typeof w === "string" && validPath(w)))
+  )
+    return reject("snapshot/bad-shape", "a snapshot's workspaces are folder paths");
   return {
     repository,
     commit,
     index,
+    ...(workspaces === undefined ? {} : { workspaces: workspaces.toSorted(compareKeys) }),
     files: parsed,
     folderFirstSeen: folders,
   };

@@ -26,7 +26,8 @@ function outermost(folders: ReadonlySet<string>): string[] {
 }
 
 /** Folders other than the root that directly hold a package manifest, outermost only, sorted. */
-export function workspaceMembers(paths: readonly string[]): string[] {
+export function workspaceMembers(paths: readonly string[], declared?: readonly string[]): string[] {
+  if (declared) return outermost(new Set(declared));
   const folders = new Set<string>();
   for (const path of paths) {
     const folder = folderOf(path);
@@ -39,9 +40,10 @@ export function workspaceMembers(paths: readonly string[]): string[] {
 export function workspaceGroups(
   paths: readonly string[],
   useOf: (path: string) => LandUse = classifyLandUse,
+  declared?: readonly string[],
 ): string[] {
   const byParent = new Map<string, number>();
-  for (const member of workspaceMembers(paths)) {
+  for (const member of workspaceMembers(paths, declared)) {
     const parent = folderOf(member);
     if (parent !== "") byParent.set(parent, (byParent.get(parent) ?? 0) + 1);
   }

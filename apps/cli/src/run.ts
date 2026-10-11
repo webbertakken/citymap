@@ -2,7 +2,7 @@ import { join, resolve } from "node:path";
 import {
   DEFAULT_LAND_USES,
   initialState,
-  landKey,
+  settingKey,
   layCity,
   parseLock,
   serialiseCity,
@@ -41,8 +41,8 @@ async function readLock(repo: string, target: string, options: Options, io: Io):
   const text = io.readFile(join(repo, LOCKFILE));
   if (text === null) return null;
   const { commit, index, plat } = parseLock(text);
-  if (plat.landKey !== landKey(options.landUses)) {
-    io.log(`lock/ignored reason=land lock=${plat.landKey}`);
+  if (plat.setting !== settingKey(options)) {
+    io.log(`lock/ignored reason=setting lock=${plat.setting}`);
     return null;
   }
   if (!(await isAncestor(repo, commit, target))) {
@@ -63,6 +63,7 @@ export async function runLay(command: LayCommand, io: Io): Promise<City> {
     order: "centre-out",
     jog: command.jog,
     warp: command.warp,
+    split: command.split,
   };
   const target = await resolveCommit(repo, command.to);
   const lock = await readLock(repo, target, options, io);

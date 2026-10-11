@@ -17,7 +17,7 @@ export type ErrorCode =
   | "plat/bad-shape"
   | "city/bad-json"
   | "city/bad-shape"
-  | "plat/land-mismatch"
+  | "plat/setting-mismatch"
   | "history/not-a-repo"
   | "history/git-failed"
   | "history/parse"

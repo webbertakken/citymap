@@ -1,13 +1,12 @@
 import type { City } from "../city/city";
-import { landKey } from "../land-use/land-use";
 import { emptyPlat, type Plat } from "../plat/plat";
-import { layCity, type FoldState, type Options } from "../region/compose";
+import { layCity, settingKey, type FoldState, type Options } from "../region/compose";
 import type { Snapshot } from "../snapshot/snapshot";
 import type { PlatEvent } from "../town/context";
 
 /** A fold's first state: an empty plat for the options' land setting, or a lockfile's plat; with a locality cache. */
 export const initialState = (options: Options, plat?: Plat, cache = true): FoldState => {
-  const start = { plat: plat ?? emptyPlat(landKey(options.landUses)), last: {} };
+  const start = { plat: plat ?? emptyPlat(settingKey(options)), last: {} };
   return cache ? { ...start, cache: { towns: {}, hits: 0 } } : start;
 };
 

@@ -76,7 +76,7 @@ describe("runLay", () => {
     const lock = first.files[join(dir, LOCKFILE)]!;
     const tests = memoryIo({ [join(dir, LOCKFILE)]: lock });
     await runLay(command(dir, "--tests"), tests.io);
-    expect(tests.lines.some((l) => l.startsWith("lock/ignored reason=land"))).toBe(true);
+    expect(tests.lines.some((l) => l.startsWith("lock/ignored reason=setting"))).toBe(true);
     git(dir, "checkout", "-q", "-b", "other", "HEAD~1");
     writeFileSync(join(dir, "x.ts"), "x");
     git(dir, "add", "-A");

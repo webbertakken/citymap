@@ -17,6 +17,8 @@ export interface LayCommand {
   readonly densityPct: number;
   readonly jog: "off" | "top-level" | "all";
   readonly warp: boolean;
+  /** Workspace groups whose members each become a town. */
+  readonly split: readonly string[];
 }
 
 export type Command = LayCommand | { readonly kind: "help" };
@@ -34,6 +36,8 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --tests             give tests land (the land dimension; default: tests and fixtures take none)
   --density=<pct>     share of land covered by lots, 20 to 80 (default 50)
   --jog=<cuts>        off, top-level or all (default top-level)
+  --split=<groups>    workspace groups whose members each become a town, comma-separated (default apps;
+                      --split=apps,packages splits packages too; --split= splits none)
   --no-warp           draw the plan without its organic warp
   --verbose           log every plan decision
   --help              show this help`;
@@ -75,6 +79,7 @@ export function parseCommandLine(argv: readonly string[]): Command {
     densityPct: density,
     jog: oneOf("jog", values.jog, ["off", "top-level", "all"] as const),
     warp: !values["no-warp"],
+    split: values.split.split(",").filter((group) => group !== ""),
   };
 }
 
@@ -95,6 +100,7 @@ function parse(argv: readonly string[]) {
       density: { type: "string", default: "50" },
       jog: { type: "string", default: "top-level" },
       "no-warp": { type: "boolean", default: false },
+      split: { type: "string", default: "apps" },
       help: { type: "boolean", default: false },
     },
   });

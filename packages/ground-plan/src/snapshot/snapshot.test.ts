@@ -17,6 +17,16 @@ describe("parseSnapshot", () => {
     expect(snapshot.folderFirstSeen.get("src")).toBe(1);
   });
 
+  it("keeps the declared workspace members, sorted", () => {
+    expect(parseSnapshot({ ...valid(), workspaces: ["pkg/b", "apps/a"] }).workspaces).toEqual(["apps/a", "pkg/b"]);
+    expect(parseSnapshot(valid()).workspaces).toBeUndefined();
+  });
+
+  it("rejects workspaces that are not folder paths", () => {
+    expect(() => parseSnapshot({ ...valid(), workspaces: "apps" })).toThrow("snapshot/bad-shape");
+    expect(() => parseSnapshot({ ...valid(), workspaces: ["../x"] })).toThrow("snapshot/bad-shape");
+  });
+
   it("accepts the working tree as a commit", () => {
     expect(parseSnapshot({ ...valid(), commit: "worktree" }).commit).toBe("worktree");
   });

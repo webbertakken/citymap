@@ -13,7 +13,7 @@ import type { Snapshot } from "../snapshot/snapshot";
 import type { PlatEvent, TownCache } from "../town/context";
 import { layoutTown } from "../town/layout";
 import { buildTree } from "../tree/tree";
-import { workspaceGroups } from "../workspace/workspace";
+import { workspaceGroups, workspaceMembers } from "../workspace/workspace";
 import { highwayBetween, withApproach } from "./highway";
 import { outlineFor } from "./outline";
 
@@ -23,7 +23,16 @@ export interface Options {
   readonly order: "centre-out" | "first-seen";
   readonly jog: "off" | "top-level" | "all";
   readonly warp: boolean;
+  /** Workspace groups whose members each become a town, by folder path or name; `apps` by default. */
+  readonly split?: readonly string[];
 }
+
+/** Each app of an `apps/` group is its own town by default; other groups stay one town each. */
+export const DEFAULT_SPLIT: readonly string[] = ["apps"];
+
+/** The setting a plat is laid for: its land uses and its split groups. Each setting has its own plat. */
+export const settingKey = (options: Options) =>
+  `${landKey(options.landUses)}|split:${(options.split ?? DEFAULT_SPLIT).toSorted(compareKeys).join(",")}`;
 
 /** The locality caches of a fold, per town, and how often they spared a folder its layout. */
 export interface FoldCache {
@@ -94,10 +103,10 @@ export function layCity(
   state: FoldState,
   options: Options,
 ): { city: City; state: FoldState; events: PlatEvent[] } {
-  const key = landKey(options.landUses);
-  if (state.plat.landKey !== key)
-    throw new CitymapError("plat/land-mismatch", `the plat is for land ${state.plat.landKey}, not ${key}`, {
-      plat: state.plat.landKey,
+  const key = settingKey(options);
+  if (state.plat.setting !== key)
+    throw new CitymapError("plat/setting-mismatch", `the plat is for ${state.plat.setting}, not ${key}`, {
+      plat: state.plat.setting,
       options: key,
     });
   // Shallow copies of the records this lay changes; each town's own plat is copied where it is laid.
@@ -112,20 +121,18 @@ export function layCity(
   const useOf = (path: string) => uses.get(path)!;
   const last: Record<string, Town> = { ...state.last };
   const events: PlatEvent[] = [];
-  const groups = workspaceGroups(
-    snapshot.files.map((f) => f.path),
-    useOf,
-  );
+  const paths = snapshot.files.map((f) => f.path);
+  const groups = workspaceGroups(paths, useOf, snapshot.workspaces);
+  const memberFolders = workspaceMembers(paths, snapshot.workspaces);
+  const split = options.split ?? DEFAULT_SPLIT;
+  const isSplit = (group: string) => split.includes(group) || split.includes(group.slice(group.lastIndexOf("/") + 1));
+  const firstSeen = (folder: string) => snapshot.folderFirstSeen.get(folder) ?? 0;
+  // A split group lends each member a town of its own; its other files stay in the main town.
+  const townRoots = groups.flatMap((g) => (isSplit(g) ? memberFolders.filter((m) => m.startsWith(`${g}/`)) : [g]));
   const parts: Part[] = [
-    { name: snapshot.repository, key: snapshot.repository, root: "", exclude: groups, firstSeen: 0 },
-    ...groups
-      .map((g) => ({
-        name: g,
-        key: `${snapshot.repository}/${g}`,
-        root: g,
-        exclude: [],
-        firstSeen: snapshot.folderFirstSeen.get(g) ?? 0,
-      }))
+    { name: snapshot.repository, key: snapshot.repository, root: "", exclude: townRoots, firstSeen: 0 },
+    ...townRoots
+      .map((t) => ({ name: t, key: `${snapshot.repository}/${t}`, root: t, exclude: [], firstSeen: firstSeen(t) }))
       .toSorted((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.name, b.name)),
   ];
   const live = new Set(snapshot.files.map((f) => f.identity));

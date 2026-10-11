@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { centroid } from "../fixed/polygon";
 import { foldHistory, initialState } from "../fold/fold";
-import { DEFAULT_LAND_USES } from "../land-use/land-use";
+import { DEFAULT_LAND_USES, landKey } from "../land-use/land-use";
 import { canonicalJson } from "../plat/canonical";
 import { emptyPlat } from "../plat/plat";
 import type { FileEntry, Snapshot } from "../snapshot/snapshot";
 import { files, snapshotOf } from "../testing/fixtures";
-import { layCity, translateTown, type Options } from "./compose";
+import { layCity, settingKey, translateTown, type Options } from "./compose";
 
 const OPTIONS: Options = {
   densityPct: 50,
@@ -38,10 +38,10 @@ const monorepo = (extra: FileEntry[] = []): FileEntry[] => [
 ];
 
 describe("layCity", () => {
-  it("lays the main town at the origin and one town per workspace group, joined by highways", () => {
+  it("lays the main town at the origin and the other towns round it, joined by highways", () => {
     const { city, events } = layCity(at(0, monorepo()), initialState(OPTIONS), OPTIONS);
-    expect(city.towns.map((t) => t.key)).toEqual(["demo", "demo/apps", "demo/packages"]);
-    expect(city.highways).toHaveLength(2);
+    expect(city.towns.map((t) => t.key)).toEqual(["demo", "demo/apps/api", "demo/apps/web", "demo/packages"]);
+    expect(city.highways).toHaveLength(3);
     expect(events.filter((e) => e.code === "plat/grow")).toEqual([]);
     const [main, ...groups] = city.towns;
     expect(centroid(main?.outline ?? []).x ** 2).toBeLessThan(1000 ** 2);
@@ -62,7 +62,7 @@ describe("layCity", () => {
     const a = layCity(at(0, monorepo()), state, options);
     const b = layCity(at(0, monorepo()), state, options);
     expect(canonicalJson(a.city)).toBe(canonicalJson(b.city));
-    expect(state.plat).toEqual(emptyPlat(state.plat.landKey));
+    expect(state.plat).toEqual(emptyPlat(state.plat.setting));
     expect(a.city.highways[0]?.pts.length).toBeGreaterThan(2);
   });
 
@@ -175,7 +175,7 @@ describe("layCity", () => {
 
   it("rejects a plat laid for another land setting", () => {
     const other = initialState({ ...OPTIONS, landUses: [...DEFAULT_LAND_USES, "tests"] });
-    expect(() => layCity(at(0, files("", 3)), other, OPTIONS)).toThrow("plat/land-mismatch");
+    expect(() => layCity(at(0, files("", 3)), other, OPTIONS)).toThrow("plat/setting-mismatch");
   });
 });
 
@@ -208,5 +208,54 @@ describe("foldHistory", () => {
     expect(foldHistory([], OPTIONS).city).toBeNull();
     const plat = emptyPlat("custom");
     expect(foldHistory([], OPTIONS, initialState(OPTIONS, plat)).state.plat).toBe(plat);
+  });
+});
+
+describe("split groups", () => {
+  it("lays each app as its own town by default, and keeps packages one town", () => {
+    const { city } = layCity(at(0, monorepo()), initialState(OPTIONS), OPTIONS);
+    // Without folder ages, parts follow path order.
+    expect(city.towns.map((t) => t.key)).toEqual(["demo", "demo/apps/api", "demo/apps/web", "demo/packages"]);
+    expect(city.towns.map((t) => t.name)).toEqual(["demo", "apps/api", "apps/web", "packages"]);
+    expect(city.highways).toHaveLength(3);
+  });
+
+  it("splits packages too when asked, and lays nothing split when asked", () => {
+    const both = { ...OPTIONS, split: ["apps", "packages"] };
+    expect(layCity(at(0, monorepo()), initialState(both), both).city.towns.map((t) => t.key)).toEqual([
+      "demo",
+      "demo/apps/api",
+      "demo/apps/web",
+      "demo/packages/a",
+      "demo/packages/b",
+    ]);
+    const none = { ...OPTIONS, split: [] };
+    expect(layCity(at(0, monorepo()), initialState(none), none).city.towns.map((t) => t.key)).toEqual([
+      "demo",
+      "demo/apps",
+      "demo/packages",
+    ]);
+  });
+
+  it("keeps a split group's own files outside its members in the main town", () => {
+    const { city } = layCity(at(0, monorepo([...files("apps/shared", 20, 900)])), initialState(OPTIONS), OPTIONS);
+    expect(city.towns[0]?.lots.filter((l) => l.path.startsWith("apps/shared/"))).toHaveLength(20);
+  });
+
+  it("names each setting of land and split, and rejects a plat laid for another", () => {
+    expect(settingKey(OPTIONS)).toBe(`${landKey(DEFAULT_LAND_USES)}|split:apps`);
+    expect(settingKey({ ...OPTIONS, split: ["packages", "apps"] })).toBe(
+      `${landKey(DEFAULT_LAND_USES)}|split:apps,packages`,
+    );
+    const other = initialState({ ...OPTIONS, split: [] });
+    expect(() => layCity(at(0, files("", 3)), other, OPTIONS)).toThrow("plat/setting-mismatch");
+  });
+
+  it("takes members from the manifests when the snapshot carries them", () => {
+    const declared = { ...at(0, monorepo()), workspaces: ["apps/web", "packages/a", "packages/b"] };
+    expect(layCity(declared, initialState(OPTIONS), OPTIONS).city.towns.map((t) => t.key)).toEqual([
+      "demo",
+      "demo/packages",
+    ]);
   });
 });
