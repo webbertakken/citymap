@@ -6,6 +6,7 @@
       "name": "citymap",
       "devDependencies": {
         "@types/bun": "1.4.2",
+        "@types/node": "26.6.5",
         "@vitest/coverage-v8": "5.0.3",
         "husky": "9.1.7",
         "lint-staged": "17.6.0",
@@ -14,6 +15,18 @@
         "oxlint-tsgolint": "7.0.2004",
         "typescript": "7.0.2",
         "vitest": "5.0.3",
+      },
+    },
+    "apps/cli": {
+      "name": "@citymap/cli",
+      "version": "0.0.0",
+      "bin": {
+        "citymap": "./src/main.ts",
+      },
+      "dependencies": {
+        "@citymap/ground-plan": "workspace:*",
+        "@citymap/history": "workspace:*",
+        "@citymap/svg": "workspace:*",
       },
     },
     "packages/ground-plan": {
@@ -48,6 +61,8 @@
     "@babel/types": ["@babel/types@7.29.8", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.7", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg=="],
 
     "@bcoe/v8-coverage": ["@bcoe/v8-coverage@1.0.2", "", {}, "sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA=="],
+
+    "@citymap/cli": ["@citymap/cli@workspace:apps/cli"],
 
     "@citymap/ground-plan": ["@citymap/ground-plan@workspace:packages/ground-plan"],
 
