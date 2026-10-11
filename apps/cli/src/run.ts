@@ -58,7 +58,7 @@ async function readLock(repo: string, target: string, options: Options, io: Io):
     io.log(`lock/ignored reason=not-an-ancestor commit=${value.commit}`);
     return null;
   }
-  io.log(`lock/resume commit=${value.commit} index=${value.index}`);
+  io.log(`lock/resume commit=${value.commit} index=${String(value.index)}`);
   return { commit: value.commit, index: value.index as number, state: initialState(options, plat) };
 }
 
