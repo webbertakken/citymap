@@ -1,7 +1,7 @@
 import type { City, District, Town } from "@citymap/ground-plan";
+import { THEMES } from "@citymap/themes";
 import { describe, expect, it } from "vitest";
 import { renderCity } from "./render";
-import { THEMES } from "./themes";
 
 const square = (x: number, y: number, s: number) => [
   { x, y },

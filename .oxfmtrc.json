@@ -23,6 +23,8 @@
     "**/*.tsbuildinfo",
     "bun.lock",
     "**/__golden__/**",
-    "packages/ground-plan/src/fixed/directions.ts"
+    "packages/ground-plan/src/fixed/directions.ts",
+    "apps/web/public/cities/**",
+    "**/next-env.d.ts"
   ]
 }

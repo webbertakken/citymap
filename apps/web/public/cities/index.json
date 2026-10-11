@@ -1,0 +1,27 @@
+[
+  {
+    "name": "takken.io",
+    "file": "takken.io.json",
+    "lots": 286
+  },
+  {
+    "name": "redux",
+    "file": "redux.json",
+    "lots": 190
+  },
+  {
+    "name": "game-ci-cli",
+    "file": "game-ci-cli.json",
+    "lots": 835
+  },
+  {
+    "name": "studio-worker",
+    "file": "studio-worker.json",
+    "lots": 101
+  },
+  {
+    "name": "livediagram",
+    "file": "livediagram.json",
+    "lots": 4259
+  }
+]

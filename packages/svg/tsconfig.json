@@ -6,5 +6,12 @@
     "tsBuildInfoFile": "../../node_modules/.cache/tsc/svg.tsbuildinfo"
   },
   "include": ["src"],
-  "references": [{ "path": "../ground-plan" }]
+  "references": [
+    {
+      "path": "../ground-plan"
+    },
+    {
+      "path": "../themes"
+    }
+  ]
 }

@@ -27,6 +27,18 @@
       {
         "assertFunctionNames": ["expect", "expectTypeOf", "assertType", "fc.assert"]
       }
+    ],
+    "import/no-unassigned-import": [
+      "error",
+      {
+        "allow": ["**/*.css"]
+      }
+    ],
+    "jsx-a11y/no-noninteractive-tabindex": [
+      "error",
+      {
+        "roles": ["application"]
+      }
     ]
   },
   "ignorePatterns": [

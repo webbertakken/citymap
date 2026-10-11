@@ -1,5 +1,5 @@
 import { ROAD_WIDTH, UNIT, centroid, area2, type City, type Pt, type RoadClass } from "@citymap/ground-plan";
-import { THEMES, type ThemeName } from "./themes";
+import { THEMES, type ThemeName } from "@citymap/themes";
 
 export type Camera = "plan" | "dimetric";
 
