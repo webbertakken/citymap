@@ -13,7 +13,9 @@ describe("BASE_REF", () => {
 
 describe("pushedShas", () => {
   it("returns the local sha of each pushed branch", () => {
-    const stdin = `refs/heads/a ${"1".repeat(40)} refs/heads/a ${"0".repeat(40)}\nrefs/heads/b ${"2".repeat(40)} refs/heads/b ${"3".repeat(40)}\n`;
+    const newBranch = `refs/heads/a ${"1".repeat(40)} refs/heads/a ${"0".repeat(40)}`;
+    const update = `refs/heads/b ${"2".repeat(40)} refs/heads/b ${"3".repeat(40)}`;
+    const stdin = `${newBranch}\n${update}\n`;
 
     expect(pushedShas(stdin)).toEqual(["1".repeat(40), "2".repeat(40)]);
   });
@@ -73,7 +75,7 @@ describe("prePushPlan", () => {
   it("builds every project and tests what changed since the base", () => {
     const steps = prePushPlan(["a.ts"], BASE);
 
-    expect(steps).toContainEqual({ label: "typecheck", command: "node_modules/.bin/tsc", args: ["--build"] });
+    expect(steps).toContainEqual({ label: "typecheck", command: "bun", args: ["run", "typecheck"] });
     expect(steps).toContainEqual({
       label: "tests with coverage",
       command: "node_modules/.bin/vitest",

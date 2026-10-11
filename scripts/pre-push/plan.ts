@@ -22,7 +22,7 @@ const FORMATTED = /\.(?:[cm]?[jt]sx?|jsonc?|json5|md|mdx|ya?ml|toml|css|scss|les
 /** Files oxlint lints (`bun run lint`). */
 const LINTED = /\.[cm]?[jt]sx?$/;
 
-/** Files whose change can break `tsc --build` or a test: code, manifests, the lockfile, compiler and test configs. */
+/** Files whose change can break the type check or a test: code, manifests, the lockfile, compiler and test configs. */
 const BUILT = /\.[cm]?[jt]sx?$|(?:^|\/)(?:package\.json|tsconfig[^/]*\.json)$|^bun\.lock$/;
 
 /** Workflows actionlint checks (CI's actionlint job). */
@@ -66,7 +66,7 @@ export function prePushPlan(changedFiles: readonly string[], base: string): Step
   }
   if (built.length > 0) {
     steps.push(
-      { label: "typecheck", command: `${BIN}/tsc`, args: ["--build"] },
+      { label: "typecheck", command: "bun", args: ["run", "typecheck"] },
       { label: "tests with coverage", command: `${BIN}/vitest`, args: ["run", "--coverage", "--changed", base] },
     );
   }
