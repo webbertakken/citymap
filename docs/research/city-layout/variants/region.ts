@@ -1,9 +1,11 @@
 // Composes a repository into one main town plus one town per workspace group (apps/, packages/, tools/ ...),
 // each sized by its own land, joined to the main town by highways across open country.
+import { isFlat, type Form } from "./archetype";
 import type { RepoData } from "./extract";
 import { area, centroid, densify, fnv1a, warper, type Pt } from "./geometry";
 import {
   buildNodes,
+  classifyNode,
   emptyTownPlat,
   GROWTH_ROOM,
   layoutTown,
@@ -18,8 +20,14 @@ import {
 /** The plat of a region: one town plat per town key. Pass the same plat to every commit to fold history. */
 export interface RegionPlat {
   towns: Record<string, TownPlat>;
+  /** Old towns per town key: frozen geometry and the member identities of each lot. */
+  old: Record<string, { town: Town; members: Record<string, string[]> }[]>;
+  /** Each town as last laid out, to freeze when its root switches form. */
+  last: Record<string, Town>;
+  /** Each town's root form over the whole repository, with hysteresis. */
+  rootForms: Record<string, Form>;
 }
-export const emptyRegionPlat = (): RegionPlat => ({ towns: {} });
+export const emptyRegionPlat = (): RegionPlat => ({ towns: {}, old: {}, last: {}, rootForms: {} });
 
 export interface Region {
   name: string;
@@ -55,18 +63,70 @@ export function workspaceGroups(data: RepoData): string[] {
 export function composeRegion(data: RepoData, options: Options, plat: RegionPlat = emptyRegionPlat()): Region {
   const groups = workspaceGroups(data);
   const platOf = (key: string) => (plat.towns[key] ??= emptyTownPlat());
-  const main = buildNodes(data, "", groups, options.density, options.noLand, platOf(data.name).shares);
+  const identity = (f: { identity?: string; path: string }) => f.identity ?? f.path;
+  const live = new Set(data.files.map(identity));
+  // Files kept by an old town live there for good; the town that replaced it lays out the rest.
+  const oldIds = (key: string) => new Set((plat.old[key] ?? []).flatMap((o) => Object.values(o.members).flat()));
+  const nodesFor = (key: string, root: string, exclude: string[]) => {
+    const kept = oldIds(key);
+    const files = kept.size ? data.files.filter((f) => !kept.has(identity(f))) : data.files;
+    return buildNodes({ ...data, files }, root, exclude, options.density, options.noLand, platOf(key).shares);
+  };
   const parts = [
-    { name: data.name, key: data.name, nodes: main, firstSeen: 0 },
+    { name: data.name, key: data.name, root: "", exclude: groups, firstSeen: 0 },
     ...groups
       .map((g) => ({
         name: g,
         key: `${data.name}/${g}`,
-        nodes: buildNodes(data, g, [], options.density, options.noLand, platOf(`${data.name}/${g}`).shares),
+        root: g,
+        exclude: [],
         firstSeen: data.folderFirstSeen[g] ?? 0,
       }))
       .sort((a, b) => a.firstSeen - b.firstSeen || (a.name < b.name ? -1 : 1)),
-  ].filter((p) => p.nodes.root.gross > 0);
+  ]
+    .map((p) => {
+      let nodes = nodesFor(p.key, p.root, p.exclude);
+      // Archetype switch at a town's root: the town as it stood is kept whole as an old town, and a new town grows
+      // beside it from every file the old town does not hold.
+      // The root's form describes the whole repository, old towns included, so a young new town keeps it.
+      const whole = buildNodes(data, p.root, p.exclude, options.density, options.noLand, {});
+      const previous = plat.rootForms[p.key];
+      const rootForm = classifyNode(whole.root, previous);
+      plat.rootForms[p.key] = rootForm;
+      const townPlat = platOf(p.key);
+      const last = plat.last[p.key];
+      // Moving between the neighbourhood forms re-lays in place; any other change of form is an archetype switch.
+      const switched = previous !== undefined && rootForm !== previous && !(isFlat(previous) && isFlat(rootForm));
+      if (switched && last) {
+        const members: Record<string, string[]> = {};
+        for (const lots of Object.values(townPlat.shares)) for (const lot of lots) members[lot.key] = [...lot.members];
+        for (const lot of last.lots) if (!lot.vacant) members[lot.key] ??= [lot.key];
+        const count = (plat.old[p.key] ?? []).length + 1;
+        const name = `${p.name} old town${count > 1 ? ` ${count}` : ""}`;
+        console.log(`[plat] old town ${name}: ${previous} -> ${rootForm}, ${last.lots.length} lots`);
+        (plat.old[p.key] ??= []).push({ town: { ...last, name, old: true }, members });
+        plat.towns[p.key] = emptyTownPlat();
+        nodes = nodesFor(p.key, p.root, p.exclude);
+      }
+      return { ...p, nodes, rootForm };
+    })
+    .filter((p) => p.nodes.root.gross > 0);
+
+  // Old towns stay exactly where they stood; their lots light while any of their files lives.
+  const oldTowns: { town: Town; successor: string }[] = Object.entries(plat.old).flatMap(([key, list]) =>
+    list.map((o) => ({
+      successor: key,
+      town: {
+        ...o.town,
+        lots: o.town.lots.map((l) => ({ ...l, vacant: !(o.members[l.key] ?? []).some((m) => live.has(m)) })),
+      },
+    })),
+  );
+  const footprint = (t: Town) => {
+    const c = centroid(t.outline);
+    return { centre: c, radius: Math.max(...t.outline.map((p) => Math.hypot(p.x - c.x, p.y - c.y))) };
+  };
+  const blockers = oldTowns.map((o) => footprint(o.town));
 
   // The main town sits at the origin; group towns ring it in first-seen order, pushed out until they clear.
   const placed: { centre: Pt; radius: number }[] = [];
@@ -84,33 +144,39 @@ export function composeRegion(data: RepoData, options: Options, plat: RegionPlat
       townPlat.cap = gross * GROWTH_ROOM;
     }
     const radius = radiusOf(townPlat.area);
-    let centre: Pt = { x: 0, y: 0 };
     const clear = (c: Pt) =>
-      placed.every((p) => Math.hypot(p.centre.x - c.x, p.centre.y - c.y) >= p.radius + radius + GAP * 0.6);
-    if (i > 0 && townPlat.centre) {
+      [...placed, ...blockers].every(
+        (p) => Math.hypot(p.centre.x - c.x, p.centre.y - c.y) >= p.radius + radius + GAP * 0.6,
+      );
+    const outward = (from: Pt, angle: number) => {
+      let distance = Math.hypot(from.x, from.y);
+      let c = from;
+      while (!clear(c)) {
+        distance += GAP / 2;
+        c = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
+      }
+      return c;
+    };
+    let centre: Pt;
+    if (townPlat.centre) {
       // A remembered town stays put unless a neighbour grew into it; then it moves straight outward.
-      centre = townPlat.centre;
-      const angle = Math.atan2(centre.y, centre.x);
-      let distance = Math.hypot(centre.x, centre.y);
-      while (!clear(centre)) {
-        distance += GAP / 2;
-        centre = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
-      }
-    } else if (i > 0) {
+      const c = townPlat.centre;
+      centre = outward(c, Math.atan2(c.y, c.x) || (fnv1a(part.key) % 628) / 100);
+    } else if (i === 0) {
+      // A new main town sits at the origin, or beside the old towns that hold it.
+      centre = outward({ x: 0, y: 0 }, (fnv1a(`${part.key}#new`) % 628) / 100);
+    } else {
       const angle = -Math.PI / 2 + ((i - 1) * 2 * Math.PI) / (parts.length - 1) + (fnv1a(part.key) % 100) / 400;
-      let distance = placed[0].radius + radius + GAP;
-      centre = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
-      while (!clear(centre)) {
-        distance += GAP / 2;
-        centre = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
-      }
+      const distance = placed[0].radius + radius + GAP;
+      centre = outward({ x: Math.cos(angle) * distance, y: Math.sin(angle) * distance }, angle);
     }
     townPlat.centre = centre;
     placed.push({ centre, radius });
     const outline = outlineFor(townPlat.area, centre, part.key);
-    const town = layoutTown(part.name, part.nodes.root, options, outline, part.key, townPlat);
+    const town = layoutTown(part.name, part.nodes.root, options, outline, part.key, townPlat, part.rootForm);
     town.stats.tests = part.nodes.tests;
     town.stats.docs = part.nodes.docs;
+    plat.last[part.key] = town;
     towns.push(town);
   });
   // Highways join real roads of one class in both towns, at the town edge, and take that class: seamless roads.
@@ -148,11 +214,17 @@ export function composeRegion(data: RepoData, options: Options, plat: RegionPlat
       }
     return best;
   };
-  for (const town of towns.slice(1)) {
-    const a = edgeEnds(towns[0], centroid(town.outline));
-    const b = edgeEnds(town, centroid(towns[0].outline));
+  const join = (from: Town, to: Town) => {
+    const a = edgeEnds(from, centroid(to.outline));
+    const b = edgeEnds(to, centroid(from.outline));
     const rank = Math.max(0, Math.min(Math.max(...a.map((e) => e.rank)), Math.max(...b.map((e) => e.rank))));
     highways.push({ pts: gates(a, b, rank), cls: RANK[rank] });
+  };
+  for (const town of towns.slice(1)) join(towns[0], town);
+  // Each old town is joined to the town that replaced it.
+  for (const o of oldTowns) {
+    const successor = towns[parts.findIndex((p) => p.key === o.successor)] ?? towns[0];
+    if (successor) join(successor, o.town);
   }
   const bend = warper(fnv1a(data.name) ^ 0x51ed27, [[30, 700]]);
   // The bend fades to nothing at both ends, so a highway meets its roads exactly.
@@ -163,9 +235,9 @@ export function composeRegion(data: RepoData, options: Options, plat: RegionPlat
   };
   return {
     name: data.name,
-    towns,
+    towns: [...towns, ...oldTowns.map((o) => o.town)],
     highways: options.warp ? highways.map((h) => ({ ...h, pts: densify(h.pts, 10, false).map(warp) })) : highways,
-    tests: main.tests + parts.slice(1).reduce((s, p) => s + p.nodes.tests, 0),
+    tests: parts.reduce((s, p) => s + p.nodes.tests, 0),
     docs: towns.reduce((s, t) => s + t.stats.docs, 0),
   };
 }

@@ -131,8 +131,19 @@ is therefore readable as distance from the core, and newcomers join the edges.
   divided by 1.25.
 - A twin is a folder with two dominant cores (lib and test, src and docs): two town halves facing each other across
   a river.
-- The archetype places the top one or two levels (islands on a hex spiral, radial sectors, grid cells); streets inside
-  districts follow the structure rules above.
+- A flattened folder takes a neighbourhood form: a hamlet (mass under 25) gathers round a green, the full block nearest
+  its heart, when its lots can spare it; a street village (40 lots or more, 60% or more in its own files) runs along a
+  high street, a collector through its middle rows, and fills outward from it; any other is a plain neighbourhood.
+  Each threshold has a ±25% band round the incumbent.
+- A larger folder takes a district form, which arranges its children:
+  - **radial**: the dominant child at the core, the others in ring sectors in age order, a ring road round the core
+    and spokes between the sectors. The core is the polygon through the spokes' inner ends, so every sector is
+    convex. It needs three or more ring items and sectors under 171°, and otherwise falls back to polycentric.
+  - **twin**: the two heaviest children on either bank of a river 2.5 u wide, the rest joining the lighter bank in age
+    order; one bridge, or two on a river longer than 12 u.
+  - **gridiron**: rows of cells, every cut square to one axis; rows are remembered and newcomers join the last row.
+  - **polycentric**: recursive cuts, as in Structure.
+- Archipelago is the region's form: workspace groups become towns (Edges and open land).
 
 ## Edges and open land
 
@@ -153,8 +164,11 @@ Edges carry meaning:
 
 ## Archetype switch
 
-When a folder's archetype switches, the city it had is kept whole as the old town, an island of the new city; the new
-form grows beside it.
+- A town's root form is classified over the whole repository, old towns included, so a young new town keeps it.
+- When a town's root switches form, other than between the neighbourhood forms, the town as it stood is kept whole as
+  an old town where it stood. Its lots stay lit while any of their files lives; the files it holds live there for good.
+- A new town in the new form grows beside it from every other file, joined to it by a highway.
+- A switch between the neighbourhood forms, or of a folder inside a town, re-lays that folder in place.
 
 ## Road graph and addresses
 
