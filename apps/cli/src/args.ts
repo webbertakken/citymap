@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import { CitymapError } from "@citymap/ground-plan";
-import { THEME_NAMES, type Camera } from "@citymap/svg";
+import type { Camera } from "@citymap/svg";
+import { THEME_NAMES } from "@citymap/themes";
 
 export interface LayCommand {
   readonly kind: "lay";

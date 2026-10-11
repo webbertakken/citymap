@@ -21,12 +21,13 @@
       "name": "@citymap/cli",
       "version": "0.0.0",
       "bin": {
-        "citymap": "./src/main.ts",
+        "citymap": "./src/bin.ts",
       },
       "dependencies": {
         "@citymap/ground-plan": "workspace:*",
         "@citymap/history": "workspace:*",
         "@citymap/svg": "workspace:*",
+        "@citymap/themes": "workspace:*",
       },
     },
     "packages/ground-plan": {
@@ -51,6 +52,14 @@
       "version": "0.0.0",
       "dependencies": {
         "@citymap/ground-plan": "workspace:*",
+        "@citymap/themes": "workspace:*",
+      },
+    },
+    "packages/themes": {
+      "name": "@citymap/themes",
+      "version": "0.0.0",
+      "dependencies": {
+        "@citymap/ground-plan": "workspace:*",
       },
     },
   },
@@ -72,6 +81,8 @@
     "@citymap/history": ["@citymap/history@workspace:packages/history"],
 
     "@citymap/svg": ["@citymap/svg@workspace:packages/svg"],
+
+    "@citymap/themes": ["@citymap/themes@workspace:packages/themes"],
 
     "@jridgewell/resolve-uri": ["@jridgewell/resolve-uri@3.1.2", "", {}, "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw=="],
 

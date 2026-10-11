@@ -1,7 +1,7 @@
 import { DEFAULT_LAND_USES, initialState, layCity, type City, type Snapshot } from "@citymap/ground-plan";
+import { THEMES, THEME_NAMES } from "@citymap/themes";
 import { describe, expect, it } from "vitest";
 import { renderCity } from "./render";
-import { THEMES, THEME_NAMES } from "./themes";
 
 const files = (folder: string, n: number, born = 0) =>
   Array.from({ length: n }, (_, i) => {

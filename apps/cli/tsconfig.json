@@ -8,8 +8,17 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../../packages/ground-plan" },
-    { "path": "../../packages/history" },
-    { "path": "../../packages/svg" }
+    {
+      "path": "../../packages/ground-plan"
+    },
+    {
+      "path": "../../packages/history"
+    },
+    {
+      "path": "../../packages/svg"
+    },
+    {
+      "path": "../../packages/themes"
+    }
   ]
 }

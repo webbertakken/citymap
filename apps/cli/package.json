@@ -9,7 +9,8 @@
   "dependencies": {
     "@citymap/ground-plan": "workspace:*",
     "@citymap/history": "workspace:*",
-    "@citymap/svg": "workspace:*"
+    "@citymap/svg": "workspace:*",
+    "@citymap/themes": "workspace:*"
   },
   "scripts": {
     "test": "vitest run"

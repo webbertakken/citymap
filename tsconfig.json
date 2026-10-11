@@ -1,10 +1,23 @@
 {
   "files": [],
   "references": [
-    { "path": "./tsconfig.tooling.json" },
-    { "path": "packages/ground-plan" },
-    { "path": "packages/history" },
-    { "path": "packages/svg" },
-    { "path": "apps/cli" }
+    {
+      "path": "./tsconfig.tooling.json"
+    },
+    {
+      "path": "packages/ground-plan"
+    },
+    {
+      "path": "packages/history"
+    },
+    {
+      "path": "packages/svg"
+    },
+    {
+      "path": "packages/themes"
+    },
+    {
+      "path": "apps/cli"
+    }
   ]
 }
