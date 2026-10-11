@@ -14,6 +14,9 @@ const COVERAGE_EXCLUDE = [
   // Test fixtures, and the CLI's wiring-only entry point (proved by running it).
   "**/testing/**",
   "apps/cli/src/bin.ts",
+  // WebGL and the Next.js entry points cannot run in jsdom; the end-to-end suite proves them in a browser.
+  "apps/web/src/components/CityCanvas.tsx",
+  "apps/web/src/app/**",
 ];
 
 export default defineConfig({

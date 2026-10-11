@@ -5,5 +5,10 @@
     "outDir": "node_modules/.cache/tsc/tooling",
     "tsBuildInfoFile": "node_modules/.cache/tsc/tooling/tsconfig.tsbuildinfo"
   },
-  "include": ["vitest.config.ts", "scripts/**/*.ts"]
+  "include": ["vitest.config.ts", "scripts/**/*.ts"],
+  "references": [
+    {
+      "path": "./packages/ground-plan"
+    }
+  ]
 }
