@@ -12,6 +12,7 @@ interface Snapshot {
   readonly index: number; // first-parent position, 0 = oldest
   readonly files: readonly FileEntry[]; // sorted by compareKeys(path)
   readonly folderFirstSeen: ReadonlyMap<string, number>; // folder path -> first commit index holding it
+  readonly workspaces?: readonly string[]; // member folders declared by the root workspace manifests, when read
 }
 interface FileEntry {
   readonly path: string; // repo-relative, "/" separated, no leading "./"
@@ -38,9 +39,10 @@ interface FileEntry {
 
 ## Workspace members
 
-- A **workspace member** is a folder other than the root that directly holds a manifest: `package.json`, `Cargo.toml`,
-  `pyproject.toml`, `go.mod`, `composer.json`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `mix.exs`, `*.csproj`,
-  `*.gemspec`. Read from paths only.
+- When the snapshot carries `workspaces` (members declared by the root manifests, resolved by the history reader), those
+  are the members. Otherwise a **workspace member** is a folder other than the root that directly holds a manifest:
+  `package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`, `composer.json`, `pom.xml`, `build.gradle`,
+  `build.gradle.kts`, `mix.exs`, `*.csproj`, `*.gemspec`. Read from paths only.
 - Members nested inside another member are dropped. A **workspace group** is a folder holding at least two direct member
   children whose land files are at least half source (`2 × source ≥ land`, land excluding tests, fixtures, docs). Groups
   nested in groups are dropped. Sorted by `compareKeys`.
@@ -82,7 +84,7 @@ interface LotSeed {
 ```ts
 interface Plat {
   readonly version: 1;
-  readonly landKey: string;
+  readonly setting: string; // landKey(uses) + "|split:" + the split groups, sorted and comma-joined
   towns: Record<string, TownPlat>; // key: repository name, or `${name}/${group}`
   old: Record<string, OldTown[]>;
   rootForms: Record<string, Form>;

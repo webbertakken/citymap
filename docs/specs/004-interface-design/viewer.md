@@ -33,6 +33,12 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
 - Town names and the largest district names float over the map as text, never as images, and never overlap.
 - Styles are the five themes of the ground plan; the viewer and the SVG export share their colours.
 
+## Drill down
+
+- Every town can be drilled into: the panel offers it on each town, and so does the selection of anything in a town. The
+  map then shows that town alone, fitted to the window, with its own districts labelled and listed.
+- A breadcrumb in the bar ("city › town") leads back to the whole city; Escape does too when nothing is selected.
+
 ## Hover and select
 
 - Everything on the map answers to the pointer. Hovering shows a small card beside the pointer naming what is there:

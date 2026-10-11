@@ -50,7 +50,8 @@ Each concept has one name; the names in brackets are not used.
 - The plat is the fold of the layout over first-parent history, oldest commit first. The same repository at the same
   commit always yields the same plat and the same city.
 - A committed lockfile overrides the fold. A folder without git keeps its plat as local state.
-- The fold reads commits and trees only; it never needs file contents.
+- The fold reads commits and trees, and the contents of the repository's root workspace manifests only, at the commits
+  that change them; it never needs any other file's contents.
 - A file's identity follows exact renames: the fold carries it through every commit that moves a file unchanged (equal
   blob ids, no contents needed). A folder's identity is its path.
 
@@ -156,12 +157,19 @@ therefore readable as distance from the core, and newcomers join the edges.
 
 Edges carry meaning:
 
-- A workspace member is a folder, other than the root, that directly holds a package manifest; members are read from
-  paths alone.
-- A repository is one cohesive town. Each workspace group becomes its own town, sized by its land, its members as
-  districts, joined to the main town by a highway across open country. A highway continues a road: it joins, in both
-  towns, the end of a road of the highest class both offer at their edges, takes that class, and is drawn exactly like
-  it. A town without roads gets an approach street from its nearest edge to its centre.
+- Workspace members come from the repository's root workspace manifests: `package.json` workspaces,
+  `pnpm-workspace.yaml`, `lerna.json`, Cargo's `[workspace]` members, `go.work`, uv's `[tool.uv.workspace]` and
+  `deno.json` workspaces, their globs matched against the tree. Without such a manifest (or when one cannot be read), a
+  member is a folder, other than the root, that directly holds a package manifest, read from paths alone.
+- A workspace group is a folder holding two or more members whose land is mostly source.
+- A repository is one cohesive city. Each workspace group becomes its own town, sized by its land, its members as
+  districts, joined to the main town by a highway across open country.
+- Split groups give each member its own town instead, each joined to the main town by its own highway. `apps/` is split
+  by default; any other group (`packages/` and the like) may be split as a setting, off by default. Each setting has its
+  own plat, as the land dimension does.
+- A highway continues a road: it joins, in both towns, the end of a road of the highest class both offer at their edges,
+  takes that class, and is drawn exactly like it. A town without roads gets an approach street from its nearest edge to
+  its centre.
 - **Parks** hold docs.
 - **Reserve plots** hold room for growth inside neighbourhoods.
 
