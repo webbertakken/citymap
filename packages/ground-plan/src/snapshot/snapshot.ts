@@ -38,7 +38,12 @@ const validPath = (path: string) =>
   path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
 
 function parseFile(value: unknown, at: number): FileEntry {
-  if (!isRecord(value) || typeof value.path !== "string" || typeof value.identity !== "string" || !isIndex(value.firstSeen))
+  if (
+    !isRecord(value) ||
+    typeof value.path !== "string" ||
+    typeof value.identity !== "string" ||
+    !isIndex(value.firstSeen)
+  )
     return reject("snapshot/bad-shape", `file ${at} needs a path, an identity and a firstSeen index`, { at });
   if (!validPath(value.path)) return reject("snapshot/bad-path", `file ${at} has a bad path`, { at });
   return { path: value.path, identity: value.identity, firstSeen: value.firstSeen };

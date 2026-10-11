@@ -8,12 +8,19 @@ import { layoutTown } from "./layout";
 
 // Golden cities: any change to the layout shows up here as a reviewable diff of the city and its plat.
 const lay = (tree: TreeNode, room = 100) =>
-  layoutTown("golden", "golden", tree, outlineFor((tree.demand * 2 * room) / 100, { x: 0, y: 0 }, "golden"), emptyTownPlat(), {
-    order: "centre-out",
-    jog: "top-level",
-    warp: true,
-    densityPct: 50,
-  });
+  layoutTown(
+    "golden",
+    "golden",
+    tree,
+    outlineFor((tree.demand * 2 * room) / 100, { x: 0, y: 0 }, "golden"),
+    emptyTownPlat(),
+    {
+      order: "centre-out",
+      jog: "top-level",
+      warp: true,
+      densityPct: 50,
+    },
+  );
 
 describe("golden towns", () => {
   it("lays a hamlet", async () => {

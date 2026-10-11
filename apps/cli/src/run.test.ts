@@ -85,8 +85,12 @@ describe("runLay", () => {
   it("rejects a broken lockfile by name", async () => {
     const dir = repo(1);
     await expect(runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: "{" }).io)).rejects.toThrow("cli/lockfile");
-    await expect(runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: '{"commit":1}' }).io)).rejects.toThrow("cli/lockfile");
-    await expect(runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: '{"commit":"a","index":-1}' }).io)).rejects.toThrow("cli/lockfile");
+    await expect(runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: '{"commit":1}' }).io)).rejects.toThrow(
+      "cli/lockfile",
+    );
+    await expect(
+      runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: '{"commit":"a","index":-1}' }).io),
+    ).rejects.toThrow("cli/lockfile");
   });
 
   it("rejects a ref that names no commit", async () => {

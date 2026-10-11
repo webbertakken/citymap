@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LAND_USES, LAND_USES, WEIGHT_MILLE, classifyLandUse, landKey, lotCapacity, type LandUse } from "./land-use";
+import {
+  DEFAULT_LAND_USES,
+  LAND_USES,
+  WEIGHT_MILLE,
+  classifyLandUse,
+  landKey,
+  lotCapacity,
+  type LandUse,
+} from "./land-use";
 
 describe("classifyLandUse", () => {
   const cases: [string, LandUse][] = [

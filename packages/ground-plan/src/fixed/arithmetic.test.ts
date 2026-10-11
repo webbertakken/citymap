@@ -40,11 +40,7 @@ describe("roundDiv", () => {
 
   it("matches the bigint reference", () => {
     fc.assert(
-      fc.property(
-        safe,
-        positive,
-        (a, b) => roundDiv(a, b) === Number(bigFloor(2n * big(a) + big(b), 2n * big(b))),
-      ),
+      fc.property(safe, positive, (a, b) => roundDiv(a, b) === Number(bigFloor(2n * big(a) + big(b), 2n * big(b)))),
     );
   });
 });

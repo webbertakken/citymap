@@ -15,7 +15,13 @@ const snapshot = (entries: Snapshot["files"], repository = "demo"): Snapshot => 
   files: [...entries].sort((a, b) => (a.path < b.path ? -1 : 1)),
   folderFirstSeen: new Map(),
 });
-const options = { densityPct: 50, landUses: DEFAULT_LAND_USES, order: "centre-out", jog: "top-level", warp: true } as const;
+const options = {
+  densityPct: 50,
+  landUses: DEFAULT_LAND_USES,
+  order: "centre-out",
+  jog: "top-level",
+  warp: true,
+} as const;
 const lay = (entries: Snapshot["files"], repository?: string): City =>
   layCity(snapshot(entries, repository), initialState(options), options).city;
 const twin = () => lay([...files("lib", 300), ...files("kit", 250, 400), ...files("misc", 50, 800)]);
@@ -65,7 +71,10 @@ describe("renderCity", () => {
   });
 
   it("draws an empty city as an empty sheet with its header", () => {
-    const svg = renderCity({ repository: "x", commit: "worktree", towns: [], highways: [] }, { title: "empty", subtitle: "" });
+    const svg = renderCity(
+      { repository: "x", commit: "worktree", towns: [], highways: [] },
+      { title: "empty", subtitle: "" },
+    );
     expect(svg).toContain(">empty</text>");
   });
 

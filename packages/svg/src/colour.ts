@@ -21,7 +21,8 @@ export function oklch(l: number, c: number, hue: number): string {
     .join("")}`;
 }
 
-const channels = (c: string) => [1, 3, 5].map((i) => Number.parseInt(c.slice(i, i + 2), 16)) as [number, number, number];
+const channels = (c: string) =>
+  [1, 3, 5].map((i) => Number.parseInt(c.slice(i, i + 2), 16)) as [number, number, number];
 
 /** A blend of two hex colours: t = 0 is a, t = 1 is b. */
 export function mix(a: string, b: string, t: number): string {

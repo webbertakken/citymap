@@ -2,7 +2,18 @@ import type { FlatForm } from "../archetype/forms";
 import { BLOCK_LONG, BLOCK_SHORT, MODULE, PAVEMENT, ROAD_WIDTH, U } from "../constants";
 import { floorDiv, mulDiv, roundDiv } from "../fixed/arithmetic";
 import { DIRECTION, negate, normalise, perp, type Dir } from "../fixed/direction";
-import { area2, centroid, chord, clip, extent, inset, longestEdge, offsetFor, type Poly, type Pt } from "../fixed/polygon";
+import {
+  area2,
+  centroid,
+  chord,
+  clip,
+  extent,
+  inset,
+  longestEdge,
+  offsetFor,
+  type Poly,
+  type Pt,
+} from "../fixed/polygon";
 import type { GridRecord } from "../plat/plat";
 import type { LotSeed } from "../tree/tree";
 import { emit, road, toPoly, type Ctx } from "./context";
@@ -66,7 +77,16 @@ function freshGrid(land: readonly Pt[]): GridRecord {
   const across = ceilDiv(eb1, DIRECTION) - b0;
   const rows = Math.max(1, roundDiv(across + U, BLOCK_SHORT + U));
   const cols = Math.max(1, roundDiv(along + U, BLOCK_LONG + U));
-  return { dir: a, a0, b0, rowPitch: floorDiv(across + U, rows), colPitch: floorDiv(along + U, cols), span: 0, park: null, slots: {} };
+  return {
+    dir: a,
+    a0,
+    b0,
+    rowPitch: floorDiv(across + U, rows),
+    colPitch: floorDiv(along + U, cols),
+    span: 0,
+    park: null,
+    slots: {},
+  };
 }
 
 /** The cells a grid gives on today's land, in serpentine order, and its slots at any lot class. Pure. */
@@ -100,7 +120,14 @@ function layGrid(g: GridRecord, land: readonly Pt[]): Laid {
       if (block.p.length < 3) continue;
       const mid = floorDiv(t0 + t1, 2);
       const full = area2(block.p) * 10 >= 4 * (s1 - s0) * (t1 - t0);
-      const halves: [number, number][] = !full ? [] : backToBack ? [[t0, mid], [mid, t1]] : [[t0, t1]];
+      const halves: [number, number][] = !full
+        ? []
+        : backToBack
+          ? [
+              [t0, mid],
+              [mid, t1],
+            ]
+          : [[t0, t1]];
       cells.push({ pts: [...block.p], used: false, r, c, s0, s1, halves });
     }
   }
@@ -204,14 +231,19 @@ export function neighbourhood(
   if (g.span === 0) {
     // First lay: one-module slots tell how many blocks the lots need; lots then widen to fill those blocks.
     const narrow = slotsFor(1);
-    const lastCell = narrow[Math.max(1, lots.length) - 1]?.cell ?? (narrow[narrow.length - 1]?.cell ?? -1);
+    const lastCell = narrow[Math.max(1, lots.length) - 1]?.cell ?? narrow[narrow.length - 1]?.cell ?? -1;
     const modules = narrow.filter((s) => s.cell <= lastCell).length;
     g.span = Math.min(MAX_CLASS, Math.max(1, floorDiv(modules, Math.max(1, lots.length))));
     while (g.span > 1 && slotsFor(g.span).length < lots.length) g.span--;
   }
   for (let r = rMin + 1; r <= rMax; r++)
-    road(ctx, chord(land, perp(g.dir), (g.b0 + r * g.rowPitch - U / 2) * DIRECTION), r === g.high ? "collector" : "street");
-  for (let c = cMin + 1; c <= cMax; c++) road(ctx, chord(land, g.dir, (g.a0 + c * g.colPitch - U / 2) * DIRECTION), "lane");
+    road(
+      ctx,
+      chord(land, perp(g.dir), (g.b0 + r * g.rowPitch - U / 2) * DIRECTION),
+      r === g.high ? "collector" : "street",
+    );
+  for (let c = cMin + 1; c <= cMax; c++)
+    road(ctx, chord(land, g.dir, (g.a0 + c * g.colPitch - U / 2) * DIRECTION), "lane");
   const ordered = slotsFor(g.span);
   // A street village fills outward from its high street: the rows either side of it first.
   const high = g.high;

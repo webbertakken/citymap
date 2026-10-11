@@ -23,7 +23,15 @@ export interface LayoutOptions {
 /** What a folder's land is cut between: a child folder, the folder's own lots, or its own park. */
 export type Item =
   | { kind: "folder"; key: string; demand: number; massMille: number; firstSeen: number; node: TreeNode }
-  | { kind: "lots"; key: string; demand: number; massMille: number; firstSeen: number; lots: readonly LotSeed[]; district: string }
+  | {
+      kind: "lots";
+      key: string;
+      demand: number;
+      massMille: number;
+      firstSeen: number;
+      lots: readonly LotSeed[];
+      district: string;
+    }
   | { kind: "park"; key: string; demand: number; massMille: number; firstSeen: number; district: string };
 
 /** A lot as laid, before tints are hashed. */

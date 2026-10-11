@@ -55,7 +55,10 @@ function wards(ctx: Ctx, poly: Poly, rec: CutRecord, left: Item[], right: Item[]
   for (const [side, part] of sides) {
     const heaviest = part
       .filter((i): i is Extract<Item, { kind: "folder" }> => i.kind === "folder")
-      .reduce<Extract<Item, { kind: "folder" }> | undefined>((a, b) => (a && a.massMille >= b.massMille ? a : b), undefined);
+      .reduce<Extract<Item, { kind: "folder" }> | undefined>(
+        (a, b) => (a && a.massMille >= b.massMille ? a : b),
+        undefined,
+      );
     if (heaviest && part.length > 1)
       ctx.districts.push({
         pts: [...side.p],
@@ -100,7 +103,10 @@ export function decide(
   let rec = ctx.plat.cuts[key];
   if (rec) {
     const known = rec;
-    if (!chord(poly.p, known.n, known.c) || !items.some((i) => known.left.includes(i.key) || known.right.includes(i.key))) {
+    if (
+      !chord(poly.p, known.n, known.c) ||
+      !items.some((i) => known.left.includes(i.key) || known.right.includes(i.key))
+    ) {
       forget(ctx, key);
       rec = undefined;
     }
@@ -155,11 +161,23 @@ export function decide(
     }
   }
   const r = rec;
-  return { rec: r, left: items.filter((i) => r.left.includes(i.key)), right: items.filter((i) => r.right.includes(i.key)) };
+  return {
+    rec: r,
+    left: items.filter((i) => r.left.includes(i.key)),
+    right: items.filter((i) => r.right.includes(i.key)),
+  };
 }
 
 /** Cuts the land between ordered items, recursively; every cut is a road. */
-export function split(ctx: Ctx, items: Item[], poly: Poly, massMille: number, first: boolean, key: string, district: string) {
+export function split(
+  ctx: Ctx,
+  items: Item[],
+  poly: Poly,
+  massMille: number,
+  first: boolean,
+  key: string,
+  district: string,
+) {
   const decision = decide(ctx, items, poly, massMille, first, key);
   if (!decision) return place(ctx, poly, items[0] as Item, district);
   if (pinwheel(ctx, decision, poly, key, district)) return;
@@ -174,8 +192,24 @@ export function split(ctx: Ctx, items: Item[], poly: Poly, massMille: number, fi
   road(ctx, chord(poly.p, r.n, r.c), r.cls);
   if (major) wards(ctx, poly, r, left, right, key);
   const width = ROAD_WIDTH[r.cls];
-  split(ctx, left, clip(poly, r.n, r.c, width), massOf(left), false, `${key}>L`, major ? seedKey(`${key}>L`) : district);
-  split(ctx, right, clip(poly, negate(r.n), -r.c, width), massOf(right), false, `${key}>R`, major ? seedKey(`${key}>R`) : district);
+  split(
+    ctx,
+    left,
+    clip(poly, r.n, r.c, width),
+    massOf(left),
+    false,
+    `${key}>L`,
+    major ? seedKey(`${key}>L`) : district,
+  );
+  split(
+    ctx,
+    right,
+    clip(poly, negate(r.n), -r.c, width),
+    massOf(right),
+    false,
+    `${key}>R`,
+    major ? seedKey(`${key}>R`) : district,
+  );
 }
 
 /** The part of a segment whose coordinate along m lies within [lo, hi] (null bounds are open). */
@@ -191,7 +225,10 @@ export function trim(seg: readonly [Pt, Pt] | null, m: Dir, lo: number | null, h
     v === null ? open : Math.min(den, Math.max(0, (v - v0) * Math.sign(v1 - v0)));
   const [u0, u1] = [at(lo, v1 > v0 ? 0 : den), at(hi, v1 > v0 ? den : 0)].sort((x, y) => x - y) as [number, number];
   if (u1 <= u0) return null;
-  const point = (u: number): Pt => ({ x: a.x + mulDiv(b.x - a.x, u, den, "round"), y: a.y + mulDiv(b.y - a.y, u, den, "round") });
+  const point = (u: number): Pt => ({
+    x: a.x + mulDiv(b.x - a.x, u, den, "round"),
+    y: a.y + mulDiv(b.y - a.y, u, den, "round"),
+  });
   return [point(u0), point(u1)];
 }
 

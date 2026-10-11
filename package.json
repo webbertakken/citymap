@@ -4,21 +4,25 @@
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.2",
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "prepare": "husky",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
-    "lint": "oxlint --type-aware --max-warnings 0",
-    "typecheck": "tsc --build",
+    "lint": "oxlint",
+    "typecheck": "bun scripts/check-references.ts && tsc --build",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run coverage"
   },
   "lint-staged": {
-    "*.{ts,tsx,mts,js,jsx,mjs,json,jsonc,md,yml,yaml,toml,css}": "oxfmt --write --no-error-on-unmatched-pattern",
-    "*.{ts,tsx,mts,js,jsx,mjs}": "oxlint --type-aware --max-warnings 0",
+    "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,json,jsonc,json5,md,mdx,yml,yaml,toml,css,scss,less,html}": "oxfmt --write --no-error-on-unmatched-pattern",
+    "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}": "oxlint --no-error-on-unmatched-pattern",
     "*.{sh,bash}": "shellcheck",
+    ".husky/pre-*": "shellcheck",
     ".github/workflows/*.{yml,yaml}": "actionlint"
   },
   "devDependencies": {

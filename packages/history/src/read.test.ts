@@ -185,7 +185,9 @@ describe("parseRawLog", () => {
   });
 
   it("skips empty tokens and yields every commit", () => {
-    const commits = [...parseRawLog(["\u0001" + "a".repeat(40), "", "\n:100644 100644 x y M", "f.ts", "\n\u0001" + "b".repeat(40)])];
+    const commits = [
+      ...parseRawLog(["\u0001" + "a".repeat(40), "", "\n:100644 100644 x y M", "f.ts", "\n\u0001" + "b".repeat(40)]),
+    ];
     expect(commits).toEqual([
       { sha: "a".repeat(40), entries: [{ mode: "100644", blob: "y", status: "M", path: "f.ts" }] },
       { sha: "b".repeat(40), entries: [] },

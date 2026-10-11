@@ -37,7 +37,8 @@ export function* parseRawLog(tokens: Iterable<string>): Generator<RawCommit> {
       continue;
     }
     if (token === "") continue;
-    if (!current) throw new CitymapError("history/parse", "the log does not start with a commit", { token: token.slice(0, 80) });
+    if (!current)
+      throw new CitymapError("history/parse", "the log does not start with a commit", { token: token.slice(0, 80) });
     if (meta === null) {
       meta = token;
       continue;
@@ -87,7 +88,12 @@ function apply(
   }
   for (const entry of added.sort((a, b) => compareKeys(a.path, b.path))) {
     const moved = deleted.get(entry.blob)?.shift();
-    state.set(entry.path, moved ? { ...moved, blob: entry.blob } : { blob: entry.blob, identity: `${entry.path}@${index}`, firstSeen: index });
+    state.set(
+      entry.path,
+      moved
+        ? { ...moved, blob: entry.blob }
+        : { blob: entry.blob, identity: `${entry.path}@${index}`, firstSeen: index },
+    );
     for (let folder = folderOf(entry.path); !folders.has(folder); folder = folderOf(folder)) {
       folders.set(folder, index);
       if (folder === "") break;
@@ -95,7 +101,13 @@ function apply(
   }
 }
 
-function snapshotOf(repository: string, sha: string, index: number, state: Map<string, Live>, folders: Map<string, number>): Snapshot {
+function snapshotOf(
+  repository: string,
+  sha: string,
+  index: number,
+  state: Map<string, Live>,
+  folders: Map<string, number>,
+): Snapshot {
   const files: FileEntry[] = [...state]
     .sort(([a], [b]) => compareKeys(a, b))
     .map(([path, live]) => ({ path, identity: live.identity, firstSeen: live.firstSeen }));

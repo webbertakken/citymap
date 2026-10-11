@@ -100,7 +100,10 @@ describe("inset", () => {
   });
 
   it("skips a repeated vertex", () => {
-    const repeated: Poly = { p: [pt(0, 0), pt(0, 0), pt(1000, 0), pt(1000, 1000), pt(0, 1000)], w: [64, 64, 64, 64, 64] };
+    const repeated: Poly = {
+      p: [pt(0, 0), pt(0, 0), pt(1000, 0), pt(1000, 1000), pt(0, 1000)],
+      w: [64, 64, 64, 64, 64],
+    };
     expect(area2(inset(repeated, 12).p)).toBe(2 * 912 * 912);
   });
 

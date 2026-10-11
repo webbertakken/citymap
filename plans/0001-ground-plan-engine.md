@@ -1,9 +1,11 @@
 # 0001 Ground plan engine, CLI and viewer
 
 Build the ground plan as a product: a deterministic fixed-point engine, a history reader, a CLI, SVG output and a
-Next.js viewer. Specs: [vision](../docs/specs/001-project-vision/vision.md), [scope](../docs/specs/002-project-scope/scope.md),
-[architecture](../docs/specs/003-system-architecture/architecture.md), [ground plan](../docs/specs/006-ground-plan/ground-plan.md).
-Blueprints: [ground plan blueprints](../docs/specs/006-ground-plan/blueprints/README.md).
+Next.js viewer. Specs: [vision](../docs/specs/001-project-vision/vision.md),
+[scope](../docs/specs/002-project-scope/scope.md),
+[architecture](../docs/specs/003-system-architecture/architecture.md),
+[ground plan](../docs/specs/006-ground-plan/ground-plan.md). Blueprints:
+[ground plan blueprints](../docs/specs/006-ground-plan/blueprints/README.md).
 
 Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci` branch.
 
@@ -61,8 +63,8 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 
 ## Phase 5: history and CLI
 
-- [ ] `packages/history`: streaming `git log` reader, exact renames, submodules, folder first-seen; tests on a
-      generated fixture repository
+- [ ] `packages/history`: streaming `git log` reader, exact renames, submodules, folder first-seen; tests on a generated
+      fixture repository
 - [ ] `packages/svg`: Paper atlas and Dracula themes from the prototype, escaped labels
 - [ ] `apps/cli`: `citymap <repo> [--commit] [--out city.json] [--svg map.svg] [--lock] [--verbose]`
 - [ ] Commit

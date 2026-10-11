@@ -30,6 +30,8 @@ describe("serialiseCity and parseCity", () => {
 
   it("rejects text that is not JSON, and a bad shape by pointer", () => {
     expect(() => parseCity("[")).toThrow("city/bad-json");
-    expect(() => parseCity('{"repository":"x","commit":"y","towns":[{}],"highways":[]}')).toThrow("city/bad-shape: /towns/0/key");
+    expect(() => parseCity('{"repository":"x","commit":"y","towns":[{}],"highways":[]}')).toThrow(
+      "city/bad-shape: /towns/0/key",
+    );
   });
 });

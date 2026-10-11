@@ -56,7 +56,8 @@ export function parseCommandLine(argv: readonly string[]): Command {
   if (values.help) return { kind: "help" };
   if (positionals.length !== 1) return usage("name one repository");
   const density = Number(values.density);
-  if (!Number.isInteger(density) || density < 20 || density > 80) usage(`--density is an integer from 20 to 80, not ${values.density}`);
+  if (!Number.isInteger(density) || density < 20 || density > 80)
+    usage(`--density is an integer from 20 to 80, not ${values.density}`);
   return {
     kind: "lay",
     repo: positionals[0] as string,

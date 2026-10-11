@@ -50,7 +50,16 @@ export const lotCapacity = (use: LandUse): number => Math.max(1, roundDiv(1000, 
 /** The key of a land setting: its uses, sorted. Each setting has its own plat. */
 export const landKey = (uses: readonly LandUse[]): string => [...uses].sort(compareKeys).join(",");
 
-const VENDORED = new Set(["vendor", "vendored", "third_party", "third-party", "thirdparty", "node_modules", "external", "deps"]);
+const VENDORED = new Set([
+  "vendor",
+  "vendored",
+  "third_party",
+  "third-party",
+  "thirdparty",
+  "node_modules",
+  "external",
+  "deps",
+]);
 const FIXTURES = new Set([
   "fixtures",
   "__fixtures__",
@@ -63,7 +72,17 @@ const FIXTURES = new Set([
   "golden",
   "goldens",
 ]);
-const TESTS = new Set(["test", "tests", "__tests__", "spec", "specs", "e2e", "integration-tests", "testing", "__mocks__"]);
+const TESTS = new Set([
+  "test",
+  "tests",
+  "__tests__",
+  "spec",
+  "specs",
+  "e2e",
+  "integration-tests",
+  "testing",
+  "__mocks__",
+]);
 const EXAMPLES = new Set(["examples", "example", "demo", "demos", "playground", "playgrounds", "samples", "sample"]);
 const DOCS = new Set(["docs", "doc", "documentation", "website", "site"]);
 const GENERATED_FOLDERS = new Set(["dist", "generated", "__generated__"]);

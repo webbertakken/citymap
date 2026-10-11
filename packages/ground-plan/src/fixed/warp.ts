@@ -32,10 +32,7 @@ export function noise(seed: number, x: number, y: number, wavelength: number): n
   const c = lattice(seed, i, j + 1);
   const d = lattice(seed, i + 1, j + 1);
   return (
-    a +
-    floorDiv((b - a) * u, ONE) +
-    floorDiv((c - a) * v, ONE) +
-    floorDiv(floorDiv(u * v, ONE) * (a - b - c + d), ONE)
+    a + floorDiv((b - a) * u, ONE) + floorDiv((c - a) * v, ONE) + floorDiv(floorDiv(u * v, ONE) * (a - b - c + d), ONE)
   );
 }
 

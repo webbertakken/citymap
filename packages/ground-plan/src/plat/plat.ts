@@ -1,13 +1,14 @@
+import * as v from "valibot";
 import { FORMS, type Form } from "../archetype/forms";
-import { ROAD_CLASSES, ptCheck, townCheck } from "../city/checks";
+import { ptSchema, townSchema } from "../city/checks";
 import type { Town } from "../city/city";
-import type { RoadClass } from "../constants";
+import { ROAD_CLASSES, type RoadClass } from "../constants";
 import { CitymapError } from "../errors";
 import type { Dir } from "../fixed/direction";
 import type { Pt } from "../fixed/polygon";
 import type { ShareRecord } from "../tree/tree";
 import { canonicalJson } from "./canonical";
-import { array, int, literal, nat, nullable, object, oneOf, optional, record, ShapeError, str, type Check } from "./validate";
+import { int, nat, parseJson, validate } from "./schema";
 
 /** A remembered cut: its line, its class, the items on each side, and each side's land cap before it must move. */
 export interface CutRecord {
@@ -66,6 +67,8 @@ export interface OldTown {
   members: Record<string, string[]>;
 }
 
+export const PLAT_VERSION = 1;
+
 /** The persistent state of a city. */
 export interface Plat {
   version: 1;
@@ -75,7 +78,6 @@ export interface Plat {
   rootForms: Record<string, Form>;
 }
 
-export const PLAT_VERSION = 1;
 
 export const emptyTownPlat = (): TownPlat => ({
   centre: null,
@@ -92,58 +94,57 @@ export const emptyTownPlat = (): TownPlat => ({
 
 export const emptyPlat = (landKey: string): Plat => ({ version: 1, landKey, towns: {}, old: {}, rootForms: {} });
 
-const dirCheck: Check<Dir> = (v, p) => {
-  const pair = array(int)(v, p);
-  if (pair.length !== 2) throw new ShapeError(p, "a pair of integers");
-  return [pair[0] as number, pair[1] as number];
-};
-const strings = array(str);
+const dirSchema = v.strictTuple([int, int]);
+const strings = v.array(v.string());
 
-const townPlatCheck: Check<TownPlat> = object({
-  centre: nullable(ptCheck),
+const townPlatSchema = v.strictObject({
+  centre: v.nullable(ptSchema),
   area2: nat,
   cap2: nat,
   diameter: nat,
-  cuts: record(
-    object({
-      n: dirCheck,
+  cuts: v.record(
+    v.string(),
+    v.strictObject({
+      n: dirSchema,
       c: int,
-      cls: oneOf(ROAD_CLASSES),
+      cls: v.picklist(ROAD_CLASSES),
       left: strings,
       right: strings,
       capLeft: nat,
       capRight: nat,
-      river: optional(literal(true)),
+      river: v.exactOptional(v.literal(true)),
     }),
   ),
-  grids: record(
-    object({
-      dir: dirCheck,
+  grids: v.record(
+    v.string(),
+    v.strictObject({
+      dir: dirSchema,
       a0: int,
       b0: int,
       rowPitch: nat,
       colPitch: nat,
       span: nat,
-      green: optional(str),
-      high: optional(int),
-      park: nullable(object({ n: dirCheck, c: int })),
-      slots: record(str),
+      green: v.exactOptional(v.string()),
+      high: v.exactOptional(int),
+      park: v.nullable(v.strictObject({ n: dirSchema, c: int })),
+      slots: v.record(v.string(), v.string()),
     }),
   ),
-  shares: record(array(object({ key: str, members: strings }))),
-  forms: record(oneOf(FORMS)),
-  radial: record(
-    object({ core: str, start: int, order: strings, bounds: array(int), scaleMille: nat, caps: record(nat) }),
+  shares: v.record(v.string(), v.array(v.strictObject({ key: v.string(), members: strings }))),
+  forms: v.record(v.string(), v.picklist(FORMS)),
+  radial: v.record(
+    v.string(),
+    v.strictObject({ core: v.string(), start: int, order: strings, bounds: v.array(int), scaleMille: nat, caps: v.record(v.string(), nat) }),
   ),
-  addresses: record(str),
+  addresses: v.record(v.string(), v.string()),
 });
 
-const platCheck: Check<Plat> = object({
-  version: literal(1),
-  landKey: str,
-  towns: record(townPlatCheck),
-  old: record(array(object({ town: townCheck, members: record(strings) }))),
-  rootForms: record(oneOf(FORMS)),
+const platSchema = v.strictObject({
+  version: v.literal(PLAT_VERSION),
+  landKey: v.string(),
+  towns: v.record(v.string(), townPlatSchema),
+  old: v.record(v.string(), v.array(v.strictObject({ town: townSchema, members: v.record(v.string(), strings) }))),
+  rootForms: v.record(v.string(), v.picklist(FORMS)),
 });
 
 /** The plat as canonical JSON: sorted keys, integers only, one text per plat. */
@@ -151,22 +152,13 @@ export const serialisePlat = (plat: Plat): string => canonicalJson(plat);
 
 /** Parses and validates a serialised plat. */
 export function parsePlat(text: string): Plat {
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch (error) {
-    throw new CitymapError("plat/bad-json", "the plat is not JSON", { reason: String(error) });
-  }
-  const version = (value as { version?: unknown } | null)?.version;
-  if (typeof version === "number" && version > PLAT_VERSION)
-    throw new CitymapError("plat/too-new", `plat version ${version} is newer than ${PLAT_VERSION}`, { version });
-  if (version !== PLAT_VERSION)
-    throw new CitymapError("plat/bad-version", `plat version ${String(version)} is not supported`, { version });
-  try {
-    return platCheck(value, "");
-  } catch (error) {
-    // The validators throw nothing but shape errors.
-    const shape = error as ShapeError;
-    throw new CitymapError("plat/bad-shape", shape.message, { pointer: shape.pointer, expected: shape.expected });
-  }
+  const value = parseJson(text, "plat/bad-json");
+  const version = v.safeParse(v.looseObject({ version: v.number() }), value);
+  if (version.success && version.output.version > PLAT_VERSION)
+    throw new CitymapError("plat/too-new", `plat version ${version.output.version} is newer than ${PLAT_VERSION}`, {
+      version: version.output.version,
+    });
+  if (!version.success || version.output.version !== PLAT_VERSION)
+    throw new CitymapError("plat/bad-version", "the plat's version is not supported");
+  return validate(platSchema, value, "plat/bad-shape");
 }

@@ -73,7 +73,15 @@ export function partition(ctx: Ctx, node: TreeNode, poly: Poly, district: string
   ctx.plat.forms[node.path] = form;
   if (node === ctx.root) ctx.form = form;
   if (node.depth >= 1 && (node.depth === 1 || node.massMille * 1000 >= LABEL_MILLE * ctx.root.massMille))
-    ctx.districts.push({ pts: [...poly.p], path: node.path, name: node.name, depth: node.depth, massMille: node.massMille, form, ward: false });
+    ctx.districts.push({
+      pts: [...poly.p],
+      path: node.path,
+      name: node.name,
+      depth: node.depth,
+      massMille: node.massMille,
+      form,
+      ward: false,
+    });
   const blocksBefore = ctx.blocks.length;
   const lotsBefore = ctx.lots.length;
   if (isFlat(form)) {
@@ -87,7 +95,15 @@ export function partition(ctx: Ctx, node: TreeNode, poly: Poly, district: string
     (form === "radial" && radial(ctx, node, items, poly, district)) ||
     (form === "twin" && twin(ctx, node, items, poly, district));
   if (!done)
-    split(ctx, ctx.options.order === "centre-out" ? centreOut(items) : items, poly, node.massMille, true, node.path, district);
+    split(
+      ctx,
+      ctx.options.order === "centre-out" ? centreOut(items) : items,
+      poly,
+      node.massMille,
+      true,
+      node.path,
+      district,
+    );
   // Everything laid inside this folder without a district form yet takes this one.
   for (let i = blocksBefore; i < ctx.blocks.length; i++) (ctx.blocks[i] as { form?: typeof form }).form ??= form;
   for (let i = lotsBefore; i < ctx.lots.length; i++) (ctx.lots[i] as { form?: typeof form }).form ??= form;
@@ -137,7 +153,10 @@ export function radial(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, dist
   const byKey = new Map(items.map((i) => [i.key, i]));
   if (!rec || outgrown) {
     const order = known
-      ? [...known.order.filter((k) => present.some((i) => i.key === k)), ...present.filter((i) => !known.order.includes(i.key)).map((i) => i.key)]
+      ? [
+          ...known.order.filter((k) => present.some((i) => i.key === k)),
+          ...present.filter((i) => !known.order.includes(i.key)).map((i) => i.key),
+        ]
       : present.map((i) => i.key);
     if (order.length < 3) return false;
     const start = known?.start ?? floorDiv(unitMille(`${seedKey(node.path)}#radial`) * TURN, 1000);
@@ -231,11 +250,26 @@ export function twin(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, distri
   const [a, b] = seg;
   const length = isqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2);
   const reachOut = RIVER / 2 + 2 * PAVEMENT;
-  for (const [num, den] of length > 12 * U ? [[1, 3], [2, 3]] : [[1, 2]]) {
-    const m = { x: a.x + roundDiv((b.x - a.x) * (num as number), den as number), y: a.y + roundDiv((b.y - a.y) * (num as number), den as number) };
+  for (const [num, den] of length > 12 * U
+    ? [
+        [1, 3],
+        [2, 3],
+      ]
+    : [[1, 2]]) {
+    const m = {
+      x: a.x + roundDiv((b.x - a.x) * (num as number), den as number),
+      y: a.y + roundDiv((b.y - a.y) * (num as number), den as number),
+    };
     const dx = mulDiv(r.n[0], reachOut, DIRECTION, "round");
     const dy = mulDiv(r.n[1], reachOut, DIRECTION, "round");
-    road(ctx, [{ x: m.x - dx, y: m.y - dy }, { x: m.x + dx, y: m.y + dy }], "street");
+    road(
+      ctx,
+      [
+        { x: m.x - dx, y: m.y - dy },
+        { x: m.x + dx, y: m.y + dy },
+      ],
+      "street",
+    );
   }
   const banks: [Item[], Poly, string][] = [
     [decision.left, clip(poly, r.n, r.c, RIVER), `${node.path}>L`],
@@ -243,7 +277,16 @@ export function twin(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, distri
   ];
   for (const [part, bank, sub] of banks) {
     if (part.length === 0) reserve(ctx, bank, district);
-    else split(ctx, part, bank, part.reduce((sum, i) => sum + i.massMille, 0), false, sub, seedKey(sub));
+    else
+      split(
+        ctx,
+        part,
+        bank,
+        part.reduce((sum, i) => sum + i.massMille, 0),
+        false,
+        sub,
+        seedKey(sub),
+      );
   }
   return true;
 }

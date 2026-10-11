@@ -95,7 +95,9 @@ describe("classifyNode", () => {
 
   it("flattens a folder without children, or under the flatten limit", () => {
     expect(classifyNode(node({ path: "p", massMille: 1000, demand: FLATTEN_LIMIT * 9 }), undefined)).toBe("hamlet");
-    expect(classifyNode(node({ path: "p", children: [child], massMille: 1000, demand: FLATTEN_LIMIT }), undefined)).toBe("hamlet");
+    expect(
+      classifyNode(node({ path: "p", children: [child], massMille: 1000, demand: FLATTEN_LIMIT }), undefined),
+    ).toBe("hamlet");
   });
 
   it("cuts a folder over the flatten limit", () => {

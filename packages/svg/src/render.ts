@@ -56,12 +56,16 @@ export function renderCity(city: City, options: RenderOptions): string {
   city.towns.forEach((town, ti) => {
     const dash = town.old ? ` stroke-dasharray="${sw(80)} ${sw(48)}"` : "";
     out.push(`<clipPath id="town${ti}"><path d="${poly(town.outline)}"/></clipPath>`);
-    out.push(`<path d="${poly(town.outline)}" fill="${theme.ground}" stroke="${theme.outline}" stroke-width="${sw(32)}"${dash}/>`);
+    out.push(
+      `<path d="${poly(town.outline)}" fill="${theme.ground}" stroke="${theme.outline}" stroke-width="${sw(32)}"${dash}/>`,
+    );
     out.push(`<g clip-path="url(#town${ti})">`);
     for (const b of town.blocks) {
       if (b.kind === "reserve") {
         const [fill, stroke] = theme.reserve(b.district);
-        out.push(`<path d="${poly(b.pts)}" fill="${fill}" stroke="${stroke}" stroke-width="${thin(0.8)}" stroke-dasharray="${thin(3)} ${thin(2)}"/>`);
+        out.push(
+          `<path d="${poly(b.pts)}" fill="${fill}" stroke="${stroke}" stroke-width="${thin(0.8)}" stroke-dasharray="${thin(3)} ${thin(2)}"/>`,
+        );
         continue;
       }
       const fill =
@@ -74,7 +78,8 @@ export function renderCity(city: City, options: RenderOptions): string {
               : theme.block(b.district);
       out.push(`<path d="${poly(b.pts)}" fill="${fill}"/>`);
     }
-    for (const w of town.water) out.push(`<path d="${poly(w)}" fill="${theme.water}" stroke="${theme.waterline}" stroke-width="${thin(0.6)}"/>`);
+    for (const w of town.water)
+      out.push(`<path d="${poly(w)}" fill="${theme.water}" stroke="${theme.waterline}" stroke-width="${thin(0.6)}"/>`);
     // Roads: every casing, then every fill, smallest class first, so junctions merge.
     const roads = [...town.roads].sort((a, b) => ORDER.indexOf(a.cls) - ORDER.indexOf(b.cls));
     for (const r of roads) out.push(roadPath(r.pts, r.cls, true));
@@ -90,13 +95,24 @@ export function renderCity(city: City, options: RenderOptions): string {
       if (lot.vacant) {
         // A vacant lot keeps its place until renewal: an empty plot with a dashed edge.
         const [fill, stroke] = theme.reserve(lot.district);
-        out.push(`<path d="${poly(lot.pts)}" fill="${fill}" stroke="${stroke}" stroke-width="${thin(0.5)}" stroke-dasharray="${thin(1.5)} ${thin(1)}"/>`);
+        out.push(
+          `<path d="${poly(lot.pts)}" fill="${fill}" stroke="${stroke}" stroke-width="${thin(0.5)}" stroke-dasharray="${thin(1.5)} ${thin(1)}"/>`,
+        );
         continue;
       }
       const marked = options.highlight?.has(lot.key) ?? false;
-      const fill = marked ? "#E4572E" : byForm ? theme.form(lot.form ?? "polycentric", true) : theme.lot(lot.district, lot.use === "source");
-      if (dimetric) out.push(`<path d="${poly(lot.pts)}" transform="translate(0 ${(24 * scale).toFixed(2)})" fill="${theme.plinth(lot.district)}"/>`);
-      out.push(`<path d="${poly(lot.pts)}" fill="${fill}" stroke="${marked ? "#5A1A0A" : theme.ground}" stroke-width="${Math.min(0.8, 2.8 * scale).toFixed(2)}"/>`);
+      const fill = marked
+        ? "#E4572E"
+        : byForm
+          ? theme.form(lot.form ?? "polycentric", true)
+          : theme.lot(lot.district, lot.use === "source");
+      if (dimetric)
+        out.push(
+          `<path d="${poly(lot.pts)}" transform="translate(0 ${(24 * scale).toFixed(2)})" fill="${theme.plinth(lot.district)}"/>`,
+        );
+      out.push(
+        `<path d="${poly(lot.pts)}" fill="${fill}" stroke="${marked ? "#5A1A0A" : theme.ground}" stroke-width="${Math.min(0.8, 2.8 * scale).toFixed(2)}"/>`,
+      );
     }
     out.push("</g>");
   });
@@ -130,7 +146,9 @@ export function renderCity(city: City, options: RenderOptions): string {
     label(centroid(d.pts), major ? d.name.toUpperCase() : d.name, major ? 14 : 11, major ? 700 : 600, major ? 1.5 : 0);
   }
   out.push(`<rect width="${width}" height="${HEADER}" fill="${theme.header}"/>`);
-  out.push(`<text x="20" y="28" font-size="22" font-weight="700" fill="${theme.headerText}">${escapeText(options.title)}</text>`);
+  out.push(
+    `<text x="20" y="28" font-size="22" font-weight="700" fill="${theme.headerText}">${escapeText(options.title)}</text>`,
+  );
   out.push(`<text x="20" y="52" font-size="15" fill="${theme.subText}">${escapeText(options.subtitle)}</text>`);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Noto Sans, DejaVu Sans, sans-serif">${out.join("")}</svg>`;
 }

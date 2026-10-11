@@ -151,7 +151,12 @@ export function buildTree(
     let n = node;
     while (!isRoot && n.lots.length === 0 && n.docs === 0 && n.children.length === 1) {
       const child = n.children[0] as TreeNode;
-      n = { ...child, name: `${n.name}/${child.name}`, depth: n.depth, firstSeen: Math.min(n.firstSeen, child.firstSeen) };
+      n = {
+        ...child,
+        name: `${n.name}/${child.name}`,
+        depth: n.depth,
+        firstSeen: Math.min(n.firstSeen, child.firstSeen),
+      };
     }
     return { ...n, children: n.children.map((c) => collapse({ ...c, depth: n.depth + 1 }, false)) };
   };

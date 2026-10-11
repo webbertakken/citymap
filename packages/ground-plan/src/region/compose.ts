@@ -91,11 +91,22 @@ export function layCity(
   const parts: Part[] = [
     { name: snapshot.repository, key: snapshot.repository, root: "", exclude: groups, firstSeen: 0 },
     ...groups
-      .map((g) => ({ name: g, key: `${snapshot.repository}/${g}`, root: g, exclude: [], firstSeen: snapshot.folderFirstSeen.get(g) ?? 0 }))
+      .map((g) => ({
+        name: g,
+        key: `${snapshot.repository}/${g}`,
+        root: g,
+        exclude: [],
+        firstSeen: snapshot.folderFirstSeen.get(g) ?? 0,
+      }))
       .sort((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.name, b.name)),
   ];
   const live = new Set(snapshot.files.map((f) => f.identity));
-  const treeOptions = (part: Part) => ({ root: part.root, exclude: part.exclude, landUses: options.landUses, densityPct: options.densityPct });
+  const treeOptions = (part: Part) => ({
+    root: part.root,
+    exclude: part.exclude,
+    landUses: options.landUses,
+    densityPct: options.densityPct,
+  });
 
   // Each part's tree, without the files its old towns hold; a root switch first freezes the town as it stood.
   const laidParts = parts.flatMap((part) => {
@@ -119,7 +130,10 @@ export function layCity(
       for (const lot of before.lots) if (!lot.vacant) members[lot.key] ??= [lot.key];
       const list = (plat.old[part.key] ??= []);
       const name = oldTownName(part.name, list.length + 1);
-      events.push({ code: "plat/old-town", detail: { key: part.key, from: previous, to: rootForm, lots: before.lots.length } });
+      events.push({
+        code: "plat/old-town",
+        detail: { key: part.key, from: previous, to: rootForm, lots: before.lots.length },
+      });
       list.push({ town: { ...before, name, old: true }, members });
       plat.towns[part.key] = emptyTownPlat();
     }
@@ -133,7 +147,10 @@ export function layCity(
     .flatMap(([successor, list]: [string, OldTown[]]) =>
       list.map((o) => ({
         successor,
-        town: { ...o.town, lots: o.town.lots.map((l) => ({ ...l, vacant: !(o.members[l.key] ?? []).some((m) => live.has(m)) })) },
+        town: {
+          ...o.town,
+          lots: o.town.lots.map((l) => ({ ...l, vacant: !(o.members[l.key] ?? []).some((m) => live.has(m)) })),
+        },
       })),
     );
   const footprint = (t: Town) => {
@@ -148,7 +165,8 @@ export function layCity(
     const townPlat = { ...(plat.towns[part.key] ?? emptyTownPlat()), shares };
     const demand2 = tree.demand * 2;
     if (townPlat.area2 === 0 || demand2 > townPlat.cap2) {
-      if (townPlat.area2 > 0) events.push({ code: "plat/grow", detail: { key: part.key, from: townPlat.area2, to: demand2 } });
+      if (townPlat.area2 > 0)
+        events.push({ code: "plat/grow", detail: { key: part.key, from: townPlat.area2, to: demand2 } });
       townPlat.area2 = Math.max(townPlat.area2, demand2);
       townPlat.cap2 = floorDiv(demand2 * GROWTH_PCT, 100);
     }
@@ -173,7 +191,8 @@ export function layCity(
     } else if (i === 0) {
       centre = outward({ x: 0, y: 0 }, dir(hashAngle(`${part.key}#new`, 628)));
     } else {
-      const angle = -TURN / 4 + floorDiv((i - 1) * TURN, laidParts.length - 1) + floorDiv((fnv1a(part.key) % 100) * 163, 100);
+      const angle =
+        -TURN / 4 + floorDiv((i - 1) * TURN, laidParts.length - 1) + floorDiv((fnv1a(part.key) % 100) * 163, 100);
       const d = dir(angle);
       // The main town is placed first, so a group town starts beyond it.
       centre = outward(along(d, (placed[0] as { radius: number }).radius + radius + GAP), d);
@@ -228,4 +247,3 @@ export function layCity(
     events,
   };
 }
-

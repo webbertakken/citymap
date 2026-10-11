@@ -65,7 +65,14 @@ export function layoutTown(
   partition(ctx, root, toPoly(outline), "");
   const laid = options.warp
     ? warpTown(ctx, key, outline)
-    : { outline: [...outline], roads: ctx.roads, blocks: ctx.blocks, lots: ctx.lots, districts: ctx.districts, water: ctx.water };
+    : {
+        outline: [...outline],
+        roads: ctx.roads,
+        blocks: ctx.blocks,
+        lots: ctx.lots,
+        districts: ctx.districts,
+        water: ctx.water,
+      };
   const town: Town = {
     key,
     name,

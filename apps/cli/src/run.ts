@@ -79,7 +79,8 @@ export async function runLay(command: LayCommand, io: Io): Promise<City> {
   let city: City | null = null;
   let commits = 0;
   let index = 0;
-  const onEvent = (e: { code: string; detail: Readonly<Record<string, string | number>> }) => io.log(`${e.code} ${fields(e.detail)}`);
+  const onEvent = (e: { code: string; detail: Readonly<Record<string, string | number>> }) =>
+    io.log(`${e.code} ${fields(e.detail)}`);
   for await (const snapshot of readHistory(repo, { to: target, from: lock?.index ?? 0, onEvent })) {
     const laid = layCity(snapshot, state, options);
     state = laid.state;
@@ -104,6 +105,8 @@ export async function runLay(command: LayCommand, io: Io): Promise<City> {
       }),
     );
   if (command.lock) io.writeFile(join(repo, LOCKFILE), canonicalJson({ commit: target, index, plat: state.plat }));
-  io.log(`fold/done repository=${laid.repository} commits=${commits} lots=${lots} overflow=${overflow} ms=${Math.round(io.now() - started)}`);
+  io.log(
+    `fold/done repository=${laid.repository} commits=${commits} lots=${lots} overflow=${overflow} ms=${Math.round(io.now() - started)}`,
+  );
   return laid;
 }
