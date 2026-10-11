@@ -42,12 +42,12 @@ their footprint drives the plan.
 
 ## The four families at a glance
 
-| Family | Tools | Roads | Stable under small change? | Looks like a city? |
-| --- | --- | --- | --- | --- |
-| Nested rectangle packing (kd-tree "lightmap" packer) | CodeCity, SoftVis3D district, Getaviz, CodeMetropolis, gocity, JSCity | Gaps between nested platforms | No: inputs re-sorted by size each run | Dense downtown, no streets |
-| Space-filling treemap | CodeCharta (default), BabiaXR, git-truck, hyt0019/code-city, many 2026 hobby tools | Padding strips | No for squarified; better for slice-and-dice, pivot, Hilbert/Moore, local moves | Grid of slabs; "Manhattan from orbit" |
-| Street tree (EvoStreets) | EvoStreets, SoftVis3D evostreet, CodeCharta StreetMap/TreeMapStreet, SEE | One straight road per folder, alternating orientation by depth | Yes, if insertion order and sides are frozen (EvoStreets, SEE); no otherwise (SoftVis3D, CodeCharta) | Suburban fishbone, long and sparse |
-| Organic / graph / terrain | Gource, IslandViz, Software Cartography, repo-visualizer, ExplorViz spiral | None, or dependency edges | Varies; force simulations are not deterministic | Islands, galaxies, terrain |
+| Family                                               | Tools                                                                              | Roads                                                          | Stable under small change?                                                                           | Looks like a city?                    |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Nested rectangle packing (kd-tree "lightmap" packer) | CodeCity, SoftVis3D district, Getaviz, CodeMetropolis, gocity, JSCity              | Gaps between nested platforms                                  | No: inputs re-sorted by size each run                                                                | Dense downtown, no streets            |
+| Space-filling treemap                                | CodeCharta (default), BabiaXR, git-truck, hyt0019/code-city, many 2026 hobby tools | Padding strips                                                 | No for squarified; better for slice-and-dice, pivot, Hilbert/Moore, local moves                      | Grid of slabs; "Manhattan from orbit" |
+| Street tree (EvoStreets)                             | EvoStreets, SoftVis3D evostreet, CodeCharta StreetMap/TreeMapStreet, SEE           | One straight road per folder, alternating orientation by depth | Yes, if insertion order and sides are frozen (EvoStreets, SEE); no otherwise (SoftVis3D, CodeCharta) | Suburban fishbone, long and sparse    |
+| Organic / graph / terrain                            | Gource, IslandViz, Software Cartography, repo-visualizer, ExplorViz spiral         | None, or dependency edges                                      | Varies; force simulations are not deterministic                                                      | Islands, galaxies, terrain            |
 
 ## Tool by tool
 
@@ -287,7 +287,7 @@ Five layouts: Squarified TreeMap (default), StreetMap, TreeMapStreet, Sunburst, 
 - Animated history, not a map. Directories are nodes in a physics simulation: repelled by siblings, pulled onto
   their parent's radius, pushed along the grandparent-to-parent direction; coincident nodes are separated with
   `rand()` ([dirnode.cpp L604-L720](https://github.com/acaudwell/Gource/blob/70db547c6b8b40745fb41a8db7e8d28897be1a9e/src/dirnode.cpp#L604-L720)).
-  Files sit in concentric rings round their directory, ring *n* holding about *n*·π files
+  Files sit in concentric rings round their directory, ring _n_ holding about _n_·π files
   ([L842-L880](https://github.com/acaudwell/Gource/blob/70db547c6b8b40745fb41a8db7e8d28897be1a9e/src/dirnode.cpp#L842-L880)).
 - GPL-3.0, 13.1k stars, last push 2026-03 ([repo](https://github.com/acaudwell/Gource), [site](https://gource.io)).
 - **Steal:** ring packing for small leaf sets (a hamlet around a green); the sense of growth over time.
@@ -331,12 +331,12 @@ Five layouts: Squarified TreeMap (default), StreetMap, TreeMapStreet, Sunburst, 
 
 ### 2017 to 2026 hobby and newcomer code cities
 
-| Project | Layout | Deterministic | Stable | Notes |
-| --- | --- | --- | --- | --- |
-| [gocity](https://github.com/rodrigo-brito/gocity) (MIT, 1.8k stars, 2025-12) | Children sorted by width descending, then column-wise shelf packing with `ceil(sqrt(n))` per column ([position.go](https://github.com/rodrigo-brito/gocity/blob/f2b5f40ced5929a8de100a87fec53bac0d296a06/pkg/model/position.go)) | Yes | No | Go only |
-| [JSCity](https://github.com/aserg-ufmg/JSCity) (GPL-2.0, 1.4k stars, 2019) | Row-major grid with `floor(sqrt(n))` columns in alphabetical order ([city.js L140-L190](https://github.com/aserg-ufmg/JSCity/blob/1d54dc991a768294be21b73ef8b0445b40f4fea5/js/city.js#L140-L190); [arXiv 1705.05476](https://arxiv.org/abs/1705.05476)) | Yes | No: insertions shift everything after them; column count jumps at squares | Browser |
-| [hyt0019/code-city](https://github.com/hyt0019/code-city) (MIT, 2026) | Three levels (repo, top folder, file), d3 squarify sorted by value then key; log-weighted land `4 + log2(lines+1)`; side `max(168, ceil(sqrt(files)·23))` ([treemap.ts](https://github.com/hyt0019/code-city/blob/28914e7b55d4b3f4ba7692a79a3a46d4372fb248/src/layout/treemap.ts)) | Yes, explicitly | No (see experiment B) | Isometric SVG banners; nice style ([demo](https://hyt0019.github.io/code-city/)) |
-| [Manavarya09/code-city](https://github.com/Manavarya09/code-city) (MIT, 2026) | Hand-rolled squarified treemap; filler buildings and colours from `Math.random()` ([city.js](https://github.com/Manavarya09/code-city/blob/978001a4d259b95c8e431a12fbb3ba115ce85936/app/city.js)) | No | No | Typical of the 2026 wave |
+| Project                                                                       | Layout                                                                                                                                                                                                                                                                             | Deterministic   | Stable                                                                    | Notes                                                                            |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| [gocity](https://github.com/rodrigo-brito/gocity) (MIT, 1.8k stars, 2025-12)  | Children sorted by width descending, then column-wise shelf packing with `ceil(sqrt(n))` per column ([position.go](https://github.com/rodrigo-brito/gocity/blob/f2b5f40ced5929a8de100a87fec53bac0d296a06/pkg/model/position.go))                                                   | Yes             | No                                                                        | Go only                                                                          |
+| [JSCity](https://github.com/aserg-ufmg/JSCity) (GPL-2.0, 1.4k stars, 2019)    | Row-major grid with `floor(sqrt(n))` columns in alphabetical order ([city.js L140-L190](https://github.com/aserg-ufmg/JSCity/blob/1d54dc991a768294be21b73ef8b0445b40f4fea5/js/city.js#L140-L190); [arXiv 1705.05476](https://arxiv.org/abs/1705.05476))                            | Yes             | No: insertions shift everything after them; column count jumps at squares | Browser                                                                          |
+| [hyt0019/code-city](https://github.com/hyt0019/code-city) (MIT, 2026)         | Three levels (repo, top folder, file), d3 squarify sorted by value then key; log-weighted land `4 + log2(lines+1)`; side `max(168, ceil(sqrt(files)·23))` ([treemap.ts](https://github.com/hyt0019/code-city/blob/28914e7b55d4b3f4ba7692a79a3a46d4372fb248/src/layout/treemap.ts)) | Yes, explicitly | No (see experiment B)                                                     | Isometric SVG banners; nice style ([demo](https://hyt0019.github.io/code-city/)) |
+| [Manavarya09/code-city](https://github.com/Manavarya09/code-city) (MIT, 2026) | Hand-rolled squarified treemap; filler buildings and colours from `Math.random()` ([city.js](https://github.com/Manavarya09/code-city/blob/978001a4d259b95c8e431a12fbb3ba115ce85936/app/city.js))                                                                                  | No              | No                                                                        | Typical of the 2026 wave                                                         |
 
 GitHub topic search on 2026-10-10 shows many more 2026 "codebase as a 3D city" repositories with near-zero stars
 ([topic search](https://api.github.com/search/repositories?q=topic:code-visualization+city)). The ones I read all use a
@@ -349,23 +349,23 @@ Both scripts are in the appendix; run with `bun`.
 **A. SoftVis3D settings on codecity-visualizer 0.4.6.** Seven sibling folders under `src/` with 3 to 7 equal-size
 files each. Measured relative positions (anchored on one file) before and after adding one folder.
 
-| Layout | Add `auth` (sorts early) | Add `zeta` (sorts last) |
-| --- | --- | --- |
-| evostreet | 46 / 47 shapes moved | 1 / 47 |
-| district | 41 / 47 | 5 / 47 |
+| Layout    | Add `auth` (sorts early) | Add `zeta` (sorts last) |
+| --------- | ------------------------ | ----------------------- |
+| evostreet | 46 / 47 shapes moved     | 1 / 47                  |
+| district  | 41 / 47                  | 5 / 47                  |
 
 Reading: stability depends entirely on where the new item lands in the sort order. Append-at-end is almost free;
 insert-in-the-middle reshuffles the city. This is why EvoStreets freezes order by first appearance instead of by name.
 
 **B. d3 treemaps in a fixed square frame.** 50 random trees of 8 folders with 5 to 24 files (heavy-tailed sizes).
-Share of files *outside* the changed folder whose centre moved more than half their own size:
+Share of files _outside_ the changed folder whose centre moved more than half their own size:
 
-| Tiling | Add a sibling folder | Double one folder |
-| --- | --- | --- |
-| squarify, sorted by size (d3 advice; hyt0019, git-truck) | 72% | 81% |
-| squarify, input order (CodeCharta) | 79% | 81% |
-| binary, input order | 67% | 75% |
-| slice-and-dice, input order | 50% | 56% |
+| Tiling                                                   | Add a sibling folder | Double one folder |
+| -------------------------------------------------------- | -------------------- | ----------------- |
+| squarify, sorted by size (d3 advice; hyt0019, git-truck) | 72%                  | 81%               |
+| squarify, input order (CodeCharta)                       | 79%                  | 81%               |
+| binary, input order                                      | 67%                  | 75%               |
+| slice-and-dice, input order                              | 50%                  | 56%               |
 
 Reading: any layout that re-divides a fixed frame must move its neighbours when one part grows. Slice-and-dice is the
 least bad, matching Steinbrückner's ranking, but still moves half the city. To move nothing, the city has to be allowed
@@ -477,24 +477,44 @@ Experiment A (codecity-visualizer 0.4.6 with SoftVis3D's parameters):
 ```ts
 // bun add codecity-visualizer@0.4.6 && bun evo.ts
 const CCV = require("codecity-visualizer");
-const TreeNode = CCV.components.node, Version = CCV.components.version;
+const TreeNode = CCV.components.node,
+  Version = CCV.components.version;
 function build(folders: string[]) {
   const root = new TreeNode("root");
   for (const f of [...folders].sort((a, b) => a.localeCompare(b))) {
-    const d = new TreeNode("src/" + f); root.add(d);
+    const d = new TreeNode("src/" + f);
+    root.add(d);
     for (let i = 0; i < 3 + (f.charCodeAt(0) % 5); i++) d.add(new TreeNode(`src/${f}/file${i}.ts`));
   }
   const v = new Version("v1", "v1", 0);
-  return { _version: v, getTree: () => root, getGraph: () => [], getVersions: () => [v], exists: () => true,
-    getAttributes: (n: unknown) => ({ name: String(n) }) };
+  return {
+    _version: v,
+    getTree: () => root,
+    getGraph: () => [],
+    getVersions: () => [v],
+    exists: () => true,
+    getAttributes: (n: unknown) => ({ name: String(n) }),
+  };
 }
 function layout(kind: "evostreet" | "district", folders: string[]) {
   const model = build(folders);
-  const opts = kind === "evostreet"
-    ? { "layout.snail": false, "house.margin": 9, "highway.length": 50, "evostreet.options": { "spacer.initial": 30,
-        "spacer.terranullius": 40, "spacer.conclusive": 0, "spacer.branches": 50, "road.trim": true,
-        "house.container": (k: string, m: boolean) => new CCV.containers.lightmap(k, m), "house.distribution": "left" } }
-    : { "layout.tower": false, "house.margin": 8, "spacer.margin": 25, "spacer.padding": 20 };
+  const opts =
+    kind === "evostreet"
+      ? {
+          "layout.snail": false,
+          "house.margin": 9,
+          "highway.length": 50,
+          "evostreet.options": {
+            "spacer.initial": 30,
+            "spacer.terranullius": 40,
+            "spacer.conclusive": 0,
+            "spacer.branches": 50,
+            "road.trim": true,
+            "house.container": (k: string, m: boolean) => new CCV.containers.lightmap(k, m),
+            "house.distribution": "left",
+          },
+        }
+      : { "layout.tower": false, "house.margin": 8, "spacer.margin": 25, "spacer.padding": 20 };
   const out = new CCV.illustrators[kind](model, opts).draw(model._version);
   return new Map(out.shapes.map((s: any) => [String(s.key), [s.position.x, s.position.y]]));
 }

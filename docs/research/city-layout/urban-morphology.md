@@ -43,19 +43,19 @@ The US Federal Highway Administration gives **guideline ranges of system length 
 ("Mileage Extent for All States", derived from 2011 HPMS data)
 ([FHWA Highway Functional Classification, section 3](https://www.fhwa.dot.gov/planning/processes/statewide/related/highway_functional_classifications/section03.cfm)):
 
-| Urban class | Share of network length |
-|---|---|
-| Interstate | 1-3 % |
-| Other freeways and expressways | 0-2 % |
-| Other principal arterial | 4-5 % |
-| Minor arterial | 7-14 % |
-| Major and minor collector | 7-15 % |
-| Local | 63-75 % |
+| Urban class                    | Share of network length |
+| ------------------------------ | ----------------------- |
+| Interstate                     | 1-3 %                   |
+| Other freeways and expressways | 0-2 %                   |
+| Other principal arterial       | 4-5 %                   |
+| Minor arterial                 | 7-14 %                  |
+| Major and minor collector      | 7-15 %                  |
+| Local                          | 63-75 %                 |
 
 Same source: lane widths 10-12 ft for collectors and locals; locals "account for the largest percentage of all
 roadways in terms of mileage" yet carry little through traffic.
 
-Le Corbusier's Chandigarh formalised seven tiers, *les Sept Voies* (V1-V7): highway, central axes, arterials, market
+Le Corbusier's Chandigarh formalised seven tiers, _les Sept Voies_ (V1-V7): highway, central axes, arterials, market
 roads, sector circulation roads, residential streets, pedestrian walkways
 ([Wikipedia: Chandigarh](https://en.wikipedia.org/wiki/Chandigarh)). Each 800 x 1200 m sector "is surrounded on its
 four sides by a V3, a road exclusively for fast mechanised traffic"
@@ -69,17 +69,17 @@ Heian-kyō (Kyoto, 794) had a two-tier system: **ōji** (major) and **kōji** (m
 
 Share of drivable street length by OSM `highway` class, in about 2-4 km² samples (Appendix A):
 
-| Sample | Arterial-ish (motorway, trunk, primary) | Secondary + tertiary | Local (residential, unclassified, living street) |
-|---|---|---|---|
-| Midtown Manhattan | 21 % | 40 % | 39 % |
-| Barcelona Eixample | 7 % | 48 % | 46 % |
-| Portland downtown | 29 % | 48 % | 24 % |
-| Amsterdam canal ring | 3 % | 8 % | 90 % |
-| Kyoto centre | 21 % | 8 % | 71 % |
-| Tokyo Yanaka | 10 % | 19 % | 70 % |
-| Paris Étoile | 13 % | 21 % | 67 % |
-| Chandigarh (several sectors) | 0 % | 37 % | 63 % |
-| Charlotte suburb | 7 % | 19 % | 73 % |
+| Sample                       | Arterial-ish (motorway, trunk, primary) | Secondary + tertiary | Local (residential, unclassified, living street) |
+| ---------------------------- | --------------------------------------- | -------------------- | ------------------------------------------------ |
+| Midtown Manhattan            | 21 %                                    | 40 %                 | 39 %                                             |
+| Barcelona Eixample           | 7 %                                     | 48 %                 | 46 %                                             |
+| Portland downtown            | 29 %                                    | 48 %                 | 24 %                                             |
+| Amsterdam canal ring         | 3 %                                     | 8 %                  | 90 %                                             |
+| Kyoto centre                 | 21 %                                    | 8 %                  | 71 %                                             |
+| Tokyo Yanaka                 | 10 %                                    | 19 %                 | 70 %                                             |
+| Paris Étoile                 | 13 %                                    | 21 %                 | 67 %                                             |
+| Chandigarh (several sectors) | 0 %                                     | 37 %                 | 63 %                                             |
+| Charlotte suburb             | 7 %                                     | 19 %                 | 73 %                                             |
 
 Caveat: OSM class tagging is local convention (Manhattan tags most avenues as secondary), so these are indicative,
 not a standard. The lesson that holds: **residential fabrics are about 2/3 to 9/10 local streets; dense commercial
@@ -87,13 +87,13 @@ cores invert this.**
 
 ### 1.3 Street widths per level (verified ratios)
 
-| City | Local | Middle | Major | Ratio local:major |
-|---|---|---|---|---|
-| Manhattan 1811 | 60 ft (18 m) streets | 100 ft (30 m) wide crosstown streets | 100 ft (30 m) avenues | 1 : 1.67 |
-| Barcelona Cerdà | 20 m | 30 m | 60 m | 1 : 1.5 : 3 |
-| Heian-kyō | about 12 m | broader ōji | Suzaku-ōji about 85 m | 1 : 7 (ceremonial axis) |
-| US Ordinance-derived grids | 60-80 ft (18-24 m) | | Salt Lake City 120 ft (37 m) | about 1 : 2 |
-| Goerck survey, Manhattan | 50 ft (15 m) | | | |
+| City                       | Local                | Middle                               | Major                        | Ratio local:major       |
+| -------------------------- | -------------------- | ------------------------------------ | ---------------------------- | ----------------------- |
+| Manhattan 1811             | 60 ft (18 m) streets | 100 ft (30 m) wide crosstown streets | 100 ft (30 m) avenues        | 1 : 1.67                |
+| Barcelona Cerdà            | 20 m                 | 30 m                                 | 60 m                         | 1 : 1.5 : 3             |
+| Heian-kyō                  | about 12 m           | broader ōji                          | Suzaku-ōji about 85 m        | 1 : 7 (ceremonial axis) |
+| US Ordinance-derived grids | 60-80 ft (18-24 m)   |                                      | Salt Lake City 120 ft (37 m) | about 1 : 2             |
+| Goerck survey, Manhattan   | 50 ft (15 m)         |                                      |                              |                         |
 
 Sources: [Commissioners' Plan of 1811](https://en.wikipedia.org/wiki/Commissioners%27_Plan_of_1811);
 [Cerdà Plan](https://en.wikipedia.org/wiki/Cerd%C3%A0_Plan); [Heian-kyō](https://en.wikipedia.org/wiki/Heian-ky%C5%8D).
@@ -109,20 +109,20 @@ Back-alley widths: **unverified**, no primary source found in this pass.
 
 ### 2.1 Block dimensions (verified)
 
-| Fabric | Block | Street | Notes |
-|---|---|---|---|
-| Manhattan 1811 | about 200 ft x 600-920 ft (61 m x 190-280 m); "standard" 264 x 900 ft (80 x 274 m) incl. half-streets | 60 / 100 ft | about 2,000 long narrow blocks, 20 per mile N-S ([1811 plan](https://en.wikipedia.org/wiki/Commissioners%27_Plan_of_1811), [City block](https://en.wikipedia.org/wiki/City_block)) |
-| Chicago | 330 x 660 ft (100 x 200 m) | | 16 E-W or 8 N-S blocks per mile ([City block](https://en.wikipedia.org/wiki/City_block)) |
-| Portland, Seattle downtown | 200 ft (61 m) square | 60 ft | squares of 3,600-6,400 m² ([1811 plan article](https://en.wikipedia.org/wiki/Commissioners%27_Plan_of_1811), [Siksna 1997](https://journal.urbanform.org/index.php/jum/article/view/4048)) |
-| Common US grid | 300 ft (91 m) square | 60-80 ft | Anchorage, Phoenix, Tulsa... ([1811 plan article](https://en.wikipedia.org/wiki/Commissioners%27_Plan_of_1811)) |
-| Salt Lake City | 600 ft (180 m) square | 120 ft | ([same](https://en.wikipedia.org/wiki/Commissioners%27_Plan_of_1811)) |
-| Barcelona Eixample | 113.3 m square, 45° chamfers of 15 m, 1.24 ha | 20 m standard | built on two of four sides originally; 9 blocks form a *superilla* ([Cerdà Plan](https://en.wikipedia.org/wiki/Cerd%C3%A0_Plan), [City block](https://en.wikipedia.org/wiki/City_block)) |
-| Heian-kyō | chō of 40 jō, about 121 m square (axis to axis) | 12 m minor | 16 chō per bō; 4 bō per side per jō strip ([Heian-kyō](https://en.wikipedia.org/wiki/Heian-ky%C5%8D)) |
-| Melbourne CBD | 100 x 200 m | | split from square blocks by a narrow lane ([City block](https://en.wikipedia.org/wiki/City_block)) |
-| Adelaide initial | 554 x 154 m | | later refined to 60 x 70 m in the retail core ([Siksna 1997 PDF](https://journal.urbanform.org/index.php/jum/article/download/4048/3359)) |
-| Chandigarh sector | 800 x 1200 m superblock | V3 around | 3,000-20,000 people each ([chandigarh.gov.in](https://chandigarh.gov.in/le-corbusiers-master-plan)) |
-| Milton Keynes grid square | about 1 km between grid roads | grid roads | "leaving the spaces between to develop more organically" ([Milton Keynes](https://en.wikipedia.org/wiki/Milton_Keynes)) |
-| Radburn superblock | 149 acres total, 23 acres interior parks | cul-de-sacs | earliest US cul-de-sac superblock ([Radburn](https://en.wikipedia.org/wiki/Radburn,_New_Jersey)) |
+| Fabric                     | Block                                                                                                 | Street        | Notes                                                                                                                                                                                      |
+| -------------------------- | ----------------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Manhattan 1811             | about 200 ft x 600-920 ft (61 m x 190-280 m); "standard" 264 x 900 ft (80 x 274 m) incl. half-streets | 60 / 100 ft   | about 2,000 long narrow blocks, 20 per mile N-S ([1811 plan](https://en.wikipedia.org/wiki/Commissioners%27_Plan_of_1811), [City block](https://en.wikipedia.org/wiki/City_block))         |
+| Chicago                    | 330 x 660 ft (100 x 200 m)                                                                            |               | 16 E-W or 8 N-S blocks per mile ([City block](https://en.wikipedia.org/wiki/City_block))                                                                                                   |
+| Portland, Seattle downtown | 200 ft (61 m) square                                                                                  | 60 ft         | squares of 3,600-6,400 m² ([1811 plan article](https://en.wikipedia.org/wiki/Commissioners%27_Plan_of_1811), [Siksna 1997](https://journal.urbanform.org/index.php/jum/article/view/4048)) |
+| Common US grid             | 300 ft (91 m) square                                                                                  | 60-80 ft      | Anchorage, Phoenix, Tulsa... ([1811 plan article](https://en.wikipedia.org/wiki/Commissioners%27_Plan_of_1811))                                                                            |
+| Salt Lake City             | 600 ft (180 m) square                                                                                 | 120 ft        | ([same](https://en.wikipedia.org/wiki/Commissioners%27_Plan_of_1811))                                                                                                                      |
+| Barcelona Eixample         | 113.3 m square, 45° chamfers of 15 m, 1.24 ha                                                         | 20 m standard | built on two of four sides originally; 9 blocks form a _superilla_ ([Cerdà Plan](https://en.wikipedia.org/wiki/Cerd%C3%A0_Plan), [City block](https://en.wikipedia.org/wiki/City_block))   |
+| Heian-kyō                  | chō of 40 jō, about 121 m square (axis to axis)                                                       | 12 m minor    | 16 chō per bō; 4 bō per side per jō strip ([Heian-kyō](https://en.wikipedia.org/wiki/Heian-ky%C5%8D))                                                                                      |
+| Melbourne CBD              | 100 x 200 m                                                                                           |               | split from square blocks by a narrow lane ([City block](https://en.wikipedia.org/wiki/City_block))                                                                                         |
+| Adelaide initial           | 554 x 154 m                                                                                           |               | later refined to 60 x 70 m in the retail core ([Siksna 1997 PDF](https://journal.urbanform.org/index.php/jum/article/download/4048/3359))                                                  |
+| Chandigarh sector          | 800 x 1200 m superblock                                                                               | V3 around     | 3,000-20,000 people each ([chandigarh.gov.in](https://chandigarh.gov.in/le-corbusiers-master-plan))                                                                                        |
+| Milton Keynes grid square  | about 1 km between grid roads                                                                         | grid roads    | "leaving the spaces between to develop more organically" ([Milton Keynes](https://en.wikipedia.org/wiki/Milton_Keynes))                                                                    |
+| Radburn superblock         | 149 acres total, 23 acres interior parks                                                              | cul-de-sacs   | earliest US cul-de-sac superblock ([Radburn](https://en.wikipedia.org/wiki/Radburn,_New_Jersey))                                                                                           |
 
 **Siksna's performance findings** (12 North American and Australian CBDs,
 [Siksna 1997, Urban Morphology 1(1)](https://journal.urbanform.org/index.php/jum/article/download/4048/3359)):
@@ -139,17 +139,17 @@ Back-alley widths: **unverified**, no primary source found in this pass.
 
 ### 2.2 Parcel (plot) dimensions (verified)
 
-| Fabric | Frontage | Depth | Frontage:depth |
-|---|---|---|---|
-| Manhattan standard lot | 20 or 25 ft (6-7.6 m) | 100 ft (30.5 m), half the 200 ft block depth | 1:4 to 1:5 ([MCNY Greatest Grid](https://thegreatestgrid.mcny.org/greatest-grid/selling-lots)) |
-| Manhattan 19th c. actual | mostly 20-25 ft, 22-23 ft commonest | | ([Gotham Center](https://www.gothamcenter.org/blog/notes-on-19th-century-lot-sizes)) |
-| US Land Ordinance 1785 lots | 60 ft (18 m) | 125 ft (38 m) | about 1:2 ([1811 plan article](https://en.wikipedia.org/wiki/Commissioners%27_Plan_of_1811)) |
-| Burgage, Cricklade | 2 perches (10 m) | 12 perches (60 m) | 1:6 ([burgage summary](https://en-academic.com/dic.nsf/enwiki/706769)) |
-| Burgage, Charmouth charter 1320 | 4 perches (20 m) | 20 perches (100 m) | 1:5 (same) |
-| Burgage, Pershore | 4 perches (20.12 m) | 10 perches (50.29 m) | 1:2.5 ([JSTOR 20001722 snippet](https://www.jstor.org/stable/20001722)) |
-| Amsterdam canal ring, 17th c. | 18, then 20-26 Amsterdam feet (5.1-7.3 m; 1 voet = 28.13 cm) | **unverified** | ([nl.wikipedia: Grachtenpand](https://nl.wikipedia.org/wiki/Grachtenpand)) |
-| Paris, 18th c. | about 6 m | up to about 40 m | about 1:6.7 ([Haussmann renovation](https://en.wikipedia.org/wiki/Haussmann%27s_renovation_of_Paris)) |
-| CBD modular lot (Siksna) | 15-20 m | 30-40 m | 1:2 ([Siksna 1997](https://journal.urbanform.org/index.php/jum/article/download/4048/3359)) |
+| Fabric                          | Frontage                                                     | Depth                                        | Frontage:depth                                                                                        |
+| ------------------------------- | ------------------------------------------------------------ | -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Manhattan standard lot          | 20 or 25 ft (6-7.6 m)                                        | 100 ft (30.5 m), half the 200 ft block depth | 1:4 to 1:5 ([MCNY Greatest Grid](https://thegreatestgrid.mcny.org/greatest-grid/selling-lots))        |
+| Manhattan 19th c. actual        | mostly 20-25 ft, 22-23 ft commonest                          |                                              | ([Gotham Center](https://www.gothamcenter.org/blog/notes-on-19th-century-lot-sizes))                  |
+| US Land Ordinance 1785 lots     | 60 ft (18 m)                                                 | 125 ft (38 m)                                | about 1:2 ([1811 plan article](https://en.wikipedia.org/wiki/Commissioners%27_Plan_of_1811))          |
+| Burgage, Cricklade              | 2 perches (10 m)                                             | 12 perches (60 m)                            | 1:6 ([burgage summary](https://en-academic.com/dic.nsf/enwiki/706769))                                |
+| Burgage, Charmouth charter 1320 | 4 perches (20 m)                                             | 20 perches (100 m)                           | 1:5 (same)                                                                                            |
+| Burgage, Pershore               | 4 perches (20.12 m)                                          | 10 perches (50.29 m)                         | 1:2.5 ([JSTOR 20001722 snippet](https://www.jstor.org/stable/20001722))                               |
+| Amsterdam canal ring, 17th c.   | 18, then 20-26 Amsterdam feet (5.1-7.3 m; 1 voet = 28.13 cm) | **unverified**                               | ([nl.wikipedia: Grachtenpand](https://nl.wikipedia.org/wiki/Grachtenpand))                            |
+| Paris, 18th c.                  | about 6 m                                                    | up to about 40 m                             | about 1:6.7 ([Haussmann renovation](https://en.wikipedia.org/wiki/Haussmann%27s_renovation_of_Paris)) |
+| CBD modular lot (Siksna)        | 15-20 m                                                      | 30-40 m                                      | 1:2 ([Siksna 1997](https://journal.urbanform.org/index.php/jum/article/download/4048/3359))           |
 
 Two structural regularities matter more than any single number:
 
@@ -164,14 +164,14 @@ Two structural regularities matter more than any single number:
 Louf and Barthelemy's shape factor Φ = block area / area of circumscribed circle (section 5). I computed it for the
 idealised geometries above (Appendix B):
 
-| Ideal block | Area | Φ |
-|---|---|---|
+| Ideal block                        | Area                                      | Φ    |
+| ---------------------------------- | ----------------------------------------- | ---- |
 | Barcelona 113.3 m chamfered (15 m) | 12,387 m² (matches the published 1.24 ha) | 0.80 |
-| Any square (Portland, Kyoto chō) | 3,721 m² / 11,881 m² | 0.64 |
-| Chandigarh sector 800 x 1200 m | 96 ha | 0.59 |
-| Chicago 100 x 200 m | 2.0 ha | 0.51 |
-| Manhattan 61 x 244 m | 1.5 ha | 0.30 |
-| Burgage plot 10 x 60 m | 600 m² | 0.21 |
+| Any square (Portland, Kyoto chō)   | 3,721 m² / 11,881 m²                      | 0.64 |
+| Chandigarh sector 800 x 1200 m     | 96 ha                                     | 0.59 |
+| Chicago 100 x 200 m                | 2.0 ha                                    | 0.51 |
+| Manhattan 61 x 244 m               | 1.5 ha                                    | 0.30 |
+| Burgage plot 10 x 60 m             | 600 m²                                    | 0.21 |
 
 Louf and Barthelemy observe Manhattan's fingerprint as "two sharp peaks at Φ ≈ 0.3 and Φ ≈ 0.5", the signature of a
 grid ([arXiv 1410.2094](https://arxiv.org/abs/1410.2094)); our 0.30 for the 1811 block agrees.
@@ -212,8 +212,8 @@ without reshuffling". Section 7 turns it into rules.
 ## 4. Space syntax: configuration and movement
 
 Space syntax analyses a street network as a graph of axial lines or segments and computes how "deep" each is from all
-others ([Wikipedia: Space syntax](https://en.wikipedia.org/wiki/Space_syntax); Hillier and Hanson, *The Social Logic of
-Space*, 1984).
+others ([Wikipedia: Space syntax](https://en.wikipedia.org/wiki/Space_syntax); Hillier and Hanson, _The Social Logic of
+Space_, 1984).
 
 - **Integration** (closeness): the fewest street-to-street transitions needed to reach all other streets. Can be
   global or local (for example radius 3 or 4 steps).
@@ -243,7 +243,7 @@ Monopoly-like game.
 
 ### 5.1 Boeing: orientation entropy and configuration
 
-[Boeing 2019, *Urban spatial order*, Applied Network Science, arXiv 1808.00600](https://arxiv.org/abs/1808.00600):
+[Boeing 2019, _Urban spatial order_, Applied Network Science, arXiv 1808.00600](https://arxiv.org/abs/1808.00600):
 
 - Bearings of every street edge (both directions, undirected graph) in **36 bins of 10°**; Shannon entropy Hₒ in nats.
 - Hmax = ln 36 = 3.584 (uniform); Hg = ln 4 = 1.386 (perfect four-way grid).
@@ -255,35 +255,35 @@ Monopoly-like game.
 
 Selected city-wide values from the paper's table (100 cities, drivable networks):
 
-| City | φ | l̃ (m) | ς | k̄ | P_de | P_4w |
-|---|---|---|---|---|---|---|
-| Chicago | 0.899 | 105.3 | 1.016 | 3.34 | 0.074 | 0.507 |
-| Miami | 0.811 | 96.7 | 1.023 | 3.24 | 0.069 | 0.407 |
-| Portland | 0.679 | 82.1 | 1.041 | 3.03 | 0.146 | 0.327 |
-| Manhattan | 0.669 | 82.2 | 1.017 | 3.51 | 0.027 | 0.572 |
-| Kyoto | 0.357 | 49.6 | 1.090 | 2.89 | 0.134 | 0.157 |
-| Barcelona | 0.108 | 78.1 | 1.052 | 3.14 | 0.078 | 0.303 |
-| Amsterdam | 0.071 | 65.8 | 1.080 | 2.90 | 0.146 | 0.205 |
-| Tokyo | 0.050 | 49.7 | 1.046 | 2.95 | 0.119 | 0.186 |
-| Paris | 0.016 | 71.5 | 1.023 | 3.11 | 0.050 | 0.240 |
-| London | 0.015 | 70.3 | 1.061 | 2.56 | 0.251 | 0.070 |
-| Venice | 0.017 | 23.3 | 1.090 | 2.47 | 0.300 | 0.073 |
-| Rome | 0.005 | 73.7 | 1.070 | 2.82 | 0.161 | 0.145 |
+| City      | φ     | l̃ (m) | ς     | k̄    | P_de  | P_4w  |
+| --------- | ----- | ----- | ----- | ---- | ----- | ----- |
+| Chicago   | 0.899 | 105.3 | 1.016 | 3.34 | 0.074 | 0.507 |
+| Miami     | 0.811 | 96.7  | 1.023 | 3.24 | 0.069 | 0.407 |
+| Portland  | 0.679 | 82.1  | 1.041 | 3.03 | 0.146 | 0.327 |
+| Manhattan | 0.669 | 82.2  | 1.017 | 3.51 | 0.027 | 0.572 |
+| Kyoto     | 0.357 | 49.6  | 1.090 | 2.89 | 0.134 | 0.157 |
+| Barcelona | 0.108 | 78.1  | 1.052 | 3.14 | 0.078 | 0.303 |
+| Amsterdam | 0.071 | 65.8  | 1.080 | 2.90 | 0.146 | 0.205 |
+| Tokyo     | 0.050 | 49.7  | 1.046 | 2.95 | 0.119 | 0.186 |
+| Paris     | 0.016 | 71.5  | 1.023 | 3.11 | 0.050 | 0.240 |
+| London    | 0.015 | 70.3  | 1.061 | 2.56 | 0.251 | 0.070 |
+| Venice    | 0.017 | 23.3  | 1.090 | 2.47 | 0.300 | 0.073 |
+| Rome      | 0.005 | 73.7  | 1.070 | 2.82 | 0.161 | 0.145 |
 | Charlotte | 0.002 | 117.2 | 1.067 | 2.55 | 0.288 | 0.139 |
 
 ### 5.2 My own district-scale measurements (measured, Appendix A)
 
-| Sample (about 2-4 km², Charlotte 12, Chandigarh 21) | φ | l̃ (m) | k̄ | P_de | P_4w | ς | intersections/km² |
-|---|---|---|---|---|---|---|---|
-| Midtown Manhattan | 0.99 | 85 | 3.84 | 0.011 | 0.86 | 1.004 | 68 |
-| Kyoto centre (Heian grid) | 0.98 | 102 | 3.59 | 0.038 | 0.65 | 1.004 | 91 |
-| Portland downtown | 0.83 | 80 | 3.80 | 0.008 | 0.79 | 1.037 | 170 |
-| Chandigarh sectors | 0.72 | 57 | 2.85 | 0.126 | 0.11 | 1.028 | 134 |
-| Barcelona Eixample | 0.66 * | 117 | 3.59 | 0.027 | 0.61 | 1.006 | 110 |
-| Amsterdam canal ring | 0.20 | 84 | 3.33 | 0.069 | 0.42 | 1.045 | 106 |
-| Paris Étoile | 0.08 | 81 | 3.26 | 0.022 | 0.28 | 1.021 | 123 |
-| Tokyo Yanaka | 0.07 | 53 | 3.00 | 0.104 | 0.21 | 1.048 | 159 |
-| Charlotte suburb | 0.03 | 69 | 2.71 | 0.214 | 0.14 | 1.073 | 66 |
+| Sample (about 2-4 km², Charlotte 12, Chandigarh 21) | φ      | l̃ (m) | k̄    | P_de  | P_4w | ς     | intersections/km² |
+| --------------------------------------------------- | ------ | ----- | ---- | ----- | ---- | ----- | ----------------- |
+| Midtown Manhattan                                   | 0.99   | 85    | 3.84 | 0.011 | 0.86 | 1.004 | 68                |
+| Kyoto centre (Heian grid)                           | 0.98   | 102   | 3.59 | 0.038 | 0.65 | 1.004 | 91                |
+| Portland downtown                                   | 0.83   | 80    | 3.80 | 0.008 | 0.79 | 1.037 | 170               |
+| Chandigarh sectors                                  | 0.72   | 57    | 2.85 | 0.126 | 0.11 | 1.028 | 134               |
+| Barcelona Eixample                                  | 0.66 * | 117   | 3.59 | 0.027 | 0.61 | 1.006 | 110               |
+| Amsterdam canal ring                                | 0.20   | 84    | 3.33 | 0.069 | 0.42 | 1.045 | 106               |
+| Paris Étoile                                        | 0.08   | 81    | 3.26 | 0.022 | 0.28 | 1.021 | 123               |
+| Tokyo Yanaka                                        | 0.07   | 53    | 3.00 | 0.104 | 0.21 | 1.048 | 159               |
+| Charlotte suburb                                    | 0.03   | 69    | 2.71 | 0.214 | 0.14 | 1.073 | 66                |
 
 \* The Eixample grid runs at about 45°, exactly on a bin boundary of the 10° histogram, so its entropy is inflated.
 Orientation entropy is **bin-alignment sensitive**; rotating to the dominant bearing first (or using a circular kernel)
@@ -304,7 +304,7 @@ Other signals visible in the table:
 
 ### 5.3 Louf and Barthelemy: blocks as fingerprints
 
-[Louf and Barthelemy 2014, *A typology of street patterns*, J. R. Soc. Interface 11: 20140924, arXiv 1410.2094](https://arxiv.org/abs/1410.2094):
+[Louf and Barthelemy 2014, _A typology of street patterns_, J. R. Soc. Interface 11: 20140924, arXiv 1410.2094](https://arxiv.org/abs/1410.2094):
 
 - Use **blocks** (faces of the planar street graph) rather than streets. Shape factor **Φ = A / A_C**, A_C the
   circumscribed circle's area.
@@ -329,24 +329,24 @@ Proposal: our generated block areas should be heavy-tailed (many small, few larg
 
 ## 6. Recognisability and representation: Lynch and Nolli
 
-### 6.1 Kevin Lynch, *The Image of the City* (1960)
+### 6.1 Kevin Lynch, _The Image of the City_ (1960)
 
 People's mental maps consist of five elements ([Wikipedia summary](https://en.wikipedia.org/wiki/The_Image_of_the_City)):
 
-| Element | Lynch's meaning | Proposal: ground-plan counterpart |
-|---|---|---|
-| Paths | channels of movement: streets, canals, railways | arterial and collector network; one memorable "high street" per district |
-| Edges | boundaries, real or perceived: shorelines, walls, overpasses | rivers, rail lines, parks and fringe belts between top-level areas |
-| Districts | medium-large areas with a common character one enters | top-level and second-level folders, each with one consistent fabric (grain, orientation, block shape) |
-| Nodes | strategic points, junctions, squares | plazas at arterial junctions and district entrances; the city centre |
-| Landmarks | external reference points, unique in context | reserved landmark parcels (later: README, entry points, manifests), placed on axes and at nodes |
+| Element   | Lynch's meaning                                              | Proposal: ground-plan counterpart                                                                     |
+| --------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Paths     | channels of movement: streets, canals, railways              | arterial and collector network; one memorable "high street" per district                              |
+| Edges     | boundaries, real or perceived: shorelines, walls, overpasses | rivers, rail lines, parks and fringe belts between top-level areas                                    |
+| Districts | medium-large areas with a common character one enters        | top-level and second-level folders, each with one consistent fabric (grain, orientation, block shape) |
+| Nodes     | strategic points, junctions, squares                         | plazas at arterial junctions and district entrances; the city centre                                  |
+| Landmarks | external reference points, unique in context                 | reserved landmark parcels (later: README, entry points, manifests), placed on axes and at nodes       |
 
 Lynch's remark that "the most successful node seemed both to be unique in some way and at the same time to intensify
 some surrounding characteristic" (same source) is a good design test for plazas.
 
 ### 6.2 Nolli's figure-ground
 
-Giambattista Nolli's 1748 *Pianta Grande di Roma* used figure-ground (built mass dark), but innovated by showing
+Giambattista Nolli's 1748 _Pianta Grande di Roma_ used figure-ground (built mass dark), but innovated by showing
 **enclosed public spaces** such as the Pantheon interior and colonnades as open civic space, and oriented the map to
 magnetic north ([Wikipedia: Giambattista Nolli](https://en.wikipedia.org/wiki/Giambattista_Nolli)).
 
@@ -357,17 +357,17 @@ is the clearest way to make the ground plan legible before any building exists, 
 
 ## 7. How cities grow
 
-| Process | Evidence | What it means for the generator |
-|---|---|---|
-| Densification then exploration | 200 years of road growth north of Milan: growth is "densification" around existing centres and "exploration" at the urbanisation front; cell shapes homogenise; **high-centrality roads stay stable** and form the backbone ([Strano et al. 2012, arXiv 1203.0300](https://arxiv.org/abs/1203.0300)) | Small changes densify inside existing blocks; only large growth explores outward; arterials never move |
-| Local optimisation | A simple local-optimisation model reproduces empirical street statistics without global design ([Barthelemy and Flammini 2008, arXiv 0708.4360](https://arxiv.org/abs/0708.4360)) | Organic districts can be grown by local rules, deterministically seeded |
-| Burgage cycle | backland infill, then clearance and fallow, then redevelopment ([Whitehand 2001](https://journal.urbanform.org/index.php/jum/article/download/3896/3218)) | Parcels fill from the frontage backwards; deletions leave fallow parcels, not collapse |
-| Plot splitting and amalgamation | modular plots (perch, 25 ft, Amsterdam widths), double houses on two plots ([Grachtenpand](https://nl.wikipedia.org/wiki/Grachtenpand)) | Parcels are integer multiples of a frontage module; growth splits or merges modules |
-| Lane insertion | coarse CBD blocks refined to 46-80 m meshes by alleys and arcades ([Siksna 1997](https://journal.urbanform.org/index.php/jum/article/download/4048/3359)) | When a block is over capacity, insert an alley through it before touching neighbours |
-| Fringe belts | belts of parks and institutions between growth phases ([Whitehand 2001](https://journal.urbanform.org/index.php/jum/article/download/3896/3218)) | Reserve green belts around districts as growth slack and visual edges |
-| Ribbon development | building along routes radiating from a settlement ([Ribbon development](https://en.wikipedia.org/wiki/Ribbon_development)) | Small or fast-growing areas first line an approach road |
-| Accretion rings and zones | Burgess concentric zones 1925, Hoyt sectors 1939, Harris and Ullman multiple nuclei 1945 ([Concentric zone model](https://en.wikipedia.org/wiki/Concentric_zone_model); [Multiple nuclei model](https://en.wikipedia.org/wiki/Multiple_nuclei_model)) | Single-root repos grow in rings; monorepos are multi-nuclear |
-| Addressing that survives splits | Japanese lot numbers (banchi) get an extension (edaban) when a plot is divided; addresses are by block, not street ([Japanese addressing system](https://en.wikipedia.org/wiki/Japanese_addressing_system)); Heian-kyō addresses read like paths: "Right Capital, Fifth jō, Second bō, Fourteenth chō" ([Heian-kyō](https://en.wikipedia.org/wiki/Heian-ky%C5%8D)) | Parcel IDs derive from the folder path; a split parcel keeps its ID plus a suffix |
+| Process                         | Evidence                                                                                                                                                                                                                                                                                                                                                           | What it means for the generator                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Densification then exploration  | 200 years of road growth north of Milan: growth is "densification" around existing centres and "exploration" at the urbanisation front; cell shapes homogenise; **high-centrality roads stay stable** and form the backbone ([Strano et al. 2012, arXiv 1203.0300](https://arxiv.org/abs/1203.0300))                                                               | Small changes densify inside existing blocks; only large growth explores outward; arterials never move |
+| Local optimisation              | A simple local-optimisation model reproduces empirical street statistics without global design ([Barthelemy and Flammini 2008, arXiv 0708.4360](https://arxiv.org/abs/0708.4360))                                                                                                                                                                                  | Organic districts can be grown by local rules, deterministically seeded                                |
+| Burgage cycle                   | backland infill, then clearance and fallow, then redevelopment ([Whitehand 2001](https://journal.urbanform.org/index.php/jum/article/download/3896/3218))                                                                                                                                                                                                          | Parcels fill from the frontage backwards; deletions leave fallow parcels, not collapse                 |
+| Plot splitting and amalgamation | modular plots (perch, 25 ft, Amsterdam widths), double houses on two plots ([Grachtenpand](https://nl.wikipedia.org/wiki/Grachtenpand))                                                                                                                                                                                                                            | Parcels are integer multiples of a frontage module; growth splits or merges modules                    |
+| Lane insertion                  | coarse CBD blocks refined to 46-80 m meshes by alleys and arcades ([Siksna 1997](https://journal.urbanform.org/index.php/jum/article/download/4048/3359))                                                                                                                                                                                                          | When a block is over capacity, insert an alley through it before touching neighbours                   |
+| Fringe belts                    | belts of parks and institutions between growth phases ([Whitehand 2001](https://journal.urbanform.org/index.php/jum/article/download/3896/3218))                                                                                                                                                                                                                   | Reserve green belts around districts as growth slack and visual edges                                  |
+| Ribbon development              | building along routes radiating from a settlement ([Ribbon development](https://en.wikipedia.org/wiki/Ribbon_development))                                                                                                                                                                                                                                         | Small or fast-growing areas first line an approach road                                                |
+| Accretion rings and zones       | Burgess concentric zones 1925, Hoyt sectors 1939, Harris and Ullman multiple nuclei 1945 ([Concentric zone model](https://en.wikipedia.org/wiki/Concentric_zone_model); [Multiple nuclei model](https://en.wikipedia.org/wiki/Multiple_nuclei_model))                                                                                                              | Single-root repos grow in rings; monorepos are multi-nuclear                                           |
+| Addressing that survives splits | Japanese lot numbers (banchi) get an extension (edaban) when a plot is divided; addresses are by block, not street ([Japanese addressing system](https://en.wikipedia.org/wiki/Japanese_addressing_system)); Heian-kyō addresses read like paths: "Right Capital, Fifth jō, Second bō, Fourteenth chō" ([Heian-kyō](https://en.wikipedia.org/wiki/Heian-ky%C5%8D)) | Parcel IDs derive from the folder path; a split parcel keeps its ID plus a suffix                      |
 
 ---
 
@@ -422,12 +422,12 @@ Real local streets are 12-20 m (Kyoto 12, Goerck 15, Manhattan 18, Barcelona 20)
 Real ratios range 1:1.5 (Barcelona collector), 1:1.67 (Manhattan avenue), 1:2 (Salt Lake), 1:3 (Barcelona major) to
 1:7 (Heian ceremonial axis). A geometric progression of about 1.6 fits:
 
-| Level | Width | Role |
-|---|---|---|
-| Lane / alley / footpath | 0.5 u | inserted through over-full blocks; pedestrian shortcuts |
-| Local street | 1 u | parcel frontage |
-| Collector / sector road | 1.6 u | bounds neighbourhood units; carries the district's high street |
-| Arterial / avenue | 2.5 u | between districts; the "foreground network" |
+| Level                                 | Width                              | Role                                                                    |
+| ------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------- |
+| Lane / alley / footpath               | 0.5 u                              | inserted through over-full blocks; pedestrian shortcuts                 |
+| Local street                          | 1 u                                | parcel frontage                                                         |
+| Collector / sector road               | 1.6 u                              | bounds neighbourhood units; carries the district's high street          |
+| Arterial / avenue                     | 2.5 u                              | between districts; the "foreground network"                             |
 | Boulevard / highway / ceremonial axis | 4 u (up to 7 u for one civic axis) | between nuclei in polycentric cities; one per city at most for the axis |
 
 Length shares to aim for in residential fabric: local 65-75 %, collectors 10-15 %, arterials and above 10-20 %
@@ -482,14 +482,14 @@ Length shares to aim for in residential fabric: local 65-75 %, collectors 10-15 
 Signatures combine section 5 numbers. "Repo signal" is **proposal** with thresholds to be tuned; it should be
 computed with hysteresis so the archetype only flips on a real change of shape.
 
-| Archetype | Real exemplars | Street signature | Block signature | Repo signal (proposal) |
-|---|---|---|---|---|
-| Hamlet: street village or green | ribbon villages, courtyards | one or two streets, many dead-ends, k̄ < 2.5 | few large irregular plots | under ~50 files, ≤ 3 folders |
-| Radial-concentric | Paris Étoile, walled towns with rings, Burgess zones | low φ (< 0.1) but low P_de (< 0.03), star junctions | wedge and trapezoid blocks, Φ 0.4-0.6, rings of fringe belts | one dominant root (for example `src/` holds most code), moderate depth |
-| Gridiron | Manhattan, Chicago, Portland, Kyoto, Eixample | district φ > 0.8, k̄ ≥ 3.5, P_4w ≥ 0.6, ς ≈ 1.00 | Φ peaks at 0.3-0.64 (or 0.8 chamfered), uniform areas | many sibling folders of similar size (low size inequality), shallow |
-| Organic / medieval | Siena, Tokyo Yanaka, Amsterdam centre | φ < 0.2, k̄ ≈ 3.0, P_4w ≈ 0.2, P_de ≈ 0.1, l̃ ≈ 50 m | broad Φ, small blocks (Louf-Barthelemy group 2/3) | deep, irregular trees with skewed sizes |
-| Cellular suburban | Radburn, Charlotte, Chandigarh interiors | k̄ < 2.8, P_de > 0.12, low P_4w, ς > 1.05 | large superblocks with cul-de-sac interiors | many leaf-heavy folders with few cross-links (later: low import coupling) |
-| Polycentric / archipelago | Milton Keynes grid squares, multiple-nuclei cities | arterial grid of 1 km cells or bridges between islands; each nucleus its own fabric | mixed | `apps/` + `packages/` or workspaces; several heavy top-level roots |
+| Archetype                       | Real exemplars                                       | Street signature                                                                    | Block signature                                              | Repo signal (proposal)                                                    |
+| ------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| Hamlet: street village or green | ribbon villages, courtyards                          | one or two streets, many dead-ends, k̄ < 2.5                                         | few large irregular plots                                    | under ~50 files, ≤ 3 folders                                              |
+| Radial-concentric               | Paris Étoile, walled towns with rings, Burgess zones | low φ (< 0.1) but low P_de (< 0.03), star junctions                                 | wedge and trapezoid blocks, Φ 0.4-0.6, rings of fringe belts | one dominant root (for example `src/` holds most code), moderate depth    |
+| Gridiron                        | Manhattan, Chicago, Portland, Kyoto, Eixample        | district φ > 0.8, k̄ ≥ 3.5, P_4w ≥ 0.6, ς ≈ 1.00                                     | Φ peaks at 0.3-0.64 (or 0.8 chamfered), uniform areas        | many sibling folders of similar size (low size inequality), shallow       |
+| Organic / medieval              | Siena, Tokyo Yanaka, Amsterdam centre                | φ < 0.2, k̄ ≈ 3.0, P_4w ≈ 0.2, P_de ≈ 0.1, l̃ ≈ 50 m                                  | broad Φ, small blocks (Louf-Barthelemy group 2/3)            | deep, irregular trees with skewed sizes                                   |
+| Cellular suburban               | Radburn, Charlotte, Chandigarh interiors             | k̄ < 2.8, P_de > 0.12, low P_4w, ς > 1.05                                            | large superblocks with cul-de-sac interiors                  | many leaf-heavy folders with few cross-links (later: low import coupling) |
+| Polycentric / archipelago       | Milton Keynes grid squares, multiple-nuclei cities   | arterial grid of 1 km cells or bridges between islands; each nucleus its own fabric | mixed                                                        | `apps/` + `packages/` or workspaces; several heavy top-level roots        |
 
 The generator should **compute these metrics on its own output** and assert they fall inside the archetype's band:
 that is our test oracle for "looks like a real city of type X".
@@ -539,87 +539,134 @@ Set `OVP` to choose an Overpass endpoint. This is a tidied version (same logic, 
 
 ```ts
 const [name, bboxStr] = process.argv.slice(2);
-const [s, w, n, e] = bboxStr.split(',').map(Number);
+const [s, w, n, e] = bboxStr.split(",").map(Number);
 const cache = `osm/${name}.json`;
 let data: any;
 if (await Bun.file(cache).exists()) data = await Bun.file(cache).json();
 else {
   const q = `[out:json][timeout:120];way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$"](${s},${w},${n},${e});out body;>;out skel qt;`;
-  const r = await fetch(process.env.OVP ?? 'https://overpass-api.de/api/interpreter', {
-    method: 'POST', body: 'data=' + encodeURIComponent(q),
-    headers: { 'user-agent': 'citymap-research/0.1', 'content-type': 'application/x-www-form-urlencoded' },
+  const r = await fetch(process.env.OVP ?? "https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    body: "data=" + encodeURIComponent(q),
+    headers: { "user-agent": "citymap-research/0.1", "content-type": "application/x-www-form-urlencoded" },
   });
-  if (!r.ok) { console.error('overpass', r.status); process.exit(1); }
-  data = await r.json(); await Bun.write(cache, JSON.stringify(data));
+  if (!r.ok) {
+    console.error("overpass", r.status);
+    process.exit(1);
+  }
+  data = await r.json();
+  await Bun.write(cache, JSON.stringify(data));
 }
-const nodes = new Map<number, [number, number]>(); const ways: any[] = [];
-for (const el of data.elements) el.type === 'node' ? nodes.set(el.id, [el.lat, el.lon]) : ways.push(el);
-const R = 6371000, rad = (d: number) => d * Math.PI / 180;
+const nodes = new Map<number, [number, number]>();
+const ways: any[] = [];
+for (const el of data.elements) el.type === "node" ? nodes.set(el.id, [el.lat, el.lon]) : ways.push(el);
+const R = 6371000,
+  rad = (d: number) => (d * Math.PI) / 180;
 const dist = (a: [number, number], b: [number, number]) => {
-  const x = Math.sin(rad(b[0] - a[0]) / 2) ** 2 + Math.cos(rad(a[0])) * Math.cos(rad(b[0])) * Math.sin(rad(b[1] - a[1]) / 2) ** 2;
+  const x =
+    Math.sin(rad(b[0] - a[0]) / 2) ** 2 +
+    Math.cos(rad(a[0])) * Math.cos(rad(b[0])) * Math.sin(rad(b[1] - a[1]) / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(x));
 };
 const bearing = (a: [number, number], b: [number, number]) => {
   const y = Math.sin(rad(b[1] - a[1])) * Math.cos(rad(b[0]));
-  const x = Math.cos(rad(a[0])) * Math.sin(rad(b[0])) - Math.sin(rad(a[0])) * Math.cos(rad(b[0])) * Math.cos(rad(b[1] - a[1]));
-  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  const x =
+    Math.cos(rad(a[0])) * Math.sin(rad(b[0])) - Math.sin(rad(a[0])) * Math.cos(rad(b[0])) * Math.cos(rad(b[1] - a[1]));
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 };
-const adj = new Map<number, Set<number>>(); const lenByClass: Record<string, number> = {};
+const adj = new Map<number, Set<number>>();
+const lenByClass: Record<string, number> = {};
 for (const wy of ways) {
-  const cls = wy.tags.highway.replace('_link', '');
+  const cls = wy.tags.highway.replace("_link", "");
   for (let i = 1; i < wy.nodes.length; i++) {
-    const a = wy.nodes[i - 1], b = wy.nodes[i], pa = nodes.get(a), pb = nodes.get(b);
+    const a = wy.nodes[i - 1],
+      b = wy.nodes[i],
+      pa = nodes.get(a),
+      pb = nodes.get(b);
     if (!pa || !pb) continue;
     lenByClass[cls] = (lenByClass[cls] ?? 0) + dist(pa, pb);
-    if (!adj.has(a)) adj.set(a, new Set()); if (!adj.has(b)) adj.set(b, new Set());
-    adj.get(a)!.add(b); adj.get(b)!.add(a);
+    if (!adj.has(a)) adj.set(a, new Set());
+    if (!adj.has(b)) adj.set(b, new Set());
+    adj.get(a)!.add(b);
+    adj.get(b)!.add(a);
   }
 }
 const isKey = (id: number) => adj.get(id)!.size !== 2;
 const inner = (p: [number, number]) => {
-  const mh = (n - s) * 0.1, mw = (e - w) * 0.1;
+  const mh = (n - s) * 0.1,
+    mw = (e - w) * 0.1;
   return p[0] > s + mh && p[0] < n - mh && p[1] > w + mw && p[1] < e - mw;
 };
-const seen = new Set<string>(); const segLens: number[] = []; const bins = new Array(36).fill(0);
-let circNum = 0, circDen = 0;
+const seen = new Set<string>();
+const segLens: number[] = [];
+const bins = new Array(36).fill(0);
+let circNum = 0,
+  circDen = 0;
 for (const [id] of adj) {
   if (!isKey(id)) continue;
   for (const nb of adj.get(id)!) {
-    let prev = id, cur = nb, L = dist(nodes.get(prev)!, nodes.get(cur)!);
+    let prev = id,
+      cur = nb,
+      L = dist(nodes.get(prev)!, nodes.get(cur)!);
     while (!isKey(cur)) {
-      const nx = [...adj.get(cur)!].find(x => x !== prev)!;
-      L += dist(nodes.get(cur)!, nodes.get(nx)!); prev = cur; cur = nx; if (cur === id) break;
+      const nx = [...adj.get(cur)!].find((x) => x !== prev)!;
+      L += dist(nodes.get(cur)!, nodes.get(nx)!);
+      prev = cur;
+      cur = nx;
+      if (cur === id) break;
     }
     const key = id < cur ? `${id}-${cur}-${L.toFixed(1)}` : `${cur}-${id}-${L.toFixed(1)}`;
-    if (seen.has(key)) continue; seen.add(key);
-    const pa = nodes.get(id)!, pb = nodes.get(cur)!;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const pa = nodes.get(id)!,
+      pb = nodes.get(cur)!;
     if (!(inner(pa) || inner(pb))) continue;
-    segLens.push(L); const gc = dist(pa, pb);
+    segLens.push(L);
+    const gc = dist(pa, pb);
     if (gc > 1) {
-      circNum += L; circDen += gc;
+      circNum += L;
+      circDen += gc;
       const b1 = bearing(pa, pb);
       for (const b of [b1, (b1 + 180) % 360]) bins[Math.floor(((b + 5) % 360) / 10)]++;
     }
   }
 }
-const tot = bins.reduce((a, b) => a + b, 0); let H = 0;
-for (const c of bins) if (c) { const p = c / tot; H -= p * Math.log(p); }
+const tot = bins.reduce((a, b) => a + b, 0);
+let H = 0;
+for (const c of bins)
+  if (c) {
+    const p = c / tot;
+    H -= p * Math.log(p);
+  }
 const phi = 1 - ((H - Math.log(4)) / (Math.log(36) - Math.log(4))) ** 2;
-let k = 0, cnt = 0, de = 0, fw = 0;
+let k = 0,
+  cnt = 0,
+  de = 0,
+  fw = 0;
 for (const [id, set] of adj) {
   if (!isKey(id) || !inner(nodes.get(id)!)) continue;
-  cnt++; k += set.size; if (set.size === 1) de++; if (set.size >= 4) fw++;
+  cnt++;
+  k += set.size;
+  if (set.size === 1) de++;
+  if (set.size >= 4) fw++;
 }
 segLens.sort((a, b) => a - b);
 const totLen = Object.values(lenByClass).reduce((a, b) => a + b, 0);
-const areaKm2 = dist([s, w], [n, w]) / 1000 * dist([s, w], [s, e]) / 1000;
-console.log(JSON.stringify({
-  name, H: +H.toFixed(3), phi: +phi.toFixed(3), medianSegM: +segLens[segLens.length >> 1].toFixed(1),
-  kAvg: +(k / cnt).toFixed(2), Pde: +(de / cnt).toFixed(3), P4w: +(fw / cnt).toFixed(3),
-  circuity: +(circNum / circDen).toFixed(3),
-  intersectionsPerKm2: Math.round((cnt - de) / (areaKm2 * 0.64)), // inner 80 % x 80 % window
-  shares: Object.fromEntries(Object.entries(lenByClass).map(([c, l]) => [c, Math.round(100 * l / totLen)])),
-}));
+const areaKm2 = ((dist([s, w], [n, w]) / 1000) * dist([s, w], [s, e])) / 1000;
+console.log(
+  JSON.stringify({
+    name,
+    H: +H.toFixed(3),
+    phi: +phi.toFixed(3),
+    medianSegM: +segLens[segLens.length >> 1].toFixed(1),
+    kAvg: +(k / cnt).toFixed(2),
+    Pde: +(de / cnt).toFixed(3),
+    P4w: +(fw / cnt).toFixed(3),
+    circuity: +(circNum / circDen).toFixed(3),
+    intersectionsPerKm2: Math.round((cnt - de) / (areaKm2 * 0.64)), // inner 80 % x 80 % window
+    shares: Object.fromEntries(Object.entries(lenByClass).map(([c, l]) => [c, Math.round((100 * l) / totLen)])),
+  }),
+);
 ```
 
 Bounding boxes used (south, west, north, east): Midtown Manhattan 40.748,-73.995,40.765,-73.970; Barcelona Eixample
@@ -634,10 +681,10 @@ removes clipping artefacts; orientation bins are not rotated to the dominant bea
 ## Appendix B: shape factor of ideal blocks
 
 ```ts
-const rect = (a: number, b: number) => (a * b) / (Math.PI * (a * a + b * b) / 4);
+const rect = (a: number, b: number) => (a * b) / ((Math.PI * (a * a + b * b)) / 4);
 const chamfered = (side: number, leg: number) => {
-  const area = side * side - 2 * leg * leg;           // four corner triangles of leg²/2
-  const r = Math.hypot(side / 2, side / 2 - leg);      // farthest vertex from centre
+  const area = side * side - 2 * leg * leg; // four corner triangles of leg²/2
+  const r = Math.hypot(side / 2, side / 2 - leg); // farthest vertex from centre
   return area / (Math.PI * r * r);
 };
 // rect(61, 244) = 0.300; rect(100, 200) = 0.509; rect(61, 61) = 0.637; chamfered(113.3, 15) = 0.798

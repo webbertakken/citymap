@@ -81,40 +81,40 @@ Column definitions:
 - **rootEff** is the inverse Simpson index (effective number) of the top-level folders, weighted by file count.
 - **pkgs** counts outermost folders with a package manifest, outside fixture and vendored areas.
 
-| repo | files | dirs | maxDepth | depthMean | depthP90 | leafDir | branchP50 | branchP90 | branchMax | filesPerDirP50 | filesPerDirP90 | filesPerDirMax | rootDirs | rootTop | rootEff | pkgs |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| sindresorhus/ky | 115 | 12 | 2 | 1.23 | 2 | 0.667 | 4 | 5 | 5 | 8 | 21 | 40 | 5 | 0.40 | 3.06 | 0 |
-| spring-projects/spring-petclinic | 132 | 50 | 8 | 5.08 | 8 | 0.560 | 1 | 4 | 6 | 2 | 6 | 14 | 6 | 0.81 | 1.21 | 0 |
-| t3-oss/create-t3-turbo | 141 | 57 | 7 | 2.59 | 4 | 0.544 | 2 | 5 | 6 | 2 | 5 | 10 | 6 | 0.44 | 3.03 | 13 |
-| expressjs/express | 214 | 74 | 5 | 1.90 | 3 | 0.622 | 1 | 4 | 25 | 1 | 4 | 70 | 6 | 0.52 | 2.23 | 0 |
-| pallets/flask | 236 | 52 | 7 | 2.13 | 4 | 0.481 | 1 | 4 | 6 | 2 | 11 | 31 | 6 | 0.37 | 3.73 | 0 |
-| BurntSushi/ripgrep | 237 | 63 | 4 | 2.38 | 3 | 0.651 | 2 | 9 | 12 | 3 | 8 | 18 | 9 | 0.62 | 2.08 | 11 |
-| square/okhttp | 845 | 503 | 8 | 5.31 | 7 | 0.342 | 1 | 2 | 37 | 0 | 4 | 89 | 37 | 0.43 | 4.67 | 36 |
-| vitejs/vite | 2,866 | 934 | 11 | 3.68 | 7 | 0.692 | 2 | 6 | 78 | 2 | 6 | 51 | 7 | 0.63 | 2.01 | 4 |
-| rails/rails | 5,007 | 1,115 | 11 | 3.89 | 5 | 0.658 | 1 | 7 | 31 | 1 | 9 | 199 | 20 | 0.27 | 7.56 | 14 |
-| vercel/turborepo | 5,976 | 2,577 | 11 | 4.30 | 6 | 0.534 | 2 | 3 | 102 | 1 | 5 | 103 | 16 | 0.28 | 5.54 | 101 |
-| django/django | 7,084 | 3,279 | 9 | 4.13 | 6 | 0.539 | 1 | 1 | 216 | 2 | 4 | 397 | 9 | 0.52 | 2.40 | 0 |
-| facebook/react | 7,252 | 642 | 10 | 5.66 | 8 | 0.636 | 2 | 4 | 40 | 3 | 15 | 2,700 | 8 | 0.59 | 2.26 | 45 |
-| nrwl/nx | 10,868 | 3,758 | 14 | 4.69 | 7 | 0.666 | 1 | 10 | 41 | 1 | 6 | 226 | 26 | 0.60 | 2.59 | 110 |
-| denoland/deno | 14,945 | 4,347 | 10 | 4.09 | 5 | 0.746 | 1 | 3 | 461 | 3 | 6 | 134 | 12 | 0.84 | 1.39 | 60 |
-| golang/go | 16,086 | 1,825 | 13 | 3.87 | 6 | 0.752 | 1 | 7 | 202 | 2 | 12 | 1,937 | 8 | 0.77 | 1.56 | 2 |
-| microsoft/vscode | 20,342 | 4,611 | 14 | 6.02 | 9 | 0.619 | 1 | 4 | 112 | 1 | 9 | 780 | 15 | 0.61 | 2.09 | 10 |
-| babel/babel | 27,831 | 13,099 | 11 | 6.26 | 7 | 0.874 | 2 | 17 | 545 | 2 | 3 | 96 | 14 | 0.99 | 1.03 | 157 |
-| kubernetes/kubernetes | 31,421 | 6,097 | 14 | 6.13 | 9 | 0.640 | 1 | 5 | 69 | 2 | 9 | 1,473 | 16 | 0.54 | 2.90 | 35 |
-| rust-lang/rust | 63,565 | 4,792 | 13 | 3.86 | 6 | 0.715 | 1 | 5 | 441 | 3 | 22 | 2,568 | 6 | 0.70 | 1.84 | 131 |
-| torvalds/linux | 96,080 | 6,285 | 10 | 3.83 | 6 | 0.788 | 2 | 10 | 144 | 6 | 31 | 1,521 | 24 | 0.40 | 4.43 | 2 |
+| repo                             | files  | dirs   | maxDepth | depthMean | depthP90 | leafDir | branchP50 | branchP90 | branchMax | filesPerDirP50 | filesPerDirP90 | filesPerDirMax | rootDirs | rootTop | rootEff | pkgs |
+| -------------------------------- | ------ | ------ | -------- | --------- | -------- | ------- | --------- | --------- | --------- | -------------- | -------------- | -------------- | -------- | ------- | ------- | ---- |
+| sindresorhus/ky                  | 115    | 12     | 2        | 1.23      | 2        | 0.667   | 4         | 5         | 5         | 8              | 21             | 40             | 5        | 0.40    | 3.06    | 0    |
+| spring-projects/spring-petclinic | 132    | 50     | 8        | 5.08      | 8        | 0.560   | 1         | 4         | 6         | 2              | 6              | 14             | 6        | 0.81    | 1.21    | 0    |
+| t3-oss/create-t3-turbo           | 141    | 57     | 7        | 2.59      | 4        | 0.544   | 2         | 5         | 6         | 2              | 5              | 10             | 6        | 0.44    | 3.03    | 13   |
+| expressjs/express                | 214    | 74     | 5        | 1.90      | 3        | 0.622   | 1         | 4         | 25        | 1              | 4              | 70             | 6        | 0.52    | 2.23    | 0    |
+| pallets/flask                    | 236    | 52     | 7        | 2.13      | 4        | 0.481   | 1         | 4         | 6         | 2              | 11             | 31             | 6        | 0.37    | 3.73    | 0    |
+| BurntSushi/ripgrep               | 237    | 63     | 4        | 2.38      | 3        | 0.651   | 2         | 9         | 12        | 3              | 8              | 18             | 9        | 0.62    | 2.08    | 11   |
+| square/okhttp                    | 845    | 503    | 8        | 5.31      | 7        | 0.342   | 1         | 2         | 37        | 0              | 4              | 89             | 37       | 0.43    | 4.67    | 36   |
+| vitejs/vite                      | 2,866  | 934    | 11       | 3.68      | 7        | 0.692   | 2         | 6         | 78        | 2              | 6              | 51             | 7        | 0.63    | 2.01    | 4    |
+| rails/rails                      | 5,007  | 1,115  | 11       | 3.89      | 5        | 0.658   | 1         | 7         | 31        | 1              | 9              | 199            | 20       | 0.27    | 7.56    | 14   |
+| vercel/turborepo                 | 5,976  | 2,577  | 11       | 4.30      | 6        | 0.534   | 2         | 3         | 102       | 1              | 5              | 103            | 16       | 0.28    | 5.54    | 101  |
+| django/django                    | 7,084  | 3,279  | 9        | 4.13      | 6        | 0.539   | 1         | 1         | 216       | 2              | 4              | 397            | 9        | 0.52    | 2.40    | 0    |
+| facebook/react                   | 7,252  | 642    | 10       | 5.66      | 8        | 0.636   | 2         | 4         | 40        | 3              | 15             | 2,700          | 8        | 0.59    | 2.26    | 45   |
+| nrwl/nx                          | 10,868 | 3,758  | 14       | 4.69      | 7        | 0.666   | 1         | 10        | 41        | 1              | 6              | 226            | 26       | 0.60    | 2.59    | 110  |
+| denoland/deno                    | 14,945 | 4,347  | 10       | 4.09      | 5        | 0.746   | 1         | 3         | 461       | 3              | 6              | 134            | 12       | 0.84    | 1.39    | 60   |
+| golang/go                        | 16,086 | 1,825  | 13       | 3.87      | 6        | 0.752   | 1         | 7         | 202       | 2              | 12             | 1,937          | 8        | 0.77    | 1.56    | 2    |
+| microsoft/vscode                 | 20,342 | 4,611  | 14       | 6.02      | 9        | 0.619   | 1         | 4         | 112       | 1              | 9              | 780            | 15       | 0.61    | 2.09    | 10   |
+| babel/babel                      | 27,831 | 13,099 | 11       | 6.26      | 7        | 0.874   | 2         | 17        | 545       | 2              | 3              | 96             | 14       | 0.99    | 1.03    | 157  |
+| kubernetes/kubernetes            | 31,421 | 6,097  | 14       | 6.13      | 9        | 0.640   | 1         | 5         | 69        | 2              | 9              | 1,473          | 16       | 0.54    | 2.90    | 35   |
+| rust-lang/rust                   | 63,565 | 4,792  | 13       | 3.86      | 6        | 0.715   | 1         | 5         | 441       | 3              | 22             | 2,568          | 6        | 0.70    | 1.84    | 131  |
+| torvalds/linux                   | 96,080 | 6,285  | 10       | 3.83      | 6        | 0.788   | 2         | 10        | 144       | 6              | 31             | 1,521          | 24       | 0.40    | 4.43    | 2    |
 
 Spearman rank correlation with file count, n = 20:
 
-| metric | ρ with file count |
-| --- | --- |
-| branchMax | 0.85 |
-| filesPerDirMax | 0.83 |
-| maxDepth | 0.82 |
-| rootDirs | 0.58 |
-| leafDirRatio | 0.53 |
-| depthMean | 0.51 |
-| branchP90 | 0.40 |
+| metric         | ρ with file count |
+| -------------- | ----------------- |
+| branchMax      | 0.85              |
+| filesPerDirMax | 0.83              |
+| maxDepth       | 0.82              |
+| rootDirs       | 0.58              |
+| leafDirRatio   | 0.53              |
+| depthMean      | 0.51              |
+| branchP90      | 0.40              |
 
 What the data says:
 
@@ -144,59 +144,59 @@ wins, in this order: vendored, generated, fixtures, tests, examples, docs, ci/to
 
 Percentages of files:
 
-| repo | source | tests | fixtures | examples | docs | vendored | generated | ci/tools | config | assets |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| sindresorhus/ky | 47 | 40 | 0 | 0 | 3 | 0 | 0 | 2 | 7 | 2 |
-| spring-petclinic | 38 | 16 | 0 | 23 | 4 | 0 | 0 | 5 | 5 | 10 |
-| create-t3-turbo | 60 | 0 | 0 | 0 | 1 | 0 | 0 | 7 | 29 | 4 |
-| express | 4 | 43 | 10 | 37 | 1 | 0 | 0 | 3 | 3 | 0 |
-| flask | 11 | 29 | 0 | 14 | 40 | 0 | 0 | 3 | 3 | 0 |
-| ripgrep | 61 | 12 | 0 | 1 | 13 | 0 | 0 | 4 | 8 | 0 |
-| okhttp | 69 | 9 | 0 | 11 | 8 | 0 | 0 | 1 | 2 | 0 |
-| vite | 10 | 8 | 10 | 58 | 6 | 1 | 0 | 1 | 2 | 3 |
-| rails | 39 | 41 | 15 | 0 | 2 | 0 | 0 | 1 | 1 | 1 |
-| turborepo | 14 | 6 | 33 | 27 | 11 | 2 | 3 | 1 | 3 | 0 |
-| django | 51 | 36 | 1 | 0 | 11 | 1 | 0 | 1 | 0 | 1 |
-| react | 24 | 8 | 58 | 1 | 2 | 2 | 0 | 3 | 2 | 1 |
-| nx | 42 | 26 | 1 | 4 | 9 | 0 | 2 | 2 | 9 | 4 |
-| deno | 11 | 78 | 6 | 0 | 1 | 2 | 1 | 1 | 1 | 0 |
-| go | 30 | 35 | 27 | 0 | 1 | 7 | 0 | 0 | 0 | 0 |
-| vscode | 49 | 28 | 6 | 0 | 2 | 0 | 6 | 2 | 4 | 2 |
-| babel | 3 | 3 | 91 | 0 | 1 | 0 | 0 | 0 | 2 | 0 |
-| kubernetes | 26 | 16 | 32 | 1 | 1 | 17 | 5 | 1 | 1 | 0 |
-| rust | 6 | 84 | 2 | 0 | 3 | 0 | 0 | 5 | 0 | 0 |
-| linux | 76 | 1 | 0 | 0 | 12 | 0 | 0 | 10 | 0 | 0 |
+| repo             | source | tests | fixtures | examples | docs | vendored | generated | ci/tools | config | assets |
+| ---------------- | ------ | ----- | -------- | -------- | ---- | -------- | --------- | -------- | ------ | ------ |
+| sindresorhus/ky  | 47     | 40    | 0        | 0        | 3    | 0        | 0         | 2        | 7      | 2      |
+| spring-petclinic | 38     | 16    | 0        | 23       | 4    | 0        | 0         | 5        | 5      | 10     |
+| create-t3-turbo  | 60     | 0     | 0        | 0        | 1    | 0        | 0         | 7        | 29     | 4      |
+| express          | 4      | 43    | 10       | 37       | 1    | 0        | 0         | 3        | 3      | 0      |
+| flask            | 11     | 29    | 0        | 14       | 40   | 0        | 0         | 3        | 3      | 0      |
+| ripgrep          | 61     | 12    | 0        | 1        | 13   | 0        | 0         | 4        | 8      | 0      |
+| okhttp           | 69     | 9     | 0        | 11       | 8    | 0        | 0         | 1        | 2      | 0      |
+| vite             | 10     | 8     | 10       | 58       | 6    | 1        | 0         | 1        | 2      | 3      |
+| rails            | 39     | 41    | 15       | 0        | 2    | 0        | 0         | 1        | 1      | 1      |
+| turborepo        | 14     | 6     | 33       | 27       | 11   | 2        | 3         | 1        | 3      | 0      |
+| django           | 51     | 36    | 1        | 0        | 11   | 1        | 0         | 1        | 0      | 1      |
+| react            | 24     | 8     | 58       | 1        | 2    | 2        | 0         | 3        | 2      | 1      |
+| nx               | 42     | 26    | 1        | 4        | 9    | 0        | 2         | 2        | 9      | 4      |
+| deno             | 11     | 78    | 6        | 0        | 1    | 2        | 1         | 1        | 1      | 0      |
+| go               | 30     | 35    | 27       | 0        | 1    | 7        | 0         | 0        | 0      | 0      |
+| vscode           | 49     | 28    | 6        | 0        | 2    | 0        | 6         | 2        | 4      | 2      |
+| babel            | 3      | 3     | 91       | 0        | 1    | 0        | 0         | 0        | 2      | 0      |
+| kubernetes       | 26     | 16    | 32       | 1        | 1    | 17       | 5         | 1        | 1      | 0      |
+| rust             | 6      | 84    | 2        | 0        | 3    | 0        | 0         | 5        | 0      | 0      |
+| linux            | 76     | 1     | 0        | 0        | 12   | 0        | 0         | 10       | 0      | 0      |
 
 The conclusion is unavoidable. A city drawn in proportion to raw file count makes babel an enormous warehouse district
 with a tiny town attached, and makes rust-lang/rust a test range with a compiler suburb. The archetype must be chosen on
-weighted mass. The *area* each land use receives can be a separate, user-tunable decision (open question 1).
+weighted mass. The _area_ each land use receives can be a separate, user-tunable decision (open question 1).
 
 ## 2. Metric vector
 
 Every metric is computed per node (folder), in one O(files) pass, from the weighted mass `m` of each file. The default
 weights:
 
-| land use | weight |
-| --- | --- |
-| source | 1.0 |
-| config, assets, ci/tools, docs | 0.5 |
-| tests, examples | 0.3 |
-| fixtures, generated, vendored | 0.05 |
+| land use                       | weight |
+| ------------------------------ | ------ |
+| source                         | 1.0    |
+| config, assets, ci/tools, docs | 0.5    |
+| tests, examples                | 0.3    |
+| fixtures, generated, vendored  | 0.05   |
 
 These weights are a design choice. They are not derived from any source.
 
 For node `n` with child folders `c_1..c_k` (sorted by mass) and its own files' mass `m_0`:
 
-| feature | definition | role | continuity |
-| --- | --- | --- | --- |
-| `mass` | Σ m over the subtree | tier, hamlet test | continuous |
-| `s1`, `s2` | mass share of the largest and second-largest child | radial, twin, gridiron | continuous |
-| `f0` | `m_0 / mass`, the share of files sitting directly in the node | street village | continuous |
-| `neff` | inverse Simpson `1 / Σ p_i²` over all children plus `m_0` ([Hill numbers](https://en.wikipedia.org/wiki/Diversity_index)) | how many centres the node really has | continuous; tiny children barely move it |
-| `members`, `memberCover` | workspace members inside the node, and their share of mass | archipelago | `members` is an integer (see §4.4) |
-| corridor | the chain of dominant children (≥ 90% of mass, own files < 10%) below the node | collapse into one avenue | thresholded; give it its own band |
-| depth p50/p90, height | file depth below the node | number of ring or road classes needed | continuous |
-| age (optional) | first-commit time of the node, from git | old town versus new suburb, ring order | continuous |
+| feature                  | definition                                                                                                                | role                                   | continuity                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------- |
+| `mass`                   | Σ m over the subtree                                                                                                      | tier, hamlet test                      | continuous                               |
+| `s1`, `s2`               | mass share of the largest and second-largest child                                                                        | radial, twin, gridiron                 | continuous                               |
+| `f0`                     | `m_0 / mass`, the share of files sitting directly in the node                                                             | street village                         | continuous                               |
+| `neff`                   | inverse Simpson `1 / Σ p_i²` over all children plus `m_0` ([Hill numbers](https://en.wikipedia.org/wiki/Diversity_index)) | how many centres the node really has   | continuous; tiny children barely move it |
+| `members`, `memberCover` | workspace members inside the node, and their share of mass                                                                | archipelago                            | `members` is an integer (see §4.4)       |
+| corridor                 | the chain of dominant children (≥ 90% of mass, own files < 10%) below the node                                            | collapse into one avenue               | thresholded; give it its own band        |
+| depth p50/p90, height    | file depth below the node                                                                                                 | number of ring or road classes needed  | continuous                               |
+| age (optional)           | first-commit time of the node, from git                                                                                   | old town versus new suburb, ring order | continuous                               |
 
 Metrics that were considered and rejected as primary drivers:
 
@@ -223,13 +223,13 @@ The settlement hierarchy runs: isolated dwelling, hamlet, village, small town, l
 functions). Bins are by decade of weighted mass, because perception of scale is roughly logarithmic and repo sizes span
 four orders of magnitude:
 
-| tier | weighted mass | road classes | examples (root) |
-| --- | --- | --- | --- |
-| hamlet | < 30 | one loop or lane | babel in early 2014 (13 files) |
-| village | 30 to 300 | lanes and a high street | ky, express, flask, ripgrep, create-t3-turbo, petclinic |
-| town | 300 to 3,000 | plus arterials | react, vite, rails, babel, turborepo, okhttp |
-| city | 3,000 to 30,000 | plus ring road | django, go, vscode, kubernetes, nx, rust, deno |
-| metropolis | ≥ 30,000 | plus motorways, satellite towns | linux |
+| tier       | weighted mass   | road classes                    | examples (root)                                         |
+| ---------- | --------------- | ------------------------------- | ------------------------------------------------------- |
+| hamlet     | < 30            | one loop or lane                | babel in early 2014 (13 files)                          |
+| village    | 30 to 300       | lanes and a high street         | ky, express, flask, ripgrep, create-t3-turbo, petclinic |
+| town       | 300 to 3,000    | plus arterials                  | react, vite, rails, babel, turborepo, okhttp            |
+| city       | 3,000 to 30,000 | plus ring road                  | django, go, vscode, kubernetes, nx, rust, deno          |
+| metropolis | ≥ 30,000        | plus motorways, satellite towns | linux                                                   |
 
 Hysteresis: move up at threshold × 1.25, move down at threshold ÷ 1.25.
 
@@ -237,15 +237,15 @@ Hysteresis: move up at threshold × 1.25, move down at threshold ÷ 1.25.
 
 Each form names an urban pattern and the shape condition it answers. The conditions are tested in the order listed.
 
-| # | form | urban precedent | enters when (cold start) | real examples from our runs |
-| --- | --- | --- | --- | --- |
-| 1 | **Hamlet** | cluster of houses round a green | mass < 25 | `ripgrep/benchsuite`, tiny folders |
-| 2 | **Street village** | [linear settlement](https://en.wikipedia.org/wiki/Linear_settlement), houses fronting one road | `f0 ≥ 0.6`, or no child folders | go `src/runtime` (f0 0.80), `src/syscall`, `test/fixedbugs`, django `docs/releases`, flask `src/flask` |
-| 3 | **Archipelago** | islands joined by bridges and ferries | ≥ 3 workspace members covering ≥ 50% of mass | nx, turborepo, rails, deno, react, vite, create-t3-turbo, kubernetes `staging/` |
-| 4 | **Radial old town** | monocentric core in concentric rings ([Burgess concentric zones](https://en.wikipedia.org/wiki/Concentric_zone_model)) | `s1 ≥ 0.6` | django (`django/` 0.76), go root (`src` 0.83), vscode root, most Rails gems, nx packages (`packages/nx/src`) |
-| 5 | **Twin city** | two cores across a river ([twin cities](https://en.wikipedia.org/wiki/Twin_cities)) | `s2 ≥ 0.3` and `s1 + s2 ≥ 0.75` | express (test plus examples), okhttp `src` (main plus test), react 2014-2017 (src plus docs), vite 2020 |
-| 6 | **Gridiron** | [grid plan](https://en.wikipedia.org/wiki/Grid_plan) of comparable blocks | `neff ≥ 7` and `s1 ≤ 0.25` | linux `drivers/`, `arch/`; go `src/`; kubernetes `pkg/`; rust `compiler/`; django `tests/`, `contrib/`; turborepo `examples/` |
-| 7 | **Polycentric** | a few comparable centres joined by arterials | otherwise (2.5 ≲ neff < 7, no dominant child) | linux root, vscode `src/vs`, rust root, flask, ky, `library/` |
+| #   | form                | urban precedent                                                                                                        | enters when (cold start)                      | real examples from our runs                                                                                                   |
+| --- | ------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Hamlet**          | cluster of houses round a green                                                                                        | mass < 25                                     | `ripgrep/benchsuite`, tiny folders                                                                                            |
+| 2   | **Street village**  | [linear settlement](https://en.wikipedia.org/wiki/Linear_settlement), houses fronting one road                         | `f0 ≥ 0.6`, or no child folders               | go `src/runtime` (f0 0.80), `src/syscall`, `test/fixedbugs`, django `docs/releases`, flask `src/flask`                        |
+| 3   | **Archipelago**     | islands joined by bridges and ferries                                                                                  | ≥ 3 workspace members covering ≥ 50% of mass  | nx, turborepo, rails, deno, react, vite, create-t3-turbo, kubernetes `staging/`                                               |
+| 4   | **Radial old town** | monocentric core in concentric rings ([Burgess concentric zones](https://en.wikipedia.org/wiki/Concentric_zone_model)) | `s1 ≥ 0.6`                                    | django (`django/` 0.76), go root (`src` 0.83), vscode root, most Rails gems, nx packages (`packages/nx/src`)                  |
+| 5   | **Twin city**       | two cores across a river ([twin cities](https://en.wikipedia.org/wiki/Twin_cities))                                    | `s2 ≥ 0.3` and `s1 + s2 ≥ 0.75`               | express (test plus examples), okhttp `src` (main plus test), react 2014-2017 (src plus docs), vite 2020                       |
+| 6   | **Gridiron**        | [grid plan](https://en.wikipedia.org/wiki/Grid_plan) of comparable blocks                                              | `neff ≥ 7` and `s1 ≤ 0.25`                    | linux `drivers/`, `arch/`; go `src/`; kubernetes `pkg/`; rust `compiler/`; django `tests/`, `contrib/`; turborepo `examples/` |
+| 7   | **Polycentric**     | a few comparable centres joined by arterials                                                                           | otherwise (2.5 ≲ neff < 7, no dominant child) | linux root, vscode `src/vs`, rust root, flask, ky, `library/`                                                                 |
 
 **Corridor** is not a form but a pre-step. When a node's dominant child holds at least 90% of its mass and the node's
 own files are under 10%, the node is collapsed into an avenue or gateway leading into that child. The small siblings
@@ -289,22 +289,23 @@ stay.
 ```ts
 // Margins as used in the experiments (classify.ts). m >= 0 enters on a cold start.
 const RULES = [
-  { form: "hamlet",      margin: (f) => Math.log(25 / f.mass) },
-  { form: "street",      margin: (f) => (f.k === 0 ? 1 : f.f0 - 0.6) },
+  { form: "hamlet", margin: (f) => Math.log(25 / f.mass) },
+  { form: "street", margin: (f) => (f.k === 0 ? 1 : f.f0 - 0.6) },
   { form: "archipelago", margin: (f) => Math.min((f.members - 3) / 3, f.memberCover - 0.5) },
-  { form: "radial",      margin: (f) => f.s1 - 0.6 },
-  { form: "twin",        margin: (f) => Math.min(f.s2 - 0.3, f.s1 + f.s2 - 0.75) },
-  { form: "gridiron",    margin: (f) => Math.min(Math.log(f.neff / 7), 0.25 - f.s1) },
+  { form: "radial", margin: (f) => f.s1 - 0.6 },
+  { form: "twin", margin: (f) => Math.min(f.s2 - 0.3, f.s1 + f.s2 - 0.75) },
+  { form: "gridiron", margin: (f) => Math.min(Math.log(f.neff / 7), 0.25 - f.s1) },
   { form: "polycentric", margin: () => 1 },
 ];
-const STAY = 0.15, CHALLENGE = 0.1;
+const STAY = 0.15,
+  CHALLENGE = 0.1;
 
 function classify(f, previous) {
-  if (!previous) return RULES.find((r) => r.margin(f) >= 0).form;          // cold start
+  if (!previous) return RULES.find((r) => r.margin(f) >= 0).form; // cold start
   const i = RULES.findIndex((r) => r.form === previous);
   const earlier = RULES.slice(0, i).find((r) => r.margin(f) >= CHALLENGE); // higher priority must win clearly
   if (earlier) return earlier.form;
-  if (RULES[i].margin(f) >= -STAY) return previous;                         // incumbent keeps its seat
+  if (RULES[i].margin(f) >= -STAY) return previous; // incumbent keeps its seat
   return RULES.slice(i + 1).find((r) => r.margin(f) >= CHALLENGE)?.form ?? "polycentric";
 }
 ```
@@ -327,9 +328,9 @@ Setup:
 - Each way is compared with the unperturbed plan. 436 nodes were checked per trial.
 
 | perturbation | form flips, stateless | stay band only | stay + challenge | tier flips, stateless | tier with ±25% band |
-| --- | --- | --- | --- | --- | --- |
-| 2% of files | 1.18% | 0.42% | **0.03%** | 0.93% | **0.00%** |
-| 5% of files | 2.57% | 1.15% | **0.12%** | 2.28% | **0.01%** |
+| ------------ | --------------------- | -------------- | ---------------- | --------------------- | ------------------- |
+| 2% of files  | 1.18%                 | 0.42%          | **0.03%**        | 0.93%                 | **0.00%**           |
+| 5% of files  | 2.57%                 | 1.15%          | **0.12%**        | 2.28%                 | **0.01%**           |
 
 Rates are node-weighted means over all nodes and trials. The worst repo with full hysteresis at 5% was turborepo
 (0.49%), followed by okhttp (0.42%) and django (0.33%). The remaining flips sit in small nodes (mass 25-60), where a
@@ -356,7 +357,7 @@ noise of bounded size. It cannot absorb a feature that jumps.
 mitigations:
 
 - (a) The margin also requires `memberCover`, which is continuous.
-- (b) The challenge margin of 0.1 means a cold-started hamlet or polycentric node needs 3+ members *and* ≥ 60% cover to
+- (b) The challenge margin of 0.1 means a cold-started hamlet or polycentric node needs 3+ members _and_ ≥ 60% cover to
   convert.
 
 In the turborepo history (§4.6) this delayed the archipelago by one snapshot (2022-01 → 2022-07). That is acceptable
@@ -367,18 +368,18 @@ and arguably right.
 Hysteresis makes the plan a function of (tree, previous plan). "Same input, same map" therefore needs the previous plan
 to be part of the input. Options:
 
-| option | deterministic? | cost | notes |
-| --- | --- | --- | --- |
-| **Fold over first-parent git history** (sample per release tag or every N commits, cache the result) | yes: the history is in the repo | O(snapshots × files); cacheable, incremental per new commit | also yields node age, which drives old town versus new suburb |
-| Committed lockfile (`citymap.lock.json`) | yes, if committed | trivial | a team can pin a city; merge conflicts possible |
-| Local state (IndexedDB on the web, file for Rust) | per machine only | trivial | two machines can differ; acceptable for non-git folders |
-| Stateless with wide bands | yes | none | flips 1-3% of nodes per small change; violates the requirement |
+| option                                                                                               | deterministic?                  | cost                                                        | notes                                                          |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------- |
+| **Fold over first-parent git history** (sample per release tag or every N commits, cache the result) | yes: the history is in the repo | O(snapshots × files); cacheable, incremental per new commit | also yields node age, which drives old town versus new suburb  |
+| Committed lockfile (`citymap.lock.json`)                                                             | yes, if committed               | trivial                                                     | a team can pin a city; merge conflicts possible                |
+| Local state (IndexedDB on the web, file for Rust)                                                    | per machine only                | trivial                                                     | two machines can differ; acceptable for non-git folders        |
+| Stateless with wide bands                                                                            | yes                             | none                                                        | flips 1-3% of nodes per small change; violates the requirement |
 
 The recommended order: fold over git history where it exists, then a committed lock if present, then local state.
 Cold start is the fallback for shallow clones and plain folders.
 
-Pitfall found while doing this: GitHub's `GET /repos/{o}/{r}/commits?until=` picks the newest commit *by date among
-all ancestors*. In babel that alternates between the monorepo (17,000+ files) and old side histories of 44-55 files
+Pitfall found while doing this: GitHub's `GET /repos/{o}/{r}/commits?until=` picks the newest commit _by date among
+all ancestors_. In babel that alternates between the monorepo (17,000+ files) and old side histories of 44-55 files
 from merged branches. Running `git rev-list --first-parent --before=<date>` locally gave the mainline commit instead
 (e.g. 2017-01: `3855f28` first-parent versus `39cda64` any-ancestor). **Always fold over `--first-parent`.**
 
@@ -387,24 +388,24 @@ from merged branches. Running `git rev-list --first-parent --before=<date>` loca
 Snapshots every six months via the GitHub trees API. Members came from `package.json#workspaces`, `lerna.json` and
 `pnpm-workspace.yaml` at each snapshot.
 
-| repo | period | stateless | with hysteresis | what happened |
-| --- | --- | --- | --- | --- |
-| facebook/react | 2013-07 → 2017-07 | polycentric, then twin (src plus docs) | same | single package |
-| facebook/react | 2018-01 → 2023-07 | archipelago | same | moved to `packages/*` with workspaces (12 members at 2018-01) |
-| vitejs/vite | 2020-07 | twin (src plus playground) | same | Vite 1 |
-| vitejs/vite | 2021-01 → 2026-07 | archipelago | same | Vite 2 monorepo, 4 → 80 members |
-| vercel/turborepo | 2021 | hamlet | same | 13-14 files |
-| vercel/turborepo | 2022-01 | archipelago | polycentric | 3 members: below the challenge margin |
-| vercel/turborepo | 2022-07 → 2024-01 | archipelago | archipelago | Go CLI plus crates and packages |
-| vercel/turborepo | 2024-07 | **radial** (s1 0.64) | **archipelago** | one-off concentration in a single folder; hysteresis held |
-| vercel/turborepo | 2025-01 → 2026-07 | archipelago | archipelago | |
+| repo             | period            | stateless                              | with hysteresis | what happened                                                 |
+| ---------------- | ----------------- | -------------------------------------- | --------------- | ------------------------------------------------------------- |
+| facebook/react   | 2013-07 → 2017-07 | polycentric, then twin (src plus docs) | same            | single package                                                |
+| facebook/react   | 2018-01 → 2023-07 | archipelago                            | same            | moved to `packages/*` with workspaces (12 members at 2018-01) |
+| vitejs/vite      | 2020-07           | twin (src plus playground)             | same            | Vite 1                                                        |
+| vitejs/vite      | 2021-01 → 2026-07 | archipelago                            | same            | Vite 2 monorepo, 4 → 80 members                               |
+| vercel/turborepo | 2021              | hamlet                                 | same            | 13-14 files                                                   |
+| vercel/turborepo | 2022-01           | archipelago                            | polycentric     | 3 members: below the challenge margin                         |
+| vercel/turborepo | 2022-07 → 2024-01 | archipelago                            | archipelago     | Go CLI plus crates and packages                               |
+| vercel/turborepo | 2024-07           | **radial** (s1 0.64)                   | **archipelago** | one-off concentration in a single folder; hysteresis held     |
+| vercel/turborepo | 2025-01 → 2026-07 | archipelago                            | archipelago     |                                                               |
 
 The archetype changes only where the repository fundamentally changed shape. That is exactly the owner's requirement.
 
 ## 5. Mapping at every level of nesting
 
 1. **Recursion.** Classify every node whose mass is at least 25 and at least 5% of its parent's mass. Smaller children
-   are not districts: they become blocks or parcel clusters in the parent's form. Each node's form decides how *its*
+   are not districts: they become blocks or parcel clusters in the parent's form. Each node's form decides how _its_
    children are arranged. A gridiron city can contain a radial old town, which can contain a street village.
    - Observed: linux root (polycentric metropolis) contains `drivers/` (gridiron), which contains `drivers/gpu`
      (radial, corridor into `drm`).
@@ -434,33 +435,33 @@ The archetype changes only where the repository fundamentally changed shape. Tha
 The mental model follows [Lynch's five elements](https://en.wikipedia.org/wiki/The_Image_of_the_City): paths, edges,
 districts, nodes and landmarks. The city stays legible if every repo concept maps to exactly one of them.
 
-| repo concept | city element | detection | rationale |
-| --- | --- | --- | --- |
-| root folder | city centre square with town hall | root | Lynch *node*: everyone starts here |
-| root files (README, LICENCE, manifests, lockfiles) | town hall, charter, registry office on the square | root-level files | civic, few and important |
-| workspace member or package | island, borough or municipality | manifests (§7) | a separately versioned unit has its own administration |
-| folder | district, neighbourhood, then block, by level | tree | Lynch *district* |
-| file | parcel (building comes later) | tree | addressable unit for game and statistics |
-| tree edges (parent to child) | streets; road class by level and mass | tree | *paths* that always exist and are stable |
-| entry points (`src/main.rs`, `src/bin/*`, `package.json` `bin`, `main` or `exports`, Go `cmd/*`, `__main__.py`) | gates and stations on the arterial ring; the main entry is the central station | Cargo layout ([cargo guide](https://doc.rust-lang.org/cargo/guide/project-layout.html)); manifests | where traffic enters the city |
-| public API (`src/lib.rs`, `index.ts`, exports) | high-street frontage or market square of the district | as above | the shop window |
-| `internal/` (Go: importable only from within the module, [go.dev layout](https://go.dev/doc/modules/layout)) | gated estate, no through-roads from outside | path segment | encodes real access rules |
-| source | residential or commercial mixed use, density by size | default | the lived-in city |
-| tests (`test/`, `tests/`, `__tests__`, `*_test.go`, `*.spec.ts`) | co-located: workshops behind the houses; top-level `tests/`: testing grounds or industrial estate at the edge | path rules | they serve the city and sit beside it |
-| fixtures, snapshots, `testdata/` | warehouses and storage yards | path rules | bulky, inert, rarely visited |
-| examples, demos, playgrounds, samples | exhibition grounds or a model village (show homes) | Linguist documentation rules | built to be looked at |
-| docs | civic quarter: library, museum | Linguist documentation rules | public knowledge |
-| assets (images, fonts, media) | parks, gardens, public art | extension | decorative, low-rise |
-| CI, scripts, tools, `.github`, `hack/` | utilities: depot, power station, water works | path rules | infrastructure that runs the city |
-| config and lockfiles | utility substations, small and many | extension | |
-| generated code | factories, low walls, uniform | Linguist `generated.rb`, `linguist-generated` | machine-made |
-| vendored or third-party | foreign quarter or free port near the docks | Linguist `vendor.yml`, `linguist-vendored` | imported goods, not ours to build |
-| i18n (`locale/`) | uniform terraced housing | path segment | many identical small units, gridiron in practice |
-| module dependencies within a package | not drawn by default; on demand as tram lines | import graph | changes often; would churn the roads |
-| dependencies between workspace members | bridges and causeways (archipelago), viaducts (elsewhere); width by import count | manifests plus import graph | rare, structural, meaningful |
-| external dependencies | port and airport at the city edge, shipping lanes off-map | lockfiles | the outside world |
-| old versus new areas | old town (earliest first commit) at the core, newer suburbs outward; a "strangler" district grows round an old one with construction sites at the seam ([strangler fig](https://martinfowler.com/bliki/StranglerFigApplication.html)) | git age per node | |
-| ownership (CODEOWNERS) | wards and councils (optional overlay) | CODEOWNERS | unverified that it adds value |
+| repo concept                                                                                                    | city element                                                                                                                                                                                                                          | detection                                                                                          | rationale                                              |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| root folder                                                                                                     | city centre square with town hall                                                                                                                                                                                                     | root                                                                                               | Lynch _node_: everyone starts here                     |
+| root files (README, LICENCE, manifests, lockfiles)                                                              | town hall, charter, registry office on the square                                                                                                                                                                                     | root-level files                                                                                   | civic, few and important                               |
+| workspace member or package                                                                                     | island, borough or municipality                                                                                                                                                                                                       | manifests (§7)                                                                                     | a separately versioned unit has its own administration |
+| folder                                                                                                          | district, neighbourhood, then block, by level                                                                                                                                                                                         | tree                                                                                               | Lynch _district_                                       |
+| file                                                                                                            | parcel (building comes later)                                                                                                                                                                                                         | tree                                                                                               | addressable unit for game and statistics               |
+| tree edges (parent to child)                                                                                    | streets; road class by level and mass                                                                                                                                                                                                 | tree                                                                                               | _paths_ that always exist and are stable               |
+| entry points (`src/main.rs`, `src/bin/*`, `package.json` `bin`, `main` or `exports`, Go `cmd/*`, `__main__.py`) | gates and stations on the arterial ring; the main entry is the central station                                                                                                                                                        | Cargo layout ([cargo guide](https://doc.rust-lang.org/cargo/guide/project-layout.html)); manifests | where traffic enters the city                          |
+| public API (`src/lib.rs`, `index.ts`, exports)                                                                  | high-street frontage or market square of the district                                                                                                                                                                                 | as above                                                                                           | the shop window                                        |
+| `internal/` (Go: importable only from within the module, [go.dev layout](https://go.dev/doc/modules/layout))    | gated estate, no through-roads from outside                                                                                                                                                                                           | path segment                                                                                       | encodes real access rules                              |
+| source                                                                                                          | residential or commercial mixed use, density by size                                                                                                                                                                                  | default                                                                                            | the lived-in city                                      |
+| tests (`test/`, `tests/`, `__tests__`, `*_test.go`, `*.spec.ts`)                                                | co-located: workshops behind the houses; top-level `tests/`: testing grounds or industrial estate at the edge                                                                                                                         | path rules                                                                                         | they serve the city and sit beside it                  |
+| fixtures, snapshots, `testdata/`                                                                                | warehouses and storage yards                                                                                                                                                                                                          | path rules                                                                                         | bulky, inert, rarely visited                           |
+| examples, demos, playgrounds, samples                                                                           | exhibition grounds or a model village (show homes)                                                                                                                                                                                    | Linguist documentation rules                                                                       | built to be looked at                                  |
+| docs                                                                                                            | civic quarter: library, museum                                                                                                                                                                                                        | Linguist documentation rules                                                                       | public knowledge                                       |
+| assets (images, fonts, media)                                                                                   | parks, gardens, public art                                                                                                                                                                                                            | extension                                                                                          | decorative, low-rise                                   |
+| CI, scripts, tools, `.github`, `hack/`                                                                          | utilities: depot, power station, water works                                                                                                                                                                                          | path rules                                                                                         | infrastructure that runs the city                      |
+| config and lockfiles                                                                                            | utility substations, small and many                                                                                                                                                                                                   | extension                                                                                          |                                                        |
+| generated code                                                                                                  | factories, low walls, uniform                                                                                                                                                                                                         | Linguist `generated.rb`, `linguist-generated`                                                      | machine-made                                           |
+| vendored or third-party                                                                                         | foreign quarter or free port near the docks                                                                                                                                                                                           | Linguist `vendor.yml`, `linguist-vendored`                                                         | imported goods, not ours to build                      |
+| i18n (`locale/`)                                                                                                | uniform terraced housing                                                                                                                                                                                                              | path segment                                                                                       | many identical small units, gridiron in practice       |
+| module dependencies within a package                                                                            | not drawn by default; on demand as tram lines                                                                                                                                                                                         | import graph                                                                                       | changes often; would churn the roads                   |
+| dependencies between workspace members                                                                          | bridges and causeways (archipelago), viaducts (elsewhere); width by import count                                                                                                                                                      | manifests plus import graph                                                                        | rare, structural, meaningful                           |
+| external dependencies                                                                                           | port and airport at the city edge, shipping lanes off-map                                                                                                                                                                             | lockfiles                                                                                          | the outside world                                      |
+| old versus new areas                                                                                            | old town (earliest first commit) at the core, newer suburbs outward; a "strangler" district grows round an old one with construction sites at the seam ([strangler fig](https://martinfowler.com/bliki/StranglerFigApplication.html)) | git age per node                                                                                   |                                                        |
+| ownership (CODEOWNERS)                                                                                          | wards and councils (optional overlay)                                                                                                                                                                                                 | CODEOWNERS                                                                                         | unverified that it adds value                          |
 
 Roads come from the folder tree, not from dependencies. The tree is the stable skeleton. Dependencies are an overlay
 transit network that can change daily without moving a single street. Later centrality analysis, such as which street
@@ -468,22 +469,22 @@ is "main", can use space syntax integration on that road graph ([space syntax](h
 
 ## 7. Monorepo and workspace detection
 
-| ecosystem | signal | members field | source |
-| --- | --- | --- | --- |
-| pnpm | `pnpm-workspace.yaml` | `packages:` globs, `!` exclusions | [pnpm docs](https://pnpm.io/pnpm-workspace_yaml) |
-| npm, yarn, bun | `package.json` | `workspaces` (array or `{packages}`) | [npm](https://docs.npmjs.com/cli/v10/using-npm/workspaces), [bun](https://bun.sh/docs/install/workspaces) |
-| Lerna | `lerna.json` | `packages` | [lerna](https://lerna.js.org/docs/api-reference/configuration) |
-| Turborepo | `turbo.json` plus package-manager workspaces; recommends `apps/` and `packages/`; nested packages (`apps/a/b`) are an error | n/a | [turborepo](https://turborepo.com/docs/crafting-your-repository/structuring-a-repository) |
-| Nx | `nx.json`; projects from `project.json` or `package.json` | inferred | [nx](https://nx.dev/docs/reference/project-configuration) |
-| Cargo | root `Cargo.toml` `[workspace]`, which may be virtual (no `[package]`) | `members` globs | [cargo](https://doc.rust-lang.org/cargo/reference/workspaces.html) |
-| Go | `go.work` | `use (...)` | [go ref](https://go.dev/ref/mod#workspaces) |
-| Python (uv) | `pyproject.toml` `[tool.uv.workspace]` | `members` | [uv](https://docs.astral.sh/uv/concepts/projects/workspaces/) |
-| Deno | `deno.json` | `workspace` array | [deno](https://docs.deno.com/runtime/fundamentals/workspaces/) |
-| Gradle | `settings.gradle(.kts)` `include(...)` | includes | [gradle](https://docs.gradle.org/current/userguide/multi_project_builds.html) |
-| Maven | parent `pom.xml` `<modules>` | modules | Maven docs (not checked here) |
-| Bazel | each `BUILD` file defines a package | every BUILD directory | [bazel](https://bazel.build/concepts/build-files) |
-| Rush | `rush.json` `projects` | projects | rushjs.io did not respond at writing time (unverified) |
-| fallback | outermost folder containing a manifest (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `*.gemspec`, `pom.xml`, ...) outside fixture and vendored areas | n/a | our heuristic; covers Rails' 12 gems |
+| ecosystem      | signal                                                                                                                                                            | members field                        | source                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| pnpm           | `pnpm-workspace.yaml`                                                                                                                                             | `packages:` globs, `!` exclusions    | [pnpm docs](https://pnpm.io/pnpm-workspace_yaml)                                                          |
+| npm, yarn, bun | `package.json`                                                                                                                                                    | `workspaces` (array or `{packages}`) | [npm](https://docs.npmjs.com/cli/v10/using-npm/workspaces), [bun](https://bun.sh/docs/install/workspaces) |
+| Lerna          | `lerna.json`                                                                                                                                                      | `packages`                           | [lerna](https://lerna.js.org/docs/api-reference/configuration)                                            |
+| Turborepo      | `turbo.json` plus package-manager workspaces; recommends `apps/` and `packages/`; nested packages (`apps/a/b`) are an error                                       | n/a                                  | [turborepo](https://turborepo.com/docs/crafting-your-repository/structuring-a-repository)                 |
+| Nx             | `nx.json`; projects from `project.json` or `package.json`                                                                                                         | inferred                             | [nx](https://nx.dev/docs/reference/project-configuration)                                                 |
+| Cargo          | root `Cargo.toml` `[workspace]`, which may be virtual (no `[package]`)                                                                                            | `members` globs                      | [cargo](https://doc.rust-lang.org/cargo/reference/workspaces.html)                                        |
+| Go             | `go.work`                                                                                                                                                         | `use (...)`                          | [go ref](https://go.dev/ref/mod#workspaces)                                                               |
+| Python (uv)    | `pyproject.toml` `[tool.uv.workspace]`                                                                                                                            | `members`                            | [uv](https://docs.astral.sh/uv/concepts/projects/workspaces/)                                             |
+| Deno           | `deno.json`                                                                                                                                                       | `workspace` array                    | [deno](https://docs.deno.com/runtime/fundamentals/workspaces/)                                            |
+| Gradle         | `settings.gradle(.kts)` `include(...)`                                                                                                                            | includes                             | [gradle](https://docs.gradle.org/current/userguide/multi_project_builds.html)                             |
+| Maven          | parent `pom.xml` `<modules>`                                                                                                                                      | modules                              | Maven docs (not checked here)                                                                             |
+| Bazel          | each `BUILD` file defines a package                                                                                                                               | every BUILD directory                | [bazel](https://bazel.build/concepts/build-files)                                                         |
+| Rush           | `rush.json` `projects`                                                                                                                                            | projects                             | rushjs.io did not respond at writing time (unverified)                                                    |
+| fallback       | outermost folder containing a manifest (`package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `*.gemspec`, `pom.xml`, ...) outside fixture and vendored areas | n/a                                  | our heuristic; covers Rails' 12 gems                                                                      |
 
 What we observed:
 

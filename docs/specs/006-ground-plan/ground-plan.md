@@ -10,37 +10,37 @@ Research behind it: [city layout synthesis](../../research/city-layout/synthesis
 
 Each concept has one name; the names in brackets are not used.
 
-| Term | Meaning |
-| --- | --- |
-| city | The ground plan of one repository: one or more towns. |
-| town | One cohesive settlement: the main town, or the town of a workspace group. |
+| Term            | Meaning                                                                                            |
+| --------------- | -------------------------------------------------------------------------------------------------- |
+| city            | The ground plan of one repository: one or more towns.                                              |
+| town            | One cohesive settlement: the main town, or the town of a workspace group.                          |
 | workspace group | A folder holding two or more workspace members whose land is mostly source (`apps/`, `packages/`). |
-| node | A folder or a file in the tree. |
-| district | A folder with real weight; one coherent fabric (grain, orientation, block shape). |
-| ward | Land bounded by collectors or bigger roads; it takes one tint and the name of its heaviest folder. |
-| neighbourhood | A folder small enough to flatten: one block grid holding all its files. |
-| cut | A straight division of land between ordered folders; every cut is a street. |
-| street | A road; local streets run between blocks. |
-| block | Land between streets, holding lots back to back. |
-| lot | The land of one file (not "parcel"). |
-| lot class | A lot's frontage in modules, 1 to 4. |
-| module | The lot frontage unit, 0.4 u. |
-| u | One local street width; every dimension is a multiple of it. |
-| road class | lane, street, collector, avenue or boulevard. |
-| road graph | Junctions and road edges; blocks are its faces. |
-| island | The land of one workspace member, surrounded by water. |
-| mainland | The land of everything outside workspace members. |
-| vacant lot | The lot of a deleted file, kept empty. |
-| renewal | Clearing a folder's vacant lots and re-laying its land. |
-| reserve plot | A block with no lots yet: room for growth. |
-| park | Land of docs. |
-| density | The setting for land per lot, from suburban to dense core. |
-| old town | A city kept whole, as an island, when its archetype switches. |
-| land use | The role of a file (source, tests, fixtures and so on), from path rules. |
-| mass | Land-use weighted file count of a node's subtree. |
-| archetype | A node's form and tier. |
-| plat | The persistent state of a city: orders, sides, reserves, lot classes, vacant lots, archetypes. |
-| address | A lot's stable identifier: street, side and index. |
+| node            | A folder or a file in the tree.                                                                    |
+| district        | A folder with real weight; one coherent fabric (grain, orientation, block shape).                  |
+| ward            | Land bounded by collectors or bigger roads; it takes one tint and the name of its heaviest folder. |
+| neighbourhood   | A folder small enough to flatten: one block grid holding all its files.                            |
+| cut             | A straight division of land between ordered folders; every cut is a street.                        |
+| street          | A road; local streets run between blocks.                                                          |
+| block           | Land between streets, holding lots back to back.                                                   |
+| lot             | The land of one file (not "parcel").                                                               |
+| lot class       | A lot's frontage in modules, 1 to 4.                                                               |
+| module          | The lot frontage unit, 0.4 u.                                                                      |
+| u               | One local street width; every dimension is a multiple of it.                                       |
+| road class      | lane, street, collector, avenue or boulevard.                                                      |
+| road graph      | Junctions and road edges; blocks are its faces.                                                    |
+| island          | The land of one workspace member, surrounded by water.                                             |
+| mainland        | The land of everything outside workspace members.                                                  |
+| vacant lot      | The lot of a deleted file, kept empty.                                                             |
+| renewal         | Clearing a folder's vacant lots and re-laying its land.                                            |
+| reserve plot    | A block with no lots yet: room for growth.                                                         |
+| park            | Land of docs.                                                                                      |
+| density         | The setting for land per lot, from suburban to dense core.                                         |
+| old town        | A city kept whole, as an island, when its archetype switches.                                      |
+| land use        | The role of a file (source, tests, fixtures and so on), from path rules.                           |
+| mass            | Land-use weighted file count of a node's subtree.                                                  |
+| archetype       | A node's form and tier.                                                                            |
+| plat            | The persistent state of a city: orders, sides, reserves, lot classes, vacant lots, archetypes.     |
+| address         | A lot's stable identifier: street, side and index.                                                 |
 
 ## Input
 
@@ -69,13 +69,13 @@ Each concept has one name; the names in brackets are not used.
 
 ## Dimensions
 
-| Element | Rule |
-| --- | --- |
-| Road widths | lane 0.5 u, street 1 u, collector 1.6 u, avenue 2.5 u, boulevard 4 u |
-| Length shares | local 65 to 75%, collector 10 to 15%, arterial and above 10 to 20% |
+| Element          | Rule                                                                                    |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| Road widths      | lane 0.5 u, street 1 u, collector 1.6 u, avenue 2.5 u, boulevard 4 u                    |
+| Length shares    | local 65 to 75%, collector 10 to 15%, arterial and above 10 to 20%                      |
 | Block short side | 3 to 9 u (5 to 7 default; 3 to 4 in dense cores); long side 1 to 4 times the short side |
-| Lot | frontage one module times its lot class; depth half the block depth (1:2 to 1:6) |
-| Neighbourhood | 3 to 8 blocks across between collectors |
+| Lot              | frontage one module times its lot class; depth half the block depth (1:2 to 1:6)        |
+| Neighbourhood    | 3 to 8 blocks across between collectors                                                 |
 
 - A lot is one module of frontage; lots widen to fill their block, up to lot class 4; spare frontage stays garden and
   spare blocks stay reserve plots.

@@ -42,28 +42,28 @@ Sheets: `img/towns-towns-<repo>.webp` (plan), `img/towns-density-<repo>.webp` (3
 `img/towns-hero-<repo>.webp` (2:1 dimetric), `img/towns-land-<repo>.webp` (tests off the map against tests as land),
 `img/towns-themes-<repo>.webp` (Paper atlas against Dracula). Generate with `bun towns.ts all`.
 
-| Repo | Lots | Lot coverage of land | Local street share | Long straight roads | Lots without room |
-| --- | --- | --- | --- | --- | --- |
-| takken.io | 244 | 21.8% | 88% | 9 | 0 |
-| react | 2,019 | 39.1% | 76% | 10 | 5 |
-| redux | 92 | 17.2% | 80% | 5 | 0 |
-| next.js | 8,032 | 37.5% | 81% | 24 | 8 |
-| game-ci-cli | 702 | 28% | 80% | 6 | 0 |
-| livediagram | 4,121 | 36.3% | 74% | 9 | 10 |
-| studio-worker | 101 | 27.7% | 100% | 3 | 0 |
-| home-assistant | 13,198 | 45% | 80% | 2 | 8 |
-| typescript | 929 | 38.5% | 80% | 8 | 1 |
-| rust | 6,237 | 31.3% | 72% | 3 | 23 |
+| Repo           | Lots   | Lot coverage of land | Local street share | Long straight roads | Lots without room |
+| -------------- | ------ | -------------------- | ------------------ | ------------------- | ----------------- |
+| takken.io      | 244    | 21.8%                | 88%                | 9                   | 0                 |
+| react          | 2,019  | 39.1%                | 76%                | 10                  | 5                 |
+| redux          | 92     | 17.2%                | 80%                | 5                   | 0                 |
+| next.js        | 8,032  | 37.5%                | 81%                | 24                  | 8                 |
+| game-ci-cli    | 702    | 28%                  | 80%                | 6                   | 0                 |
+| livediagram    | 4,121  | 36.3%                | 74%                | 9                   | 10                |
+| studio-worker  | 101    | 27.7%                | 100%               | 3                   | 0                 |
+| home-assistant | 13,198 | 45%                  | 80%                | 2                   | 8                 |
+| typescript     | 929    | 38.5%                | 80%                | 8                   | 1                 |
+| rust           | 6,237  | 31.3%                | 72%                | 3                   | 23                |
 
 "Long straight roads" counts roads longer than 45% of their town's diameter that stay within 0.5% of a straight line.
 Small towns still have too many: the warp bends less than a cut is long, and every cut runs wall to wall.
 
 Stability, per commit, share of surviving files that moved (snapshot layout, no plat, compaction):
 
-| Window | Street tree | Neighbourhoods | Deleting commits: street tree | Deleting commits: neighbourhoods |
-| --- | --- | --- | --- | --- |
-| react 2019, 150 commits | 0.8% | 0.9% | 7.9% | 13.5% |
-| takken.io 2020, 100 commits | 9% | 27.2% | 35% | 70% |
+| Window                      | Street tree | Neighbourhoods | Deleting commits: street tree | Deleting commits: neighbourhoods |
+| --------------------------- | ----------- | -------------- | ----------------------------- | -------------------------------- |
+| react 2019, 150 commits     | 0.8%        | 0.9%           | 7.9%                          | 13.5%                            |
+| takken.io 2020, 100 commits | 9%          | 27.2%          | 35%                           | 70%                              |
 
 Cutting a town's outline re-divides land when a folder grows, so small towns move more. Reserve plots and remembered
 cut positions (the plat) are the remedy to measure next.
@@ -87,14 +87,14 @@ One private repository was rendered locally only; its output never leaves `~/.ca
 
 Share of built land per land use, whole city (source, tests plus fixtures, docs plus assets):
 
-| Repo | File count | Lines | Bytes | File count, shared lots |
-| --- | --- | --- | --- | --- |
-| takken.io | 17 / 8 / 56% | 19 / 8 / 54% | 10 / 4 / 72% | 24 / 8 / 50% |
-| react | 23 / 66 / 3% | 30 / 59 / 3% | 29 / 60 / 3% | 61 / 21 / 5% |
-| next.js | 15 / 64 / 3% | 19 / 60 / 3% | 19 / 60 / 4% | 22 / 60 / 3% |
-| home-assistant | 36 / 48 / 0% | 44 / 43 / 0% | 43 / 44 / 0% | 58 / 27 / 0% |
-| typescript | 1 / 98 / 0% | 2 / 97 / 0% | 2 / 97 / 0% | 14 / 84 / 0.5% |
-| rust | 6 / 85 / 3% | 11 / 78 / 3% | 11 / 79 / 3% | 16 / 69 / 4% |
+| Repo           | File count   | Lines        | Bytes        | File count, shared lots |
+| -------------- | ------------ | ------------ | ------------ | ----------------------- |
+| takken.io      | 17 / 8 / 56% | 19 / 8 / 54% | 10 / 4 / 72% | 24 / 8 / 50%            |
+| react          | 23 / 66 / 3% | 30 / 59 / 3% | 29 / 60 / 3% | 61 / 21 / 5%            |
+| next.js        | 15 / 64 / 3% | 19 / 60 / 3% | 19 / 60 / 4% | 22 / 60 / 3%            |
+| home-assistant | 36 / 48 / 0% | 44 / 43 / 0% | 43 / 44 / 0% | 58 / 27 / 0%            |
+| typescript     | 1 / 98 / 0%  | 2 / 97 / 0%  | 2 / 97 / 0%  | 14 / 84 / 0.5%          |
+| rust           | 6 / 85 / 3%  | 11 / 78 / 3% | 11 / 79 / 3% | 16 / 69 / 4%            |
 
 - Lines against count moves source by 2 to 17 points. Bytes against lines differs mainly on binaries: images swell.
 - With integer lots, a land-use weight can only shrink large files; a fixture is never smaller than one lot. With file
@@ -124,12 +124,12 @@ First-seen puts the old core near the root and newcomers at street ends; alphabe
 
 Per commit, share of surviving files that moved (prototype without a persistent plat):
 
-| Window | Compaction | Vacant forever | Vacant, renewal above 50% | Renewal, identity follows renames |
-| --- | --- | --- | --- | --- |
-| react 2017-09, 120 commits, on deleting commits | 11.2% | 0% | 9.7% | 8.2% |
-| react 2019, 150 commits, on deleting commits | 7.9% | 2.4% | 0.1% | 2.9% |
-| redux 2015, 150 commits, on deleting commits | 56.7% | 28.3% | 46.8% | 51.7% |
-| takken.io 2020, 100 commits, on deleting commits | 35% | 29.3% | 43.9% | 26.8% |
+| Window                                           | Compaction | Vacant forever | Vacant, renewal above 50% | Renewal, identity follows renames |
+| ------------------------------------------------ | ---------- | -------------- | ------------------------- | --------------------------------- |
+| react 2017-09, 120 commits, on deleting commits  | 11.2%      | 0%             | 9.7%                      | 8.2%                              |
+| react 2019, 150 commits, on deleting commits     | 7.9%       | 2.4%           | 0.1%                      | 2.9%                              |
+| redux 2015, 150 commits, on deleting commits     | 56.7%      | 28.3%          | 46.8%                     | 51.7%                             |
+| takken.io 2020, 100 commits, on deleting commits | 35%        | 29.3%          | 43.9%                     | 26.8%                             |
 
 - Vacant lots beat compaction whenever a commit only deletes; residual movement comes from additions in the same
   commit, which only reserved slack (the plat) absorbs.
