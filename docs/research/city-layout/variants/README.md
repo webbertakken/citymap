@@ -128,7 +128,7 @@ same map coloured by form: radial orange, twin blue, polycentric rose.
 | rust           | 6,209  | 28.2%    | 64%           | 5                   | 51           |
 
 - Roots: react radial; next.js a twin; home-assistant radial; takken.io, redux and rust polycentric.
-- A gridiron was tried and dropped (commit 7f3ecdb, `img/towns-gridiron-<repo>.webp`): rows of single folders,
+- A gridiron was tried and dropped (commit 463b52a, `img/towns-gridiron-<repo>.webp`): rows of single folders,
   staggered rows and superblocks of 12 folders against recursive cuts. Rows turned home-assistant into stripes, 38
   long straight roads against 3; recursive cuts read best on every repo and leave the fewest lots without room.
 - A town whose root switches form is frozen as an old town where it stood, dashed, its lots lit while their files
