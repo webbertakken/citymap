@@ -42,11 +42,17 @@ git repository ──history──▶ snapshots ──ground-plan fold──▶ 
 
 ## Tooling
 
-- Bun workspaces and `bun install`; one lockfile at the root.
-- TypeScript 7 (`tsc`, the native compiler) for type checks, strict, with project references per workspace.
-- oxlint for linting; Prettier (print width 120) for formatting.
-- Vitest for unit and property tests in every package; Playwright for the web app's end-to-end tests, dark mode.
-- One gate, `bun run check`: format check, lint, type check, tests with coverage. Commits run it.
+- Bun workspaces and `bun install`; one lockfile at the root. mise pins Bun, Node (which runs the tools' launchers and
+  Vitest), actionlint, shellcheck and gitleaks.
+- TypeScript 7 (`tsc`, the native compiler) for type checks, strict, with project references per workspace; the root
+  `tsconfig.json` references every workspace, and the type check fails when one is missing.
+- oxlint for linting, type-aware through oxlint-tsgolint, with zero warnings; oxfmt (print width 120, Markdown wrapped
+  at 120) for formatting. Neither ESLint nor Prettier is used.
+- Vitest for unit and property tests in every package, one project per workspace, with 100% coverage enforced;
+  Playwright for the web app's end-to-end tests, dark mode.
+- One gate, `bun run check`: format check, lint, type check, tests with coverage. A commit formats and lints its staged
+  files, type checks and scans for secrets; a push runs the gate's checks for what it changes; CI runs the whole gate on
+  every pull request and every push to `main`.
 
 ## Boundaries and trust
 
