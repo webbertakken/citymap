@@ -2,3 +2,10 @@ plans/
 AMBIGUITIES.md
 DECISIONS.md
 node_modules/
+coverage/
+dist/
+.next/
+out/
+*.tsbuildinfo
+test-results/
+playwright-report/
