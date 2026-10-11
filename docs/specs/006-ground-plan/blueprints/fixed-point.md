@@ -33,15 +33,16 @@ and every coordinate the city model emits, is an integer computed by the rules b
 
 ## Directions and angles
 
-- An angle is an integer `a` in `[0, TURN)`; `dir(a)` reads `[cos, sin] × DIRECTION`, rounded, from
-  `src/fixed/directions.ts`, a generated table of 4096 integer pairs. The table is data: generated once by
+- An angle is an integer `a` (taken modulo `TURN`); `dir(a)` is `[cos, sin] × DIRECTION` from `COSINE`, a quarter-wave
+  table of 1,025 integers (`round(cos(2π i / TURN) × DIRECTION)`, i = 0 to 1,024) in `src/fixed/directions.ts`. With
+  quadrant `q = ⌊a / 1024⌋` and `r = a mod 1024`, `c = COSINE[r]`, `s = COSINE[1024 − r]`, and the pair is
+  `(c, s)`, `(−s, c)`, `(−c, −s)` or `(s, −c)` for q = 0 to 3. The table is data: generated once by
   `scripts/generate-directions.ts` (which may use floating point), committed, and covered by a checksum test; no
   implementation recomputes it.
 - `normalise(vx, vy)`: the direction of an integer vector, `[roundDiv(vx × DIRECTION, len), roundDiv(vy × DIRECTION, len)]`
   with `len = isqrt(vx² + vy²)` (via `mulDiv` when large). A zero vector is `fixed/zero-direction`.
 - `perp([x, y]) = [−y, x]`; `negate` flips both.
-- `angleOf(v)`: the table index whose direction has the largest dot product with `v`, ties to the lower index
-  (binary search over the octant, then linear over ±2 neighbours).
+- `rotate(v, a)`: `[roundDiv(vx·c − vy·s, DIRECTION), roundDiv(vx·s + vy·c, DIRECTION)]` with `(c, s) = dir(a)`.
 
 ## Hashes and seeds
 
