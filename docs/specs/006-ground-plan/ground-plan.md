@@ -24,7 +24,7 @@ Each concept has one name; the names in brackets are not used.
 | block           | Land between streets, holding lots back to back.                                                   |
 | lot             | The land of one file (not "parcel").                                                               |
 | lot class       | A lot's frontage in modules, 1 to 4.                                                               |
-| module          | The lot frontage unit, 0.4 u.                                                                      |
+| module          | The lot frontage unit, 0.5 u.                                                                      |
 | u               | One local street width; every dimension is a multiple of it.                                       |
 | road class      | lane, street, collector, avenue or boulevard.                                                      |
 | road graph      | Junctions and road edges; blocks are its faces.                                                    |
@@ -73,9 +73,9 @@ Each concept has one name; the names in brackets are not used.
 
 | Element          | Rule                                                                                    |
 | ---------------- | --------------------------------------------------------------------------------------- |
-| Road widths      | lane 0.5 u, street 1 u, collector 1.6 u, avenue 2.5 u, boulevard 4 u                    |
+| Road widths      | lane 0.625 u, street 1 u, collector 1.5 u, avenue 2.25 u, boulevard 3.25 u, highway 2.75 u                    |
 | Length shares    | local 65 to 75%, collector 10 to 15%, arterial and above 10 to 20%                      |
-| Block short side | 3 to 9 u (5 to 7 default; 3 to 4 in dense cores); long side 1 to 4 times the short side |
+| Block short side | 6 u short and 12 u long at the default density, plus streets between; long side 1 to 4 times the short side |
 | Lot              | frontage one module times its lot class; depth half the block depth (1:2 to 1:6)        |
 | Neighbourhood    | 3 to 8 blocks across between collectors                                                 |
 
@@ -149,6 +149,8 @@ is therefore readable as distance from the core, and newcomers join the edges.
 
 Edges carry meaning:
 
+- A workspace member is a folder, other than the root, that directly holds a package manifest; members are read from
+  paths alone.
 - A repository is one cohesive town. Each workspace group becomes its own town, sized by its land, its members as
   districts, joined to the main town by a highway across open country. A highway continues a road: it joins, in both towns,
   the end of a road of the highest class both offer at their edges, takes that class, and is drawn exactly like it. A
