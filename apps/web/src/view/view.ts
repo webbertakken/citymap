@@ -138,3 +138,18 @@ export function declutter(labels: readonly Label[], view: View, viewport: Viewpo
   }
   return kept;
 }
+
+/** The map point under a screen point: where the view ray meets the plane at the given height. */
+export function unproject(view: View, viewport: Viewport, screen: { x: number; y: number }, height: number) {
+  const b = basis(view.mode);
+  const sx = (screen.x - viewport.width / 2) / view.zoom;
+  const sy = (viewport.height / 2 - screen.y) / view.zoom;
+  // The point on the camera's plane through the centre, then along the view ray down to the height.
+  const p = [
+    view.centre.x + b.right[0] * sx + b.screenUp[0] * sy,
+    b.right[1] * sx + b.screenUp[1] * sy,
+    view.centre.z + b.right[2] * sx + b.screenUp[2] * sy,
+  ] as const;
+  const t = (p[1] - height) / b.eye[1];
+  return { x: p[0] - b.eye[0] * t, z: p[2] - b.eye[2] * t };
+}

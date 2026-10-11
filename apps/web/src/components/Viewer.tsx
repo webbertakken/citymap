@@ -1,6 +1,6 @@
 "use client";
 import type { City } from "@citymap/ground-plan";
-import { buildScene } from "@citymap/scene";
+import { buildScene, pickIndex, type Hit } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import {
   useCallback,
@@ -53,10 +53,13 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
   // A newly opened city stays fitted to the map, whatever size the map turns out to be, until the person moves it.
   const [fitted, setFitted] = useState(true);
   const scene = useMemo(() => (city ? buildScene(city, THEMES[theme]) : null), [city, theme]);
+  const index = useMemo(() => (city ? pickIndex(city) : null), [city]);
+  const [picked, setPicked] = useState<Hit | null>(null);
 
   const show = useCallback(
     (next: City, name: string) => {
       setCity(next);
+      setPicked(null);
       setError("");
       setStatus(
         `${next.towns.length} towns · ${next.towns.reduce((s, t) => s + t.stats.lots, 0).toLocaleString("en-GB")} lots`,
@@ -84,9 +87,9 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
   const first = useEffectEvent((entry: CityEntry) => void open(entry));
   useEffect(() => {
     loadIndex(fetcher).then(
-      (index) => {
-        setCities(index);
-        if (index[0]) first(index[0]);
+      (bundled) => {
+        setCities(bundled);
+        if (bundled[0]) first(bundled[0]);
         else setStatus("");
       },
       (failure: unknown) => {
@@ -154,10 +157,12 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
         </p>
       )}
       <div className="body">
-        {scene && city ? (
+        {scene && city && index ? (
           <MapView
             name={city.repository}
             scene={scene}
+            index={index}
+            onSelect={setPicked}
             view={view}
             theme={colours}
             Canvas={Canvas}
@@ -173,7 +178,7 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
         ) : (
           <div className="map empty" />
         )}
-        <CityPanel city={city} />
+        <CityPanel city={city} selected={picked} />
       </div>
     </main>
   );

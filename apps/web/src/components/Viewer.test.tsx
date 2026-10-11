@@ -1,6 +1,7 @@
 import { serialiseCity, type City } from "@citymap/ground-plan";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { project, type View } from "../view/view";
 import type { CanvasProps } from "./MapView";
 import { Viewer } from "./Viewer";
 
@@ -54,10 +55,17 @@ const half = async (url: string) =>
 const read = () => screen.getByTestId("canvas").textContent;
 const empty = async (url: string) => new Response(url === "/cities/index.json" ? "[]" : "", { status: 200 });
 
+/** The view the stub canvas was last given. */
+const currentView = (): View => {
+  const [mode, zoom, centre] = (read() ?? "").split(" ");
+  const [x, z] = centre!.split(",").map(Number);
+  return { mode: mode === "plan" ? "plan" : "dimetric", zoom: Number(zoom), centre: { x: x!, z: z! } };
+};
+
 function StubCanvas({ view, theme }: CanvasProps) {
   return (
     <p data-testid="canvas">
-      {view.mode} {view.zoom.toFixed(3)} {view.centre.x.toFixed(1)},{view.centre.z.toFixed(1)} {theme.label}
+      {view.mode} {view.zoom} {view.centre.x},{view.centre.z} {theme.label}
     </p>
   );
 }
@@ -230,5 +238,51 @@ describe("Viewer fitting", () => {
     fireEvent(window, new Event("resize"));
     expect(read()).toBe(moved);
     box.mockRestore();
+  });
+});
+
+describe("Viewer hover and select", () => {
+  const viewport = { width: 800, height: 600 };
+
+  it("names the lot under the pointer, selects it with a click, and clears with Escape", async () => {
+    render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
+    const map = await screen.findByRole("application");
+    // The lot spans 64 to 128 east and 0 to 64 north: its centre, at the height of its top.
+    const lot = project(currentView(), viewport, { x: 96 / 64, y: 0.15, z: -32 / 64 });
+    fireEvent.pointerMove(map, { pointerId: 1, clientX: lot.x, clientY: lot.y });
+    expect(screen.getByRole("tooltip").textContent).toContain("a.ts");
+    fireEvent.pointerDown(map, { pointerId: 1, clientX: lot.x, clientY: lot.y });
+    fireEvent.pointerUp(map, { pointerId: 1, clientX: lot.x, clientY: lot.y });
+    expect(screen.getByRole("region", { name: "Selected" }).textContent).toContain("a.ts");
+    fireEvent.keyDown(map, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(screen.getByRole("region", { name: "Selected" }).textContent).toContain("Nothing yet");
+  });
+
+  it("drops the card when the pointer leaves, and does not select after a drag", async () => {
+    render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
+    const map = await screen.findByRole("application");
+    fireEvent.pointerMove(map, { pointerId: 1, clientX: 400, clientY: 300 });
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+    fireEvent.pointerLeave(map);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.pointerDown(map, { pointerId: 1, clientX: 400, clientY: 300 });
+    fireEvent.pointerMove(map, { pointerId: 1, clientX: 450, clientY: 300 });
+    fireEvent.pointerUp(map, { pointerId: 1, clientX: 450, clientY: 300 });
+    expect(screen.getByRole("region", { name: "Selected" }).textContent).toContain("Nothing yet");
+    fireEvent.pointerMove(map, { pointerId: 2, clientX: -500, clientY: -500 });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("keeps the card on the map beside the pointer, flipping at the far edges", async () => {
+    render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
+    const map = await screen.findByRole("application");
+    for (let i = 0; i < 12; i++) fireEvent.keyDown(map, { key: "+" });
+    fireEvent.pointerMove(map, { pointerId: 1, clientX: 790, clientY: 590 });
+    const card = screen.getByRole("tooltip");
+    expect(card.style.left).toBe(`${790 - 16 - 260}px`);
+    expect(card.style.top).toBe(`${590 - 16 - 96}px`);
+    fireEvent.pointerMove(map, { pointerId: 1, clientX: 10, clientY: 10 });
+    expect(screen.getByRole("tooltip").style.left).toBe("26px");
   });
 });

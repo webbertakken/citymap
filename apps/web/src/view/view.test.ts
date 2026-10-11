@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { basis, declutter, fit, onKey, project, type View } from "./view";
+import { basis, declutter, fit, onKey, project, unproject, type View } from "./view";
 
 const bounds = { min: { x: -50, z: -20 }, max: { x: 50, z: 20 } };
 const viewport = { width: 1000, height: 500 };
@@ -96,5 +96,23 @@ describe("declutter", () => {
     );
     expect(kept.map((l) => l.text)).toEqual(["TOWN", "east"]);
     expect(kept[0]).toMatchObject({ left: 500, top: 250 });
+  });
+});
+
+describe("unproject", () => {
+  it("finds the map point under the pointer, at a height, as project's inverse", () => {
+    for (const mode of ["plan", "dimetric"] as const) {
+      const view: View = { mode, centre: { x: 12, z: -7 }, zoom: 6 };
+      for (const point of [
+        { x: 12, y: 0, z: -7 },
+        { x: 40, y: 0, z: 3 },
+        { x: -5, y: 0.15, z: 20 },
+      ]) {
+        const screen = project(view, viewport, point);
+        const back = unproject(view, viewport, screen, point.y);
+        expect(back.x).toBeCloseTo(point.x, 6);
+        expect(back.z).toBeCloseTo(point.z, 6);
+      }
+    }
   });
 });

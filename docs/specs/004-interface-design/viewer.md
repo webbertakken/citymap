@@ -33,6 +33,18 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
 - Town names and the largest district names float over the map as text, never as images, and never overlap.
 - Styles are the five themes of the ground plan; the viewer and the SVG export share their colours.
 
+## Hover and select
+
+- Everything on the map answers to the pointer. Hovering shows a small card beside the pointer naming what is there:
+  - a lot: its file path, its land use and its address, or "vacant" for the lot of a deleted file;
+  - a block: park, plaza, green or reserve (room to grow), with its district;
+  - a road: its class;
+  - the ground of a town: the town, and the district under the pointer.
+- The card follows the pointer, never covers it, and goes with Escape or when the pointer leaves the map.
+- A click (or a tap) selects what is under the pointer: the panel shows the same details under "Selected", where
+  keyboard and screen-reader users read them; Escape clears the selection.
+- Lots sit above blocks, blocks above roads, roads above the ground: the card names the topmost.
+
 ## Accessibility (WCAG 2.2 AA)
 
 - Every control is a native button or select with a visible label or accessible name, reachable by keyboard in reading

@@ -150,3 +150,32 @@ button[aria-pressed="true"] {
     display: none;
   }
 }
+.card {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 260px;
+  max-height: 96px;
+  overflow: hidden;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  color: #10141a;
+  background: #ffffff;
+  border: 1px solid #50565f;
+  border-radius: 0.35rem;
+  pointer-events: none;
+}
+.card strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel .selected p {
+  margin: 0.15rem 0;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.panel .selected .title {
+  font-weight: 700;
+}

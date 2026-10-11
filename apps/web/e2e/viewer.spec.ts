@@ -79,6 +79,20 @@ test("folds the town list behind a button on a phone", async ({ page, isMobile }
   await expect(page.getByRole("region", { name: "Towns and districts" })).toBeVisible();
 });
 
+test("names what is under the pointer, and selects it into the panel", async ({ page, isMobile }) => {
+  test.skip(isMobile, "hover is a pointer journey");
+  // The town's name sits over its heart (the middle of the map is open country between two towns).
+  const box = (await page.locator(".label.town").first().boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.getByRole("tooltip")).toBeVisible();
+  const named = await page.getByRole("tooltip").locator("strong").textContent();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.getByRole("region", { name: "Selected" })).toContainText(named ?? "");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Selected" })).toContainText("Nothing yet");
+});
+
 test("passes axe with no WCAG 2.2 AA violations", async ({ page }) => {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])

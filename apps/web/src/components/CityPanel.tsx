@@ -1,10 +1,13 @@
 "use client";
 import type { City } from "@citymap/ground-plan";
+import type { Hit } from "@citymap/scene";
 import { useState } from "react";
+import { describeHit } from "../view/hover";
 
 /** The text alternative to the map: each town with its lot count and its largest districts. */
-export function CityPanel({ city }: { readonly city: City | null }) {
+export function CityPanel({ city, selected }: { readonly city: City | null; readonly selected: Hit | null }) {
   const [open, setOpen] = useState(false);
+  const details = selected ? describeHit(selected) : null;
   return (
     <aside className="panel" data-open={open}>
       <button
@@ -16,6 +19,19 @@ export function CityPanel({ city }: { readonly city: City | null }) {
       >
         Towns and districts
       </button>
+      <section className="selected" aria-label="Selected" aria-live="polite">
+        <h2>Selected</h2>
+        {details ? (
+          <>
+            <p className="title">{details.title}</p>
+            {details.lines.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </>
+        ) : (
+          <p>Nothing yet. Click the map to select what is there; Escape clears it.</p>
+        )}
+      </section>
       <section id="towns" aria-label="Towns and districts">
         {city === null || city.towns.length === 0 ? (
           <p>
