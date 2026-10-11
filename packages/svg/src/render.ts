@@ -41,9 +41,13 @@ export function renderCity(city: City, options: RenderOptions): string {
   const width = options.width ?? 1600;
   const scale = width / (maxX - minX);
   const height = Math.ceil((maxY - minY) * scale) + HEADER;
-  const px = (p: Pt) => {
+  const screen = (p: Pt) => {
     const q = project(p);
-    return `${((q.x - minX) * scale).toFixed(1)},${((q.y - minY) * scale + HEADER).toFixed(1)}`;
+    return { x: (q.x - minX) * scale, y: (q.y - minY) * scale + HEADER };
+  };
+  const px = (p: Pt) => {
+    const s = screen(p);
+    return `${s.x.toFixed(1)},${s.y.toFixed(1)}`;
   };
   const poly = (pts: readonly Pt[]) => `M${pts.map(px).join("L")}Z`;
   const line = (pts: readonly Pt[]) => `M${pts.map(px).join("L")}`;
@@ -81,11 +85,11 @@ export function renderCity(city: City, options: RenderOptions): string {
     for (const w of town.water)
       out.push(`<path d="${poly(w)}" fill="${theme.water}" stroke="${theme.waterline}" stroke-width="${thin(0.6)}"/>`);
     // Roads: every casing, then every fill, smallest class first, so junctions merge.
-    const roads = [...town.roads].sort((a, b) => ORDER.indexOf(a.cls) - ORDER.indexOf(b.cls));
+    const roads = town.roads.toSorted((a, b) => ORDER.indexOf(a.cls) - ORDER.indexOf(b.cls));
     for (const r of roads) out.push(roadPath(r.pts, r.cls, true));
     for (const r of roads) out.push(roadPath(r.pts, r.cls, false));
     const lots = dimetric
-      ? [...town.lots].sort((a, b) => {
+      ? town.lots.toSorted((a, b) => {
           const ca = centroid(a.pts);
           const cb = centroid(b.pts);
           return cb.x + cb.y - (ca.x + ca.y);
@@ -124,7 +128,9 @@ export function renderCity(city: City, options: RenderOptions): string {
   const placed: [number, number, number, number][] = [];
   const named = new Set<string>();
   const label = (at: Pt, text: string, size: number, weight: number, spacing: number) => {
-    const [x, y] = px(at).split(",").map(Number) as [number, number];
+    const s = screen(at);
+    const x = Number(s.x.toFixed(1));
+    const y = Number(s.y.toFixed(1));
     const w = text.length * size * (0.6 + spacing / size);
     const box: [number, number, number, number] = [x - w / 2, y - size / 2, x + w / 2, y + size / 2];
     if (box[0] < 0 || box[2] > width || box[1] < HEADER || named.has(text.toLowerCase())) return;
@@ -136,7 +142,7 @@ export function renderCity(city: City, options: RenderOptions): string {
     );
   };
   for (const town of city.towns) label(centroid(town.outline), town.name.toUpperCase(), 24, 800, 3);
-  const districts = city.towns.flatMap((t) => t.districts).sort((a, b) => b.massMille - a.massMille);
+  const districts = city.towns.flatMap((t) => t.districts).toSorted((a, b) => b.massMille - a.massMille);
   const heaviest = Math.max(1, ...districts.map((d) => d.massMille));
   const largest = Math.max(1, ...city.towns.map((t) => area2(t.outline)));
   for (const d of districts.slice(0, 60)) {

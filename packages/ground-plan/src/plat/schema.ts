@@ -6,8 +6,7 @@ export const int = v.pipe(v.number(), v.safeInteger());
 export const nat = v.pipe(v.number(), v.safeInteger(), v.minValue(0));
 
 /** The JSON pointer of an issue's path. */
-const pointerOf = (issue: v.BaseIssue<unknown>) =>
-  `/${(issue.path ?? []).map((item) => String(item.key)).join("/")}`;
+const pointerOf = (issue: v.BaseIssue<unknown>) => `/${(issue.path ?? []).map((item) => String(item.key)).join("/")}`;
 
 /** Parses untrusted input against a schema, or rejects it with the given code and the pointer of the first fault. */
 export function validate<S extends v.GenericSchema>(schema: S, input: unknown, code: ErrorCode): v.InferOutput<S> {

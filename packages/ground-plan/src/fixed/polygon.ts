@@ -14,7 +14,7 @@ export interface Poly {
 }
 
 const EMPTY: Poly = { p: [], w: [] };
-const next = <T>(list: readonly T[], i: number): T => list[(i + 1) % list.length] as T;
+const next = <T>(list: readonly T[], i: number): T => list[(i + 1) % list.length]!;
 
 /** Twice the signed area (the shoelace sum), measured from the first vertex so terms stay small. */
 export function area2(pts: readonly Pt[]): number {
@@ -22,8 +22,8 @@ export function area2(pts: readonly Pt[]): number {
   if (!o) return 0;
   let sum = 0;
   for (let i = 1; i < pts.length - 1; i++) {
-    const a = pts[i] as Pt;
-    const b = pts[i + 1] as Pt;
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
     sum += (a.x - o.x) * (b.y - o.y) - (b.x - o.x) * (a.y - o.y);
   }
   return sum;
@@ -37,8 +37,8 @@ export function centroid(pts: readonly Pt[]): Pt {
   let cx = 0n;
   let cy = 0n;
   for (let i = 1; i < pts.length - 1; i++) {
-    const p = pts[i] as Pt;
-    const q = pts[i + 1] as Pt;
+    const p = pts[i]!;
+    const q = pts[i + 1]!;
     const px = BigInt(p.x - o.x);
     const py = BigInt(p.y - o.y);
     const qx = BigInt(q.x - o.x);
@@ -74,11 +74,11 @@ const tidy = (pts: Pt[], widths: number[]): Poly => {
   pts.forEach((q, i) => {
     const prev = p[p.length - 1];
     if (prev && prev.x === q.x && prev.y === q.y) {
-      w[w.length - 1] = widths[i] as number;
+      w[w.length - 1] = widths[i]!;
       return;
     }
     p.push(q);
-    w.push(widths[i] as number);
+    w.push(widths[i]!);
   });
   const first = p[0];
   const last = p[p.length - 1];
@@ -99,14 +99,14 @@ export function clip(poly: Poly, n: Dir, c: number, cutWidth: number): Poly {
     const sn = side(n, c, nxt);
     if (sc <= 0) {
       out.push(cur);
-      widths.push(poly.w[i] as number);
+      widths.push(poly.w[i]!);
       if (sn > 0) {
         out.push(crossing(cur, nxt, sc, sn));
         widths.push(cutWidth);
       }
     } else if (sn <= 0) {
       out.push(crossing(cur, nxt, sc, sn));
-      widths.push(poly.w[i] as number);
+      widths.push(poly.w[i]!);
     }
   });
   return tidy(out, widths);
@@ -116,11 +116,11 @@ export function clip(poly: Poly, n: Dir, c: number, cutWidth: number): Poly {
 export function inset(poly: Poly, pavement: number): Poly {
   let result: Poly = { p: poly.p, w: poly.w.map(() => 0) };
   for (let i = 0; i < poly.p.length; i++) {
-    const a = poly.p[i] as Pt;
+    const a = poly.p[i]!;
     const b = next(poly.p, i);
     if (a.x === b.x && a.y === b.y) continue;
     const n = normalise(b.y - a.y, a.x - b.x);
-    const d = floorDiv(poly.w[i] as number, 2) + pavement;
+    const d = floorDiv(poly.w[i]!, 2) + pavement;
     result = clip(result, n, n[0] * a.x + n[1] * a.y - d * DIRECTION, 0);
     if (result.p.length < 3) return EMPTY;
   }

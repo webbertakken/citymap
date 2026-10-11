@@ -13,7 +13,7 @@ const snapshot = (files: FileEntry[], folders: Record<string, number> = {}): Sna
   repository: "demo",
   commit: "worktree",
   index: 0,
-  files: [...files].sort((a, b) => (a.path < b.path ? -1 : 1)),
+  files: files.toSorted((a, b) => (a.path < b.path ? -1 : 1)),
   folderFirstSeen: new Map(Object.entries(folders)),
 });
 const options = { root: "", exclude: [], landUses: DEFAULT_LAND_USES, densityPct: 50 };

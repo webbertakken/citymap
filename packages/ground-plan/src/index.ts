@@ -25,3 +25,4 @@ export { layCity, translateTown, type FoldState, type Options } from "./region/c
 export { foldHistory, initialState } from "./fold/fold";
 export type { PlatEvent } from "./town/context";
 export { canonicalJson } from "./plat/canonical";
+export { parseLock, serialiseLock, type Lockfile } from "./plat/lock";

@@ -32,6 +32,18 @@ describe("isAncestor", () => {
   });
 });
 
+describe("git that cannot start", () => {
+  it("is reported by name", async () => {
+    const path = process.env.PATH;
+    process.env.PATH = "/nonexistent";
+    try {
+      await expect(resolveCommit(dir, "main")).rejects.toThrow("history/git-failed: git rev-parse exited with -1");
+    } finally {
+      process.env.PATH = path;
+    }
+  });
+});
+
 describe("resolveCommit", () => {
   it("resolves a ref to its commit id", async () => {
     expect(await resolveCommit(dir, "main")).toBe(second);

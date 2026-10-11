@@ -8,7 +8,7 @@ import { compareKeys, fnv1a } from "../fixed/hash";
 import { centroid, type Pt } from "../fixed/polygon";
 import { densify, warper } from "../fixed/warp";
 import { landKey, type LandUse } from "../land-use/land-use";
-import { emptyTownPlat, type OldTown, type Plat, type TownPlat } from "../plat/plat";
+import { emptyTownPlat, type OldTown, type Plat } from "../plat/plat";
 import type { Snapshot } from "../snapshot/snapshot";
 import type { PlatEvent } from "../town/context";
 import { layoutTown } from "../town/layout";
@@ -68,6 +68,12 @@ export function translateTown(town: Town, by: Pt): Town {
   };
 }
 
+/** The circle a town stands in: its heart and its reach. */
+function footprint(t: Town) {
+  const c = centroid(t.outline);
+  return { centre: c, radius: isqrt(Math.max(...t.outline.map((p) => distance2(p, c)))) };
+}
+
 function oldTownName(name: string, count: number) {
   return count > 1 ? `${name} old town ${count}` : `${name} old town`;
 }
@@ -98,7 +104,7 @@ export function layCity(
         exclude: [],
         firstSeen: snapshot.folderFirstSeen.get(g) ?? 0,
       }))
-      .sort((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.name, b.name)),
+      .toSorted((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.name, b.name)),
   ];
   const live = new Set(snapshot.files.map((f) => f.identity));
   const treeOptions = (part: Part) => ({
@@ -124,7 +130,7 @@ export function layCity(
     const switched = previous !== undefined && rootForm !== previous && !(isFlat(previous) && isFlat(rootForm));
     if (switched && before) {
       // A town laid before has its plat.
-      const townPlat = plat.towns[part.key] as TownPlat;
+      const townPlat = plat.towns[part.key]!;
       const members: Record<string, string[]> = {};
       for (const lots of Object.values(townPlat.shares)) for (const lot of lots) members[lot.key] = [...lot.members];
       for (const lot of before.lots) if (!lot.vacant) members[lot.key] ??= [lot.key];
@@ -143,7 +149,7 @@ export function layCity(
 
   // Old towns stay where they stood; their lots stay lit while any of their files lives.
   const oldTowns: { town: Town; successor: string }[] = Object.entries(plat.old)
-    .sort(([a], [b]) => compareKeys(a, b))
+    .toSorted(([a], [b]) => compareKeys(a, b))
     .flatMap(([successor, list]: [string, OldTown[]]) =>
       list.map((o) => ({
         successor,
@@ -153,10 +159,6 @@ export function layCity(
         },
       })),
     );
-  const footprint = (t: Town) => {
-    const c = centroid(t.outline);
-    return { centre: c, radius: isqrt(Math.max(...t.outline.map((p) => distance2(p, c)))) };
-  };
   const blockers = oldTowns.map((o) => footprint(o.town));
   const placed: { centre: Pt; radius: number }[] = [];
   const towns: Town[] = [];
@@ -195,7 +197,7 @@ export function layCity(
         -TURN / 4 + floorDiv((i - 1) * TURN, laidParts.length - 1) + floorDiv((fnv1a(part.key) % 100) * 163, 100);
       const d = dir(angle);
       // The main town is placed first, so a group town starts beyond it.
-      centre = outward(along(d, (placed[0] as { radius: number }).radius + radius + GAP), d);
+      centre = outward(along(d, placed[0]!.radius + radius + GAP), d);
     }
     townPlat.centre = centre;
     placed.push({ centre, radius });

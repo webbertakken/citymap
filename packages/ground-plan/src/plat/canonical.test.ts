@@ -1,4 +1,4 @@
-import fc from "fast-check";
+import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { canonicalJson } from "./canonical";
 
@@ -25,7 +25,7 @@ describe("canonicalJson", () => {
   it("is independent of key insertion order", () => {
     fc.assert(
       fc.property(fc.dictionary(fc.string(), fc.integer()), (record) => {
-        const reversed = Object.fromEntries(Object.entries(record).reverse());
+        const reversed = Object.fromEntries(Object.entries(record).toReversed());
         return canonicalJson(record) === canonicalJson(reversed);
       }),
     );

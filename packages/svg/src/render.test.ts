@@ -1,7 +1,7 @@
 import { DEFAULT_LAND_USES, initialState, layCity, type City, type Snapshot } from "@citymap/ground-plan";
 import { describe, expect, it } from "vitest";
 import { renderCity } from "./render";
-import { THEMES, type ThemeName } from "./themes";
+import { THEMES, THEME_NAMES } from "./themes";
 
 const files = (folder: string, n: number, born = 0) =>
   Array.from({ length: n }, (_, i) => {
@@ -12,7 +12,7 @@ const snapshot = (entries: Snapshot["files"], repository = "demo"): Snapshot => 
   repository,
   commit: "worktree",
   index: 0,
-  files: [...entries].sort((a, b) => (a.path < b.path ? -1 : 1)),
+  files: entries.toSorted((a, b) => (a.path < b.path ? -1 : 1)),
   folderFirstSeen: new Map(),
 });
 const options = {
@@ -36,7 +36,7 @@ describe("renderCity", () => {
     expect(renderCity(city, { title: "demo", subtitle: "a twin" })).toBe(svg);
   });
 
-  it.each(Object.keys(THEMES) as ThemeName[])("draws in the %s theme", (theme) => {
+  it.each(THEME_NAMES)("draws in the %s theme", (theme) => {
     const svg = renderCity(twin(), { title: "t", subtitle: "s", theme });
     expect(svg).toContain(`fill="${THEMES[theme].country}"`);
   });

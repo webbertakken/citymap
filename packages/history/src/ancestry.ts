@@ -8,8 +8,11 @@ function git(dir: string, args: readonly string[]): Promise<{ code: number; stdo
       "git",
       ["-c", "core.hooksPath=/dev/null", "-C", dir, ...args],
       { env: { ...process.env, GIT_NO_LAZY_FETCH: "1" } },
-      (error, stdout, stderr) =>
-        done({ code: error ? Number((error as { code?: unknown }).code ?? 1) : 0, stdout, stderr }),
+      (error, stdout, stderr) => {
+        // An exit status is a number; git that could not start at all (ENOENT) is reported as -1 with its reason.
+        const code = error === null ? 0 : typeof error.code === "number" ? error.code : -1;
+        done({ code, stdout, stderr: code === -1 ? String(error?.message) : stderr });
+      },
     );
   });
 }

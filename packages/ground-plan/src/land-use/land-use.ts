@@ -48,7 +48,7 @@ export const DEFAULT_LAND_USES: readonly LandUse[] = LAND_USES.filter((use) => u
 export const lotCapacity = (use: LandUse): number => Math.max(1, roundDiv(1000, WEIGHT_MILLE[use]));
 
 /** The key of a land setting: its uses, sorted. Each setting has its own plat. */
-export const landKey = (uses: readonly LandUse[]): string => [...uses].sort(compareKeys).join(",");
+export const landKey = (uses: readonly LandUse[]): string => uses.toSorted(compareKeys).join(",");
 
 const VENDORED = new Set([
   "vendor",
@@ -113,7 +113,7 @@ const SNAPSHOT_FILE = /\.(snap|stderr|stdout|baseline)$/;
 /** The land use of a path, from its folders and file name alone (binary files are assets by extension). */
 export function classifyLandUse(path: string): LandUse {
   const segments = path.split("/");
-  const file = segments.pop() as string;
+  const file = segments.pop()!;
   const folders = segments.map((segment) => segment.toLowerCase());
   const inAny = (names: ReadonlySet<string>) => folders.some((folder) => names.has(folder));
   if (inAny(VENDORED)) return "vendored";

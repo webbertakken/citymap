@@ -18,7 +18,7 @@ export interface Features {
 const share = (part: number, whole: number) => (whole > 0 ? Math.floor((part * 1000) / whole) : 0);
 
 export function features(massMille: number, childMasses: readonly number[], lots: number): Features {
-  const sorted = [...childMasses].sort((a, b) => b - a);
+  const sorted = childMasses.toSorted((a, b) => b - a);
   const own = Math.max(0, massMille - childMasses.reduce((sum, m) => sum + m, 0));
   return {
     massMille,
@@ -29,11 +29,10 @@ export function features(massMille: number, childMasses: readonly number[], lots
   };
 }
 
-// District forms in priority order, each with its margin in per mille; polycentric always qualifies.
-const RULES: readonly { form: DistrictForm; margin: (f: Features) => number }[] = [
+// District forms in priority order, each with its margin in per mille; polycentric is the fallback, always open.
+const RULES: readonly { form: Exclude<DistrictForm, "polycentric">; margin: (f: Features) => number }[] = [
   { form: "radial", margin: (f) => f.s1 - 600 },
   { form: "twin", margin: (f) => Math.min(f.s2 - 300, f.s1 + f.s2 - 750) },
-  { form: "polycentric", margin: () => 1000 },
 ];
 /** The incumbent holds down to this margin; a challenger needs this one. */
 const STAY = 150;
@@ -41,13 +40,14 @@ const CHALLENGE = 100;
 
 /** The district form: a Schmitt trigger round the incumbent. */
 export function districtForm(f: Features, previous: Form | undefined): DistrictForm {
-  const first = (rules: typeof RULES, at: number) => rules.find((rule) => rule.margin(f) >= at)?.form;
-  if (previous === undefined || isFlat(previous)) return first(RULES, 0) as DistrictForm;
-  const i = RULES.findIndex((rule) => rule.form === previous);
-  const earlier = first(RULES.slice(0, i), CHALLENGE);
+  const challenger = (rules: typeof RULES, at: number) => rules.find((rule) => rule.margin(f) >= at)?.form;
+  if (previous === undefined || isFlat(previous)) return challenger(RULES, 0) ?? "polycentric";
+  // Polycentric ranks after every rule and never falls out of its band.
+  const i = previous === "polycentric" ? RULES.length : RULES.findIndex((rule) => rule.form === previous);
+  const earlier = challenger(RULES.slice(0, i), CHALLENGE);
   if (earlier) return earlier;
-  if ((RULES[i] as (typeof RULES)[number]).margin(f) >= -STAY) return previous;
-  return first(RULES.slice(i + 1), CHALLENGE) as DistrictForm;
+  if (previous === "polycentric" || RULES[i]!.margin(f) >= -STAY) return previous;
+  return challenger(RULES.slice(i + 1), CHALLENGE) ?? "polycentric";
 }
 
 const HAMLET_MASS = 25_000;
@@ -69,7 +69,7 @@ export function flatForm(f: Features, previous: Form | undefined): FlatForm {
 export function flatten(node: TreeNode): { lots: LotSeed[]; docs: number } {
   const lots = [...node.lots];
   let docs = node.docs;
-  const children = [...node.children].sort((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.path, b.path));
+  const children = node.children.toSorted((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.path, b.path));
   for (const child of children) {
     const inner = flatten(child);
     lots.push(...inner.lots);

@@ -1,9 +1,9 @@
 import { fnv1a } from "@citymap/ground-plan";
 import { describe, expect, it } from "vitest";
 import { contrast, mix, oklch } from "./colour";
-import { THEMES, hueOf, type ThemeName } from "./themes";
+import { THEMES, THEME_NAMES, hueOf } from "./themes";
 
-const names = Object.keys(THEMES) as ThemeName[];
+const names = THEME_NAMES;
 
 describe("themes", () => {
   it.each(names)("keeps %s labels and header text at WCAG AA contrast", (name) => {

@@ -26,7 +26,7 @@ export function workspaceMembers(paths: readonly string[]): string[] {
     if (folder !== "" && isManifest(path.slice(path.lastIndexOf("/") + 1))) folders.add(folder);
   }
   const all = [...folders];
-  return all.filter((m) => !all.some((o) => o !== m && within(m, o))).sort(compareKeys);
+  return all.filter((m) => !all.some((o) => o !== m && within(m, o))).toSorted(compareKeys);
 }
 
 /** Folders holding two or more members whose land (tests, fixtures and docs aside) is at least half source. */
@@ -51,5 +51,5 @@ export function workspaceGroups(paths: readonly string[]): string[] {
       return land > 0 && 2 * source >= land;
     })
     .map(([parent]) => parent);
-  return groups.filter((g) => !groups.some((o) => o !== g && within(g, o))).sort(compareKeys);
+  return groups.filter((g) => !groups.some((o) => o !== g && within(g, o))).toSorted(compareKeys);
 }

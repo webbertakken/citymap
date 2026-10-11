@@ -19,11 +19,11 @@ export interface LaidTown {
 /** The organic layer: one smooth warp per town, scaled by its remembered diameter; it never feeds back. */
 function warpTown(ctx: Ctx, key: string, outline: readonly Pt[]) {
   if (ctx.plat.diameter === 0) ctx.plat.diameter = diameterOf(ctx.landArea2);
-  const d = ctx.plat.diameter;
+  const diameter = ctx.plat.diameter;
   const warp = warper(fnv1a(key), [
     [32, 1280],
-    [mulDiv(d, 15, 1000, "floor"), Math.max(1, mulDiv(d, 350, 1000, "floor"))],
-    [mulDiv(d, 70, 1000, "floor"), Math.max(1, mulDiv(d, 1100, 1000, "floor"))],
+    [mulDiv(diameter, 15, 1000, "floor"), Math.max(1, mulDiv(diameter, 350, 1000, "floor"))],
+    [mulDiv(diameter, 70, 1000, "floor"), Math.max(1, mulDiv(diameter, 1100, 1000, "floor"))],
   ]);
   const bend = (pts: readonly Pt[], closed: boolean, step: number) => densify(pts, step, closed).map(warp);
   return {

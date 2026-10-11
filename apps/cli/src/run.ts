@@ -1,13 +1,12 @@
 import { join, resolve } from "node:path";
 import {
-  CitymapError,
   DEFAULT_LAND_USES,
-  canonicalJson,
   initialState,
   landKey,
   layCity,
-  parsePlat,
+  parseLock,
   serialiseCity,
+  serialiseLock,
   type City,
   type FoldState,
   type Options,
@@ -41,25 +40,17 @@ const fields = (detail: Readonly<Record<string, string | number>>) =>
 async function readLock(repo: string, target: string, options: Options, io: Io): Promise<Lock | null> {
   const text = io.readFile(join(repo, LOCKFILE));
   if (text === null) return null;
-  let value: { commit?: unknown; index?: unknown; plat?: unknown };
-  try {
-    value = JSON.parse(text) as typeof value;
-  } catch {
-    throw new CitymapError("cli/lockfile", `${LOCKFILE} is not JSON`);
-  }
-  if (typeof value.commit !== "string" || !Number.isSafeInteger(value.index) || (value.index as number) < 0)
-    throw new CitymapError("cli/lockfile", `${LOCKFILE} needs a commit and an index`);
-  const plat = parsePlat(JSON.stringify(value.plat));
+  const { commit, index, plat } = parseLock(text);
   if (plat.landKey !== landKey(options.landUses)) {
     io.log(`lock/ignored reason=land lock=${plat.landKey}`);
     return null;
   }
-  if (!(await isAncestor(repo, value.commit, target))) {
-    io.log(`lock/ignored reason=not-an-ancestor commit=${value.commit}`);
+  if (!(await isAncestor(repo, commit, target))) {
+    io.log(`lock/ignored reason=not-an-ancestor commit=${commit}`);
     return null;
   }
-  io.log(`lock/resume commit=${value.commit} index=${String(value.index)}`);
-  return { commit: value.commit, index: value.index as number, state: initialState(options, plat) };
+  io.log(`lock/resume commit=${commit} index=${index}`);
+  return { commit, index, state: initialState(options, plat) };
 }
 
 /** Folds the repository's history into its city and writes what the command asks for. Returns the city. */
@@ -90,7 +81,7 @@ export async function runLay(command: LayCommand, io: Io): Promise<City> {
     // The lock's own commit is laid again to restore the towns as they stood; its decisions are already in the plat.
     if (command.verbose) for (const event of laid.events) onEvent(event);
   }
-  const laid = city as City;
+  const laid = city!;
   const lots = laid.towns.reduce((sum, t) => sum + t.stats.lots, 0);
   const overflow = laid.towns.reduce((sum, t) => sum + t.stats.overflow, 0);
   if (command.out) io.writeFile(command.out, serialiseCity(laid));
@@ -104,7 +95,7 @@ export async function runLay(command: LayCommand, io: Io): Promise<City> {
         camera: command.camera,
       }),
     );
-  if (command.lock) io.writeFile(join(repo, LOCKFILE), canonicalJson({ commit: target, index, plat: state.plat }));
+  if (command.lock) io.writeFile(join(repo, LOCKFILE), serialiseLock({ commit: target, index, plat: state.plat }));
   io.log(
     `fold/done repository=${laid.repository} commits=${commits} lots=${lots} overflow=${overflow} ms=${Math.round(io.now() - started)}`,
   );

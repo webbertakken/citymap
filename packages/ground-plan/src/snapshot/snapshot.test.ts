@@ -28,6 +28,7 @@ describe("parseSnapshot", () => {
     ["files that are not an array", { ...valid(), files: {} }],
     ["a file without identity", { ...valid(), files: [{ path: "a.ts", firstSeen: 0 }] }],
     ["a bad folder map", { ...valid(), folderFirstSeen: { src: -1 } }],
+    ["a folder map that is not an object", { ...valid(), folderFirstSeen: [1] }],
   ])("rejects %s as a bad shape", (_, input) => {
     expect(() => parseSnapshot(input)).toThrow("snapshot/bad-shape");
   });

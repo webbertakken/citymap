@@ -158,10 +158,8 @@ describe("layCity", () => {
     const old = switched.state.plat.old.demo?.[0];
     expect(old?.town.lots.some((l) => l.vacant)).toBe(true);
     // A second old town under another key, whose town is gone, and a lot without members: it joins the main town.
-    const stray = {
-      town: { ...(old?.town as NonNullable<typeof old>["town"]), key: "other", name: "other old town" },
-      members: {},
-    };
+    if (!old) throw new Error("no old town");
+    const stray = { town: { ...old.town, key: "other", name: "other old town" }, members: {} };
     const state = {
       ...switched.state,
       plat: { ...switched.state.plat, old: { ...switched.state.plat.old, other: [stray] } },

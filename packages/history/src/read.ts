@@ -86,7 +86,7 @@ function apply(
       else added.push(entry);
     }
   }
-  for (const entry of added.sort((a, b) => compareKeys(a.path, b.path))) {
+  for (const entry of added.toSorted((a, b) => compareKeys(a.path, b.path))) {
     const moved = deleted.get(entry.blob)?.shift();
     state.set(
       entry.path,
@@ -109,7 +109,7 @@ function snapshotOf(
   folders: Map<string, number>,
 ): Snapshot {
   const files: FileEntry[] = [...state]
-    .sort(([a], [b]) => compareKeys(a, b))
+    .toSorted(([a], [b]) => compareKeys(a, b))
     .map(([path, live]) => ({ path, identity: live.identity, firstSeen: live.firstSeen }));
   return { repository, commit: sha, index, files, folderFirstSeen: new Map(folders) };
 }
@@ -166,7 +166,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
     stderr += text;
   });
   // A git killed by a signal closes with a null code, which fails the check below as it should.
-  const closed = once(child, "close") as Promise<[number | null]>;
+  const closed = once(child, "close");
   const state = new Map<string, Live>();
   const folders = new Map<string, number>();
   let index = 0;
@@ -187,15 +187,18 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
   for await (const chunk of child.stdout as AsyncIterable<Uint8Array>) {
     const text = rest + decoder.decode(chunk, { stream: true });
     const parts = text.split("\u0000");
-    rest = parts.pop() as string;
+    rest = parts.pop()!;
     pending.push(...parts);
     yield* flush(false);
   }
   pending.push(rest);
-  const [code] = await closed;
+  const [code]: unknown[] = await closed;
   if (code !== 0) {
-    const first = stderr.split("\n", 1)[0] as string;
-    throw new CitymapError("history/git-failed", `git log exited with ${code}: ${first}`, { code, stderr: first });
+    const first = stderr.split("\n", 1)[0]!;
+    throw new CitymapError("history/git-failed", `git log exited with ${String(code)}: ${first}`, {
+      code: String(code),
+      stderr: first,
+    });
   }
   yield* flush(true);
 }

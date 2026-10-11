@@ -118,7 +118,7 @@ export function decide(
     let best = Infinity;
     let acc = 0;
     for (let i = 1; i < items.length; i++) {
-      acc += (items[i - 1] as Item).demand;
+      acc += items[i - 1]!.demand;
       const d = Math.abs(2 * acc - total);
       if (d < best) {
         best = d;
@@ -179,7 +179,7 @@ export function split(
   district: string,
 ) {
   const decision = decide(ctx, items, poly, massMille, first, key);
-  if (!decision) return place(ctx, poly, items[0] as Item, district);
+  if (!decision) return place(ctx, poly, items[0]!, district);
   if (pinwheel(ctx, decision, poly, key, district)) return;
   const { rec: r, left, right } = decision;
   const major = isMajor(r.cls);
@@ -223,7 +223,10 @@ export function trim(seg: readonly [Pt, Pt] | null, m: Dir, lo: number | null, h
   const den = Math.abs(v1 - v0);
   const at = (v: number | null, open: number) =>
     v === null ? open : Math.min(den, Math.max(0, (v - v0) * Math.sign(v1 - v0)));
-  const [u0, u1] = [at(lo, v1 > v0 ? 0 : den), at(hi, v1 > v0 ? den : 0)].sort((x, y) => x - y) as [number, number];
+  const from = at(lo, v1 > v0 ? 0 : den);
+  const to = at(hi, v1 > v0 ? den : 0);
+  const u0 = Math.min(from, to);
+  const u1 = Math.max(from, to);
   if (u1 <= u0) return null;
   const point = (u: number): Pt => ({
     x: a.x + mulDiv(b.x - a.x, u, den, "round"),
@@ -245,13 +248,13 @@ function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, distric
   if (ctx.options.jog === "off" || left.length < 2 || right.length < 2) return false;
   if (ctx.options.jog === "top-level" && !(key === rootPath || key.startsWith(`${rootPath}>`))) return false;
   // decide keeps only cuts that cross their land, so the chord exists.
-  const seg = chord(poly.p, r.n, r.c) as [Pt, Pt];
+  const seg = chord(poly.p, r.n, r.c)!;
   const length = isqrt((seg[1].x - seg[0].x) ** 2 + (seg[1].y - seg[0].y) ** 2);
   if (length * 1000 < LONG_CUT_MILLE * diameterOf(ctx.landArea2)) return false;
   const m = perp(r.n);
   // Both sides hold two or more items, so both decide a cut.
-  const below = decide(ctx, left, clip(poly, r.n, r.c, 0), massOf(left), false, `${key}>L`, m) as Decision;
-  const above = decide(ctx, right, clip(poly, negate(r.n), -r.c, 0), massOf(right), false, `${key}>R`, m) as Decision;
+  const below = decide(ctx, left, clip(poly, r.n, r.c, 0), massOf(left), false, `${key}>L`, m)!;
+  const above = decide(ctx, right, clip(poly, negate(r.n), -r.c, 0), massOf(right), false, `${key}>R`, m)!;
   // Square to the main cut: parallel to m within 0.01 % (compared with |m|², as table directions are not exactly DIRECTION long).
   const square = (rec: CutRecord) => (rec.n[0] * m[0] + rec.n[1] * m[1]) * 10_000 >= (m[0] * m[0] + m[1] * m[1]) * 9999;
   if (!square(below.rec) || !square(above.rec)) return false;

@@ -1,16 +1,17 @@
-import fc from "fast-check";
+import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { densify, lattice, noise, warper } from "./warp";
+
+const reference = (seed: number, i: number, j: number) => {
+  let h = Math.imul(i, 0x27d4eb2d) ^ Math.imul(j, 0x165667b1) ^ seed;
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return Math.floor((((h ^ (h >>> 16)) >>> 0) / 2 ** 32 - 0.5) * 65536);
+};
 
 describe("lattice", () => {
   it("matches the research prototype's hash", () => {
     // Prototype: ((h ^ (h >>> 16)) >>> 0) / 2^32 - 0.5, here in 1/65536 steps.
-    const reference = (seed: number, i: number, j: number) => {
-      let h = Math.imul(i, 0x27d4eb2d) ^ Math.imul(j, 0x165667b1) ^ seed;
-      h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
-      h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
-      return Math.floor((((h ^ (h >>> 16)) >>> 0) / 2 ** 32 - 0.5) * 65536);
-    };
     for (const [seed, i, j] of [
       [1, 0, 0],
       [0x51ed27, -3, 7],

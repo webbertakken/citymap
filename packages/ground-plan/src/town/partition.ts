@@ -9,7 +9,7 @@ import { WEIGHT_MILLE } from "../land-use/land-use";
 import type { RadialRecord } from "../plat/plat";
 import { landFor, type TreeNode } from "../tree/tree";
 import { demandOf, emit, forget, road, seedKey, toPoly, type Ctx, type Item } from "./context";
-import { cutClass, decide, place, reserve, split, type Decision } from "./cut";
+import { cutClass, decide, place, reserve, split } from "./cut";
 import { neighbourhood } from "./neighbourhood";
 
 const GROWTH_PCT = 135;
@@ -26,7 +26,7 @@ export function centreOut<T>(ordered: readonly T[]): T[] {
   const left: T[] = [];
   const right: T[] = [];
   ordered.forEach((item, i) => (i % 2 === 0 ? right : left).push(item));
-  return [...left.reverse(), ...right];
+  return [...left.toReversed(), ...right];
 }
 
 /** A folder's items: child folders, its own lots, its own park; by first appearance, then key. */
@@ -59,7 +59,7 @@ function itemsOf(ctx: Ctx, node: TreeNode, district: string): Item[] {
       firstSeen: node.firstSeen,
       district,
     });
-  return items.sort((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.key, b.key));
+  return items.toSorted((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.key, b.key));
 }
 
 /** Lays out a folder on its land: one neighbourhood when flat, else arranged by its district form. */
@@ -105,8 +105,8 @@ export function partition(ctx: Ctx, node: TreeNode, poly: Poly, district: string
       district,
     );
   // Everything laid inside this folder without a district form yet takes this one.
-  for (let i = blocksBefore; i < ctx.blocks.length; i++) (ctx.blocks[i] as { form?: typeof form }).form ??= form;
-  for (let i = lotsBefore; i < ctx.lots.length; i++) (ctx.lots[i] as { form?: typeof form }).form ??= form;
+  for (let i = blocksBefore; i < ctx.blocks.length; i++) ctx.blocks[i]!.form ??= form;
+  for (let i = lotsBefore; i < ctx.lots.length; i++) ctx.lots[i]!.form ??= form;
 }
 
 /** The point at angle step a, scale (‰) of the way from the centre to the edge. */
@@ -148,8 +148,8 @@ export function radial(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, dist
   const outgrown =
     known !== undefined &&
     // Caps cover every item laid at the last sectoring: the core and every ring item still in the order.
-    (present.some((i) => !known.order.includes(i.key) || i.demand > (known.caps[i.key] as number)) ||
-      core.demand > (known.caps[core.key] as number));
+    (present.some((i) => !known.order.includes(i.key) || i.demand > known.caps[i.key]!) ||
+      core.demand > known.caps[core.key]!);
   const byKey = new Map(items.map((i) => [i.key, i]));
   if (!rec || outgrown) {
     const order = known
@@ -160,13 +160,13 @@ export function radial(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, dist
       : present.map((i) => i.key);
     if (order.length < 3) return false;
     const start = known?.start ?? floorDiv(unitMille(`${seedKey(node.path)}#radial`) * TURN, 1000);
-    const demands = order.map((k) => BigInt((byKey.get(k) as Item).demand));
+    const demands = order.map((k) => BigInt(byKey.get(k)!.demand));
     // Sector bounds: each the least step whose sector reaches its share of the land.
     const angles = (scale: number): number[] | null => {
       const bounds = [start];
       for (let i = 0; i < demands.length - 1; i++) {
-        const a0 = bounds[i] as number;
-        const target = (demands[i] as bigint) * totalArea2;
+        const a0 = bounds[i]!;
+        const target = demands[i]! * totalArea2;
         const reaches = (a1: number) => BigInt(area2(sector(poly, c, a0, a1, scale, 0, 0).p)) * totalDemand >= target;
         if (!reaches(a0 + MAX_SPAN)) return null;
         let lo = a0;
@@ -179,7 +179,7 @@ export function radial(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, dist
         bounds.push(lo);
       }
       bounds.push(start + TURN);
-      const last = (bounds[bounds.length - 1] as number) - (bounds[bounds.length - 2] as number);
+      const last = bounds[bounds.length - 1]! - bounds[bounds.length - 2]!;
       return last > 0 && last <= MAX_SPAN ? bounds : null;
     };
     const coreDemand = BigInt(core.demand);
@@ -216,11 +216,11 @@ export function radial(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, dist
   const wSpoke = ROAD_WIDTH[spokeClass];
   const spokes = r.bounds.slice(0, -1);
   const inner = spokes.map((a) => pointAt(poly.p, c, a, r.scaleMille));
-  road(ctx, [...inner, inner[0] as Pt], ringClass);
+  road(ctx, [...inner, inner[0]!], ringClass);
   for (const a of spokes) road(ctx, [pointAt(poly.p, c, a, r.scaleMille), pointAt(poly.p, c, a, 1000)], spokeClass);
   const sub = (key: string) => seedKey(`${node.path}>${key}`);
   r.order.forEach((key, i) => {
-    const piece = sector(poly, c, r.bounds[i] as number, r.bounds[i + 1] as number, r.scaleMille, wSpoke, wRing);
+    const piece = sector(poly, c, r.bounds[i]!, r.bounds[i + 1]!, r.scaleMille, wSpoke, wRing);
     const item = byKey.get(key);
     if (item) place(ctx, piece, item, sub(item.key));
     else reserve(ctx, piece, district);
@@ -231,7 +231,7 @@ export function radial(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, dist
 
 /** Twin: the two heaviest children on either bank of a river, the rest joining the bank with less demand. */
 export function twin(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, district: string): boolean {
-  const folders = items.filter((i) => i.kind === "folder").sort((a, b) => b.massMille - a.massMille);
+  const folders = items.filter((i) => i.kind === "folder").toSorted((a, b) => b.massMille - a.massMille);
   const [first, second] = folders;
   if (!first || !second) return false;
   const left: Item[] = [first];
@@ -241,9 +241,9 @@ export function twin(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, distri
     (demandOf(left) <= demandOf(right) ? left : right).push(item);
   }
   // A switch to twin forgets the folder's cuts, so this decision is fresh: a river that crosses the land.
-  const decision = decide(ctx, items, poly, node.massMille, true, node.path, undefined, [left, right]) as Decision;
+  const decision = decide(ctx, items, poly, node.massMille, true, node.path, undefined, [left, right])!;
   const { rec: r } = decision;
-  const seg = chord(poly.p, r.n, r.c) as [Pt, Pt];
+  const seg = chord(poly.p, r.n, r.c)!;
   const half = (RIVER / 2) * DIRECTION;
   // The band holds the chord, so the water is never empty.
   ctx.water.push([...clip(clip(poly, r.n, r.c + half, 0), negate(r.n), -(r.c - half), 0).p]);
@@ -257,8 +257,8 @@ export function twin(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, distri
       ]
     : [[1, 2]]) {
     const m = {
-      x: a.x + roundDiv((b.x - a.x) * (num as number), den as number),
-      y: a.y + roundDiv((b.y - a.y) * (num as number), den as number),
+      x: a.x + roundDiv((b.x - a.x) * num!, den!),
+      y: a.y + roundDiv((b.y - a.y) * num!, den!),
     };
     const dx = mulDiv(r.n[0], reachOut, DIRECTION, "round");
     const dy = mulDiv(r.n[1], reachOut, DIRECTION, "round");

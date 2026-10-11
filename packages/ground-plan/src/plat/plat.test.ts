@@ -74,7 +74,7 @@ describe("serialisePlat and parsePlat", () => {
 
   it("writes the same text whatever the key order", () => {
     const plat = full();
-    const shuffled = JSON.parse(JSON.stringify(plat, Object.keys(plat).reverse())) as Plat;
+    const shuffled = parsePlat(JSON.stringify(plat, Object.keys(plat).toReversed()));
     expect(serialisePlat({ ...shuffled, ...plat })).toBe(serialisePlat(plat));
   });
 
@@ -92,5 +92,4 @@ describe("serialisePlat and parsePlat", () => {
     const text = serialisePlat(full()).replace('"dir":[0,4096]', '"dir":[0,4096,1]');
     expect(() => parsePlat(text)).toThrow("plat/bad-shape: /towns/demo/grids/a/dir/2:");
   });
-
 });

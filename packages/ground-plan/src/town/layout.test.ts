@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Town } from "../city/city";
+import { compareKeys } from "../fixed/hash";
 import { canonicalJson } from "../plat/canonical";
 import { emptyTownPlat, type TownPlat } from "../plat/plat";
 import { outlineFor } from "../region/outline";
@@ -41,8 +42,7 @@ const twinRepo = (): FileEntry[] => [
   ...files("misc", 50, 800),
 ];
 const SIZES = [150, 60, 200, 90, 120, 180];
-const sixRepo = (): FileEntry[] =>
-  ["a", "b", "c", "d", "e", "f"].flatMap((d, i) => files(d, SIZES[i] as number, i * 300));
+const sixRepo = (): FileEntry[] => ["a", "b", "c", "d", "e", "f"].flatMap((d, i) => files(d, SIZES[i]!, i * 300));
 
 describe("cutClass", () => {
   it("ranks roads by the tier of the land being cut", () => {
@@ -94,11 +94,11 @@ describe("layoutTown", () => {
     const first = lay(treeOf(radialRepo()));
     expect(first.town.form).toBe("radial");
     // Without folder ages, the ring follows path order.
-    expect(first.plat.radial[""]?.order).toEqual([...RING].sort());
+    expect(first.plat.radial[""]?.order).toEqual(RING.toSorted(compareKeys));
     expect(first.town.roads.some((r) => r.pts.length === RING.length + 1)).toBe(true);
     const grown = lay(treeOf([...radialRepo(), ...files("down", 40, 2000)]), first.plat, {}, 100, treeOf(radialRepo()));
     expect(codes(grown.events)).toContain("plat/radial-resector");
-    expect(grown.plat.radial[""]?.order).toEqual([...[...RING].sort(), "down"]);
+    expect(grown.plat.radial[""]?.order).toEqual([...RING.toSorted(compareKeys), "down"]);
     // Every ring item lays afresh in its new sector: its old grid would lie across the turned land.
     const forgotten = grown.events.filter((e) => e.code === "plat/forget").map((e) => e.detail.key);
     expect(forgotten).toEqual(expect.arrayContaining(["core", ...RING]));
@@ -136,7 +136,7 @@ describe("layoutTown", () => {
     const before = positions(first.town);
     const movedFolders = new Set<string>();
     for (const [key, pts] of positions(second.town))
-      if (before.has(key) && pts !== before.get(key)) movedFolders.add(key.split("/")[0] as string);
+      if (before.has(key) && pts !== before.get(key)) movedFolders.add(key.split("/")[0]!);
     expect(movedFolders.size).toBeLessThanOrEqual(1);
   });
 
@@ -145,25 +145,25 @@ describe("layoutTown", () => {
     const [pairKey, pair] =
       Object.entries(first.plat.cuts).find(([, c]) => c.left.length === 1 && c.right.length === 1) ?? [];
     expect(pair).toBeDefined();
-    const [stay, gone] = [pair?.left[0] as string, pair?.right[0] as string];
+    if (!pair || pairKey === undefined) throw new Error("no pair of single folders");
+    const [stay, gone] = [pair.left[0]!, pair.right[0]!];
     const goneCount = sixRepo().filter((f) => f.path.startsWith(`${gone}/`)).length;
     // More than the old half holds even at lot class 1, but within the band of the land the pair had.
-    const newcomers = files(stay, goneCount + 60, 9000).map((f) => ({
-      ...f,
-      path: f.path.replace("/f", "/n"),
-      identity: `n${f.identity}`,
-    }));
+    const newcomers = files(stay, goneCount + 60, 9000, "ts", "n");
     const next = [...sixRepo().filter((f) => !f.path.startsWith(`${gone}/`)), ...newcomers];
     const second = lay(treeOf(next), first.plat, {}, 100, treeOf(sixRepo()));
     expect(second.town.form).toBe(first.town.form);
     expect(second.town.stats.overflow).toBe(0);
-    expect(second.plat.cuts[pairKey as string]).toBeDefined();
+    expect(second.plat.cuts[pairKey]).toBeDefined();
     // Every surviving lot keeps its slot (only strips clipped by the old cut may now reach into the lent land), except in
     // a neighbourhood that narrowed its lot class to seat the newcomers, which re-lays by design.
     const narrowed = new Set(second.events.filter((e) => e.code === "plat/narrow").map((e) => e.detail.key));
-    for (const [key, grid] of Object.entries(first.plat.grids).filter(([k]) => !narrowed.has(k)))
-      for (const [lot, slot] of Object.entries(grid.slots))
-        if (second.plat.grids[key]?.slots[lot] !== undefined) expect(second.plat.grids[key]?.slots[lot]).toBe(slot);
+    const kept = Object.entries(first.plat.grids)
+      .filter(([k]) => !narrowed.has(k))
+      .flatMap(([key, grid]) => Object.entries(grid.slots).map(([lot, slot]) => ({ key, lot, slot })))
+      .filter(({ key, lot }) => second.plat.grids[key]?.slots[lot] !== undefined);
+    expect(kept.length).toBeGreaterThan(0);
+    for (const { key, lot, slot } of kept) expect(second.plat.grids[key]?.slots[lot]).toBe(slot);
     expect(Object.keys(second.plat.grids[stay]?.slots ?? {}).length).toBeGreaterThan(
       Object.keys(first.plat.grids[stay]?.slots ?? {}).length,
     );
@@ -195,17 +195,11 @@ describe("layoutTown edge cases", () => {
     const first = lay(treeOf(sixRepo()));
     const root = first.plat.cuts[""];
     expect(root).toBeDefined();
-    const kept = sixRepo().filter((f) => root?.left.includes(f.path.split("/")[0] as string));
+    const kept = sixRepo().filter((f) => root?.left.includes(f.path.split("/")[0]!));
     // Each survivor grows by 150 files, so the root stays polycentric while its left side outgrows its band.
     const grown = [
       ...kept,
-      ...(root?.left ?? []).flatMap((folder, i) =>
-        files(folder, 150, 9000 + i * 200).map((f) => ({
-          ...f,
-          path: f.path.replace("/f", "/g"),
-          identity: `g${f.identity}`,
-        })),
-      ),
+      ...(root?.left ?? []).flatMap((folder, i) => files(folder, 150, 9000 + i * 200, "ts", "g")),
     ];
     const second = lay(treeOf(grown), first.plat, {}, 100, treeOf(sixRepo()));
     expect(second.town.form).toBe("polycentric");

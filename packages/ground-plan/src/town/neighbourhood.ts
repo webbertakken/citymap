@@ -56,9 +56,9 @@ const cellId = (cell: Cell) => `${cell.r},${cell.c}`;
 function clipTo(poly: Poly, land: readonly Pt[]): Poly {
   let out = poly;
   for (let i = 0; i < land.length && out.p.length >= 3; i++) {
-    const p = land[i] as Pt;
+    const p = land[i]!;
     // Land comes from inset, which never repeats a point.
-    const q = land[(i + 1) % land.length] as Pt;
+    const q = land[(i + 1) % land.length]!;
     const n = normalise(q.y - p.y, p.x - q.x);
     out = clip(out, n, n[0] * p.x + n[1] * p.y, 0);
   }
@@ -252,10 +252,10 @@ export function neighbourhood(
       ? ordered
       : ordered
           .map((s, i) => {
-            const r = (cells[s.cell] as Cell).r;
+            const r = cells[s.cell]!.r;
             return { s, i, d: r >= high ? r - high : high - 1 - r };
           })
-          .sort((x, y) => x.d - y.d || x.i - y.i)
+          .toSorted((x, y) => x.d - y.d || x.i - y.i)
           .map((x) => x.s);
   const slotIndex = new Map(slots.map((s, i) => [s.id, i]));
   const live = new Set(lots.map((l) => l.key));
@@ -290,16 +290,16 @@ export function neighbourhood(
       if (i >= slots.length) i = free(0);
       if (i >= slots.length) continue;
       taken.set(i, lot.key);
-      g.slots[lot.key] = (slots[i] as Slot).id;
+      g.slots[lot.key] = slots[i]!.id;
       lastOfFolder.set(folderOf(lot.path), Math.max(lastOfFolder.get(folderOf(lot.path)) ?? -1, i));
     }
-    const slot = slots[slotIndex.get(g.slots[lot.key] as string) as number] as Slot;
-    (cells[slot.cell] as Cell).used = true;
+    const slot = slots[slotIndex.get(g.slots[lot.key]!)!]!;
+    cells[slot.cell]!.used = true;
     ctx.plat.addresses[lot.key] ??= `${key}:${slot.id.replaceAll(",", ".")}`;
     ctx.lots.push({
       pts: slot.pts,
       key: lot.key,
-      address: ctx.plat.addresses[lot.key] as string,
+      address: ctx.plat.addresses[lot.key]!,
       vacant: false,
       path: lot.path,
       use: lot.use,
@@ -310,13 +310,13 @@ export function neighbourhood(
   }
   for (const [i, lotKey] of taken) {
     if (live.has(lotKey)) continue;
-    const slot = slots[i] as Slot;
-    (cells[slot.cell] as Cell).used = true;
+    const slot = slots[i]!;
+    cells[slot.cell]!.used = true;
     ctx.lots.push({
       pts: slot.pts,
       key: lotKey,
       // A vacant lot was placed before, so its address was issued then.
-      address: ctx.plat.addresses[lotKey] as string,
+      address: ctx.plat.addresses[lotKey]!,
       vacant: true,
       path: "",
       use: "source",

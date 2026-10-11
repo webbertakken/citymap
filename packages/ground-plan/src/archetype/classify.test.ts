@@ -16,6 +16,13 @@ const node = (over: Partial<TreeNode> & { path: string }): TreeNode => ({
   ...over,
 });
 
+const flatFeatures = (massMille: number, lots: number, f0: number) => ({ massMille, s1: 0, s2: 0, f0, lots });
+
+const districtFeatures = (s1: number, s2: number) => ({ massMille: 1, s1, s2, f0: 0, lots: 0 });
+
+const child = node({ path: "p/c", massMille: 1000, demand: 10 });
+const grownNode = (demand: number) => node({ path: "p", children: [child], massMille: 1000, demand });
+
 describe("features", () => {
   it("measures the heaviest children and own files in per mille", () => {
     const f = features(10_000, [6000, 3000], 7);
@@ -28,48 +35,44 @@ describe("features", () => {
 });
 
 describe("flatForm", () => {
-  const f = (massMille: number, lots: number, f0: number) => ({ massMille, s1: 0, s2: 0, f0, lots });
-
   it("makes small folders hamlets, with a band round the incumbent", () => {
-    expect(flatForm(f(24_999, 0, 0), undefined)).toBe("hamlet");
-    expect(flatForm(f(25_000, 0, 0), undefined)).toBe("neighbourhood");
-    expect(flatForm(f(31_249, 0, 0), "hamlet")).toBe("hamlet");
-    expect(flatForm(f(31_250, 0, 0), "hamlet")).toBe("neighbourhood");
+    expect(flatForm(flatFeatures(24_999, 0, 0), undefined)).toBe("hamlet");
+    expect(flatForm(flatFeatures(25_000, 0, 0), undefined)).toBe("neighbourhood");
+    expect(flatForm(flatFeatures(31_249, 0, 0), "hamlet")).toBe("hamlet");
+    expect(flatForm(flatFeatures(31_250, 0, 0), "hamlet")).toBe("neighbourhood");
   });
 
   it("makes large own-file folders street villages, with a band round the incumbent", () => {
-    expect(flatForm(f(50_000, 40, 600), undefined)).toBe("street-village");
-    expect(flatForm(f(50_000, 39, 600), undefined)).toBe("neighbourhood");
-    expect(flatForm(f(50_000, 40, 599), undefined)).toBe("neighbourhood");
-    expect(flatForm(f(50_000, 32, 480), "street-village")).toBe("street-village");
-    expect(flatForm(f(50_000, 31, 480), "street-village")).toBe("neighbourhood");
-    expect(flatForm(f(50_000, 32, 479), "street-village")).toBe("neighbourhood");
+    expect(flatForm(flatFeatures(50_000, 40, 600), undefined)).toBe("street-village");
+    expect(flatForm(flatFeatures(50_000, 39, 600), undefined)).toBe("neighbourhood");
+    expect(flatForm(flatFeatures(50_000, 40, 599), undefined)).toBe("neighbourhood");
+    expect(flatForm(flatFeatures(50_000, 32, 480), "street-village")).toBe("street-village");
+    expect(flatForm(flatFeatures(50_000, 31, 480), "street-village")).toBe("neighbourhood");
+    expect(flatForm(flatFeatures(50_000, 32, 479), "street-village")).toBe("neighbourhood");
   });
 });
 
 describe("districtForm", () => {
-  const f = (s1: number, s2: number) => ({ massMille: 1, s1, s2, f0: 0, lots: 0 });
-
   it("enters the first form with a margin of zero or more on a cold start", () => {
-    expect(districtForm(f(600, 0), undefined)).toBe("radial");
-    expect(districtForm(f(450, 300), undefined)).toBe("twin");
-    expect(districtForm(f(449, 300), undefined)).toBe("polycentric");
-    expect(districtForm(f(600, 0), "hamlet")).toBe("radial");
+    expect(districtForm(districtFeatures(600, 0), undefined)).toBe("radial");
+    expect(districtForm(districtFeatures(450, 300), undefined)).toBe("twin");
+    expect(districtForm(districtFeatures(449, 300), undefined)).toBe("polycentric");
+    expect(districtForm(districtFeatures(600, 0), "hamlet")).toBe("radial");
   });
 
   it("keeps the incumbent down to a margin of -150", () => {
-    expect(districtForm(f(450, 0), "radial")).toBe("radial");
-    expect(districtForm(f(449, 0), "radial")).toBe("polycentric");
+    expect(districtForm(districtFeatures(450, 0), "radial")).toBe("radial");
+    expect(districtForm(districtFeatures(449, 0), "radial")).toBe("polycentric");
   });
 
   it("lets an earlier form take over only with a margin of 100", () => {
-    expect(districtForm(f(699, 290), "twin")).toBe("twin");
-    expect(districtForm(f(700, 290), "twin")).toBe("radial");
+    expect(districtForm(districtFeatures(699, 290), "twin")).toBe("twin");
+    expect(districtForm(districtFeatures(700, 290), "twin")).toBe("radial");
   });
 
   it("moves to a later form only with a margin of 100", () => {
     // Twin falls out of its band; radial is earlier and too weak; polycentric always qualifies.
-    expect(districtForm(f(300, 140), "twin")).toBe("polycentric");
+    expect(districtForm(districtFeatures(300, 140), "twin")).toBe("polycentric");
   });
 });
 
@@ -91,8 +94,6 @@ describe("flatten", () => {
 });
 
 describe("classifyNode", () => {
-  const child = node({ path: "p/c", massMille: 1000, demand: 10 });
-
   it("flattens a folder without children, or under the flatten limit", () => {
     expect(classifyNode(node({ path: "p", massMille: 1000, demand: FLATTEN_LIMIT * 9 }), undefined)).toBe("hamlet");
     expect(
@@ -106,9 +107,8 @@ describe("classifyNode", () => {
   });
 
   it("keeps a flat folder flat up to 1.5 times the limit", () => {
-    const grown = (demand: number) => node({ path: "p", children: [child], massMille: 1000, demand });
-    expect(classifyNode(grown((FLATTEN_LIMIT * 3) / 2), "hamlet")).toBe("hamlet");
-    expect(classifyNode(grown((FLATTEN_LIMIT * 3) / 2 + 1), "hamlet")).toBe("radial");
+    expect(classifyNode(grownNode((FLATTEN_LIMIT * 3) / 2), "hamlet")).toBe("hamlet");
+    expect(classifyNode(grownNode((FLATTEN_LIMIT * 3) / 2 + 1), "hamlet")).toBe("radial");
   });
 
   it("keeps a cut folder cut down to the limit over 1.5", () => {

@@ -21,10 +21,40 @@ const lay = (tree: TreeNode, plat: TownPlat = emptyTownPlat(), options: Partial<
 const plazas = (tree: TreeNode, plat?: TownPlat, options?: Partial<LayoutOptions>, landOf?: TreeNode) =>
   lay(tree, plat, options, landOf).town.blocks.filter((b) => b.kind === "plaza").length;
 const SIZES = [150, 60, 200, 90, 120, 180];
-const varied = (): FileEntry[] =>
-  ["a", "b", "c", "d", "e", "f"].flatMap((d, i) => files(d, SIZES[i] as number, i * 300));
+const varied = (): FileEntry[] => ["a", "b", "c", "d", "e", "f"].flatMap((d, i) => files(d, SIZES[i]!, i * 300));
 const seeds = (n: number): LotSeed[] =>
   files("", n).map((f) => ({ key: f.identity, path: f.path, use: "source", firstSeen: f.firstSeen }));
+
+const docFiles = (folder: string, n: number, born: number) =>
+  Array.from({ length: n }, (_, k) => ({
+    path: `${folder}/doc-${k}.md`,
+    identity: `${folder}-${k}`,
+    firstSeen: born + k,
+  }));
+
+const parks = (d: string, i: number) => [
+  ...files(d, 4, i * 300),
+  ...Array.from({ length: [120, 50, 160, 80, 100, 140][i]! }, (_, k) => ({
+    path: `${d}/doc-${k}.md`,
+    identity: `${d}-doc-${k}`,
+    firstSeen: i * 300 + 10 + k,
+  })),
+];
+
+const radialRepo = () => [
+  ...files("core", 400, 0),
+  ...["n", "e", "s", "w", "u"].flatMap((d, i) => files(d, 40, 500 + i * 100)),
+];
+
+const box = (x: number, y: number, w: number, h: number) => ({
+  p: [
+    { x, y },
+    { x: x + w, y },
+    { x: x + w, y: y + h },
+    { x, y: y + h },
+  ],
+  w: [0, 0, 0, 0],
+});
 
 describe("park and reserve", () => {
   it("leave land too small for pavement empty", () => {
@@ -83,29 +113,24 @@ describe("pinwheel guards", () => {
 
   it("stops jogging when a quarter empties", () => {
     const first = lay(treeOf(varied()));
-    const quarter = first.plat.cuts[">L"]?.left[0] as string;
+    const quarter = first.plat.cuts[">L"]!.left[0]!;
     const rest = varied().filter((f) => !f.path.startsWith(`${quarter}/`));
     expect(plazas(treeOf(rest), first.plat, {}, treeOf(varied()))).toBe(0);
   });
 
   it("does not jog a short cut deep inside a big town", () => {
-    const docs = (folder: string, n: number, born: number) =>
-      Array.from({ length: n }, (_, k) => ({
-        path: `${folder}/doc-${k}.md`,
-        identity: `${folder}-${k}`,
-        firstSeen: born + k,
-      }));
-    const quarter = ["q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8"].flatMap((q, i) => [
-      ...files(`small/${q}`, 2, 20_000 + i * 100),
-      ...docs(`small/${q}`, [60, 30, 80, 40, 70, 35, 65, 50][i] as number, 20_010 + i * 100),
-    ]);
-    const { town, plat } = lay(treeOf([...docs("park", 10_000, 0), ...quarter]), emptyTownPlat(), { jog: "all" });
+    const quarter = ["q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8"].flatMap((q, i) =>
+      files(`small/${q}`, 2, 20_000 + i * 100).concat(
+        docFiles(`small/${q}`, [60, 30, 80, 40, 70, 35, 65, 50][i]!, 20_010 + i * 100),
+      ),
+    );
+    const { town, plat } = lay(treeOf([...docFiles("park", 10_000, 0), ...quarter]), emptyTownPlat(), { jog: "all" });
     expect(Object.keys(plat.cuts).some((k) => k.startsWith("small"))).toBe(true);
     expect(town.stats.lots).toBe(16);
   });
 
   it("jogs only the root's own cuts at top level, and skips short cuts when every cut may jog", () => {
-    const nested = ["a", "b", "c", "d", "e", "f"].flatMap((d, i) => files(`big/${d}`, SIZES[i] as number, i * 300));
+    const nested = ["a", "b", "c", "d", "e", "f"].flatMap((d, i) => files(`big/${d}`, SIZES[i]!, i * 300));
     const withSibling = [...nested, ...files("small", 20, 5000), ...files("tiny", 10, 6000)];
     const top = lay(treeOf(withSibling));
     const all = lay(treeOf(withSibling), emptyTownPlat(), { jog: "all" });
@@ -116,23 +141,13 @@ describe("pinwheel guards", () => {
 
   it("jogs a street between small folders, keeping one district", () => {
     // Docs give land without mass: a town of streets that is still too big to flatten.
-    const parks = (d: string, i: number) => [
-      ...files(d, 4, i * 300),
-      ...Array.from({ length: [120, 50, 160, 80, 100, 140][i] as number }, (_, k) => ({
-        path: `${d}/doc-${k}.md`,
-        identity: `${d}-doc-${k}`,
-        firstSeen: i * 300 + 10 + k,
-      })),
-    ];
     const town = lay(treeOf(["a", "b", "c", "d", "e", "f"].flatMap((d, i) => parks(d, i)))).town;
     expect(town.roads.some((r) => r.cls === "collector" || r.cls === "avenue")).toBe(false);
     expect(town.blocks.some((b) => b.kind === "plaza")).toBe(true);
   });
 
   it("gives cross cuts below collectors their side's district", () => {
-    const mid = ["a", "b", "c", "d", "e", "f"].flatMap((d, i) =>
-      files(d, [56, 21, 70, 31, 42, 60][i] as number, i * 300),
-    );
+    const mid = ["a", "b", "c", "d", "e", "f"].flatMap((d, i) => files(d, [56, 21, 70, 31, 42, 60][i]!, i * 300));
     const { town } = lay(treeOf(mid));
     expect(town.roads.some((r) => r.cls === "collector")).toBe(true);
     expect(town.blocks.some((b) => b.kind === "plaza")).toBe(true);
@@ -140,7 +155,7 @@ describe("pinwheel guards", () => {
 
   it("leaves no plaza where a boulevard is wider than the jog", () => {
     const city = ["a", "b", "c", "d", "e", "f"].flatMap((d, i) =>
-      files(d, [560, 320, 640, 400, 480, 600][i] as number, i * 1000),
+      files(d, [560, 320, 640, 400, 480, 600][i]!, i * 1000),
     );
     const { town } = lay(treeOf(city));
     expect(town.roads.some((r) => r.cls === "boulevard")).toBe(true);
@@ -149,17 +164,12 @@ describe("pinwheel guards", () => {
 });
 
 describe("radial and twin edge cases", () => {
-  const radialRepo = () => [
-    ...files("core", 400, 0),
-    ...["n", "e", "s", "w", "u"].flatMap((d, i) => files(d, 40, 500 + i * 100)),
-  ];
-
   it("re-centres on a new core when another child outgrows it", () => {
     const first = lay(treeOf(radialRepo()));
     const grown = [
       ...radialRepo().filter((f) => !f.path.startsWith("core/")),
       ...files("core", 40),
-      ...files("n", 600, 3000).map((f) => ({ ...f, path: f.path.replace("/f", "/g"), identity: `g${f.identity}` })),
+      ...files("n", 600, 3000, "ts", "g"),
     ];
     const second = lay(treeOf(grown), first.plat, {}, treeOf(radialRepo()));
     expect(second.plat.radial[""]?.core ?? second.town.form).not.toBe("core");
@@ -329,15 +339,6 @@ describe("neighbourhood edge cases", () => {
   });
 
   it("lays its grid afresh when the cuts around it moved its land off the grid", () => {
-    const box = (x: number, y: number, w: number, h: number) => ({
-      p: [
-        { x, y },
-        { x: x + w, y },
-        { x: x + w, y: y + h },
-        { x, y: y + h },
-      ],
-      w: [0, 0, 0, 0],
-    });
     const first = emptyCtx();
     neighbourhood(first, box(0, 0, 600, 400), seeds(6), 0, "k", "d", "neighbourhood");
     const moved = { ...emptyCtx(), plat: first.plat };

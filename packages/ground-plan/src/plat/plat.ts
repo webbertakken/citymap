@@ -78,7 +78,6 @@ export interface Plat {
   rootForms: Record<string, Form>;
 }
 
-
 export const emptyTownPlat = (): TownPlat => ({
   centre: null,
   area2: 0,
@@ -134,7 +133,14 @@ const townPlatSchema = v.strictObject({
   forms: v.record(v.string(), v.picklist(FORMS)),
   radial: v.record(
     v.string(),
-    v.strictObject({ core: v.string(), start: int, order: strings, bounds: v.array(int), scaleMille: nat, caps: v.record(v.string(), nat) }),
+    v.strictObject({
+      core: v.string(),
+      start: int,
+      order: strings,
+      bounds: v.array(int),
+      scaleMille: nat,
+      caps: v.record(v.string(), nat),
+    }),
   ),
   addresses: v.record(v.string(), v.string()),
 });
