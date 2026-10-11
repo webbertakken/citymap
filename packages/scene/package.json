@@ -1,0 +1,16 @@
+{
+  "name": "@citymap/scene",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@citymap/ground-plan": "workspace:*",
+    "@citymap/themes": "workspace:*"
+  },
+  "scripts": {
+    "test": "vitest run"
+  }
+}
