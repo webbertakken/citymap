@@ -11,7 +11,9 @@ The first deliverable is the **ground plan**: the city without buildings, as def
   tree.
 - **Archetypes**: each folder picks an urban form and a tier from its shape, with hysteresis.
 - **Rendering**: one 3D scene in Three.js with an orthographic camera (2:1 dimetric by default, plan view on demand) in
-  the Paper atlas style, plus SVG export from the same model.
+  the Paper atlas style, plus SVG export from the same model. Themes: Paper atlas, Night atlas, Beck schematic, Nolli
+  noir and Dracula. Desktop and phones.
+- **Land dimension**: tests off the map (default) or tests as land.
 - **Morphometrics**: the generator measures its own output (orientation entropy, node degree, dead-end share, block
   shape factor, built share) and asserts them per archetype.
 
@@ -27,7 +29,7 @@ These shape today's design but are not part of the first deliverable.
 - History playback: animating the city through its history and exporting it as a video.
 - Private repositories, connected by their owner.
 - A local, offline build for any folder on disk, as a Rust port that matches the TypeScript output.
-- Statistics overlays, a 3D walk camera, games played on the city, and strangler-pattern detection (old versus new
+- Statistics overlays, a 3D walk camera, a Monopoly-like game played in a chosen town (apps, packages, tools), and strangler-pattern detection (old versus new
   areas).
 - Dependency overlays: bridges between workspace islands, tram lines within packages.
 

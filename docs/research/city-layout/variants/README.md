@@ -32,9 +32,15 @@ report's backbone instead, with rules of our own:
 - **Wards**: land between collectors or bigger roads takes its own tint and the name of its heaviest folder.
 - **Organic layer**: one smooth, seeded warp scaled to the town bends every road and block.
 - **Density**: a setting; it sets land per lot, so it acts as grain (suburban big plots to dense narrow plots).
+- **Land dimension**: `Options.noLand` lists the land uses that take no land; tests and fixtures by default, fixtures
+  only for tests as land. Tests as land roughly doubles next.js (8,032 to 19,367 lots).
+- **Highways** continue a road: they join road ends of the highest class both towns offer at their edges, take that
+  class and are drawn like any road.
+- **Themes**: `render-town.ts` takes a theme, Paper atlas or Dracula.
 
 Sheets: `img/towns-towns-<repo>.webp` (plan), `img/towns-density-<repo>.webp` (35, 50, 65% at one scale),
-`img/towns-hero-<repo>.webp` (2:1 dimetric). Generate with `bun towns.ts all`.
+`img/towns-hero-<repo>.webp` (2:1 dimetric), `img/towns-land-<repo>.webp` (tests off the map against tests as land),
+`img/towns-themes-<repo>.webp` (Paper atlas against Dracula). Generate with `bun towns.ts all`.
 
 | Repo | Lots | Lot coverage of land | Local street share | Long straight roads | Lots without room |
 | --- | --- | --- | --- | --- | --- |

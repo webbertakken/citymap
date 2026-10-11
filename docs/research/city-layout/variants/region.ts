@@ -2,7 +2,7 @@
 // each sized by its own land, joined to the main town by highways across open country.
 import type { RepoData } from "./extract";
 import { area, centroid, densify, fnv1a, warper, type Pt } from "./geometry";
-import { buildNodes, layoutTown, outlineFor, type Options, type Road, type Town } from "./town";
+import { buildNodes, layoutTown, outlineFor, type Options, type Road, type RoadClass, type Town } from "./town";
 
 export interface Region {
   name: string;
@@ -37,14 +37,14 @@ export function workspaceGroups(data: RepoData): string[] {
 
 export function composeRegion(data: RepoData, options: Options): Region {
   const groups = workspaceGroups(data);
-  const main = buildNodes(data, "", groups, options.density);
+  const main = buildNodes(data, "", groups, options.density, options.noLand);
   const parts = [
     { name: data.name, key: data.name, nodes: main, firstSeen: 0 },
     ...groups
       .map((g) => ({
         name: g,
         key: `${data.name}/${g}`,
-        nodes: buildNodes(data, g, [], options.density),
+        nodes: buildNodes(data, g, [], options.density, options.noLand),
         firstSeen: data.folderFirstSeen[g] ?? 0,
       }))
       .sort((a, b) => a.firstSeen - b.firstSeen || (a.name < b.name ? -1 : 1)),
@@ -76,25 +76,39 @@ export function composeRegion(data: RepoData, options: Options): Region {
     town.stats.docs = part.nodes.docs;
     towns.push(town);
   });
-  // Highways join real roads: from the end of a major road on one town edge to one on the other, never from behind.
-  const RANK = ["lane", "street", "collector", "avenue", "boulevard"];
-  const gate = (town: Town, toward: Pt): Pt => {
+  // Highways join real roads of one class in both towns, at the town edge, and take that class: seamless roads.
+  const RANK: RoadClass[] = ["lane", "street", "collector", "avenue", "boulevard"];
+  const edgeEnds = (town: Town, toward: Pt) => {
     const c = centroid(town.outline);
+    if (town.roads.length === 0) {
+      // A town without streets gets an approach street from its edge to its centre, so a highway has a road to join.
+      const door = [...town.outline].sort(
+        (a, b) => Math.hypot(a.x - toward.x, a.y - toward.y) - Math.hypot(b.x - toward.x, b.y - toward.y),
+      )[0];
+      town.roads.push({ pts: [door, c], cls: "street" });
+    }
     const reach = Math.max(...town.outline.map((p) => Math.hypot(p.x - c.x, p.y - c.y)));
     const ends = town.roads.flatMap((r) => [
       { p: r.pts[0], rank: RANK.indexOf(r.cls) },
       { p: r.pts[r.pts.length - 1], rank: RANK.indexOf(r.cls) },
     ]);
     const edge = ends.filter((e) => Math.hypot(e.p.x - c.x, e.p.y - c.y) >= 0.8 * reach);
-    const pool = edge.length ? edge : ends;
-    const best = Math.max(...pool.map((e) => e.rank));
-    const major = pool.filter((e) => e.rank >= Math.min(best, 2));
-    return major.sort((a, b) => Math.hypot(a.p.x - toward.x, a.p.y - toward.y) - Math.hypot(b.p.x - toward.x, b.p.y - toward.y))[0]?.p ?? c;
+    return edge.length ? edge : ends;
+  };
+  const gate = (ends: { p: Pt; rank: number }[], rank: number, toward: Pt): Pt => {
+    const pool = ends.filter((e) => e.rank === rank);
+    const near = (e: { p: Pt }) => Math.hypot(e.p.x - toward.x, e.p.y - toward.y);
+    return (pool.length ? pool : ends).sort((a, b) => near(a) - near(b))[0].p;
   };
   for (const town of towns.slice(1)) {
-    const from = gate(towns[0], centroid(town.outline));
-    const to = gate(town, centroid(towns[0].outline));
-    highways.push({ pts: [from, to], cls: "highway" });
+    const a = edgeEnds(towns[0], centroid(town.outline));
+    const b = edgeEnds(town, centroid(towns[0].outline));
+    const shared = Math.min(Math.max(...a.map((e) => e.rank)), Math.max(...b.map((e) => e.rank)));
+    const rank = Math.max(0, shared);
+    highways.push({
+      pts: [gate(a, rank, centroid(town.outline)), gate(b, rank, centroid(towns[0].outline))],
+      cls: RANK[rank],
+    });
   }
   const bend = warper(fnv1a(data.name) ^ 0x51ed27, [[30, 700]]);
   // The bend fades to nothing at both ends, so a highway meets its roads exactly.

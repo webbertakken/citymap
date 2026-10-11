@@ -301,7 +301,7 @@ if (stepMode) {
               live.map((f) => f.path),
             ),
           },
-          { density: 0.5, order: "centre-out", warp: true },
+          { density: 0.5, order: "centre-out", warp: true, noLand: ["tests", "fixtures"] },
         );
         const townCentres = new Map(
           region.towns.flatMap((town) =>

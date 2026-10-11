@@ -30,7 +30,8 @@ town and stay put as the code changes.
   neighbourhood reads at a glance.
 - **A city with a past**: because history is the input, the city can be replayed through time, as an animation or a
   video of the repository growing, being rebuilt and being cleared.
-- **A ground for more**: the ground plan is the base for buildings, statistics, a 3D walk and games played on the city.
+- **A ground for more**: the ground plan is the base for buildings, statistics, a 3D walk and games played on the city,
+  such as a Monopoly-like game where players choose the town to play in (apps, packages, tools).
 
 ## Principles
 

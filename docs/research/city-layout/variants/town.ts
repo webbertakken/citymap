@@ -36,7 +36,8 @@ const MODULE = 4; // lot frontage, 0.5 u
 const PAVEMENT = 1.5;
 const LOT_AREA = MODULE * (BLOCK_SHORT / 2);
 const FLATTEN_BLOCKS = 9; // a folder smaller than this many blocks is one neighbourhood
-const NO_LAND = new Set<LandUse>(["tests", "fixtures"]);
+/** Land uses that take no land unless the land dimension includes them. */
+export const DEFAULT_NO_LAND: LandUse[] = ["tests", "fixtures"];
 const MAX_CLASS = 4;
 const MARGIN = ROAD_WIDTH.street / 2 + PAVEMENT;
 
@@ -49,6 +50,8 @@ function landFor(lotArea: number, density: number): number {
 export interface Options {
   /** Share of a town's land covered by lots, before streets of the outline. */
   density: number;
+  /** The land dimension: land uses that take no land (tests and fixtures by default). */
+  noLand: LandUse[];
   order: "centre-out" | "first-seen";
   warp: boolean;
 }
@@ -116,7 +119,8 @@ function shareLots(files: FileRecord[]): FileRecord[] {
 
 const byPath = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-export function buildNodes(data: RepoData, rootPath: string, exclude: string[], density: number) {
+export function buildNodes(data: RepoData, rootPath: string, exclude: string[], density: number, noLand: LandUse[]) {
+  const NO_LAND = new Set(noLand);
   const prefix = rootPath === "" ? "" : `${rootPath}/`;
   const raw = new Map<string, { files: FileRecord[]; docs: number; kids: Set<string> }>();
   const get = (path: string) => {

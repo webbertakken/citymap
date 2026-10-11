@@ -59,8 +59,10 @@ Each concept has one name; the names in brackets are not used.
 - Weights: source 1; config, assets, CI and tools, docs 0.5; tests and examples 0.3; fixtures, generated and vendored
   0.05.
 - Mass is the weighted file count of a subtree. Mass drives the tier, the road class and the archetype, never the order.
-- Tests and fixtures are not files of the ground plan: they take no land. Tests are a dimension of the source they
-  cover, shown later on that source's building.
+- Land is a dimension: it names the land uses that take land. By default tests and fixtures take none; tests are then
+  a dimension of the source they cover, shown later on that source's building. With tests as land, they take lots like
+  any other file. Each land setting is its own plat, so switching it re-lays the city and never disturbs another
+  setting's history.
 - Docs are parks: each doc adds half a lot of park land to its folder.
 - Every other file takes a share of a lot: files of one land use in one folder share lots, `round(1 / weight)` files
   per lot (one source file, two config files, twenty fixtures-like generated files).
@@ -113,6 +115,8 @@ is therefore readable as distance from the core, and newcomers join the edges.
 - Features are continuous; the choice uses a Schmitt trigger: a challenger enters at margin 0 or more, the incumbent
   stays down to -0.15, and a switch needs +0.1. Tiers move up at the threshold times 1.25 and down at the threshold
   divided by 1.25.
+- A twin is a folder with two dominant cores (lib and test, src and docs): two town halves facing each other across
+  a river.
 - The archetype places the top one or two levels (islands on a hex spiral, radial sectors, grid cells); streets inside
   districts follow the structure rules above.
 
@@ -121,8 +125,9 @@ is therefore readable as distance from the core, and newcomers join the edges.
 Edges carry meaning:
 
 - A repository is one cohesive town. Each workspace group becomes its own town, sized by its land, its members as
-  districts, joined to the main town by a highway across open country. A highway joins a major road where that road
-  meets the town edge, never the back of a block.
+  districts, joined to the main town by a highway across open country. A highway continues a road: it joins, in both towns,
+  the end of a road of the highest class both offer at their edges, takes that class, and is drawn exactly like it. A
+  town without roads gets an approach street from its nearest edge to its centre.
 - **Parks** hold docs.
 - **Reserve plots** hold room for growth inside neighbourhoods.
 
@@ -154,6 +159,9 @@ warp, Voronoi coastlines and district outlines. It never feeds back into the pla
 - One 3D model; styles are data over it.
 - The lead style is Paper atlas: warm paper ground, light district tints of equal OKLCH lightness, white streets with
   casings, desaturated water with waterlines, sage parks. Its dark twin is Night atlas.
+- Themes ship beside it: Beck schematic, Nolli noir and Dracula (the Dracula palette: background ground, current-line
+  streets, its seven accents as district tints).
+- Phones are a target: the same city with lighter effects.
 - The default camera is 2:1 dimetric (30° elevation, 45° yaw); plan view (90°) is one switch away.
 
 ## Invariants
