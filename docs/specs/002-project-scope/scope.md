@@ -29,8 +29,8 @@ These shape today's design but are not part of the first deliverable.
 - History playback: animating the city through its history and exporting it as a video.
 - Private repositories, connected by their owner.
 - A local, offline build for any folder on disk, as a Rust port that matches the TypeScript output.
-- Statistics overlays, a 3D walk camera, a Monopoly-like game played in a chosen town (apps, packages, tools), and strangler-pattern detection (old versus new
-  areas).
+- Statistics overlays, a 3D walk camera, a Monopoly-like game played in a chosen town (apps, packages, tools), and
+  strangler-pattern detection (old versus new areas).
 - Dependency overlays: bridges between workspace islands, tram lines within packages.
 
 ## Non-goals
