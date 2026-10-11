@@ -66,3 +66,7 @@ bun run check   # format, lint, typecheck and tests with coverage
 ```
 
 See [docs/instructions/development.md](docs/instructions/development.md) for the full loop.
+
+## Licence
+
+[MIT](LICENSE)
