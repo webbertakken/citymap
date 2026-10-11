@@ -1,13 +1,7 @@
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
-// The static export served over HTTPS with basic auth, as every local service is; dark mode throughout.
+// The static export served over HTTPS on loopback; dark mode throughout.
 const port = 5193;
-const password = (
-  process.env.CITYMAP_WEB_PASSWORD ?? readFileSync(join(homedir(), ".secrets/citymap-dev-password"), "utf8")
-).trim();
 
 export default defineConfig({
   testDir: "e2e",
@@ -18,7 +12,6 @@ export default defineConfig({
   use: {
     baseURL: `https://127.0.0.1:${port}`,
     ignoreHTTPSErrors: true,
-    httpCredentials: { username: "webber", password },
     colorScheme: "dark",
     trace: "retain-on-failure",
   },
@@ -29,9 +22,8 @@ export default defineConfig({
   webServer: {
     command: "bun scripts/serve.ts",
     url: `https://127.0.0.1:${port}/`,
-    // Ready when it answers at all: without credentials that is a 401.
     ignoreHTTPSErrors: true,
-    env: { PORT: String(port), CITYMAP_WEB_PASSWORD: password },
+    env: { PORT: String(port) },
     reuseExistingServer: false,
   },
 });

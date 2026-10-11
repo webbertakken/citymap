@@ -60,4 +60,4 @@ git repository ──history──▶ snapshots ──ground-plan fold──▶ 
   local clone, with arguments passed as arrays (never through a shell).
 - Repository content is untrusted: paths are treated as data, never as code or as shell input, and the engine bounds its
   work by the size of the tree.
-- Everything served runs over HTTPS with authentication, locally too.
+- Everything served runs over HTTPS; local servers listen on loopback only and ask for no credentials.
