@@ -27,7 +27,7 @@ report's backbone instead, with rules of our own:
   centre-out so the oldest code sits in the middle. A cut takes the class of the land it separates (city: boulevard,
   town: avenue, village: collector), so a town has at most one boulevard and local streets dominate.
 - **Neighbourhoods**: folders under nine blocks of land flatten into one neighbourhood with its own block grid
-  (6 u by 12 u), aligned to its main frontage; lots sit back to back, widening up to lot class 4 to fill their block;
+  (6 u by 12 u), aligned to its main frontage; lots sit back to back, their lot class (up to 4) set once so they fill the blocks they need;
   spare blocks are dashed reserve plots.
 - **Wards**: land between collectors or bigger roads takes its own tint and the name of its heaviest folder.
 - **Organic layer**: one smooth, seeded warp scaled to the town bends every road and block.
@@ -54,6 +54,153 @@ Sheets: `img/towns-towns-<repo>.webp` (plan), `img/towns-density-<repo>.webp` (3
 | home-assistant | 13,198 | 45%                  | 80%                | 2                   | 8                 |
 | typescript     | 929    | 38.5%                | 80%                | 8                   | 1                 |
 | rust           | 6,237  | 31.3%                | 72%                | 3                   | 23                |
+
+"Long straight roads" counts roads longer than 45% of their town's diameter that stay within 0.5% of a straight line.
+Small towns still have too many: the warp bends less than a cut is long, and every cut runs wall to wall.
+
+### Plat
+
+The plat (`TownPlat` in `town.ts`, `RegionPlat` in `region.ts`) remembers cuts (line, class, sides, a band of 1.35
+times each side's demand), neighbourhood grids (origin, angle, pitch, lot class, park line, a slot per lot), shared lot
+membership, and each town's outline area and centre. A fresh plat per call is a snapshot layout; one plat passed through
+every commit folds history. A first lay draws STATE A's design: seeds and tints use the keys without their separators.
+
+Stability, share of surviving lots that moved more than 2 units, per first-parent commit, lots keyed by identity
+(exact renames followed). `LAYOUT=towns bun history.ts <repo> steps:<date>:<count>`:
+
+| Repo, window                             | Afresh, per commit | Plat, per commit | Afresh, deleting commits | Plat, deleting commits |
+| ---------------------------------------- | ------------------ | ---------------- | ------------------------ | ---------------------- |
+| react, 1,200 commits from 2017-06        | 3.3%               | 0.1%             | 29.6%                    | 1.2%                   |
+| takken.io, whole history (239)           | 25%                | 1%               | 80.3%                    | 4.7%                   |
+| next.js, 300 commits from 2025-01        | 0.9%               | 0%               | 6.1%                     | 0.1%                   |
+| home-assistant, 300 commits from 2025-01 | 1.1%               | 0%               | 26.7%                    | 0.1%                   |
+| redux, 600 commits from 2015-06          | 4.8%               | 0.5%             | 60.9%                    | 16.3%                  |
+
+`img/towns-plat-takken.io.webp` films takken.io's whole history at yearly frames, laid afresh (top) against the plat
+(bottom), lots moved since the previous frame in red: `LAYOUT=towns bun history.ts takken.io film 2021-06-01 ... head`.
+
+What still moves:
+
+- **Cuts outgrowing their band.** Every cut that moved sits in the top two folder levels: 19 in takken.io's 239
+  commits, 5 in React's 1,200. The spec's fixed frame says these never move outside an archetype switch.
+- **Unflattening.** takken.io began as one neighbourhood and re-laid once (2024) when it outgrew the flatten band: an
+  archetype switch, which the old-town island rule will keep. Cutting the root from day one instead moved more (1.7%
+  per commit, 12.6% on deletions), as tiny districts kept outgrowing their bands.
+- **Renewal.** A neighbourhood more than half vacant re-lays its lots in order; redux's deleting commits are mostly this.
+
+## Sheets
+
+- `img/area-<repo>.webp` - when judging lot size: file count, lines, bytes, shared lots; top row whole city, bottom a district
+- `img/courts-<repo>.webp` - when judging whether small leaf folders get their own street
+- `img/order-<repo>.webp` - when judging sibling order: first-seen, alphabetical, path hash
+- `img/edges-<repo>.webp` - when judging meaningful against aesthetic edges
+- `img/style-<repo>.webp` - when judging Paper atlas, Beck schematic and Nolli noir
+- `img/camera-<repo>.webp` - when judging plan, 2:1 dimetric and true isometric
+- `img/history-react.webp` - when judging deletion: React from 2014 to today under four deletion rules
+- `img/switch-react.webp` - when judging the archetype switch: React's 2017 move to `packages/`
+
+One private repository was rendered locally only; its output never leaves `~/.cache/citymap/private`.
+
+## Findings
+
+### 1. Land use decides the map, the size metric barely does
+
+Share of built land per land use, whole city (source, tests plus fixtures, docs plus assets):
+
+| Repo           | File count   | Lines        | Bytes        | File count, shared lots |
+| -------------- | ------------ | ------------ | ------------ | ----------------------- |
+| takken.io      | 17 / 8 / 56% | 19 / 8 / 54% | 10 / 4 / 72% | 24 / 8 / 50%            |
+| react          | 23 / 66 / 3% | 30 / 59 / 3% | 29 / 60 / 3% | 61 / 21 / 5%            |
+| next.js        | 15 / 64 / 3% | 19 / 60 / 3% | 19 / 60 / 4% | 22 / 60 / 3%            |
+| home-assistant | 36 / 48 / 0% | 44 / 43 / 0% | 43 / 44 / 0% | 58 / 27 / 0%            |
+| typescript     | 1 / 98 / 0%  | 2 / 97 / 0%  | 2 / 97 / 0%  | 14 / 84 / 0.5%          |
+| rust           | 6 / 85 / 3%  | 11 / 78 / 3% | 11 / 79 / 3% | 16 / 69 / 4%            |
+
+- Lines against count moves source by 2 to 17 points. Bytes against lines differs mainly on binaries: images swell.
+- With integer lots, a land-use weight can only shrink large files; a fixture is never smaller than one lot. With file
+  count, "weighted" therefore changes nothing on the ground.
+- Shared lots (fixtures 20 per lot, tests 3, docs 2, by `round(1 / weight)`) is what makes weighting visible: React's
+  compiler fixtures shrink from a warehouse district to a yard, and source becomes the majority.
+- Next.js resists every variant: its 19,000 tests sit in thousands of tiny folders, one lot each at minimum.
+
+### 2. Streets per folder sprawl; courts halve the roads
+
+Pure EvoStreets gives every folder a street. Deep trees with a few files per folder (next.js `test/e2e/app-dir`) become
+road networks with almost no buildings: next.js has 15,261 roads for 33,998 files. Turning leaf folders of up to 16
+files into one block ("courts") cuts that to 5,932 and doubles the built share.
+
+### 3. The raw backbone is sparse
+
+Built share (lot area over the city's bounding box) is 1.4 to 26%; real cities run at roughly 30 to 40%. EvoStreets
+leaves a void beside every long, narrow subtree. Folding long streets into a comb of side streets helps; the gap is
+for the organic and compaction layers to close.
+
+### 4. Sibling order changes which neighbours meet, not the character
+
+First-seen puts the old core near the root and newcomers at street ends; alphabetical groups `packages/` next to
+`compiler/` in React; hash scatters. All three are equally dense.
+
+### 5. Deletion: vacant lots calm small edits; nothing calms years without a plat
+
+Per commit, share of surviving files that moved (prototype without a persistent plat):
+
+| Window                                           | Compaction | Vacant forever | Vacant, renewal above 50% | Renewal, identity follows renames |
+| ------------------------------------------------ | ---------- | -------------- | ------------------------- | --------------------------------- |
+| react 2017-09, 120 commits, on deleting commits  | 11.2%      | 0%             | 9.7%                      | 8.2%                              |
+| react 2019, 150 commits, on deleting commits     | 7.9%       | 2.4%           | 0.1%                      | 2.9%                              |
+| redux 2015, 150 commits, on deleting commits     | 56.7%      | 28.3%          | 46.8%                     | 51.7%                             |
+| takken.io 2020, 100 commits, on deleting commits | 35%        | 29.3%          | 43.9%                     | 26.8%                             |
+
+- Vacant lots beat compaction whenever a commit only deletes; residual movement comes from additions in the same
+  commit, which only reserved slack (the plat) absorbs.
+- Vacant forever turns React's pre-2017 `src/` into a ghost town that outlives the code by years (8,396 vacant lots at
+  HEAD). Renewal must be local to the folder: a cascading rule renewed React's root and erased every vacancy.
+- Across frames years apart, 70 to 100% of files move under every rule; stability over long spans is the plat's job.
+
+### 6. Archetype switch: identity is the real fork
+
+React's "Use Yarn Workspaces" commit deleted 332 paths, of which 305 were exact renames, detectable from blob ids in
+a blob-less clone at no fetch cost. Over the two-month window around it only 3 renames survive, so the fold must be
+per commit.
+
+- Path identity: the frozen old town keeps 305 of 1,216 lots lit; the moved code reappears as new islands.
+- Identity through renames: the old town keeps 583 lit, but today's `packages/` islands are nearly empty, so the map
+  stops reflecting today's structure.
+- Renamed files keep their birth time and so insert mid-street rather than at the far end, which costs stability.
+
+### 7. Edges, style and camera behave as the research predicted
+
+Workspace islands read well for React and next.js and add a strong landmark layer; Rust's islands are the
+`src/tools/*` crates only, because the compiler crates are not separate workspace globs. Beck schematic reads as
+statistics, Nolli noir exposes mass (React's fixtures turn black), Paper atlas keeps districts legible. Dimetric and
+isometric differ only by a 0.5 against 0.577 squash on a flat ground plan.
+
+## Reproduce
+
+```bash
+bun extract.ts ~/.cache/citymap/repos/react ~/.cache/citymap/data/react.json
+bun generate.ts all
+bun history.ts react 2014-06-01 2016-06-01 2017-09-01 2017-11-01 2020-01-01 head
+bun history.ts react switch 2017-09-01 2017-11-01 head
+bun history.ts react steps:2019-01-01:150
+LAYOUT=towns bun history.ts react steps:2019-01-01:150
+bun towns.ts all
+pm2 start bun --name citymap-dev --cwd "$PWD" -- serve.ts   # https://127.0.0.1:5190, user webber, password in ~/.secrets/citymap-dev-password
+```
+
+Clones are blob-less (`git clone --filter=blob:none`); history replay runs with `GIT_NO_LAZY_FETCH=1` so it never
+fetches contents. Rendering needs Inkscape and ImageMagick.| Repo | Lots | Lot coverage of land | Local street share | Long straight roads | Lots without room |
+| --- | --- | --- | --- | --- | --- |
+| takken.io | 244 | 20.2% | 88% | 9 | 0 |
+| react | 2,019 | 36% | 76% | 10 | 5 |
+| redux | 92 | 13.1% | 80% | 5 | 0 |
+| next.js | 8,032 | 36.2% | 81% | 24 | 8 |
+| game-ci-cli | 702 | 26.1% | 80% | 6 | 0 |
+| livediagram | 4,121 | 34.5% | 74% | 9 | 10 |
+| studio-worker | 101 | 26.1% | 100% | 3 | 0 |
+| home-assistant | 13,198 | 43.7% | 80% | 2 | 8 |
+| typescript | 929 | 37.6% | 80% | 8 | 1 |
+| rust | 6,237 | 29.4% | 72% | 4 | 23 |
 
 "Long straight roads" counts roads longer than 45% of their town's diameter that stay within 0.5% of a straight line.
 Small towns still have too many: the warp bends less than a cut is long, and every cut runs wall to wall.

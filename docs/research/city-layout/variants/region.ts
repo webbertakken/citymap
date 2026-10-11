@@ -2,7 +2,24 @@
 // each sized by its own land, joined to the main town by highways across open country.
 import type { RepoData } from "./extract";
 import { area, centroid, densify, fnv1a, warper, type Pt } from "./geometry";
-import { buildNodes, layoutTown, outlineFor, type Options, type Road, type RoadClass, type Town } from "./town";
+import {
+  buildNodes,
+  emptyTownPlat,
+  GROWTH_ROOM,
+  layoutTown,
+  outlineFor,
+  type Options,
+  type Road,
+  type RoadClass,
+  type Town,
+  type TownPlat,
+} from "./town";
+
+/** The plat of a region: one town plat per town key. Pass the same plat to every commit to fold history. */
+export interface RegionPlat {
+  towns: Record<string, TownPlat>;
+}
+export const emptyRegionPlat = (): RegionPlat => ({ towns: {} });
 
 export interface Region {
   name: string;
@@ -35,16 +52,17 @@ export function workspaceGroups(data: RepoData): string[] {
   return names.filter((g) => !names.some((o) => o !== g && g.startsWith(`${o}/`)));
 }
 
-export function composeRegion(data: RepoData, options: Options): Region {
+export function composeRegion(data: RepoData, options: Options, plat: RegionPlat = emptyRegionPlat()): Region {
   const groups = workspaceGroups(data);
-  const main = buildNodes(data, "", groups, options.density, options.noLand);
+  const platOf = (key: string) => (plat.towns[key] ??= emptyTownPlat());
+  const main = buildNodes(data, "", groups, options.density, options.noLand, platOf(data.name).shares);
   const parts = [
     { name: data.name, key: data.name, nodes: main, firstSeen: 0 },
     ...groups
       .map((g) => ({
         name: g,
         key: `${data.name}/${g}`,
-        nodes: buildNodes(data, g, [], options.density, options.noLand),
+        nodes: buildNodes(data, g, [], options.density, options.noLand, platOf(`${data.name}/${g}`).shares),
         firstSeen: data.folderFirstSeen[g] ?? 0,
       }))
       .sort((a, b) => a.firstSeen - b.firstSeen || (a.name < b.name ? -1 : 1)),
@@ -56,22 +74,41 @@ export function composeRegion(data: RepoData, options: Options): Region {
   const highways: Road[] = [];
   const radiusOf = (gross: number) => Math.sqrt(gross / Math.PI) * 1.08;
   parts.forEach((part, i) => {
-    const radius = radiusOf(part.nodes.root.gross);
+    // A town keeps its outline until its land outgrows the band, then grows outward about the same centre.
+    const townPlat = platOf(part.key);
+    const gross = part.nodes.root.gross;
+    if (townPlat.area === 0 || gross > townPlat.cap) {
+      if (townPlat.area > 0)
+        console.log(`[plat] grow town ${part.name} ${Math.round(townPlat.area)} -> ${Math.round(gross)}`);
+      townPlat.area = Math.max(townPlat.area, gross);
+      townPlat.cap = gross * GROWTH_ROOM;
+    }
+    const radius = radiusOf(townPlat.area);
     let centre: Pt = { x: 0, y: 0 };
-    if (i > 0) {
+    const clear = (c: Pt) =>
+      placed.every((p) => Math.hypot(p.centre.x - c.x, p.centre.y - c.y) >= p.radius + radius + GAP * 0.6);
+    if (i > 0 && townPlat.centre) {
+      // A remembered town stays put unless a neighbour grew into it; then it moves straight outward.
+      centre = townPlat.centre;
+      const angle = Math.atan2(centre.y, centre.x);
+      let distance = Math.hypot(centre.x, centre.y);
+      while (!clear(centre)) {
+        distance += GAP / 2;
+        centre = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
+      }
+    } else if (i > 0) {
       const angle = -Math.PI / 2 + ((i - 1) * 2 * Math.PI) / (parts.length - 1) + (fnv1a(part.key) % 100) / 400;
       let distance = placed[0].radius + radius + GAP;
-      const clear = (c: Pt) =>
-        placed.every((p) => Math.hypot(p.centre.x - c.x, p.centre.y - c.y) >= p.radius + radius + GAP * 0.6);
       centre = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
       while (!clear(centre)) {
         distance += GAP / 2;
         centre = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
       }
     }
+    townPlat.centre = centre;
     placed.push({ centre, radius });
-    const outline = outlineFor(part.nodes.root.gross, centre, part.key);
-    const town = layoutTown(part.name, part.nodes.root, options, outline, part.key);
+    const outline = outlineFor(townPlat.area, centre, part.key);
+    const town = layoutTown(part.name, part.nodes.root, options, outline, part.key, townPlat);
     town.stats.tests = part.nodes.tests;
     town.stats.docs = part.nodes.docs;
     towns.push(town);
@@ -95,20 +132,27 @@ export function composeRegion(data: RepoData, options: Options): Region {
     const edge = ends.filter((e) => Math.hypot(e.p.x - c.x, e.p.y - c.y) >= 0.8 * reach);
     return edge.length ? edge : ends;
   };
-  const gate = (ends: { p: Pt; rank: number }[], rank: number, toward: Pt): Pt => {
-    const pool = ends.filter((e) => e.rank === rank);
-    const near = (e: { p: Pt }) => Math.hypot(e.p.x - toward.x, e.p.y - toward.y);
-    return (pool.length ? pool : ends).sort((a, b) => near(a) - near(b))[0].p;
+  // The highway joins the closest pair of edge road ends of the shared class, so its gates face each other.
+  const gates = (a: { p: Pt; rank: number }[], b: { p: Pt; rank: number }[], rank: number): [Pt, Pt] => {
+    const pick = (ends: { p: Pt; rank: number }[]) =>
+      ends.some((e) => e.rank === rank) ? ends.filter((e) => e.rank === rank) : ends;
+    let best: [Pt, Pt] = [a[0].p, b[0].p];
+    let bestLength = Infinity;
+    for (const x of pick(a))
+      for (const y of pick(b)) {
+        const length = Math.hypot(x.p.x - y.p.x, x.p.y - y.p.y);
+        if (length < bestLength) {
+          bestLength = length;
+          best = [x.p, y.p];
+        }
+      }
+    return best;
   };
   for (const town of towns.slice(1)) {
     const a = edgeEnds(towns[0], centroid(town.outline));
     const b = edgeEnds(town, centroid(towns[0].outline));
-    const shared = Math.min(Math.max(...a.map((e) => e.rank)), Math.max(...b.map((e) => e.rank)));
-    const rank = Math.max(0, shared);
-    highways.push({
-      pts: [gate(a, rank, centroid(town.outline)), gate(b, rank, centroid(towns[0].outline))],
-      cls: RANK[rank],
-    });
+    const rank = Math.max(0, Math.min(Math.max(...a.map((e) => e.rank)), Math.max(...b.map((e) => e.rank))));
+    highways.push({ pts: gates(a, b, rank), cls: RANK[rank] });
   }
   const bend = warper(fnv1a(data.name) ^ 0x51ed27, [[30, 700]]);
   // The bend fades to nothing at both ends, so a highway meets its roads exactly.
