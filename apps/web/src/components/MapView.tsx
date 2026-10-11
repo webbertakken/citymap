@@ -1,7 +1,7 @@
 "use client";
 import type { Hit, PickIndex, Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
-import { useEffect, useEffectEvent, useRef, useState, type ComponentType } from "react";
+import { useEffectEvent, useLayoutEffect, useRef, useState, type ComponentType } from "react";
 import { describeHit, hitAt } from "../view/hover";
 import { declutter, onKey, pan, type View, type Viewport } from "../view/view";
 
@@ -101,8 +101,9 @@ export function MapView({ name, scene, index, view, theme, Canvas, onView, onVie
     onView({ ...view, zoom: view.zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1) });
   });
 
-  // Listeners attach once; each reads the props of the moment through its effect event.
-  useEffect(() => {
+  // Listeners attach once, in the commit that shows the map, so its first pointer event is never missed and its first
+  // frame is drawn at its measured size; each reads the props of the moment through its effect event.
+  useLayoutEffect(() => {
     const element = box.current!;
     const onKeyDown = (event: KeyboardEvent) => key(event);
     const onDown = (event: PointerEvent) => down(event);
