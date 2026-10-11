@@ -24,3 +24,4 @@ export {
 export { layCity, translateTown, type FoldState, type Options } from "./region/compose";
 export { foldHistory, initialState } from "./fold/fold";
 export type { PlatEvent } from "./town/context";
+export { canonicalJson } from "./plat/canonical";

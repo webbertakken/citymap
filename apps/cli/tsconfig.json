@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "../../node_modules/.cache/tsc/cli",
+    "tsBuildInfoFile": "../../node_modules/.cache/tsc/cli.tsbuildinfo",
+    "types": ["bun", "node"]
+  },
+  "include": ["src"],
+  "references": [{ "path": "../../packages/ground-plan" }, { "path": "../../packages/history" }, { "path": "../../packages/svg" }]
+}

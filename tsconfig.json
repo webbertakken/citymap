@@ -9,6 +9,9 @@
     },
     {
       "path": "packages/svg"
+    },
+    {
+      "path": "apps/cli"
     }
   ]
 }

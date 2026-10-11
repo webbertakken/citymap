@@ -1,0 +1,17 @@
+{
+  "name": "@citymap/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "citymap": "./src/bin.ts"
+  },
+  "dependencies": {
+    "@citymap/ground-plan": "workspace:*",
+    "@citymap/history": "workspace:*",
+    "@citymap/svg": "workspace:*"
+  },
+  "scripts": {
+    "test": "vitest run"
+  }
+}
