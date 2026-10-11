@@ -164,19 +164,18 @@ export function split(ctx: Ctx, items: Item[], poly: Poly, massMille: number, fi
   if (!decision) return place(ctx, poly, items[0] as Item, district);
   if (pinwheel(ctx, decision, poly, key, district)) return;
   const { rec: r, left, right } = decision;
-  const both = left.length > 0 && right.length > 0;
   const major = isMajor(r.cls);
-  if (both) road(ctx, chord(poly.p, r.n, r.c), r.cls);
-  if (major) wards(ctx, poly, r, left, right, key);
-  const width = both ? ROAD_WIDTH[r.cls] : 0;
-  const halves: [Item[], Poly, string][] = [
-    [left, clip(poly, r.n, r.c, width), `${key}>L`],
-    [right, clip(poly, negate(r.n), -r.c, width), `${key}>R`],
-  ];
-  for (const [part, half, sub] of halves) {
-    if (part.length === 0) reserve(ctx, half, district);
-    else split(ctx, part, half, massOf(part), false, sub, major ? seedKey(sub) : district);
+  if (left.length === 0 || right.length === 0) {
+    // A side left empty lends its land: the other side extends over the whole of it under its own key. Cuts and
+    // grids are absolute, so nothing already laid moves; the vacated land becomes room to grow.
+    const [part, sub] = left.length > 0 ? [left, `${key}>L`] : [right, `${key}>R`];
+    return split(ctx, part, poly, massOf(part), false, sub, major ? seedKey(sub) : district);
   }
+  road(ctx, chord(poly.p, r.n, r.c), r.cls);
+  if (major) wards(ctx, poly, r, left, right, key);
+  const width = ROAD_WIDTH[r.cls];
+  split(ctx, left, clip(poly, r.n, r.c, width), massOf(left), false, `${key}>L`, major ? seedKey(`${key}>L`) : district);
+  split(ctx, right, clip(poly, negate(r.n), -r.c, width), massOf(right), false, `${key}>R`, major ? seedKey(`${key}>R`) : district);
 }
 
 /** The part of a segment whose coordinate along m lies within [lo, hi] (null bounds are open). */

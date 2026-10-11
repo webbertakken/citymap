@@ -21,3 +21,6 @@ export {
   type RadialRecord,
   type TownPlat,
 } from "./plat/plat";
+export { layCity, translateTown, type FoldState, type Options } from "./region/compose";
+export { foldHistory, initialState } from "./fold/fold";
+export type { PlatEvent } from "./town/context";

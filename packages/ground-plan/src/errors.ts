@@ -17,6 +17,10 @@ export type ErrorCode =
   | "plat/bad-shape"
   | "city/bad-json"
   | "city/bad-shape"
+  | "plat/land-mismatch"
+  | "history/not-a-repo"
+  | "history/git-failed"
+  | "history/parse"
   | "engine/invariant";
 
 /** The only error the engine throws: a stable code, a message, and structured detail for logs. */

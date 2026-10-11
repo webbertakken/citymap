@@ -29,8 +29,17 @@ interface Slot {
   cell: number;
 }
 
+/** A grid laid on some land: its cells, its row and column range, and its slots at a lot class. */
+interface Laid {
+  cells: Cell[];
+  rows: [number, number];
+  cols: [number, number];
+  slotsFor: (span: number) => Slot[];
+}
+
 const ceilDiv = (a: number, b: number) => -floorDiv(-a, b);
 const folderOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")));
+const cellId = (cell: Cell) => `${cell.r},${cell.c}`;
 
 /** Clips a polygon to a convex land polygon. */
 function clipTo(poly: Poly, land: readonly Pt[]): Poly {
@@ -45,64 +54,23 @@ function clipTo(poly: Poly, land: readonly Pt[]): Poly {
   return out;
 }
 
-/** A neighbourhood: one block grid holding all its lots, remembered between commits. */
-export function neighbourhood(
-  ctx: Ctx,
-  raw: Poly,
-  lots: readonly LotSeed[],
-  parkDemand: number,
-  key: string,
-  district: string,
-  form: FlatForm,
-) {
-  let grid: GridRecord | undefined = ctx.plat.grids[key];
-  let poly = raw;
-  let parkLine: GridRecord["park"] = null;
-  if (parkDemand > 0) {
-    // A strip of park along the far side, cut off by a footpath; its line is remembered.
-    parkLine = grid?.park ?? null;
-    if (!parkLine) {
-      const total2 = area2(raw.p);
-      const n = perp(longestEdge(raw.p));
-      const num = Math.min(2 * parkDemand * 1000, total2 * PARK_CAP);
-      parkLine = { n, c: -offsetFor(raw, negate(n), num, total2 * 1000) };
-    }
-    const strip = inset(clip(raw, negate(parkLine.n), -parkLine.c, ROAD_WIDTH.lane), PAVEMENT);
-    if (strip.p.length >= 3) ctx.blocks.push({ pts: [...strip.p], district, kind: "park" });
-    poly = clip(raw, parkLine.n, parkLine.c, ROAD_WIDTH.lane);
-  }
-  const land = inset(poly, PAVEMENT).p;
-  if (land.length < 3 || area2(land) < 2) {
-    ctx.overflow += lots.length;
-    if (lots.length > 0) emit(ctx, "town/overflow", { key, count: lots.length });
-    return;
-  }
-  if (!grid) {
-    // A fresh grid, aligned with the land's main frontage and fitted to it.
-    const a = longestEdge(land);
-    const b = perp(a);
-    const [ea0, ea1] = extent(land, a);
-    const [eb0, eb1] = extent(land, b);
-    const a0 = floorDiv(ea0, DIRECTION);
-    const b0 = floorDiv(eb0, DIRECTION);
-    const along = ceilDiv(ea1, DIRECTION) - a0;
-    const across = ceilDiv(eb1, DIRECTION) - b0;
-    const rows = Math.max(1, roundDiv(across + U, BLOCK_SHORT + U));
-    const cols = Math.max(1, roundDiv(along + U, BLOCK_LONG + U));
-    grid = {
-      dir: a,
-      a0,
-      b0,
-      rowPitch: floorDiv(across + U, rows),
-      colPitch: floorDiv(along + U, cols),
-      span: 0,
-      park: null,
-      slots: {},
-    };
-    ctx.plat.grids[key] = grid;
-  }
-  grid.park = parkLine;
-  const g = grid;
+/** A fresh grid, aligned with the land's main frontage and fitted to it. */
+function freshGrid(land: readonly Pt[]): GridRecord {
+  const a = longestEdge(land);
+  const b = perp(a);
+  const [ea0, ea1] = extent(land, a);
+  const [eb0, eb1] = extent(land, b);
+  const a0 = floorDiv(ea0, DIRECTION);
+  const b0 = floorDiv(eb0, DIRECTION);
+  const along = ceilDiv(ea1, DIRECTION) - a0;
+  const across = ceilDiv(eb1, DIRECTION) - b0;
+  const rows = Math.max(1, roundDiv(across + U, BLOCK_SHORT + U));
+  const cols = Math.max(1, roundDiv(along + U, BLOCK_LONG + U));
+  return { dir: a, a0, b0, rowPitch: floorDiv(across + U, rows), colPitch: floorDiv(along + U, cols), span: 0, park: null, slots: {} };
+}
+
+/** The cells a grid gives on today's land, in serpentine order, and its slots at any lot class. Pure. */
+function layGrid(g: GridRecord, land: readonly Pt[]): Laid {
   const A: Dir = g.dir;
   const B: Dir = perp(A);
   const world = (s: number, t: number): Pt => ({
@@ -118,12 +86,6 @@ export function neighbourhood(
   const rMax = ceilDiv(ceilDiv(f1, DIRECTION) - g.b0, g.rowPitch) - 1;
   const cMin = floorDiv(floorDiv(e0, DIRECTION) - g.a0 + U, g.colPitch);
   const cMax = ceilDiv(ceilDiv(e1, DIRECTION) - g.a0, g.colPitch) - 1;
-  if (g.span === 0 && form === "street-village" && rMax > rMin) g.high = roundDiv(rMin + rMax + 1, 2);
-  for (let r = rMin + 1; r <= rMax; r++)
-    road(ctx, chord(land, B, (g.b0 + r * g.rowPitch - U / 2) * DIRECTION), r === g.high ? "collector" : "street");
-  for (let c = cMin + 1; c <= cMax; c++) road(ctx, chord(land, A, (g.a0 + c * g.colPitch - U / 2) * DIRECTION), "lane");
-
-  // Cells in serpentine order: even rows forward, odd rows back.
   const cells: Cell[] = [];
   const backToBack = g.rowPitch - U >= HALF_DEPTH;
   for (let r = rMin; r <= rMax; r++) {
@@ -142,7 +104,6 @@ export function neighbourhood(
       cells.push({ pts: [...block.p], used: false, r, c, s0, s1, halves });
     }
   }
-  const cellId = (cell: Cell) => `${cell.r},${cell.c}`;
   const slotsFor = (span: number): Slot[] => {
     const out: Slot[] = [];
     const width = MODULE * span;
@@ -161,6 +122,71 @@ export function neighbourhood(
     });
     return out;
   };
+  return { cells, rows: [rMin, rMax], cols: [cMin, cMax], slotsFor };
+}
+
+/** A neighbourhood: one block grid holding all its lots, remembered between commits. */
+export function neighbourhood(
+  ctx: Ctx,
+  raw: Poly,
+  lots: readonly LotSeed[],
+  parkDemand: number,
+  key: string,
+  district: string,
+  form: FlatForm,
+) {
+  let grid: GridRecord | undefined = ctx.plat.grids[key];
+  let poly = raw;
+  let parkLine: GridRecord["park"] = null;
+  let parkStrip: Poly | null = null;
+  if (parkDemand > 0) {
+    // A strip of park along the far side, cut off by a footpath; its line is remembered.
+    // A remembered line that no longer crosses the land (a cut above it moved) is laid afresh.
+    parkLine = grid?.park && chord(raw.p, grid.park.n, grid.park.c) ? grid.park : null;
+    if (!parkLine) {
+      const total2 = area2(raw.p);
+      const n = perp(longestEdge(raw.p));
+      const num = Math.min(2 * parkDemand * 1000, total2 * PARK_CAP);
+      parkLine = { n, c: -offsetFor(raw, negate(n), num, total2 * 1000) };
+    }
+    parkStrip = inset(clip(raw, negate(parkLine.n), -parkLine.c, ROAD_WIDTH.lane), PAVEMENT);
+    poly = clip(raw, parkLine.n, parkLine.c, ROAD_WIDTH.lane);
+  }
+  if (parkStrip && parkStrip.p.length >= 3) ctx.blocks.push({ pts: [...parkStrip.p], district, kind: "park" });
+  const land = inset(poly, PAVEMENT).p;
+  if (land.length < 3 || area2(land) < 2) {
+    ctx.overflow += lots.length;
+    if (lots.length > 0) emit(ctx, "town/overflow", { key, count: lots.length });
+    return;
+  }
+  if (!grid) {
+    grid = freshGrid(land);
+    ctx.plat.grids[key] = grid;
+  }
+  grid.park = parkLine;
+  let g = grid;
+  let laid = layGrid(g, land);
+  if (g.span > 1 && laid.slotsFor(g.span).length < lots.length) {
+    // The lots outgrew their slots at this class: narrow it until they fit, and re-lay them in order.
+    const from = g.span;
+    while (g.span > 1 && laid.slotsFor(g.span).length < lots.length) g.span--;
+    emit(ctx, "plat/narrow", { key, from, to: g.span });
+    g.slots = {};
+  }
+  if (g.span > 0 && laid.slotsFor(g.span).length < lots.length) {
+    // The cuts around it moved its land off the grid: lay the grid afresh when a fresh one seats more lots.
+    const fresh = freshGrid(land);
+    if (layGrid(fresh, land).slotsFor(1).length > laid.slotsFor(g.span).length) {
+      emit(ctx, "plat/regrid", { key });
+      g = { ...fresh, park: parkLine };
+      ctx.plat.grids[key] = g;
+      laid = layGrid(g, land);
+    }
+  }
+  const { cells, slotsFor } = laid;
+  const [rMin, rMax] = laid.rows;
+  const [cMin, cMax] = laid.cols;
+  if (g.span === 0 && form === "street-village" && rMax > rMin) g.high = roundDiv(rMin + rMax + 1, 2);
   if (g.span === 0 && form === "hamlet") {
     // A hamlet gathers round a green: the full cell nearest the heart of its land, when the lots can spare it.
     const heart = centroid(land);
@@ -183,6 +209,9 @@ export function neighbourhood(
     g.span = Math.min(MAX_CLASS, Math.max(1, floorDiv(modules, Math.max(1, lots.length))));
     while (g.span > 1 && slotsFor(g.span).length < lots.length) g.span--;
   }
+  for (let r = rMin + 1; r <= rMax; r++)
+    road(ctx, chord(land, perp(g.dir), (g.b0 + r * g.rowPitch - U / 2) * DIRECTION), r === g.high ? "collector" : "street");
+  for (let c = cMin + 1; c <= cMax; c++) road(ctx, chord(land, g.dir, (g.a0 + c * g.colPitch - U / 2) * DIRECTION), "lane");
   const ordered = slotsFor(g.span);
   // A street village fills outward from its high street: the rows either side of it first.
   const high = g.high;
