@@ -91,3 +91,13 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 - [ ] Traceability table: every spec rule to its tests
 - [ ] Verify every symbol, file and reference in the docs; indexes current
 - [ ] PR with images, merged after the local gate
+
+## Phase 7b: workspaces from manifests, split groups, drill down
+
+- [x] Spec and blueprints: manifests, split groups (`apps/` by default), drill down
+- [ ] Engine: `Options.split` (default `["apps"]`), one town per member of a split group; plat setting key
+- [ ] Engine: members from `snapshot.workspaces` when present, else the path heuristic
+- [ ] History: read root workspace manifests at the commits that change them; parse every format; glob matching
+- [ ] CLI: `--split=<groups>` (default `apps`; `--split=apps,packages` splits packages too)
+- [ ] Viewer: drill down to a town and back; breadcrumb; panel action
+- [ ] Tests (unit, end to end), corpus check on livediagram and next.js, commit and push

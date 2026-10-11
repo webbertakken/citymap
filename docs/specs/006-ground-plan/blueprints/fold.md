@@ -36,6 +36,13 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
   added paths with equal blob ids pair up in `compareKeys` order of the added path; the added path takes the deleted
   identity. Submodules (mode 160000) are skipped and counted.
 - `folderFirstSeen`: the first index at which a folder holds any file, kept for folders ever seen.
+- Workspace manifests: when a commit adds or changes a root `package.json`, `pnpm-workspace.yaml`, `lerna.json`,
+  `Cargo.toml`, `go.work`, `pyproject.toml` or `deno.json(c)`, its blob is read (`git cat-file blob`) and its member
+  patterns parsed: JSON `workspaces` (array or `{ packages }`), `packages` in pnpm and Lerna, `[workspace] members` and
+  `exclude`, `go.work` `use`, `[tool.uv.workspace] members` and `exclude`, Deno `workspace`. Patterns are globs (`*`,
+  `**`, `!` negation) matched against the folders of the tree; `snapshot.workspaces` lists the matching folders that
+  hold files, sorted. A blob that cannot be read (a blob-less clone never fetches) logs `history/manifest-unavailable`
+  and leaves the patterns as they were; no manifest at all leaves `workspaces` out.
 - `GIT_NO_LAZY_FETCH=1` is set, so a blob-less clone never fetches.
 - Failures: `history/git-failed` (exit code, stderr's first line), `history/parse` (offset).
 

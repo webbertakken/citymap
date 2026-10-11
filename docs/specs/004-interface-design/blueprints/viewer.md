@@ -47,6 +47,9 @@ in `BufferGeometry`.
   tops for lots, the ground for the rest); a `Card` (`role="tooltip"`) sits 16 px right and below the pointer, and flips
   to the left or above near the edges. Click selects; the panel's "Selected" section (`aria-live="polite"`) repeats the
   details. Escape clears both.
+- Drill down: `focus` (a town key or null). The scene and the pick index are built from the city with only that town (no
+  highways); the view refits; the bar shows a breadcrumb (`<nav aria-label="Breadcrumb">`: the city as a button, then
+  the town); the panel offers "Show only this town" on each town, and on a selection within a town.
 - Keyboard: arrows pan by 10 % of the view, `+`/`-` zoom by 1.25, `0` fits; handled on the canvas wrapper, which is
   focusable (`tabIndex 0`, `role="application"`, `aria-label` naming the city and the keys).
 - File open: `<input type="file" accept="application/json">` behind the button, and a drop zone over the page; text is
