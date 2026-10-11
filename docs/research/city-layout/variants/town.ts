@@ -35,11 +35,66 @@ const BLOCK_LONG = 12 * U;
 const MODULE = 4; // lot frontage, 0.5 u
 const PAVEMENT = 1.5;
 const LOT_AREA = MODULE * (BLOCK_SHORT / 2);
-const FLATTEN_BLOCKS = 9; // a folder smaller than this many blocks is one neighbourhood
+const FLATTEN_BLOCKS = 9;
+const MAX_CLASS = 4; // a folder smaller than this many blocks is one neighbourhood
 /** Land uses that take no land unless the land dimension includes them. */
 export const DEFAULT_NO_LAND: LandUse[] = ["tests", "fixtures"];
-const MAX_CLASS = 4;
 const MARGIN = ROAD_WIDTH.street / 2 + PAVEMENT;
+
+/** A side may grow to this multiple of its demand at the last cut before its cut moves (the hysteresis band). */
+export const GROWTH_ROOM = 1.35;
+/** A flattened folder stays flat up to this multiple of the flatten limit; a cut folder stays cut down to its inverse. */
+const FLATTEN_HYSTERESIS = 1.5;
+/** A neighbourhood whose remembered lots are more than this share vacant is renewed: its lots are re-laid in order. */
+const RENEWAL_THRESHOLD = 0.5;
+
+/** A remembered cut: its line, its class, the items on each side, and each side's capacity before it must move. */
+export interface CutRecord {
+  nx: number;
+  ny: number;
+  c: number;
+  cls: RoadClass;
+  left: string[];
+  right: string[];
+  capLeft: number;
+  capRight: number;
+}
+/** A remembered neighbourhood: its grid origin, angle and pitch, its park strip, and the slot of every lot. */
+export interface GridRecord {
+  theta: number;
+  a0: number;
+  b0: number;
+  rowPitch: number;
+  colPitch: number;
+  /** Lot class in modules (1 to MAX_CLASS): set at first lay so lots fill the blocks they need. */
+  span: number;
+  park: { nx: number; ny: number; c: number } | null;
+  slots: Record<string, string>;
+}
+/** A remembered shared lot: its key (its founding file's identity) and its member identities. */
+export interface ShareRecord {
+  key: string;
+  members: string[];
+}
+/** The plat of one town: everything the layout remembers between commits. */
+export interface TownPlat {
+  centre: Pt | null;
+  area: number;
+  cap: number;
+  diameter: number;
+  cuts: Record<string, CutRecord>;
+  grids: Record<string, GridRecord>;
+  shares: Record<string, ShareRecord[]>;
+}
+export const emptyTownPlat = (): TownPlat => ({
+  centre: null,
+  area: 0,
+  cap: 0,
+  diameter: 0,
+  cuts: {},
+  grids: {},
+  shares: {},
+});
 
 /** Land a neighbourhood needs for the given lot area: lots over density, plus a road margin round a square. */
 function landFor(lotArea: number, density: number): number {
@@ -67,6 +122,10 @@ export interface Block {
 }
 export interface Lot {
   pts: Pt[];
+  /** Stable lot identity: the identity of the file that founded it. */
+  key: string;
+  /** A vacant lot: its files were deleted; it holds its slot until renewal. */
+  vacant: boolean;
   path: string;
   landUse: LandUse;
   district: string;
@@ -100,26 +159,49 @@ interface Node {
   mass: number;
 }
 
-// Shared lots: files of one land use in a folder share a lot, round(1 / weight) per lot.
-function shareLots(files: FileRecord[]): FileRecord[] {
-  const lots: FileRecord[] = [];
-  const open = new Map<LandUse, number>();
-  for (const file of files) {
-    const capacity = Math.max(1, Math.round(1 / LAND_USE_WEIGHT[file.landUse]));
-    const filled = open.get(file.landUse) ?? capacity;
-    if (filled < capacity) {
-      open.set(file.landUse, filled + 1);
-      continue;
+const identityOf = (file: FileRecord) => file.identity ?? file.path;
+
+// Shared lots: files of one land use in a folder share a lot, round(1 / weight) per lot. Membership is remembered, so
+// a deletion empties a place in its own lot and never regroups the lots after it; a new file joins a lot with room.
+// Each returned record stands for one lot: its oldest live member, with the lot key as identity.
+function shareLots(folder: string, files: FileRecord[], shares: Record<string, ShareRecord[]>): FileRecord[] {
+  const out: FileRecord[] = [];
+  const byUse = new Map<LandUse, FileRecord[]>();
+  for (const file of files) byUse.set(file.landUse, [...(byUse.get(file.landUse) ?? []), file]);
+  for (const [use, list] of byUse) {
+    const capacity = Math.max(1, Math.round(1 / LAND_USE_WEIGHT[use]));
+    const live = new Map(list.map((f) => [identityOf(f), f]));
+    const key = `${folder}|${use}`;
+    const lots = (shares[key] ?? [])
+      .map((l) => ({ key: l.key, members: l.members.filter((m) => live.has(m)) }))
+      .filter((l) => l.members.length > 0);
+    const placed = new Set(lots.flatMap((l) => l.members));
+    for (const file of list) {
+      const id = identityOf(file);
+      if (placed.has(id)) continue;
+      const open = lots.find((l) => l.members.length < capacity);
+      if (open) open.members.push(id);
+      else lots.push({ key: id, members: [id] });
     }
-    open.set(file.landUse, 1);
-    lots.push(file);
+    shares[key] = lots;
+    for (const lot of lots) {
+      const oldest = lot.members.map((m) => live.get(m)!).sort((a, b) => a.firstSeen - b.firstSeen)[0];
+      out.push({ ...oldest, identity: lot.key });
+    }
   }
-  return lots;
+  return out.sort((a, b) => a.firstSeen - b.firstSeen || byPath(a.path, b.path));
 }
 
 const byPath = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-export function buildNodes(data: RepoData, rootPath: string, exclude: string[], density: number, noLand: LandUse[]) {
+export function buildNodes(
+  data: RepoData,
+  rootPath: string,
+  exclude: string[],
+  density: number,
+  noLand: LandUse[],
+  shares: Record<string, ShareRecord[]> = {},
+) {
   const NO_LAND = new Set(noLand);
   const prefix = rootPath === "" ? "" : `${rootPath}/`;
   const raw = new Map<string, { files: FileRecord[]; docs: number; kids: Set<string> }>();
@@ -160,7 +242,7 @@ export function buildNodes(data: RepoData, rootPath: string, exclude: string[], 
       name: path === rootPath ? rootPath || data.name : path.slice(path.lastIndexOf("/") + 1),
       depth,
       firstSeen: data.folderFirstSeen[path] ?? 0,
-      lots: shareLots(files),
+      lots: shareLots(path, files, shares),
       docs: entry.docs,
       children: [...entry.kids].sort(byPath).map((k) => make(k, depth + 1)),
       gross: 0,
@@ -211,7 +293,14 @@ function flatten(node: Node): { lots: FileRecord[]; docs: number } {
   return { lots, docs };
 }
 
-export function layoutTown(name: string, root: Node, options: Options, outline: Pt[], seedKey: string): Town {
+export function layoutTown(
+  name: string,
+  root: Node,
+  options: Options,
+  outline: Pt[],
+  seedKey: string,
+  plat: TownPlat = emptyTownPlat(),
+): Town {
   const town: Town = {
     name,
     outline,
@@ -222,6 +311,7 @@ export function layoutTown(name: string, root: Node, options: Options, outline: 
     stats: { lots: 0, overflow: 0, tests: 0, docs: 0, lotArea: 0, landArea: area(outline) },
   };
   const blockArea = (BLOCK_SHORT + U) * (BLOCK_LONG + U);
+  const flattenLimit = FLATTEN_BLOCKS * blockArea;
 
   // Road class follows the tier of the folder being cut (mass by decade): only a city earns a boulevard, and only
   // its first cut; the rest of its cuts are one class lower.
@@ -236,6 +326,19 @@ export function layoutTown(name: string, root: Node, options: Options, outline: 
     return top ? tier[1] : tier[2];
   };
 
+  // Plat keys: a folder's cut is keyed by its path, deeper cuts append ">L" or ">R", item grids append "#lots".
+  const owned = (key: string, path: string) =>
+    path === "" ||
+    key === path ||
+    key.startsWith(`${path}/`) ||
+    key.startsWith(`${path}>`) ||
+    key.startsWith(`${path}#`);
+  const seedOf = (key: string) => key.replace(/>/g, "");
+  const forget = (path: string) => {
+    for (const key of Object.keys(plat.cuts)) if (owned(key, path)) delete plat.cuts[key];
+    for (const key of Object.keys(plat.grids)) if (owned(key, path)) delete plat.grids[key];
+  };
+
   const place = (poly: Poly, item: Item, district: string) => {
     if (item.kind === "folder") partition(item.node, poly, district);
     else if (item.kind === "lots") neighbourhood(poly, item.lots, 0, item.key, item.district);
@@ -243,30 +346,10 @@ export function layoutTown(name: string, root: Node, options: Options, outline: 
   };
 
   const massOf = (items: Item[]) => items.reduce((s, i) => s + i.mass, 0);
-  const split = (items: Item[], poly: Poly, mass: number, top: boolean, key: string, district: string) => {
-    if (items.length === 1) return place(poly, items[0], district);
-    const total = items.reduce((s, i) => s + i.gross, 0);
-    let acc = 0;
-    let k = 1;
-    let best = Infinity;
-    for (let i = 1; i < items.length; i++) {
-      acc += items[i - 1].gross;
-      const d = Math.abs(acc - total / 2);
-      if (d < best) {
-        best = d;
-        k = i;
-      }
-    }
-    const left = items.slice(0, k);
-    const fraction = left.reduce((s, i) => s + i.gross, 0) / total;
-    // Cut across the longer extent, measured along the polygon's main axis, with a small path-seeded tilt.
-    const theta = longestEdgeAngle(poly.p);
-    const along = extent(poly.p, Math.cos(theta), Math.sin(theta));
-    const across = extent(poly.p, -Math.sin(theta), Math.cos(theta));
-    const base = along[1] - along[0] >= across[1] - across[0] ? theta : theta + Math.PI / 2;
-    const tilt = (unit(`${key}#tilt`) - 0.5) * 0.35;
-    const nx = Math.cos(base + tilt);
-    const ny = Math.sin(base + tilt);
+  const demandOf = (items: Item[]) => items.reduce((s, i) => s + i.gross, 0);
+
+  /** The offset along (nx, ny) that leaves the given share of the polygon's area below the line. */
+  const offsetFor = (poly: Poly, nx: number, ny: number, fraction: number) => {
     const [lo, hi] = extent(poly.p, nx, ny);
     const target = area(poly.p) * fraction;
     let a = lo;
@@ -276,43 +359,130 @@ export function layoutTown(name: string, root: Node, options: Options, outline: 
       if (area(clip(poly, nx, ny, mid, 0).p) < target) a = mid;
       else b = mid;
     }
-    const c = (a + b) / 2;
-    const cls = cutClass(mass, top);
-    const seg = chord(poly.p, nx, ny, c);
-    if (seg) town.roads.push({ pts: seg, cls });
-    // Wards: land bounded by collectors or bigger roads takes its own tint, as districts read on real maps.
-    const major = cls !== "street" && cls !== "lane";
-    if (major)
-      for (const [side, part] of [
-        [clip(poly, nx, ny, c, 0), left],
-        [clip(poly, -nx, -ny, -c, 0), items.slice(k)],
-      ] as const) {
-        // A ward is named after its heaviest folder.
-        const heaviest = part.filter((i) => i.kind === "folder").sort((p, q) => q.mass - p.mass)[0];
-        if (heaviest && heaviest.kind === "folder" && part.length > 1)
-          town.districts.push({
-            pts: side.p,
-            path: `${key}#ward`,
-            name: heaviest.node.name,
-            depth: 9,
-            mass: massOf(part),
-          });
+    return (a + b) / 2;
+  };
+
+  const wards = (poly: Poly, rec: CutRecord, left: Item[], right: Item[], key: string) => {
+    // Land bounded by collectors or bigger roads takes its own tint, named after its heaviest folder.
+    for (const [side, part] of [
+      [clip(poly, rec.nx, rec.ny, rec.c, 0), left],
+      [clip(poly, -rec.nx, -rec.ny, -rec.c, 0), right],
+    ] as const) {
+      const heaviest = part.filter((i) => i.kind === "folder").sort((p, q) => q.mass - p.mass)[0];
+      if (heaviest && heaviest.kind === "folder" && part.length > 1)
+        town.districts.push({
+          pts: side.p,
+          path: `${key}#ward`,
+          name: heaviest.node.name,
+          depth: 9,
+          mass: massOf(part),
+        });
+    }
+  };
+
+  const split = (items: Item[], poly: Poly, mass: number, top: boolean, key: string, district: string) => {
+    let rec: CutRecord | undefined = plat.cuts[key];
+    if (
+      rec &&
+      (!chord(poly.p, rec.nx, rec.ny, rec.c) ||
+        !items.some((i) => rec!.left.includes(i.key) || rec!.right.includes(i.key)))
+    ) {
+      // The remembered cut no longer crosses its land, or none of its items remain: this land is laid afresh.
+      forget(key);
+      rec = undefined;
+    }
+    if (!rec) {
+      if (items.length === 1) return place(poly, items[0], district);
+      // A fresh cut: split the ordered items where the land is halved, across the longer extent, path-seeded tilt.
+      const total = demandOf(items);
+      let acc = 0;
+      let k = 1;
+      let best = Infinity;
+      for (let i = 1; i < items.length; i++) {
+        acc += items[i - 1].gross;
+        const d = Math.abs(acc - total / 2);
+        if (d < best) {
+          best = d;
+          k = i;
+        }
       }
-    split(left, clip(poly, nx, ny, c, ROAD_WIDTH[cls]), massOf(left), false, `${key}L`, major ? `${key}L` : district);
-    split(
-      items.slice(k),
-      clip(poly, -nx, -ny, -c, ROAD_WIDTH[cls]),
-      massOf(items.slice(k)),
-      false,
-      `${key}R`,
-      major ? `${key}R` : district,
-    );
+      const theta = longestEdgeAngle(poly.p);
+      const along = extent(poly.p, Math.cos(theta), Math.sin(theta));
+      const across = extent(poly.p, -Math.sin(theta), Math.cos(theta));
+      const base = along[1] - along[0] >= across[1] - across[0] ? theta : theta + Math.PI / 2;
+      // Seeds and tints use the key without separators, so a first lay draws exactly what STATE A drew.
+      const tilt = (unit(`${seedOf(key)}#tilt`) - 0.5) * 0.35;
+      const nx = Math.cos(base + tilt);
+      const ny = Math.sin(base + tilt);
+      const left = items.slice(0, k);
+      const right = items.slice(k);
+      rec = {
+        nx,
+        ny,
+        c: offsetFor(poly, nx, ny, demandOf(left) / total),
+        cls: cutClass(mass, top),
+        left: left.map((i) => i.key),
+        right: right.map((i) => i.key),
+        capLeft: demandOf(left) * GROWTH_ROOM,
+        capRight: demandOf(right) * GROWTH_ROOM,
+      };
+      plat.cuts[key] = rec;
+    } else {
+      // A remembered cut: newcomers join the side with more spare land; the cut moves only when a side outgrows
+      // its band, and then to the split of today's demand.
+      const r = rec;
+      const sideOf = (i: Item) => (r.left.includes(i.key) ? "L" : r.right.includes(i.key) ? "R" : null);
+      for (const item of items.filter((i) => sideOf(i) === null)) {
+        const spareLeft = r.capLeft - demandOf(items.filter((i) => sideOf(i) === "L"));
+        const spareRight = r.capRight - demandOf(items.filter((i) => sideOf(i) === "R"));
+        (spareLeft >= spareRight ? r.left : r.right).push(item.key);
+      }
+      const dl = demandOf(items.filter((i) => sideOf(i) === "L"));
+      const dr = demandOf(items.filter((i) => sideOf(i) === "R"));
+      if ((dl > r.capLeft || dr > r.capRight) && dl > 0 && dr > 0) {
+        console.log(
+          `[plat] recut ${key || "(root)"} demand ${Math.round(dl)}/${Math.round(dr)} over ${Math.round(r.capLeft)}/${Math.round(r.capRight)}`,
+        );
+        r.c = offsetFor(poly, r.nx, r.ny, dl / (dl + dr));
+        r.capLeft = dl * GROWTH_ROOM;
+        r.capRight = dr * GROWTH_ROOM;
+      } else if (dl > r.capLeft || dr > r.capRight) {
+        // One side is empty: the growing side may take the empty side's land without moving anything.
+        r.capLeft = Math.max(r.capLeft, dl * GROWTH_ROOM);
+        r.capRight = Math.max(r.capRight, dr * GROWTH_ROOM);
+      }
+    }
+    const r = rec;
+    const left = items.filter((i) => r.left.includes(i.key));
+    const right = items.filter((i) => r.right.includes(i.key));
+    const seg = chord(poly.p, r.nx, r.ny, r.c);
+    const major = r.cls !== "street" && r.cls !== "lane";
+    if (seg && left.length > 0 && right.length > 0) town.roads.push({ pts: seg, cls: r.cls });
+    if (major) wards(poly, r, left, right, key);
+    const halves: [Item[], Poly, string][] = [
+      [left, clip(poly, r.nx, r.ny, r.c, left.length && right.length ? ROAD_WIDTH[r.cls] : 0), `${key}>L`],
+      [right, clip(poly, -r.nx, -r.ny, -r.c, left.length && right.length ? ROAD_WIDTH[r.cls] : 0), `${key}>R`],
+    ];
+    for (const [part, half, sub] of halves) {
+      if (part.length === 0) reserve(half, district);
+      else split(part, half, massOf(part), false, sub, major ? seedOf(sub) : district);
+    }
   };
 
   function partition(node: Node, poly: Poly, district: string) {
     if (node.depth >= 1 && (node.depth === 1 || node.mass >= 0.015 * root.mass))
       town.districts.push({ pts: poly.p, path: node.path, name: node.name, depth: node.depth, mass: node.mass });
-    if (node.children.length === 0 || node.gross <= FLATTEN_BLOCKS * blockArea) {
+    // Flattening with hysteresis: a flat folder stays flat while it grows a little, a cut one stays cut.
+    const wasFlat = node.path in plat.grids;
+    const wasCut = node.path in plat.cuts;
+    let flat = node.children.length === 0 || node.gross <= flattenLimit;
+    if (wasFlat && node.children.length > 0) flat = node.gross <= flattenLimit * FLATTEN_HYSTERESIS;
+    if (wasCut) flat = node.children.length === 0 || node.gross <= flattenLimit / FLATTEN_HYSTERESIS;
+    if ((flat && wasCut) || (!flat && wasFlat)) {
+      console.log(`[plat] ${flat ? "flatten" : "unflatten"} ${node.path || "(root)"} gross ${Math.round(node.gross)}`);
+      forget(node.path);
+    }
+    if (flat) {
       const f = flatten(node);
       return neighbourhood(poly, f.lots, landFor(f.docs * LOT_AREA * 0.5, options.density), node.path, district);
     }
@@ -356,44 +526,59 @@ export function layoutTown(name: string, root: Node, options: Options, outline: 
     if (p.p.length >= 3) town.blocks.push({ pts: p.p, district, kind: "park" });
   }
 
+  function reserve(poly: Poly, district: string) {
+    const p = inset(poly, PAVEMENT);
+    if (p.p.length >= 3) town.blocks.push({ pts: p.p, district, kind: "open" });
+  }
+
   function neighbourhood(raw: Poly, lots: FileRecord[], parkGross: number, key: string, district: string) {
+    let grid: GridRecord | undefined = plat.grids[key];
     let poly = raw;
+    let parkLine: GridRecord["park"] = null;
     if (parkGross > 0) {
-      // A strip of park along the neighbourhood's far side, cut off by a footpath.
-      const total = area(raw.p);
-      const fraction = Math.min(0.6, parkGross / total);
-      const theta = longestEdgeAngle(raw.p);
-      const nx = -Math.sin(theta);
-      const ny = Math.cos(theta);
-      const [lo, hi] = extent(raw.p, nx, ny);
-      let a = lo;
-      let b = hi;
-      for (let it = 0; it < 40; it++) {
-        const mid = (a + b) / 2;
-        if (area(clip(raw, -nx, -ny, -mid, 0).p) > total * fraction) a = mid;
-        else b = mid;
+      // A strip of park along the neighbourhood's far side, cut off by a footpath; its line is remembered.
+      parkLine = grid?.park ?? null;
+      if (!parkLine) {
+        const total = area(raw.p);
+        const fraction = Math.min(0.6, parkGross / total);
+        const theta = longestEdgeAngle(raw.p);
+        const nx = -Math.sin(theta);
+        const ny = Math.cos(theta);
+        parkLine = { nx, ny, c: offsetFor(raw, -nx, -ny, fraction) * -1 };
       }
-      const c = (a + b) / 2;
-      park(clip(raw, -nx, -ny, -c, ROAD_WIDTH.lane), district);
-      poly = clip(raw, nx, ny, c, ROAD_WIDTH.lane);
+      park(clip(raw, -parkLine.nx, -parkLine.ny, -parkLine.c, ROAD_WIDTH.lane), district);
+      poly = clip(raw, parkLine.nx, parkLine.ny, parkLine.c, ROAD_WIDTH.lane);
     }
     const land = inset(poly, PAVEMENT);
     if (land.p.length < 3 || area(land.p) < 1) {
       town.stats.overflow += lots.length;
       return;
     }
-    // Block grid aligned with the neighbourhood's main frontage.
-    const theta = longestEdgeAngle(land.p);
-    const ax = Math.cos(theta);
-    const ay = Math.sin(theta);
+    if (!grid) {
+      // A fresh grid, aligned with the neighbourhood's main frontage and fitted to its land.
+      const theta = longestEdgeAngle(land.p);
+      const [a0, a1] = extent(land.p, Math.cos(theta), Math.sin(theta));
+      const [b0, b1] = extent(land.p, -Math.sin(theta), Math.cos(theta));
+      const rows = Math.max(1, Math.round((b1 - b0 + U) / (BLOCK_SHORT + U)));
+      const cols = Math.max(1, Math.round((a1 - a0 + U) / (BLOCK_LONG + U)));
+      grid = {
+        theta,
+        a0,
+        b0,
+        rowPitch: (b1 - b0 + U) / rows,
+        colPitch: (a1 - a0 + U) / cols,
+        span: 0,
+        park: null,
+        slots: {},
+      };
+      plat.grids[key] = grid;
+    }
+    grid.park = parkLine;
+    const g = grid;
+    const ax = Math.cos(g.theta);
+    const ay = Math.sin(g.theta);
     const bx = -ay;
     const by = ax;
-    const [a0, a1] = extent(land.p, ax, ay);
-    const [b0, b1] = extent(land.p, bx, by);
-    const rows = Math.max(1, Math.round((b1 - b0 + U) / (BLOCK_SHORT + U)));
-    const cols = Math.max(1, Math.round((a1 - a0 + U) / (BLOCK_LONG + U)));
-    const rowPitch = (b1 - b0 + U) / rows;
-    const colPitch = (a1 - a0 + U) / cols;
     const world = (s: number, t: number): Pt => ({ x: ax * s + bx * t, y: ay * s + by * t });
     const clipTo = (cell: Poly): Poly => {
       let out = cell;
@@ -412,91 +597,149 @@ export function layoutTown(name: string, root: Node, options: Options, outline: 
       p: [world(s0, t0), world(s1, t0), world(s1, t1), world(s0, t1)],
       w: [0, 0, 0, 0],
     });
-    for (let r = 1; r < rows; r++) {
-      const t = b0 + r * rowPitch - U / 2;
-      const seg = chord(land.p, bx, by, t);
+    // The grid is anchored at its remembered origin and pitch; today's land decides which cells exist.
+    const [e0, e1] = extent(land.p, ax, ay);
+    const [f0, f1] = extent(land.p, bx, by);
+    const rMin = Math.floor((f0 - g.b0 + U) / g.rowPitch);
+    const rMax = Math.ceil((f1 - g.b0) / g.rowPitch) - 1;
+    const cMin = Math.floor((e0 - g.a0 + U) / g.colPitch);
+    const cMax = Math.ceil((e1 - g.a0) / g.colPitch) - 1;
+    for (let r = rMin + 1; r <= rMax; r++) {
+      const seg = chord(land.p, bx, by, g.b0 + r * g.rowPitch - U / 2);
       if (seg) town.roads.push({ pts: seg, cls: "street" });
     }
-    for (let c = 1; c < cols; c++) {
-      const s = a0 + c * colPitch - U / 2;
-      const seg = chord(land.p, ax, ay, s);
+    for (let c = cMin + 1; c <= cMax; c++) {
+      const seg = chord(land.p, ax, ay, g.a0 + c * g.colPitch - U / 2);
       if (seg) town.roads.push({ pts: seg, cls: "lane" });
     }
-    // Blocks in serpentine order; lots back to back, bottom row out, top row back. Lots fill whole blocks: the last
-    // block used stretches its lots across all its frontage, and blocks left over become open green land.
-    let next = 0;
-    for (let r = 0; r < rows; r++) {
-      for (let cc = 0; cc < cols; cc++) {
-        const c = r % 2 === 0 ? cc : cols - 1 - cc;
-        const s0 = a0 + c * colPitch;
-        const s1 = s0 + colPitch - U;
-        const t0 = b0 + r * rowPitch;
-        const t1 = t0 + rowPitch - U;
+    // Slots: lot-wide strips back to back in each block, in serpentine order (bottom row out, top row back).
+    interface Slot {
+      id: string;
+      pts: Pt[];
+      block: number;
+    }
+    interface Cell {
+      pts: Pt[];
+      used: boolean;
+      r: number;
+      c: number;
+      s0: number;
+      s1: number;
+      halves: [number, number][];
+    }
+    const cells: Cell[] = [];
+    const halfDepth = g.rowPitch - U >= 28;
+    for (let r = rMin; r <= rMax; r++) {
+      const even = ((r % 2) + 2) % 2 === 0;
+      for (let cc = cMin; cc <= cMax; cc++) {
+        const c = even ? cc : cMax - (cc - cMin);
+        const s0 = g.a0 + c * g.colPitch;
+        const s1 = s0 + g.colPitch - U;
+        const t0 = g.b0 + r * g.rowPitch;
+        const t1 = t0 + g.rowPitch - U;
         const block = clipTo(rect(s0, s1, t0, t1));
         if (block.p.length < 3) continue;
-        if (area(block.p) < (s1 - s0) * (t1 - t0) * 0.2 || next >= lots.length) {
-          town.blocks.push({ pts: block.p, district, kind: "open" });
-          continue;
-        }
-        const [bs0, bs1] = extent(block.p, ax, ay);
-        const [bt0, bt1] = extent(block.p, bx, by);
-        const mid = (bt0 + bt1) / 2;
-        const rowsOf: [number, number][] =
-          bt1 - bt0 >= 28
-            ? [
-                [bt0, mid],
-                [mid, bt1],
-              ]
-            : [[bt0, bt1]];
-        // Usable slots per row: module-wide strips that keep most of their depth inside the block.
-        const slotsOf = rowsOf.map(([t0r, t1r]) => {
-          const usable: number[] = [];
-          const count = Math.floor((bs1 - bs0) / MODULE);
-          for (let k = 0; k < count; k++) {
-            const strip = clipTo(rect(bs0 + k * MODULE, bs0 + (k + 1) * MODULE, t0r, t1r));
-            if (strip.p.length >= 3 && area(strip.p) >= MODULE * (t1r - t0r) * 0.45) usable.push(k);
-          }
-          return usable;
-        });
-        const capacity = slotsOf.reduce((s, u) => s + u.length, 0);
-        if (capacity === 0) {
-          town.blocks.push({ pts: block.p, district, kind: "open" });
-          continue;
-        }
-        const take = Math.min(capacity, lots.length - next);
-        let remaining = take;
-        rowsOf.forEach(([t0r, t1r], ri) => {
-          const usable = slotsOf[ri];
-          const share = ri === rowsOf.length - 1 ? remaining : Math.round((take * usable.length) / capacity);
-          const m = Math.min(share, remaining, usable.length);
-          remaining -= m;
-          // A stretched lot never exceeds lot class 4 (four modules); spare frontage stays garden.
-          const span = Math.min(MAX_CLASS, Math.max(1, Math.floor(usable.length / Math.max(1, m))));
-          const spans: [number, number][] = [];
-          for (let j = 0; j < m; j++)
-            spans.push([usable[j * span], usable[Math.min(usable.length, (j + 1) * span) - 1]]);
-          // Bottom row runs out along the street, top row runs back, so a folder stays one contiguous run.
-          if (ri === 1) spans.reverse();
-          for (const [k0, k1] of spans) {
-            const lotPoly = clipTo(rect(bs0 + k0 * MODULE, bs0 + (k1 + 1) * MODULE, t0r, t1r));
-            if (lotPoly.p.length < 3) continue;
-            const file = lots[next++];
-            town.lots.push({ pts: lotPoly.p, path: file.path, landUse: file.landUse, district });
-            town.stats.lotArea += area(lotPoly.p);
-          }
-        });
-        town.blocks.push({ pts: block.p, district, kind: "built" });
+        const mid = (t0 + t1) / 2;
+        const halves: [number, number][] =
+          area(block.p) < (s1 - s0) * (t1 - t0) * 0.2
+            ? []
+            : halfDepth
+              ? [
+                  [t0, mid],
+                  [mid, t1],
+                ]
+              : [[t0, t1]];
+        cells.push({ pts: block.p, used: false, r, c, s0, s1, halves });
       }
     }
-    town.stats.overflow += lots.length - next;
-    town.stats.lots += next;
+    const slotsFor = (span: number): Slot[] => {
+      const out: Slot[] = [];
+      cells.forEach((cell, index) => {
+        const count = Math.floor((cell.s1 - cell.s0) / (MODULE * span));
+        cell.halves.forEach(([t0r, t1r], h) => {
+          for (let j = 0; j < count; j++) {
+            const k = h === 1 ? count - 1 - j : j;
+            const s = cell.s0 + k * MODULE * span;
+            const strip = clipTo(rect(s, s + MODULE * span, t0r, t1r));
+            if (strip.p.length >= 3 && area(strip.p) >= MODULE * span * (t1r - t0r) * 0.45)
+              out.push({ id: `${cell.r},${cell.c},${h},${k}`, pts: strip.p, block: index });
+          }
+        });
+      });
+      return out;
+    };
+    if (g.span === 0) {
+      // First lay: one-module slots tell how many blocks the lots need; lots then widen to fill those blocks.
+      const narrow = slotsFor(1);
+      const needed = narrow.slice(0, Math.max(1, lots.length));
+      const lastBlock = needed.length ? needed[needed.length - 1].block : -1;
+      const modules = narrow.filter((s) => s.block <= lastBlock).length;
+      g.span = Math.min(MAX_CLASS, Math.max(1, Math.floor(modules / Math.max(1, lots.length))));
+      // Clipped edge blocks hold fewer wide slots than narrow ones; narrow the class until every lot fits.
+      while (g.span > 1 && slotsFor(g.span).length < lots.length) g.span--;
+    }
+    const slots = slotsFor(g.span);
+    const slotIndex = new Map(slots.map((s, i) => [s.id, i]));
+    const liveKeys = new Set(lots.map(identityOf));
+    // Renewal: when most remembered lots are vacant, the neighbourhood is re-laid in order.
+    const remembered = Object.keys(g.slots);
+    const vacantKeys = remembered.filter((k) => !liveKeys.has(k));
+    if (remembered.length > 0 && vacantKeys.length / remembered.length > RENEWAL_THRESHOLD) {
+      console.log(`[plat] renew ${key || "(root)"} vacant ${vacantKeys.length}/${remembered.length}`);
+      g.slots = {};
+    }
+    const taken = new Map<number, string>();
+    for (const [k, id] of Object.entries(g.slots)) {
+      const i = slotIndex.get(id);
+      if (i !== undefined && !taken.has(i)) taken.set(i, k);
+      else delete g.slots[k];
+    }
+    // Newcomers and displaced lots take the first free slot after their folder's last lot, else the first free one.
+    const folderOf = (f: FileRecord) => f.path.slice(0, Math.max(0, f.path.lastIndexOf("/")));
+    const lastOfFolder = new Map<string, number>();
+    for (const f of lots) {
+      const i = slotIndex.get(g.slots[identityOf(f)] ?? "");
+      if (i !== undefined) lastOfFolder.set(folderOf(f), Math.max(lastOfFolder.get(folderOf(f)) ?? -1, i));
+    }
+    let placed = 0;
+    for (const f of lots) {
+      const id = identityOf(f);
+      if (g.slots[id] === undefined) {
+        const after = lastOfFolder.get(folderOf(f)) ?? -1;
+        let i = after + 1;
+        while (i < slots.length && taken.has(i)) i++;
+        if (i >= slots.length) {
+          i = 0;
+          while (i < slots.length && taken.has(i)) i++;
+        }
+        if (i >= slots.length) continue;
+        taken.set(i, id);
+        g.slots[id] = slots[i].id;
+        lastOfFolder.set(folderOf(f), Math.max(lastOfFolder.get(folderOf(f)) ?? -1, i));
+      }
+      const slot = slots[slotIndex.get(g.slots[id])!];
+      cells[slot.block].used = true;
+      town.lots.push({ pts: slot.pts, key: id, vacant: false, path: f.path, landUse: f.landUse, district });
+      town.stats.lotArea += area(slot.pts);
+      placed++;
+    }
+    for (const [i, k] of taken) {
+      if (liveKeys.has(k)) continue;
+      cells[slots[i].block].used = true;
+      town.lots.push({ pts: slots[i].pts, key: k, vacant: true, path: "", landUse: "source", district });
+    }
+    for (const cell of cells) town.blocks.push({ pts: cell.pts, district, kind: cell.used ? "built" : "open" });
+    town.stats.overflow += lots.length - placed;
+    town.stats.lots += placed;
   }
 
   const outlinePoly: Poly = { p: outline, w: outline.map(() => 0) };
   partition(root, outlinePoly, "");
 
   if (options.warp) {
-    const diameter = 2 * Math.sqrt(town.stats.landArea / Math.PI);
+    // The warp's scale is remembered, so a growing town bends the same way it always did.
+    if (plat.diameter === 0) plat.diameter = 2 * Math.sqrt(town.stats.landArea / Math.PI);
+    const diameter = plat.diameter;
     const warp = warper(fnv1a(seedKey), [
       [4, 160],
       [0.015 * diameter, 0.35 * diameter],

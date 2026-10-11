@@ -77,8 +77,8 @@ Each concept has one name; the names in brackets are not used.
 | Lot              | frontage one module times its lot class; depth half the block depth (1:2 to 1:6)        |
 | Neighbourhood    | 3 to 8 blocks across between collectors                                                 |
 
-- A lot is one module of frontage; lots widen to fill their block, up to lot class 4; spare frontage stays garden and
-  spare blocks stay reserve plots.
+- A neighbourhood sets its lot class once, at its first lay: its lots widen to fill the blocks they need, up to lot
+  class 4. Frontage left in the last block stays garden and spare blocks stay reserve plots; both are room to grow.
 - Density is a setting (a slider), 50% by default: a folder's land is its lot area over density, plus a road margin.
   Low density gives suburban plots, high density narrow plots in a dense core.
 
@@ -104,9 +104,19 @@ is therefore readable as distance from the core, and newcomers join the edges.
 - Land between collectors or bigger roads is a ward.
 - Long cuts jog: where a cut meets a crossing road, its continuation may shift sideways, so no straight road crosses a
   whole district.
-- The plat remembers every cut: its position, tilt and class. A folder that grows first fills its reserve plots, then
-  its cut moves only when its land leaves a hysteresis band. The cuts of the top two folder levels form the fixed
-  frame and only move on an archetype switch.
+- The plat remembers every cut: its line, its class, the items on each side, and each side's band (1.35 times its
+  demand at the last cut). A newcomer joins the side with more spare band. A cut moves, to the split of today's demand,
+  only when a side outgrows its band. The cuts of the top two folder levels form the fixed frame and only move on an
+  archetype switch.
+- The plat remembers every neighbourhood: its grid origin, angle and pitch, its lot class, its park line, and the slot
+  of every lot. Lots keep their slots; a newcomer takes the first free slot after its folder's last lot. Cells come
+  and go only with the neighbourhood's land; a lot whose slot is gone takes a free one.
+- Shared lots remember their members: a new file joins a lot with room, and a lot keeps its place while any member
+  lives.
+- A town keeps its outline until its land outgrows 1.35 times its land at the last growth, then grows outward about
+  the same centre; cuts and grids are absolute, so nothing inside moves.
+- A flat folder stays flat up to 1.5 times the flatten limit, and a cut folder stays cut down to its inverse. A
+  folder switching between the two is an archetype switch.
 
 ## Archetypes
 
@@ -134,7 +144,7 @@ Edges carry meaning:
 ## Deletion
 
 - A deleted file leaves a vacant lot; nothing moves.
-- A folder whose direct children are more than half vacant is renewed: its own vacant lots and wholly vacant child
+- A neighbourhood whose remembered lots are more than half vacant, or a folder whose direct children are, is renewed: its own vacant lots and wholly vacant child
   land clears, and its land is re-laid. Renewal is local; it never cascades into child folders.
 
 ## Archetype switch

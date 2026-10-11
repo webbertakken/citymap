@@ -51,7 +51,7 @@ const SECTION_TITLES: Record<string, string> = {
   land: "Land dimension",
   themes: "Themes",
   density: "Density (grain)",
-  plat: "Plat (remembered cuts)",
+  plat: "Plat films (history, moved lots in red)",
 };
 function grouped(list: Sheet[]): [string, Sheet[]][] {
   const groups = new Map<string, Sheet[]>();

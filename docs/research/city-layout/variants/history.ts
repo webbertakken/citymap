@@ -19,14 +19,17 @@ import {
 } from "./layout";
 import { render, type Scene } from "./render";
 import { centroid } from "./geometry";
-import { composeRegion } from "./region";
+import { composeRegion, emptyRegionPlat } from "./region";
+import { renderRegion } from "./render-town";
+import type { LandUse } from "./land-use";
+import type { Pt } from "./geometry";
 
 const CACHE = join(homedir(), ".cache/citymap");
 const HERE = import.meta.dir;
 const WATER = 36;
 const RENEWAL_THRESHOLD = 0.5;
 
-type Mode = "compaction" | "vacant" | "renewal" | "renewal+renames";
+type Mode = "compaction" | "vacant" | "renewal" | "renewal+renames" | "snapshot" | "plat";
 const MODES: { mode: Mode; caption: string }[] = [
   { mode: "compaction", caption: "compaction (path identity)" },
   { mode: "vacant", caption: "vacant lots forever (path identity)" },
@@ -57,23 +60,41 @@ const unquote = (raw: string): string => (raw.startsWith('"') ? JSON.parse(raw) 
 const stepMode = dateArgs[0].startsWith("steps:");
 const switchMode = dateArgs[0] === "switch";
 if (switchMode) dateArgs.shift();
-const frames = stepMode
+// Film mode (LAYOUT=towns): every first-parent commit from the first date to the last, rendered at each date.
+const filmMode = dateArgs[0] === "film";
+if (filmMode) dateArgs.shift();
+const markerOf = (date: string) =>
+  date === "head"
+    ? git(["rev-parse", "HEAD"]).trim()
+    : git(["rev-list", "--first-parent", "-1", `--before=${date}`, "HEAD"]).trim();
+const frames = filmMode
   ? ((): { date: string; sha: string }[] => {
-      const [, since, count] = dateArgs[0].split(":");
-      const shas = git(["rev-list", "--first-parent", "--reverse", `--since=${since}`, "HEAD"])
+      const markers = new Map(dateArgs.map((d) => [markerOf(d), d]));
+      const first = markerOf(dateArgs[0]);
+      const last = markerOf(dateArgs[dateArgs.length - 1]);
+      const between = git(["rev-list", "--first-parent", "--reverse", `${first}..${last}`])
         .trim()
         .split("\n")
-        .slice(0, Number(count));
-      return shas.map((sha, i) => ({ date: `step ${i}`, sha }));
+        .filter(Boolean);
+      return [first, ...between].map((sha) => ({ date: markers.get(sha) ?? "", sha }));
     })()
-  : dateArgs.map((date) => {
-      const sha =
-        date === "head"
-          ? git(["rev-parse", "HEAD"]).trim()
-          : git(["rev-list", "--first-parent", "-1", `--before=${date}`, "HEAD"]).trim();
-      if (!sha) throw new Error(`[history] no commit before ${date}`);
-      return { date, sha };
-    });
+  : stepMode
+    ? ((): { date: string; sha: string }[] => {
+        const [, since, count] = dateArgs[0].split(":");
+        const shas = git(["rev-list", "--first-parent", "--reverse", `--since=${since}`, "HEAD"])
+          .trim()
+          .split("\n")
+          .slice(0, Number(count));
+        return shas.map((sha, i) => ({ date: `step ${i}`, sha }));
+      })()
+    : dateArgs.map((date) => {
+        const sha =
+          date === "head"
+            ? git(["rev-parse", "HEAD"]).trim()
+            : git(["rev-list", "--first-parent", "-1", `--before=${date}`, "HEAD"]).trim();
+        if (!sha) throw new Error(`[history] no commit before ${date}`);
+        return { date, sha };
+      });
 const frameShas = new Set(frames.map((f) => f.sha));
 
 // Fold: per path the first-seen time; per identity its birth time and current path; ghosts keep their last path.
@@ -275,13 +296,22 @@ function composeFrame(data: RepoData, members: string[]): Plan {
 const townLayout = process.env.LAYOUT === "towns";
 if (stepMode) {
   const rows: string[] = [];
-  for (const { mode, caption } of townLayout ? MODES.slice(0, 1) : MODES) {
+  const townModes: { mode: Mode | "plat"; caption: string }[] = [
+    { mode: "snapshot", caption: "neighbourhoods, laid afresh per commit" },
+    { mode: "plat", caption: "neighbourhoods, plat (remembered cuts, grids, lots)" },
+  ];
+  for (const { mode, caption } of townLayout ? townModes : MODES) {
+    const regionPlat = emptyRegionPlat();
+    let overflow = 0;
+    let vacant = 0;
+    let survivorTotal = 0;
+    let lotTotal = 0;
     let previous: Map<string, [number, number]> | null = null;
     let previousLive = new Set<string>();
     const all: number[] = [];
     const deleting: number[] = [];
     for (const frame of frames) {
-      const files = filesFor(frame, mode);
+      const files = filesFor(frame, townLayout ? "renewal+renames" : (mode as Mode));
       const folderFirstSeen: Record<string, number> = {};
       for (const f of files)
         for (let k = f.path.indexOf("/"); k !== -1; k = f.path.indexOf("/", k + 1)) {
@@ -290,6 +320,7 @@ if (stepMode) {
         }
       const live = files.filter((f) => !f.ghost);
       if (townLayout) {
+        // Lots are keyed by identity (exact renames followed); the plat run keeps one plat across all frames.
         const region = composeRegion(
           {
             name: repo,
@@ -302,11 +333,13 @@ if (stepMode) {
             ),
           },
           { density: 0.5, order: "centre-out", warp: true, noLand: ["tests", "fixtures"] },
+          mode === "plat" ? regionPlat : emptyRegionPlat(),
         );
+        const liveLots = region.towns.flatMap((town) => town.lots.filter((l) => !l.vacant));
+        overflow += region.towns.reduce((s, t) => s + t.stats.overflow, 0);
+        vacant = region.towns.reduce((s, t) => s + t.lots.filter((l) => l.vacant).length, 0);
         const townCentres = new Map(
-          region.towns.flatMap((town) =>
-            town.lots.map((l) => [l.path, [centroid(l.pts).x, centroid(l.pts).y] as [number, number]]),
-          ),
+          liveLots.map((l) => [l.key, [centroid(l.pts).x, centroid(l.pts).y] as [number, number]]),
         );
         const ids = new Set(townCentres.keys());
         if (previous) {
@@ -320,6 +353,8 @@ if (stepMode) {
           }
           const share = survivors ? shifted / survivors : 0;
           all.push(share);
+          survivorTotal += survivors;
+          lotTotal += ids.size;
           if ([...previousLive].some((id) => !ids.has(id))) deleting.push(share);
         }
         previous = townCentres;
@@ -358,14 +393,18 @@ if (stepMode) {
     const mean = (xs: number[]) =>
       xs.length ? Math.round((1000 * xs.reduce((s, x) => s + x, 0)) / xs.length) / 10 : 0;
     const calm = (xs: number[]) => Math.round((1000 * xs.filter((x) => x === 0).length) / Math.max(1, xs.length)) / 10;
-    rows.push(`| ${caption} | ${mean(all)}% | ${calm(all)}% | ${deleting.length} | ${mean(deleting)}% |`);
+    rows.push(
+      `| ${caption} | ${mean(all)}% | ${calm(all)}% | ${deleting.length} | ${mean(deleting)}% |` +
+        (townLayout ? ` ${Math.round(overflow / frames.length)} | ${vacant} |` : ""),
+    );
     console.log(
-      `[history] steps ${mode}: mean moved ${mean(all)}%, steps with no movement ${calm(all)}%, deleting steps ${deleting.length} mean moved ${mean(deleting)}%`,
+      `[history] steps ${mode}: survivors ${survivorTotal}/${lotTotal} lots matched, mean moved ${mean(all)}%, steps with no movement ${calm(all)}%, deleting steps ${deleting.length} mean moved ${mean(deleting)}%`,
     );
   }
   const table = [
-    "| Variant | Mean share moved per commit | Commits with no movement | Commits deleting files | Mean moved on those |",
-    "| --- | --- | --- | --- | --- |",
+    "| Variant | Mean share moved per commit | Commits with no movement | Commits deleting files | Mean moved on those |" +
+      (townLayout ? " Lots without room, mean | Vacant lots at the end |" : ""),
+    "| --- | --- | --- | --- | --- |" + (townLayout ? " --- | --- |" : ""),
     ...rows,
   ].join("\n");
   writeFileSync(
@@ -373,6 +412,104 @@ if (stepMode) {
     `${dateArgs[0]} over ${frames.length} commits\n\n${table}\n`,
   );
   console.log(table);
+  process.exit(0);
+}
+
+if (filmMode) {
+  const PRIVATE_FILE = join(CACHE, "private-repos");
+  const isPrivate = (await Bun.file(PRIVATE_FILE).exists())
+    ? (await Bun.file(PRIVATE_FILE).text()).split("\n").some((l) => l.trim() && l.trim().split("/").pop() === repo)
+    : false;
+  const outDir = join(CACHE, isPrivate ? "private" : "render", "film", repo);
+  mkdirSync(outDir, { recursive: true });
+  const variants = [
+    { label: "laid afresh per commit", plat: null as ReturnType<typeof emptyRegionPlat> | null },
+    { label: "plat", plat: emptyRegionPlat() },
+  ];
+  const previous = variants.map(() => null as Map<string, Pt> | null);
+  const pngs: string[][] = variants.map(() => []);
+  const options = {
+    density: 0.5,
+    order: "centre-out" as const,
+    warp: true,
+    noLand: ["tests", "fixtures"] as LandUse[],
+  };
+  for (const frame of frames) {
+    const live = filesFor(frame, "renewal+renames").filter((f) => !f.ghost);
+    const folderFirstSeen: Record<string, number> = {};
+    for (const f of live)
+      for (let k = f.path.indexOf("/"); k !== -1; k = f.path.indexOf("/", k + 1)) {
+        const folder = f.path.slice(0, k);
+        folderFirstSeen[folder] = Math.min(folderFirstSeen[folder] ?? Infinity, f.firstSeen);
+      }
+    const data: RepoData = { name: repo, head: frame.sha, files: live, folderFirstSeen, members: [] };
+    data.members = membersAt(
+      frame.sha,
+      live.map((f) => f.path),
+    );
+    for (const [v, variant] of variants.entries()) {
+      // The plat folds every commit; the fresh layout only needs the marked frames.
+      if (!frame.date && !variant.plat) continue;
+      const region = composeRegion(data, options, variant.plat ?? emptyRegionPlat());
+      if (!frame.date) continue;
+      const centres = new Map(
+        region.towns.flatMap((t) =>
+          t.lots.filter((l) => !l.vacant).map((l) => [l.key, centroid(l.pts)] as [string, Pt]),
+        ),
+      );
+      const moved = new Set<string>();
+      const before = previous[v];
+      if (before)
+        for (const [key, p] of centres) {
+          const q = before.get(key);
+          if (q && Math.hypot(p.x - q.x, p.y - q.y) > 2) moved.add(key);
+        }
+      const survivors = before ? [...centres.keys()].filter((k) => before.has(k)).length : 0;
+      previous[v] = centres;
+      const share = survivors ? Math.round((1000 * moved.size) / survivors) / 10 : 0;
+      const svg = join(outDir, `${v}-${frame.date}.svg`);
+      const png = join(outDir, `${v}-${frame.date}.png`);
+      writeFileSync(
+        svg,
+        renderRegion(region, {
+          camera: "plan",
+          width: 900,
+          title: `${isPrivate ? "(private)" : repo} · ${frame.date} · ${variant.label}`,
+          subtitle: before
+            ? `${moved.size} of ${survivors} lots moved since the previous frame (${share}%), in red`
+            : "first frame",
+          highlight: moved,
+        }),
+      );
+      const r = Bun.spawnSync(["inkscape", svg, "--export-type=png", `--export-filename=${png}`], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      if (r.exitCode !== 0) throw new Error(`[history] inkscape failed: ${r.stderr.toString()}`);
+      pngs[v].push(png);
+      console.log(`[history] film ${frame.date} ${variant.label}: ${moved.size}/${survivors} moved (${share}%)`);
+    }
+  }
+  const sheetDir = isPrivate ? outDir : join(HERE, "img");
+  const sheet = join(sheetDir, `towns-plat-${repo}.webp`);
+  const r = Bun.spawnSync(
+    [
+      "montage",
+      ...pngs.flat(),
+      "-tile",
+      `${pngs[0].length}x`,
+      "-geometry",
+      "900x1100>+8+8",
+      "-background",
+      "#D9D4CA",
+      "-quality",
+      "82",
+      sheet,
+    ],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  if (r.exitCode !== 0) throw new Error(`[history] montage failed: ${r.stderr.toString()}`);
+  console.log(`[history] film sheet ${isPrivate ? "(private)" : sheet}`);
   process.exit(0);
 }
 

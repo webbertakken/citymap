@@ -86,7 +86,16 @@ const hueOf = (key: string) => {
 
 export function renderRegion(
   region: Region,
-  options: { camera: TownCamera; width: number; title: string; subtitle: string; scale?: number; theme?: ThemeName },
+  options: {
+    camera: TownCamera;
+    width: number;
+    title: string;
+    subtitle: string;
+    scale?: number;
+    theme?: ThemeName;
+    /** Lot keys painted in the alarm colour with a dark edge: lots that moved since the previous frame. */
+    highlight?: Set<string>;
+  },
 ): string {
   const theme = THEMES[options.theme ?? "paper-atlas"];
   const squash = options.camera === "plan" ? 1 : 0.5;
@@ -150,7 +159,16 @@ export function renderRegion(
             (a, b) => centroid(b.pts).x + centroid(b.pts).y - (centroid(a.pts).x + centroid(a.pts).y),
           );
     for (const lot of lots) {
-      const fill = theme.lot(lot.district, lot.landUse === "source");
+      if (lot.vacant) {
+        // A vacant lot keeps its place until renewal: an empty plot with a dashed edge, no plinth.
+        const [vacantFill, vacantStroke] = theme.reserve(lot.district);
+        out.push(
+          `<path d="${poly(lot.pts)}" fill="${vacantFill}" stroke="${vacantStroke}" stroke-width="${Math.max(0.5, 0.5 * scale).toFixed(2)}" stroke-dasharray="${(1.5 * scale).toFixed(1)} ${(1 * scale).toFixed(1)}"/>`,
+        );
+        continue;
+      }
+      const moved = options.highlight?.has(lot.key) ?? false;
+      const fill = moved ? "#E4572E" : theme.lot(lot.district, lot.landUse === "source");
       if (options.camera === "dimetric") {
         const lift = 3 * scale;
         out.push(
@@ -158,7 +176,7 @@ export function renderRegion(
         );
       }
       out.push(
-        `<path d="${poly(lot.pts)}" fill="${fill}" stroke="${theme.ground}" stroke-width="${Math.min(0.8, 0.35 * scale).toFixed(2)}"/>`,
+        `<path d="${poly(lot.pts)}" fill="${fill}" stroke="${moved ? "#5A1A0A" : theme.ground}" stroke-width="${Math.min(0.8, 0.35 * scale).toFixed(2)}"/>`,
       );
     }
     out.push("</g>");
