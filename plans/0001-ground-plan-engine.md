@@ -27,14 +27,14 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 
 ## Phase 2: model (`snapshot`, `land-use`, `tree`, `plat`, `city`)
 
-- [ ] `CitymapError` and the rejection codes
-- [ ] `parseSnapshot` with every rejection
-- [ ] `classifyLandUse` ported with table-driven tests; weights and lot capacity
-- [ ] Workspace members and groups from paths
-- [ ] `buildTree`: sharing, chain collapse, mass, demand
-- [ ] Plat types, sorted-key serialisation, `parsePlat`, round-trip property test
-- [ ] City model types and serialisation
-- [ ] Commit
+- [x] `CitymapError` and the rejection codes
+- [x] `parseSnapshot` with every rejection
+- [x] `classifyLandUse` ported with table-driven tests; weights and lot capacity
+- [x] Workspace members and groups from paths
+- [x] `buildTree`: sharing, chain collapse, mass, demand
+- [x] Plat types, sorted-key serialisation, `parsePlat`, round-trip property test
+- [x] City model types and serialisation
+- [x] Commit
 
 ## Phase 3: town layout (`town`)
 

@@ -60,7 +60,7 @@ Each concept has one name; the names in brackets are not used.
   CI and tools, assets, config, source. `.gitattributes` overrides apply.
 - Weights: source 1; config, assets, CI and tools, docs 0.5; tests and examples 0.3; fixtures, generated and vendored
   0.05.
-- Mass is the weighted file count of a subtree. Mass drives the tier, the road class and the archetype, never the order.
+- Mass is the weighted count of a subtree's files that take lots; docs and files without land add none. Mass drives the tier, the road class and the archetype, never the order.
 - Land is a dimension: it names the land uses that take land. By default tests and fixtures take none; tests are then
   a dimension of the source they cover, shown later on that source's building. With tests as land, they take lots like
   any other file. Each land setting is its own plat, so switching it re-lays the city and never disturbs another

@@ -5,6 +5,18 @@ export type ErrorCode =
   | "fixed/negative-sqrt"
   | "fixed/zero-direction"
   | "fixed/warp-folds"
+  | "snapshot/bad-shape"
+  | "snapshot/not-sorted"
+  | "snapshot/duplicate-path"
+  | "snapshot/bad-path"
+  | "snapshot/too-large"
+  | "snapshot/bad-index"
+  | "plat/bad-json"
+  | "plat/bad-version"
+  | "plat/too-new"
+  | "plat/bad-shape"
+  | "city/bad-json"
+  | "city/bad-shape"
   | "engine/invariant";
 
 /** The only error the engine throws: a stable code, a message, and structured detail for logs. */
