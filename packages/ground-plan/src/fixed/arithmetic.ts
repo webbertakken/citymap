@@ -53,13 +53,12 @@ export function isqrt(n: number): number {
   if (n < 0) throw new CitymapError("fixed/negative-sqrt", `cannot take the square root of ${n}`);
   if (n < 2) return n;
   const target = BigInt(n);
+  // Newton from above (Math.sqrt is correctly rounded, so this start exceeds the root) descends to the floor.
   let x = BigInt(Math.floor(Math.sqrt(n))) + 1n;
   for (;;) {
     const next = (x + target / x) / 2n;
     if (next >= x) break;
     x = next;
   }
-  while (x * x > target) x -= 1n;
-  while ((x + 1n) * (x + 1n) <= target) x += 1n;
   return Number(x);
 }

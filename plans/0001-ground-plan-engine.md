@@ -17,13 +17,13 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 
 ## Phase 1: fixed-point core (`packages/ground-plan/src/fixed`)
 
-- [ ] Package scaffold: `package.json`, `tsconfig.json`, `src/index.ts`, vitest project
-- [ ] `floorDiv`, `roundDiv`, `mulDiv`, `isqrt` with property tests against bigint
-- [ ] Direction table generator script, committed table, checksum test; `dir`, `normalise`, `perp`, `angleOf`
-- [ ] `fnv1a` over UTF-8, `seedOf`, `unitMille`, `compareKeys` with tests (astral characters included)
-- [ ] Polygons: `area2`, `centroid`, `clip`, `inset`, `chord`, `extent`, `longestEdge`, `offsetFor`, `reach`
-- [ ] Noise, warp and `densify` in fixed point
-- [ ] Commit
+- [x] Package scaffold: `package.json`, `tsconfig.json`, `src/index.ts`, vitest project
+- [x] `floorDiv`, `roundDiv`, `mulDiv`, `isqrt` with property tests against bigint
+- [x] Direction table generator script, committed table, checksum test; `dir`, `normalise`, `perp`, `rotate`
+- [x] `fnv1a` over UTF-8, `seedOf`, `unitMille`, `compareKeys` with tests (astral characters included)
+- [x] Polygons: `area2`, `centroid`, `clip`, `inset`, `chord`, `extent`, `longestEdge`, `offsetFor`, `reach`
+- [x] Noise, warp and `densify` in fixed point
+- [x] Commit
 
 ## Phase 2: model (`snapshot`, `land-use`, `tree`, `plat`, `city`)
 

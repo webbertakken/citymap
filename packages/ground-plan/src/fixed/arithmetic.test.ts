@@ -49,6 +49,13 @@ describe("roundDiv", () => {
   });
 });
 
+describe("roundDiv near the safe limit", () => {
+  it("is exact when 2a + b passes 2^53", () => {
+    const a = 2 ** 52 + 1;
+    expect(roundDiv(a, 2)).toBe(Number((2n * BigInt(a) + 2n) / 4n));
+  });
+});
+
 describe("mulDiv", () => {
   it("is exact across the safe-integer boundary", () => {
     const a = 2 ** 30 + 7;

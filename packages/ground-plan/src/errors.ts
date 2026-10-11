@@ -4,6 +4,7 @@ export type ErrorCode =
   | "fixed/overflow"
   | "fixed/negative-sqrt"
   | "fixed/zero-direction"
+  | "fixed/warp-folds"
   | "engine/invariant";
 
 /** The only error the engine throws: a stable code, a message, and structured detail for logs. */

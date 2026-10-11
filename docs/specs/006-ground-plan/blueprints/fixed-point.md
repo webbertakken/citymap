@@ -80,7 +80,7 @@ the edge from `p[i]` to `p[i+1]`. Functions, all pure:
 - `noise(seed, x, y, wavelength)`: value noise at `(x / wavelength, y / wavelength)`, with the cell index by
   `floorDiv` and the fraction in 1/65536 steps; the quintic fade `t³(t(6t − 15) + 10)` evaluated in 1/65536 fixed
   point with `floorDiv` after each product. Result in [−32768, 32767].
-- `warp(seed, octaves)(q)`: per octave `[amplitude, wavelength]` (fixed units), `dx += noise × amplitude / 16384`
+- `warp(seed, octaves)(q)`: per octave `[amplitude, wavelength]` (fixed units), `dx += noise × amplitude / 32768`
   (`roundDiv`), likewise `dy` with the second seed. Topology preserving because every amplitude stays below a fifth
   of its wavelength (asserted).
 - `densify(pts, step, closed)`: splits each segment into `⌈len / step⌉` parts at `roundDiv` positions.
