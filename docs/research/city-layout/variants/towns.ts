@@ -18,7 +18,7 @@ const PRIVATE = new Set(
         .filter(Boolean)
     : [],
 );
-const BASE: Options = { density: 0.5, order: "centre-out", warp: true, noLand: DEFAULT_NO_LAND };
+const BASE: Options = { density: 0.5, order: "centre-out", warp: true, jog: true, noLand: DEFAULT_NO_LAND };
 
 interface Shot {
   caption: string;
@@ -63,6 +63,13 @@ const SECTIONS: Record<string, { repos: string[]; shots: Shot[] }> = {
     shots: [
       { caption: "Paper atlas", options: BASE, camera: "plan", theme: "paper-atlas" },
       { caption: "Dracula", options: BASE, camera: "plan", theme: "dracula" },
+    ],
+  },
+  jog: {
+    repos: ["next.js", "react", "home-assistant", "takken.io"],
+    shots: [
+      { caption: "straight cuts (STATE A)", options: { ...BASE, jog: false }, camera: "plan" },
+      { caption: "jogging cuts (pinwheels round plazas)", options: BASE, camera: "plan" },
     ],
   },
   hero: {

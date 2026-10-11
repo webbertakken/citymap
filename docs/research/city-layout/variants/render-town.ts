@@ -14,6 +14,7 @@ interface Theme {
   ground: string;
   outline: string;
   park: string;
+  plaza: string;
   casing: string;
   road: string;
   label: string;
@@ -48,6 +49,7 @@ const THEMES: Record<ThemeName, Theme> = {
     ground: "#F2EEE6",
     outline: "#D3CCBD",
     park: "#BFD8A6",
+    plaza: "#E9DFCB",
     casing: "#C3BBAC",
     road: "#FFFFFF",
     label: "#1E1E24",
@@ -64,6 +66,7 @@ const THEMES: Record<ThemeName, Theme> = {
     ground: DRACULA.background,
     outline: DRACULA.line,
     park: mix(DRACULA.background, "#50FA7B", 0.28),
+    plaza: mix(DRACULA.background, DRACULA.foreground, 0.16),
     casing: "#191A21",
     road: DRACULA.line,
     label: DRACULA.foreground,
@@ -138,7 +141,7 @@ export function renderRegion(
         );
         continue;
       }
-      const fill = b.kind === "park" ? theme.park : theme.block(b.district);
+      const fill = b.kind === "park" ? theme.park : b.kind === "plaza" ? theme.plaza : theme.block(b.district);
       out.push(`<path d="${poly(b.pts)}" fill="${fill}"/>`);
     }
     // Roads: all casings, then all fills, smallest class first, so junctions merge.
