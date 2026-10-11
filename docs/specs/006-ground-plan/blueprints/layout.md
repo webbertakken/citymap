@@ -21,7 +21,7 @@ All lengths in fixed units (`UNIT` = 64 per u). Provenance and ranges in [DEFAUL
 | `RENEWAL`             | vacant × 2 > remembered     | `LONG_CUT`           | 300 ‰ of diameter|
 | `JOG`                 | 192 (3 u)                   | `MIN_JOG`            | 128 (2 u)        |
 | `RIVER`               | 160 (2.5 u)                 | `RADIAL_MAX_SCALE`   | 950 ‰            |
-| `TILT`                | ±28 angle steps (±0.175 rad)| `MAX_SPAN`           | 1946 steps (0.95π)|
+| `TILT`                | ±114 angle steps (±0.175 rad)| `MAX_SPAN`           | 1946 steps (0.95π)|
 
 `FLATTEN_LIMIT = FLATTEN_BLOCKS × (BLOCK_SHORT + 64) × (BLOCK_LONG + 64)`.
 
@@ -84,7 +84,7 @@ the road's width; an empty side becomes a reserve block. Collectors and up give 
 
 Applies when `options.jog` allows it (`top-level`: the key is the root path or starts with `root>`), each side holds
 two or more items, and the chord is at least `LONG_CUT` of the town's diameter. Both sides decide with the forced
-normal `perp(n)` (keys `key>L`, `key>R`); both must be square (dot ≥ DIRECTION² × 9999/10000), all four parts
+normal `perp(n)` (keys `key>L`, `key>R`); both must be square (n·m ≥ |m|² × 9999/10000), all four parts
 non-empty, and `|t1 − t2| ≥ MIN_JOG`. The main cut shifts by `±JOG/2` per side; four pieces are each two half-planes of
 the land, keys `key>L>L`, `key>L>R`, `key>R>R`, `key>R>L`; four roads end in T-junctions round a plaza (inset by
 pavement). Wards and district seeds as an unjogged cut.
@@ -135,7 +135,7 @@ recurse as `path>L`, `path>R` with their own district seeds.
 10. Remembered lots keep their slots (a slot gone frees its lot); newcomers take the first free slot after their
     folder's last lot, else the first free slot; none free is overflow. Vacant remembered lots draw as vacant.
 11. Blocks: `green` for the green cell, `built` for used cells, `reserve` otherwise.
-12. Address: issued at first placement as `${key}:${r}.${h}.${k}` (street row, side, index along it) into
+12. Address: issued at first placement as `${key}:${r}.${c}.${h}.${k}` (row, block, side, index along it) into
     `plat.addresses[lotKey]`, never changed after.
 
 ## Park, reserve, wards

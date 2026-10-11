@@ -10,7 +10,7 @@ merge of PR #1, converted at 1 prototype unit = 8 fixed units.
 | Rounding                                  | floorDiv, or roundDiv half toward +∞    | one rule per call site              | fixed                |
 | Pavement                                  | 12 (0.1875 u)                           | prototype                           | 0 to 32              |
 | Block long side                           | 768 (12 u)                              | prototype                           | 384 to 1536          |
-| Cut tilt                                  | ±28 steps (±0.175 rad)                  | prototype                           | 0 to 64              |
+| Cut tilt                                  | ±114 steps (±0.175 rad)                 | prototype                           | 0 to 64              |
 | Offset bisection steps                    | 40                                      | prototype                           | 30 to 60             |
 | Cell kept for slots                       | ≥ 20 % of its rectangle                 | prototype                           | 10 to 40 %           |
 | Slot kept                                 | ≥ 45 % of its strip                     | prototype                           | 30 to 60 %           |

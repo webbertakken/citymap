@@ -1,0 +1,90 @@
+import type { Form } from "../archetype/forms";
+import type { Town } from "../city/city";
+import { mulDiv } from "../fixed/arithmetic";
+import { fnv1a } from "../fixed/hash";
+import { area2, type Pt } from "../fixed/polygon";
+import { densify, warper } from "../fixed/warp";
+import type { TownPlat } from "../plat/plat";
+import type { TreeNode } from "../tree/tree";
+import { tint, toPoly, type Ctx, type LayoutOptions, type PlatEvent } from "./context";
+import { diameterOf } from "./cut";
+import { partition } from "./partition";
+
+export interface LaidTown {
+  readonly town: Town;
+  readonly plat: TownPlat;
+  readonly events: readonly PlatEvent[];
+}
+
+/** The organic layer: one smooth warp per town, scaled by its remembered diameter; it never feeds back. */
+function warpTown(ctx: Ctx, key: string, outline: readonly Pt[]) {
+  if (ctx.plat.diameter === 0) ctx.plat.diameter = diameterOf(ctx.landArea2);
+  const d = ctx.plat.diameter;
+  const warp = warper(fnv1a(key), [
+    [32, 1280],
+    [mulDiv(d, 15, 1000, "floor"), Math.max(1, mulDiv(d, 350, 1000, "floor"))],
+    [mulDiv(d, 70, 1000, "floor"), Math.max(1, mulDiv(d, 1100, 1000, "floor"))],
+  ]);
+  const bend = (pts: readonly Pt[], closed: boolean, step: number) => densify(pts, step, closed).map(warp);
+  return {
+    outline: bend(outline, true, 80),
+    roads: ctx.roads.map((r) => ({ ...r, pts: bend(r.pts, false, 48) })),
+    blocks: ctx.blocks.map((b) => ({ ...b, pts: bend(b.pts, true, 64) })),
+    lots: ctx.lots.map((l) => ({ ...l, pts: l.pts.map(warp) })),
+    districts: ctx.districts.map((d) => ({ ...d, pts: bend(d.pts, true, 80) })),
+    water: ctx.water.map((w) => bend(w, true, 64)),
+  };
+}
+
+/** Lays out one town on its outline. Pure: the plat given is copied, and the new plat returned. */
+export function layoutTown(
+  name: string,
+  key: string,
+  root: TreeNode,
+  outline: readonly Pt[],
+  plat: TownPlat,
+  options: LayoutOptions,
+  rootForm?: Form,
+): LaidTown {
+  const ctx: Ctx = {
+    options,
+    plat: structuredClone(plat),
+    root,
+    rootForm,
+    events: [],
+    roads: [],
+    blocks: [],
+    lots: [],
+    districts: [],
+    water: [],
+    landArea2: area2(outline),
+    form: "neighbourhood",
+    overflow: 0,
+    lotArea2: 0,
+  };
+  partition(ctx, root, toPoly(outline), "");
+  const laid = options.warp
+    ? warpTown(ctx, key, outline)
+    : { outline: [...outline], roads: ctx.roads, blocks: ctx.blocks, lots: ctx.lots, districts: ctx.districts, water: ctx.water };
+  const town: Town = {
+    key,
+    name,
+    form: ctx.form,
+    old: false,
+    outline: laid.outline,
+    water: laid.water,
+    roads: laid.roads,
+    blocks: laid.blocks.map((b) => ({ ...b, district: tint(b.district) })),
+    lots: laid.lots.map((l) => ({ ...l, district: tint(l.district) })),
+    districts: laid.districts,
+    stats: {
+      lots: ctx.lots.filter((l) => !l.vacant).length,
+      overflow: ctx.overflow,
+      offLand: 0,
+      docs: 0,
+      lotArea2: ctx.lotArea2,
+      landArea2: ctx.landArea2,
+    },
+  };
+  return { town, plat: ctx.plat, events: ctx.events };
+}
