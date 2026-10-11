@@ -4,8 +4,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { RepoData } from "./extract";
 import { composeRegion, regionStats } from "./region";
-import { renderRegion, type TownCamera } from "./render-town";
-import type { Options } from "./town";
+import { renderRegion, type ThemeName, type TownCamera } from "./render-town";
+import { DEFAULT_NO_LAND, type Options } from "./town";
 
 const CACHE = join(homedir(), ".cache/citymap");
 const HERE = import.meta.dir;
@@ -18,12 +18,13 @@ const PRIVATE = new Set(
         .filter(Boolean)
     : [],
 );
-const BASE: Options = { density: 0.5, order: "centre-out", warp: true };
+const BASE: Options = { density: 0.5, order: "centre-out", warp: true, noLand: DEFAULT_NO_LAND };
 
 interface Shot {
   caption: string;
   options: Options;
   camera: TownCamera;
+  theme?: ThemeName;
 }
 const SECTIONS: Record<string, { repos: string[]; shots: Shot[] }> = {
   towns: {
@@ -49,6 +50,20 @@ const SECTIONS: Record<string, { repos: string[]; shots: Shot[] }> = {
       options: { ...BASE, density },
       camera: "plan" as const,
     })),
+  },
+  land: {
+    repos: ["react", "next.js", "rust"],
+    shots: [
+      { caption: "land: tests off the map", options: BASE, camera: "plan" },
+      { caption: "land: tests as land", options: { ...BASE, noLand: ["fixtures"] }, camera: "plan" },
+    ],
+  },
+  themes: {
+    repos: ["react", "home-assistant"],
+    shots: [
+      { caption: "Paper atlas", options: BASE, camera: "plan", theme: "paper-atlas" },
+      { caption: "Dracula", options: BASE, camera: "plan", theme: "dracula" },
+    ],
   },
   hero: {
     repos: ["takken.io", "react"],
@@ -78,12 +93,13 @@ for (const name of sectionArg === "all" ? Object.keys(SECTIONS) : [sectionArg]) 
     for (const [i, shot] of section.shots.entries()) {
       const region = regions[i];
       const stats = regionStats(region);
-      const subtitle = `${region.towns.length} town${region.towns.length > 1 ? "s" : ""} · ${stats.lots} lots · lot coverage ${stats.lotCoverage}% · ${region.tests} test files off the map · ${region.docs} docs as parks · ${stats.longStraightRoads} long straight roads`;
+      const subtitle = `${region.towns.length} town${region.towns.length > 1 ? "s" : ""} · ${stats.lots} lots · lot coverage ${stats.lotCoverage}% · ${region.tests} files without land (${shot.options.noLand.join(", ")}) · ${region.docs} docs as parks · ${stats.longStraightRoads} long straight roads`;
       const svg = join(workDir, `${repo}-${i}.svg`);
       const png = join(workDir, `${repo}-${i}.png`);
       writeFileSync(
         svg,
         renderRegion(region, {
+          theme: shot.theme,
           camera: shot.camera,
           width: 1600,
           scale: sharedScale,
