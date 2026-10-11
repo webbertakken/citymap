@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# The commit gate (docs/instructions/development.md): staged files formatted and linted, every project type checked,
+# no secret staged.
+lint-staged --concurrent false
+bun run typecheck
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "[pre-commit] failed: gitleaks not found; run \`mise install\`" >&2
+  exit 1
+fi
+gitleaks git --pre-commit --staged --redact --no-banner
