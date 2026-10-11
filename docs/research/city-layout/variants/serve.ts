@@ -49,6 +49,7 @@ const SECTION_TITLES: Record<string, string> = {
   towns: "Towns (plan)",
   hero: "Hero (2:1 dimetric)",
   forms: "Archetypes",
+  gridiron: "Gridiron options",
   jog: "Jogging cuts",
   land: "Land dimension",
   themes: "Themes",

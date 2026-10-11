@@ -73,6 +73,15 @@ const SECTIONS: Record<string, { repos: string[]; shots: Shot[] }> = {
       { caption: "by district form", options: BASE, camera: "plan", colourBy: "form" },
     ],
   },
+  gridiron: {
+    repos: ["home-assistant", "react", "next.js"],
+    shots: [
+      { caption: "A: rows of single folders (now)", options: { ...BASE, gridiron: "rows" }, camera: "plan" },
+      { caption: "B: staggered rows", options: { ...BASE, gridiron: "staggered" }, camera: "plan" },
+      { caption: "C: superblocks of 12 folders", options: { ...BASE, gridiron: "superblocks" }, camera: "plan" },
+      { caption: "D: no gridiron (recursive cuts)", options: { ...BASE, gridiron: "off" }, camera: "plan" },
+    ],
+  },
   jog: {
     repos: ["next.js", "react", "home-assistant", "takken.io"],
     shots: [

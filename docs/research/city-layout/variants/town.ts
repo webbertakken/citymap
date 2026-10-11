@@ -45,6 +45,10 @@ const JOG = 3 * U;
 const MIN_JOG = 2 * U;
 /** A twin city's river width. */
 const RIVER = 2.5 * U;
+/** Folders per superblock in a superblock gridiron. */
+const SUPERBLOCK = 12;
+/** Column bands in a staggered gridiron. */
+const STAGGER_COLUMNS = 3;
 /** A radial core spans at most this share of the way to the edge, so the ring keeps room for its sectors. */
 const RADIAL_MAX_SCALE = 0.95; // a folder smaller than this many blocks is one neighbourhood
 /** Land uses that take no land unless the land dimension includes them. */
@@ -84,6 +88,8 @@ export interface RadialRecord {
 export interface RowsRecord {
   theta: number;
   rows: string[][];
+  /** The column band of each row, for staggered grids. */
+  column?: number[];
 }
 /** A remembered neighbourhood: its grid origin, angle and pitch, its park strip, and the slot of every lot. */
 export interface GridRecord {
@@ -146,6 +152,8 @@ export interface Options {
   order: "centre-out" | "first-seen";
   /** Jogging cuts: long cuts whose sides split again become pinwheels round a plaza; everywhere or top-level only. */
   jog: "off" | "top-level" | "all";
+  /** How a gridiron lays its cells: rows of folders, staggered rows, superblocks of folders, or no gridiron. */
+  gridiron?: "rows" | "staggered" | "superblocks" | "off";
   warp: boolean;
 }
 
@@ -322,7 +330,7 @@ type Item =
   | {
       kind: "group";
       items: Item[];
-      normal: [number, number];
+      normal?: [number, number];
       gross: number;
       mass: number;
       firstSeen: number;
@@ -945,17 +953,32 @@ export function layoutTown(
    * the last row, the grid\x27s frontier.
    */
   function gridiron(node: Node, items: Item[], poly: Poly, district: string): boolean {
+    const style = options.gridiron ?? "rows";
+    if (style === "off") return false;
     let rec: RowsRecord | undefined = plat.rows[node.path];
     if (!rec) {
       const theta = longestEdgeAngle(poly.p);
       const along = extent(poly.p, Math.cos(theta), Math.sin(theta));
       const across = extent(poly.p, -Math.sin(theta), Math.cos(theta));
       const ratio = (across[1] - across[0]) / Math.max(1, along[1] - along[0]);
-      const count = Math.max(1, Math.round(Math.sqrt(items.length * ratio)));
-      const per = Math.ceil(items.length / count);
+      // Superblocks: a grid of blocks that each hold a handful of folders; plain rows: a grid of single folders.
+      const cells = style === "superblocks" ? Math.ceil(items.length / SUPERBLOCK) : items.length;
+      const count = Math.max(1, Math.round(Math.sqrt(cells * ratio)));
+      const columns = style === "staggered" ? Math.max(1, Math.min(STAGGER_COLUMNS, Math.floor(cells / count))) : 1;
       const rows: string[][] = [];
-      for (let i = 0; i < items.length; i += per) rows.push(items.slice(i, i + per).map((x) => x.key));
-      rec = { theta, rows };
+      const column: number[] = [];
+      // Staggered: each column band takes its own number of rows, so row streets end at the column streets.
+      const perColumn = Math.ceil(items.length / columns);
+      for (let c = 0; c < columns; c++) {
+        const band = items.slice(c * perColumn, (c + 1) * perColumn);
+        const n = Math.max(1, count + (columns > 1 ? (c % 2 === 0 ? 0 : 1) : 0));
+        const per = Math.ceil(band.length / n);
+        for (let i = 0; i < band.length; i += per) {
+          rows.push(band.slice(i, i + per).map((x) => x.key));
+          column.push(c);
+        }
+      }
+      rec = { theta, rows, column };
       plat.rows[node.path] = rec;
     } else {
       const known = new Set(rec.rows.flat());
@@ -964,22 +987,37 @@ export function layoutTown(
     }
     const along: [number, number] = [Math.cos(rec.theta), Math.sin(rec.theta)];
     const across: [number, number] = [-Math.sin(rec.theta), Math.cos(rec.theta)];
-    const groups: Item[] = rec.rows
-      .map((keys, i) => {
-        const members = keys.map((k) => items.find((x) => x.key === k)).filter((x): x is Item => x !== undefined);
-        return {
-          kind: "group" as const,
-          items: members,
-          normal: along,
-          gross: demandOf(members),
-          mass: massOf(members),
-          firstSeen: Math.min(...members.map((m) => m.firstSeen)),
-          key: `${node.path}#row${i}`,
-        };
-      })
-      .filter((g) => g.items.length > 0);
+    const byKey = new Map(items.map((x) => [x.key, x]));
+    const group = (members: Item[], key: string, normal?: [number, number]): Item => ({
+      kind: "group" as const,
+      items: members,
+      normal,
+      gross: demandOf(members),
+      mass: massOf(members),
+      firstSeen: Math.min(...members.map((m) => m.firstSeen)),
+      key,
+    });
+    const rowItems = (keys: string[], i: number): Item | undefined => {
+      const members = keys.map((k) => byKey.get(k)).filter((x): x is Item => x !== undefined);
+      if (members.length === 0) return undefined;
+      if (style !== "superblocks") return group(members, `${node.path}#row${i}`, along);
+      // A superblock is cut freely inside: its folders meet on local streets, not on the grid.
+      const blocks: Item[] = [];
+      for (let j = 0; j < members.length; j += SUPERBLOCK)
+        blocks.push(group(members.slice(j, j + SUPERBLOCK), `${node.path}#row${i}#block${j / SUPERBLOCK}`));
+      return group(blocks, `${node.path}#row${i}`, along);
+    };
+    const rows = rec.rows.map(rowItems);
+    const column = rec.column ?? rec.rows.map(() => 0);
+    const bands = [...new Set(column)].map((c) => {
+      const members = rows.filter((r, i): r is Item => r !== undefined && column[i] === c);
+      return members.length ? group(members, `${node.path}#column${c}`, across) : undefined;
+    });
+    const groups = bands.filter((b): b is Item => b !== undefined);
     if (groups.length === 0) return false;
-    split(groups, poly, node.mass, true, node.path, district, across);
+    if (groups.length === 1 && groups[0].kind === "group")
+      split(groups[0].items, poly, node.mass, true, node.path, district, across);
+    else split(groups, poly, node.mass, true, node.path, district, along);
     return true;
   }
 
