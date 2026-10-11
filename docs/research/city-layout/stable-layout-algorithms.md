@@ -14,7 +14,7 @@ Status legend used below: **verified** = read in the primary source or code; **m
   aspect ratio or compactness. No algorithm wins both
   ([Vernier et al. 2020](https://arxiv.org/abs/1906.06014)).
 - "Deterministic" and "stable" pull in different directions. The genuinely stable methods are **history dependent**:
-  the output is a function of the input *and the previous layout*. A pure function of the current tree can only be
+  the output is a function of the input _and the previous layout_. A pure function of the current tree can only be
   stable by being rigid (order-preserving, quantised); it still suffers rare "cascade" events where a high-level change
   reflows everything (**measured**: up to 97-99% of files moved in a single step for a stateless quantised split).
 - The software-city literature already has the right skeleton: **EvoStreets** (Steinbrückner): each folder is a
@@ -32,22 +32,22 @@ Status legend used below: **verified** = read in the primary source or code; **m
 
 ### 1.1 Quality criteria (with how the literature measures them)
 
-| Criterion | Metric used in literature | Source |
-|---|---|---|
-| Visual quality | Aspect ratio; Vernier et al. use ρ = min(w,h)/max(w,h) in [0,1]; ρ = 0.25 is "perceptually much worse" than 0.5; Kong et al.'s "extreme aspect ratio" is about 4.5 | [Vernier 2020](https://arxiv.org/abs/1906.06014) |
-| Optimal aspect ratio | Minimising aspect ratio for rectangular treemaps is strongly NP-complete (de Berg et al.) | cited in [Vernier 2020](https://arxiv.org/abs/1906.06014) |
-| Target aspect ratio | d3 defaults to the golden ratio per Kong et al. | [d3 treemap docs](https://github.com/d3/d3/blob/main/docs/d3-hierarchy/treemap.md) |
-| Absolute stability | Layout distance change (Shneiderman and Wattenberg), location drift (Tak and Cockburn), corner travel (Vernier) | [Vernier 2020](https://arxiv.org/abs/1906.06014), [Tak and Cockburn 2013](https://doi.org/10.1109/tvcg.2012.108) |
-| Relative stability | Relative position change (Sondag), relative direction change (Hahn et al. 2017) | [Sondag 2018](https://pure.tue.nl/ws/files/90606317/StableTreemapCorrected.pdf), [Vernier 2020](https://arxiv.org/abs/1906.06014) |
-| Data-aware stability | Compare layout change against a "baseline" treemap T* that is as stable as possible given the data change | [Vernier 2020](https://arxiv.org/abs/1906.06014) |
-| Order preservation, continuity, compactness | Steinbrückner argues layouts for cities must be compact, avoid variable aspect ratios, avoid discontinuities and preserve input order | [Steinbrückner thesis §4.3](https://opus4.kobv.de/opus4-btu/files/1681/Dissertation_Steinbrueckner_F.pdf) |
+| Criterion                                   | Metric used in literature                                                                                                                                          | Source                                                                                                                            |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Visual quality                              | Aspect ratio; Vernier et al. use ρ = min(w,h)/max(w,h) in [0,1]; ρ = 0.25 is "perceptually much worse" than 0.5; Kong et al.'s "extreme aspect ratio" is about 4.5 | [Vernier 2020](https://arxiv.org/abs/1906.06014)                                                                                  |
+| Optimal aspect ratio                        | Minimising aspect ratio for rectangular treemaps is strongly NP-complete (de Berg et al.)                                                                          | cited in [Vernier 2020](https://arxiv.org/abs/1906.06014)                                                                         |
+| Target aspect ratio                         | d3 defaults to the golden ratio per Kong et al.                                                                                                                    | [d3 treemap docs](https://github.com/d3/d3/blob/main/docs/d3-hierarchy/treemap.md)                                                |
+| Absolute stability                          | Layout distance change (Shneiderman and Wattenberg), location drift (Tak and Cockburn), corner travel (Vernier)                                                    | [Vernier 2020](https://arxiv.org/abs/1906.06014), [Tak and Cockburn 2013](https://doi.org/10.1109/tvcg.2012.108)                  |
+| Relative stability                          | Relative position change (Sondag), relative direction change (Hahn et al. 2017)                                                                                    | [Sondag 2018](https://pure.tue.nl/ws/files/90606317/StableTreemapCorrected.pdf), [Vernier 2020](https://arxiv.org/abs/1906.06014) |
+| Data-aware stability                        | Compare layout change against a "baseline" treemap T* that is as stable as possible given the data change                                                          | [Vernier 2020](https://arxiv.org/abs/1906.06014)                                                                                  |
+| Order preservation, continuity, compactness | Steinbrückner argues layouts for cities must be compact, avoid variable aspect ratios, avoid discontinuities and preserve input order                              | [Steinbrückner thesis §4.3](https://opus4.kobv.de/opus4-btu/files/1681/Dissertation_Steinbrueckner_F.pdf)                         |
 
 For a city we add three criteria the treemap literature does not score:
 
 - **Road-ability**: does the partition leave continuous gaps that read as a connected street network with sensible
   junctions, and can road width encode hierarchy level?
 - **Addressability**: can a parcel be named stably (street, side, index) for games and statistics?
-- **Local drift** (neighbourhood integrity): does a file keep its place *relative to its own block*, even if the whole
+- **Local drift** (neighbourhood integrity): does a file keep its place _relative to its own block_, even if the whole
   block slides? A rigid translation of a neighbourhood is far less disorienting than an internal reshuffle. I measure
   this separately (appendix).
 
@@ -55,11 +55,11 @@ For a city we add three criteria the treemap literature does not score:
 
 The owner requires "same input → same map" and "small change → no reshuffle". Three readings, with consequences:
 
-| Reading | Input | Stability ceiling | Notes |
-|---|---|---|---|
-| A. Pure function of the current tree | tree | Bounded: order-preserving and quantised rules only; cascades still occur | Simplest; reproducible anywhere; web-friendly |
-| B. Function of tree and persisted plat (lock file) | tree + previous plat | High: Local Moves, EvoCells, EvoStreets class | Same (tree, plat) → same map; plat must be stored (in repo or service) |
-| C. Function of the repository history | all commits (or fixed checkpoints) | High, and still a pure function of the repo | Replays history like EvoStreets did with real version histories; cost grows with history length |
+| Reading                                            | Input                              | Stability ceiling                                                        | Notes                                                                                           |
+| -------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| A. Pure function of the current tree               | tree                               | Bounded: order-preserving and quantised rules only; cascades still occur | Simplest; reproducible anywhere; web-friendly                                                   |
+| B. Function of tree and persisted plat (lock file) | tree + previous plat               | High: Local Moves, EvoCells, EvoStreets class                            | Same (tree, plat) → same map; plat must be stored (in repo or service)                          |
+| C. Function of the repository history              | all commits (or fixed checkpoints) | High, and still a pure function of the repo                              | Replays history like EvoStreets did with real version histories; cost grows with history length |
 
 All history-aware algorithms below are reading B by construction: Local Moves "uses the previous treemap to generate the
 next one" ([Sondag 2018 §5](https://pure.tue.nl/ws/files/90606317/StableTreemapCorrected.pdf)); EvoCells applies
@@ -75,25 +75,25 @@ decision for the owner (see open questions).
 
 Stability column: qualitative, from the cited source. "Ordered" = preserves a given sibling order.
 
-| Family | Ordered | Aspect ratio | Stability | Complexity | Road graph fitness | Source |
-|---|---|---|---|---|---|---|
-| Slice-and-dice (SND) | Yes | Very poor (long slivers) | Best stateless; layout depends only on hierarchy if weights fixed | O(n) | Excellent: every cut is a straight road, T-junctions | [Shneiderman 1992](https://doi.org/10.1145/102377.115768), [Vernier 2020](https://arxiv.org/abs/1906.06014) |
-| Squarified (SQR) | No (sorts by size, decreasing) | Near optimal in practice | Among the least stable; sensitive to equal-ish weights | O(n log n) | Good locally (rows), but rows reshuffle | [Bruls et al. 2000](https://www.win.tue.nl/~vanwijk/stm.pdf) |
-| Approximation (APP) | No | Provable bound | Unstable (like SQR) | Polynomial | As SQR | [Nagamochi and Abe 2007](https://doi.org/10.1016/j.dam.2006.08.005) |
-| Pivot (PBM, PBZ, PBS), Strip, Split | Yes | Medium | Medium | Not checked | Good: sliceable | [Shneiderman and Wattenberg 2001](https://doi.org/10.1109/infvis.2001.963283), [Bederson et al.](https://drum.lib.umd.edu/bitstreams/566ad3d9-db62-4524-9d1f-376a74277843/download) |
-| Spiral | Yes | Medium; newer variants better | Medium | Quasilinear (newer variants) | Fair: spiral growth suggests ring roads | [Tu and Shen 2007](https://eduardovernier.github.io/dynamic-treemap-resources-eurovis/docs/treemaps/algorithms/), [arXiv 2308.16855](https://arxiv.org/abs/2308.16855) |
-| Hilbert / Moore treemaps | Yes (along curve) | Medium | Good across all stability metrics (authors' claim) | Not checked | Good: quadrant recursion gives a grid of roads | [Tak and Cockburn 2013](https://doi.org/10.1109/tvcg.2012.108) |
-| Local Moves (LM0, LM4) | Uses previous layout | High (non-sliceable layouts allowed) | Top stability in every data class | Slow: about 15 s for 200 rectangles in authors' implementation | Good: maximal segments are roads; non-sliceable gives windmill junctions | [Sondag et al. 2018](https://pure.tue.nl/ws/files/90606317/StableTreemapCorrected.pdf) |
-| GIT (greedy insertion) | Uses previous layout | Fluctuates widely by data class | Top band | "Fast" (authors) | Good: sliceable | [Vernier et al. 2018](https://doi.org/10.1109/sibgrapi.2018.00027), [Vernier 2020](https://arxiv.org/abs/1906.06014) |
-| EvoCells | Uses previous layout | Good; leaves white space | Most stable aspect ratios (3% change) on its test | O(n log n) | Fair: packing leaves gaps, not a planned network | [Scheibel et al. 2018](https://doi.org/10.5220/0006617102730280) |
-| d3 resquarify | Uses previous layout | Degrades over time ("only the first layout uses the Bruls algorithm") | High (topology frozen) | O(n) | As SQR | [d3 docs](https://github.com/d3/d3/blob/main/docs/d3-hierarchy/treemap.md) |
-| Orthoconvex treemaps (L and S shapes) | n/a | Constant aspect ratio for any tree | Not studied | Not checked | Interesting: L-shaped blocks are city-like | [de Berg et al.](https://arxiv.org/abs/1012.1749) |
-| Voronoi treemaps | Via seed order | Good, organic polygons | Non-deterministic by default; stable with deterministic seeds | O(n log n) per Lloyd iteration (power diagrams); iterative | Organic roads along cell edges, Y-junctions; widths need offsetting | [Balzer et al. 2005](https://doi.org/10.1145/1056018.1056041), [Nocaj and Brandes 2012](https://doi.org/10.1111/j.1467-8659.2012.03078.x), [Hahn et al. 2014](https://doi.org/10.5220/0004686200500058), [van Hees and Hage 2017](https://dspace.library.uu.nl/bitstream/handle/1874/355256/10.pdf?sequence=1&isAllowed=y) |
-| Circular / bubble treemaps, circle packing | Order-dependent front chain | n/a (circles); wastes space | Low under insertion (unverified, see §2.6) | Not checked | Poor: no shared edges, roads must be routed in gaps | [Wang et al. 2006](https://doi.org/10.1145/1124772.1124851), [Görtler et al. 2018](https://doi.org/10.1109/tvcg.2017.2743959) |
-| GosperMap | Yes (DFS order on curve) | Organic, map-like, fractal borders | Between sunburst and squarified; prefix growth shifts everything after it | Linear with hex cells (paper) | Organic coastline-like borders; good for islands, not streets | [Auber et al. 2013](https://hal.science/hal-00959383/document) |
-| Rectangle packing (CodeCity kd-tree) | No (sorted by size) | Buildings keep their own shape | Unstable (sort plus greedy fit) | About O(n²) (my reading of the code) | Gaps are leftovers, not roads | [Wettel and Lanza 2007](https://doi.org/10.1109/vissof.2007.4290706), [codecity-visualizer](https://www.npmjs.com/package/codecity-visualizer) |
-| EvoStreets | Yes, plus history | Leaves keep their own shape; blocks can be long | Very stable by design (order and side preserved) | O(n) per version | Native: folders are streets, road width by depth | [Steinbrückner and Lewerentz 2010](https://doi.org/10.1145/1879211.1879239), [thesis](https://opus4.kobv.de/opus4-btu/files/1681/Dissertation_Steinbrueckner_F.pdf) |
-| Similarity layouts (MDS of vocabulary) | No | n/a | Stable when vocabulary is stable | O(n²) MDS | None by itself | [Kuhn et al. 2010](https://doi.org/10.1002/smr.414) |
+| Family                                     | Ordered                        | Aspect ratio                                                          | Stability                                                                 | Complexity                                                     | Road graph fitness                                                       | Source                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------ | ------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Slice-and-dice (SND)                       | Yes                            | Very poor (long slivers)                                              | Best stateless; layout depends only on hierarchy if weights fixed         | O(n)                                                           | Excellent: every cut is a straight road, T-junctions                     | [Shneiderman 1992](https://doi.org/10.1145/102377.115768), [Vernier 2020](https://arxiv.org/abs/1906.06014)                                                                                                                                                                                                                |
+| Squarified (SQR)                           | No (sorts by size, decreasing) | Near optimal in practice                                              | Among the least stable; sensitive to equal-ish weights                    | O(n log n)                                                     | Good locally (rows), but rows reshuffle                                  | [Bruls et al. 2000](https://www.win.tue.nl/~vanwijk/stm.pdf)                                                                                                                                                                                                                                                               |
+| Approximation (APP)                        | No                             | Provable bound                                                        | Unstable (like SQR)                                                       | Polynomial                                                     | As SQR                                                                   | [Nagamochi and Abe 2007](https://doi.org/10.1016/j.dam.2006.08.005)                                                                                                                                                                                                                                                        |
+| Pivot (PBM, PBZ, PBS), Strip, Split        | Yes                            | Medium                                                                | Medium                                                                    | Not checked                                                    | Good: sliceable                                                          | [Shneiderman and Wattenberg 2001](https://doi.org/10.1109/infvis.2001.963283), [Bederson et al.](https://drum.lib.umd.edu/bitstreams/566ad3d9-db62-4524-9d1f-376a74277843/download)                                                                                                                                        |
+| Spiral                                     | Yes                            | Medium; newer variants better                                         | Medium                                                                    | Quasilinear (newer variants)                                   | Fair: spiral growth suggests ring roads                                  | [Tu and Shen 2007](https://eduardovernier.github.io/dynamic-treemap-resources-eurovis/docs/treemaps/algorithms/), [arXiv 2308.16855](https://arxiv.org/abs/2308.16855)                                                                                                                                                     |
+| Hilbert / Moore treemaps                   | Yes (along curve)              | Medium                                                                | Good across all stability metrics (authors' claim)                        | Not checked                                                    | Good: quadrant recursion gives a grid of roads                           | [Tak and Cockburn 2013](https://doi.org/10.1109/tvcg.2012.108)                                                                                                                                                                                                                                                             |
+| Local Moves (LM0, LM4)                     | Uses previous layout           | High (non-sliceable layouts allowed)                                  | Top stability in every data class                                         | Slow: about 15 s for 200 rectangles in authors' implementation | Good: maximal segments are roads; non-sliceable gives windmill junctions | [Sondag et al. 2018](https://pure.tue.nl/ws/files/90606317/StableTreemapCorrected.pdf)                                                                                                                                                                                                                                     |
+| GIT (greedy insertion)                     | Uses previous layout           | Fluctuates widely by data class                                       | Top band                                                                  | "Fast" (authors)                                               | Good: sliceable                                                          | [Vernier et al. 2018](https://doi.org/10.1109/sibgrapi.2018.00027), [Vernier 2020](https://arxiv.org/abs/1906.06014)                                                                                                                                                                                                       |
+| EvoCells                                   | Uses previous layout           | Good; leaves white space                                              | Most stable aspect ratios (3% change) on its test                         | O(n log n)                                                     | Fair: packing leaves gaps, not a planned network                         | [Scheibel et al. 2018](https://doi.org/10.5220/0006617102730280)                                                                                                                                                                                                                                                           |
+| d3 resquarify                              | Uses previous layout           | Degrades over time ("only the first layout uses the Bruls algorithm") | High (topology frozen)                                                    | O(n)                                                           | As SQR                                                                   | [d3 docs](https://github.com/d3/d3/blob/main/docs/d3-hierarchy/treemap.md)                                                                                                                                                                                                                                                 |
+| Orthoconvex treemaps (L and S shapes)      | n/a                            | Constant aspect ratio for any tree                                    | Not studied                                                               | Not checked                                                    | Interesting: L-shaped blocks are city-like                               | [de Berg et al.](https://arxiv.org/abs/1012.1749)                                                                                                                                                                                                                                                                          |
+| Voronoi treemaps                           | Via seed order                 | Good, organic polygons                                                | Non-deterministic by default; stable with deterministic seeds             | O(n log n) per Lloyd iteration (power diagrams); iterative     | Organic roads along cell edges, Y-junctions; widths need offsetting      | [Balzer et al. 2005](https://doi.org/10.1145/1056018.1056041), [Nocaj and Brandes 2012](https://doi.org/10.1111/j.1467-8659.2012.03078.x), [Hahn et al. 2014](https://doi.org/10.5220/0004686200500058), [van Hees and Hage 2017](https://dspace.library.uu.nl/bitstream/handle/1874/355256/10.pdf?sequence=1&isAllowed=y) |
+| Circular / bubble treemaps, circle packing | Order-dependent front chain    | n/a (circles); wastes space                                           | Low under insertion (unverified, see §2.6)                                | Not checked                                                    | Poor: no shared edges, roads must be routed in gaps                      | [Wang et al. 2006](https://doi.org/10.1145/1124772.1124851), [Görtler et al. 2018](https://doi.org/10.1109/tvcg.2017.2743959)                                                                                                                                                                                              |
+| GosperMap                                  | Yes (DFS order on curve)       | Organic, map-like, fractal borders                                    | Between sunburst and squarified; prefix growth shifts everything after it | Linear with hex cells (paper)                                  | Organic coastline-like borders; good for islands, not streets            | [Auber et al. 2013](https://hal.science/hal-00959383/document)                                                                                                                                                                                                                                                             |
+| Rectangle packing (CodeCity kd-tree)       | No (sorted by size)            | Buildings keep their own shape                                        | Unstable (sort plus greedy fit)                                           | About O(n²) (my reading of the code)                           | Gaps are leftovers, not roads                                            | [Wettel and Lanza 2007](https://doi.org/10.1109/vissof.2007.4290706), [codecity-visualizer](https://www.npmjs.com/package/codecity-visualizer)                                                                                                                                                                             |
+| EvoStreets                                 | Yes, plus history              | Leaves keep their own shape; blocks can be long                       | Very stable by design (order and side preserved)                          | O(n) per version                                               | Native: folders are streets, road width by depth                         | [Steinbrückner and Lewerentz 2010](https://doi.org/10.1145/1879211.1879239), [thesis](https://opus4.kobv.de/opus4-btu/files/1681/Dissertation_Steinbrueckner_F.pdf)                                                                                                                                                        |
+| Similarity layouts (MDS of vocabulary)     | No                             | n/a                                                                   | Stable when vocabulary is stable                                          | O(n²) MDS                                                      | None by itself                                                           | [Kuhn et al. 2010](https://doi.org/10.1002/smr.414)                                                                                                                                                                                                                                                                        |
 
 ### 2.2 Classic treemaps (stateless)
 
@@ -160,7 +160,7 @@ with state-aware peers, while its visual quality "fluctuates widely depending on
   deletion pattern.
 - "For nearly all datasets, regardless of the specific data class", the three state-aware algorithms (LM0, LM4, GIT)
   plus SND "are much more stable than any of the others".
-- More levels make all algorithms more stable, and state-aware visual quality *increases* with levels.
+- More levels make all algorithms more stable, and state-aware visual quality _increases_ with levels.
 - "Among the 18 classes of treemaps with 4 or more levels we found a significant number of datasets only for two
   classes, which both are essentially populated by datasets stemming from software repositories": deep hierarchies in
   this benchmark are code bases, which is our domain.
@@ -189,7 +189,7 @@ with state-aware peers, while its visual quality "fluctuates widely depending on
   with a seeded PRNG (**verified** in README).
 - City fit: beautiful organic districts, but iterative optimisation means a small weight change can move many sites
   (stability depends on warm-starting from previous sites, which is again reading B). Road widths require polygon
-  offsetting. I would use Voronoi for *styling* (irregular district outlines, parks, water) seeded from the stable
+  offsetting. I would use Voronoi for _styling_ (irregular district outlines, parks, water) seeded from the stable
   layout's centroids, not as the source of truth.
 
 ### 2.6 Circular layouts
@@ -220,13 +220,13 @@ reserved hex budget), so prefix sums change only when a range overflows. This is
 
 ### 2.8 Existing code-city implementations I audited
 
-| Tool | Layouts | Stability mechanism | Finding | Licence |
-|---|---|---|---|---|
-| SoftVis3D via [codecity-visualizer 0.4.6](https://www.npmjs.com/package/codecity-visualizer) | District, Evostreet | None | District = kd-tree "Lightmap" packing sorted by footprint descending (`b.base - a.base`), so any size change can reorder. Evostreet default distribution puts child *i* left or right by `i % 2`: inserting one child flips the side of every later sibling (**verified** in `Lightmap.js` and `Streets.js`) | MIT (visualizer), [LGPL-3.0 (SoftVis3D)](https://github.com/stefanrinderle/softvis3d) |
-| [SEE](https://github.com/uni-bremen-agst/SEE) (Bremen) | EvoStreets, IncrementalTreeMap, treemap, rectangle packing, circle packing, balloon | Previous layout | EvoStreets keeps existing children on their previous side and in previous world-space order, appending new children at the street end; street width is a fraction of depth (**verified** in `EInner.cs`) | MIT |
-| [CodeCharta](https://github.com/MaibornWolff/codecharta) | Squarified treemap, StreetMap, TreeMapStreet, sunburst, radial | None found | Treemap = d3 `treemap()` with proportional `paddingInner/Outer` (padding as roads); StreetMap merges single-child directory chains and alternates street orientation by level; TreeMapStreet switches to a treemap below `maxTreeMapFiles` | BSD-3-Clause |
+| Tool                                                                                         | Layouts                                                                             | Stability mechanism | Finding                                                                                                                                                                                                                                                                                                      | Licence                                                                               |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| SoftVis3D via [codecity-visualizer 0.4.6](https://www.npmjs.com/package/codecity-visualizer) | District, Evostreet                                                                 | None                | District = kd-tree "Lightmap" packing sorted by footprint descending (`b.base - a.base`), so any size change can reorder. Evostreet default distribution puts child _i_ left or right by `i % 2`: inserting one child flips the side of every later sibling (**verified** in `Lightmap.js` and `Streets.js`) | MIT (visualizer), [LGPL-3.0 (SoftVis3D)](https://github.com/stefanrinderle/softvis3d) |
+| [SEE](https://github.com/uni-bremen-agst/SEE) (Bremen)                                       | EvoStreets, IncrementalTreeMap, treemap, rectangle packing, circle packing, balloon | Previous layout     | EvoStreets keeps existing children on their previous side and in previous world-space order, appending new children at the street end; street width is a fraction of depth (**verified** in `EInner.cs`)                                                                                                     | MIT                                                                                   |
+| [CodeCharta](https://github.com/MaibornWolff/codecharta)                                     | Squarified treemap, StreetMap, TreeMapStreet, sunburst, radial                      | None found          | Treemap = d3 `treemap()` with proportional `paddingInner/Outer` (padding as roads); StreetMap merges single-child directory chains and alternates street orientation by level; TreeMapStreet switches to a treemap below `maxTreeMapFiles`                                                                   | BSD-3-Clause                                                                          |
 
-So SoftVis3D's evostreet is the stateless EvoStreets shape *without* Steinbrückner's stability rules, which explains
+So SoftVis3D's evostreet is the stateless EvoStreets shape _without_ Steinbrückner's stability rules, which explains
 why it reshuffles. SEE shows the rules are cheap to implement.
 
 ## 3. EvoStreets in detail (the closest prior art)
@@ -265,24 +265,24 @@ and a story for a first render without history.
   no natural hierarchy of widths; needs polygon offsetting.
 - **Circles and kd-tree packing**: gaps are leftovers, not a network; routing must be invented afterwards.
 
-First-principles reading: in real cities, roads come *first* (the plat), parcels second. Layout families in which roads
+First-principles reading: in real cities, roads come _first_ (the plat), parcels second. Layout families in which roads
 are the primary object (EvoStreets, sliceable cuts) give the most believable cities and the cleanest graph.
 
 ## 5. Absorbing growth without reshuffling
 
-| Technique | What it buys | Cost | Evidence |
-|---|---|---|---|
-| Constant area per weight (grow the canvas, never rescale) | No global rescale when the repo grows | City size varies | EvoCells' `a_i` definition ([2018](https://doi.org/10.5220/0006617102730280)); my experiment shows refitting to a container causes cascades (§6) |
-| Stable sibling order (name, first-seen, or hash) | Insertions only push later siblings | Order may not optimise aspect ratio | Ordered treemaps and EvoStreets ([Vernier 2020](https://arxiv.org/abs/1906.06014), thesis) |
-| Append-at-end for new children | Existing siblings never move for an insertion | New things at the periphery (or centre, by choice) | EvoStreets rule 1 |
-| Side preservation | No left/right flips | Sides can become unbalanced | EvoStreets rule 4; codecity-visualizer `i % 2` shows the failure |
-| Quantised sizes (lots, buckets) | Small weight changes do not change geometry | Area no longer exactly proportional | Quantum treemaps ([Bederson et al.](https://drum.lib.umd.edu/bitstreams/566ad3d9-db62-4524-9d1f-376a74277843/download)); bucket-crossing odds below |
-| Slack / reserved vacant lots | Growth absorbed locally; propagation stops at the first ancestor with room | Lower compactness; slack must not compound per level | Bubble treemaps' deliberate space; my experiment (§6) |
-| Ghosts (vacant lots after deletion) | Deletions do not pull neighbours inwards | Space use; needs a reclaim policy | EvoStreets rule 2; EvoCells ghosts |
-| Hysteresis thresholds | Prevents flip-flopping of capacities, moves, archetypes | Needs memory of the previous state | Local Moves' c = 4·√height acceptance threshold |
-| Layout from previous layout | Strongest stability | History dependence (reading B) | LM, GIT, EvoCells, SEE, d3 resquarify |
-| Anchoring by curve or hash | Deterministic initial positions independent of siblings | Hash order looks random; curve prefix shifts | Hahn 2014, van Hees and Hage 2017, GosperMap |
-| Deliberate "urban renewal" | Restores compactness and aspect ratio occasionally | A visible, rare reflow | EvoCells "contract treemap layout" |
+| Technique                                                 | What it buys                                                               | Cost                                                 | Evidence                                                                                                                                            |
+| --------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Constant area per weight (grow the canvas, never rescale) | No global rescale when the repo grows                                      | City size varies                                     | EvoCells' `a_i` definition ([2018](https://doi.org/10.5220/0006617102730280)); my experiment shows refitting to a container causes cascades (§6)    |
+| Stable sibling order (name, first-seen, or hash)          | Insertions only push later siblings                                        | Order may not optimise aspect ratio                  | Ordered treemaps and EvoStreets ([Vernier 2020](https://arxiv.org/abs/1906.06014), thesis)                                                          |
+| Append-at-end for new children                            | Existing siblings never move for an insertion                              | New things at the periphery (or centre, by choice)   | EvoStreets rule 1                                                                                                                                   |
+| Side preservation                                         | No left/right flips                                                        | Sides can become unbalanced                          | EvoStreets rule 4; codecity-visualizer `i % 2` shows the failure                                                                                    |
+| Quantised sizes (lots, buckets)                           | Small weight changes do not change geometry                                | Area no longer exactly proportional                  | Quantum treemaps ([Bederson et al.](https://drum.lib.umd.edu/bitstreams/566ad3d9-db62-4524-9d1f-376a74277843/download)); bucket-crossing odds below |
+| Slack / reserved vacant lots                              | Growth absorbed locally; propagation stops at the first ancestor with room | Lower compactness; slack must not compound per level | Bubble treemaps' deliberate space; my experiment (§6)                                                                                               |
+| Ghosts (vacant lots after deletion)                       | Deletions do not pull neighbours inwards                                   | Space use; needs a reclaim policy                    | EvoStreets rule 2; EvoCells ghosts                                                                                                                  |
+| Hysteresis thresholds                                     | Prevents flip-flopping of capacities, moves, archetypes                    | Needs memory of the previous state                   | Local Moves' c = 4·√height acceptance threshold                                                                                                     |
+| Layout from previous layout                               | Strongest stability                                                        | History dependence (reading B)                       | LM, GIT, EvoCells, SEE, d3 resquarify                                                                                                               |
+| Anchoring by curve or hash                                | Deterministic initial positions independent of siblings                    | Hash order looks random; curve prefix shifts         | Hahn 2014, van Hees and Hage 2017, GosperMap                                                                                                        |
+| Deliberate "urban renewal"                                | Restores compactness and aspect ratio occasionally                         | A visible, rare reflow                               | EvoCells "contract treemap layout"                                                                                                                  |
 
 ### 5.1 Quantisation numbers (computed)
 
@@ -290,10 +290,10 @@ With sizes quantised to logarithmic buckets of base b, and a weight's position i
 in log space, the chance that a relative growth x crosses a bucket boundary is ln(1+x)/ln(b) (**measured**, appendix):
 
 | Growth | Base √2 | Base 2 |
-|---|---|---|
-| +1% | 2.9% | 1.4% |
-| +5% | 14.1% | 7.0% |
-| +10% | 27.5% | 13.8% |
+| ------ | ------- | ------ |
+| +1%    | 2.9%    | 1.4%   |
+| +5%    | 14.1%   | 7.0%   |
+| +10%   | 27.5%   | 13.8%  |
 
 Without memory, a weight oscillating around a boundary flips every time. With memory (grow when full, shrink only when
 below 1/b³ of capacity, as in my experiment), oscillation cannot flip it.
@@ -303,7 +303,7 @@ below 1/b³ of capacity, as in my experiment), oscillation cannot flip it.
 - Ordering siblings by a hash of the path gives an order that is independent of other siblings, like name order, but
   scatters related names (looks organic, loses alphabetical findability). It does not by itself add stability over
   name order: any fixed total order has the same insertion behaviour.
-- For assigning items to a *fixed* set of lots, rendezvous (highest-random-weight) hashing
+- For assigning items to a _fixed_ set of lots, rendezvous (highest-random-weight) hashing
   ([Thaler and Ravishankar 1998](https://doi.org/10.1109/90.663936)) and consistent hashing
   ([Karger et al. 1997](https://doi.org/10.1145/258533.258660)) move only about 1/n of assignments when one item
   arrives. This is a useful tool for placing files into a block's grid of lots without a lock file (inference from the
@@ -340,14 +340,14 @@ Metrics: global drift = mean centroid displacement of surviving files per step, 
 sparse layouts are not flattered; local drift = displacement relative to the parent block's frame; cascade = a step in
 which more than 25% of files move by more than 1% of the city diagonal.
 
-| Layout | Global drift (median of 6 seeds) | Local drift (median) | Cascade steps (sum of 6×80) | Worst single step | Mean file AR | Mean block AR | File area / city bbox |
-|---|---|---|---|---|---|---|---|
-| sqr | 0.61% | 0.96% | 41 | 100% | 1.6 to 1.8 | 1.4 to 1.6 | 100% |
-| osq | 0.85% | 2.04% | 41 | 97% | 3.7 to 5.4 | 2.0 to 3.7 | 100% |
-| snd | 0.16% | 0.04% | 10 | 76% | 75 to 135 | 4.4 to 10 | 100% |
-| qbs | 0.98% | 0.86% | 23 | 99% | 2.8 to 3.9 | 1.5 to 2.4 | 18 to 26% |
-| qbh | 0.94% | 0.67% | 16 | 99% | 2.9 to 3.9 | 1.5 to 2.4 | 19 to 27% |
-| evo | 0.32% | 0.04% | 5 | 64% | 1.0 (square lots) | 1.3 to 1.4 | 1.4 to 2.8% |
+| Layout | Global drift (median of 6 seeds) | Local drift (median) | Cascade steps (sum of 6×80) | Worst single step | Mean file AR      | Mean block AR | File area / city bbox |
+| ------ | -------------------------------- | -------------------- | --------------------------- | ----------------- | ----------------- | ------------- | --------------------- |
+| sqr    | 0.61%                            | 0.96%                | 41                          | 100%              | 1.6 to 1.8        | 1.4 to 1.6    | 100%                  |
+| osq    | 0.85%                            | 2.04%                | 41                          | 97%               | 3.7 to 5.4        | 2.0 to 3.7    | 100%                  |
+| snd    | 0.16%                            | 0.04%                | 10                          | 76%               | 75 to 135         | 4.4 to 10     | 100%                  |
+| qbs    | 0.98%                            | 0.86%                | 23                          | 99%               | 2.8 to 3.9        | 1.5 to 2.4    | 18 to 26%             |
+| qbh    | 0.94%                            | 0.67%                | 16                          | 99%               | 2.9 to 3.9        | 1.5 to 2.4    | 19 to 27%             |
+| evo    | 0.32%                            | 0.04%                | 5                           | 64%               | 1.0 (square lots) | 1.3 to 1.4    | 1.4 to 2.8%           |
 
 What it shows (and does not):
 
@@ -400,51 +400,54 @@ type Lots = number; // integer lot units
 
 interface Plat {
   archetype: Archetype;
-  archetypeStreak: number;            // renders in a row the challenger has won
-  streets: Map<Path, StreetLock>;     // folders
-  lots: Map<Path, Lots>;              // file lot capacity (quantised, hysteretic)
+  archetypeStreak: number; // renders in a row the challenger has won
+  streets: Map<Path, StreetLock>; // folders
+  lots: Map<Path, Lots>; // file lot capacity (quantised, hysteretic)
 }
 interface StreetLock {
-  order: Path[];                       // first-seen order, append-only
+  order: Path[]; // first-seen order, append-only
   side: Map<Path, 1 | -1>;
-  extent: Map<Path, [Lots, Lots]>;     // along-street length, depth; ghosts keep last extent
+  extent: Map<Path, [Lots, Lots]>; // along-street length, depth; ghosts keep last extent
   ghosts: Set<Path>;
   reservedLength: Lots;
-  reservedDepth: [Lots, Lots];         // left, right
+  reservedDepth: [Lots, Lots]; // left, right
   blockRows: number;
 }
 
 function layout(tree: Tree, previous?: Plat): { plat: Plat; city: City } {
   const plat = previous ? clonePlat(previous) : emptyPlat();
-  plat.archetype = chooseArchetype(features(tree), plat);          // §7.3
+  plat.archetype = chooseArchetype(features(tree), plat); // §7.3
   const sizes = new Map<Path, Size>();
-  sizeBottomUp(tree.root, plat, sizes);                             // post-order, sorted keys
-  const skeleton = placeDistricts(tree.root, plat, sizes);          // per archetype
-  const city = placeTopDown(tree.root, skeleton, plat, sizes);      // absolute integer coordinates
-  city.roads = extractRoadGraph(city);                              // nodes, edges, classes, loops
-  city.parcels = addressParcels(city);                              // (streetId, side, index)
+  sizeBottomUp(tree.root, plat, sizes); // post-order, sorted keys
+  const skeleton = placeDistricts(tree.root, plat, sizes); // per archetype
+  const city = placeTopDown(tree.root, skeleton, plat, sizes); // absolute integer coordinates
+  city.roads = extractRoadGraph(city); // nodes, edges, classes, loops
+  city.parcels = addressParcels(city); // (streetId, side, index)
   return { plat, city };
 }
 
 function sizeBottomUp(node: Folder, plat: Plat, sizes: Map<Path, Size>): Size {
   for (const child of sortedByName(node.children)) {
     if (isFolder(child)) sizeBottomUp(child, plat, sizes);
-    else sizes.set(child.path, lotSize(plat, child));               // hysteretic quantisation
+    else sizes.set(child.path, lotSize(plat, child)); // hysteretic quantisation
   }
   const lock = plat.streets.get(node.path) ?? newLock(node, plat);
   for (const p of sortedByName(childPaths(node))) {
-    if (!lock.order.includes(p)) {                                  // newcomer: far end, shorter side
+    if (!lock.order.includes(p)) {
+      // newcomer: far end, shorter side
       lock.order.push(p);
       lock.side.set(p, shorterSide(lock));
     }
   }
   for (const p of lock.order) {
-    if (exists(node, p)) { lock.extent.set(p, footprint(sizes.get(p)!)); lock.ghosts.delete(p); }
-    else lock.ghosts.add(p);                                        // vacant lot, keeps its extent
+    if (exists(node, p)) {
+      lock.extent.set(p, footprint(sizes.get(p)!));
+      lock.ghosts.delete(p);
+    } else lock.ghosts.add(p); // vacant lot, keeps its extent
   }
-  packFilesIntoBlocks(node, lock);                                  // ordered grid, R rows, vacant lots as slack
-  const need = requiredLengthAndDepth(lock);                        // sums along each side, max depths
-  lock.reservedLength = reserve(lock.reservedLength, need.length);  // grow when full, shrink with hysteresis
+  packFilesIntoBlocks(node, lock); // ordered grid, R rows, vacant lots as slack
+  const need = requiredLengthAndDepth(lock); // sums along each side, max depths
+  lock.reservedLength = reserve(lock.reservedLength, need.length); // grow when full, shrink with hysteresis
   lock.reservedDepth = [reserve(lock.reservedDepth[0], need.left), reserve(lock.reservedDepth[1], need.right)];
   plat.streets.set(node.path, lock);
   const size = { length: lock.reservedLength, left: lock.reservedDepth[0], right: lock.reservedDepth[1] };
@@ -453,10 +456,12 @@ function sizeBottomUp(node: Folder, plat: Plat, sizes: Map<Path, Size>): Size {
 }
 
 function reserve(current: Lots, need: Lots): Lots {
-  const SLACK = 0.2, SHRINK_BELOW = 0.4, MIN_SLACK: Lots = 1;
+  const SLACK = 0.2,
+    SHRINK_BELOW = 0.4,
+    MIN_SLACK: Lots = 1;
   if (current === 0 || need > current) return quantiseUp(need + Math.max(MIN_SLACK, Math.ceil(need * SLACK)));
   if (need < current * SHRINK_BELOW) return quantiseUp(need + Math.max(MIN_SLACK, Math.ceil(need * SLACK)));
-  return current;                                                   // absorb: no geometry change
+  return current; // absorb: no geometry change
 }
 // Note: `need` already contains the children's *reserved* sizes, so a percentage slack compounds with depth
 // (see §6, compounding trap). Calibrate SLACK per level (for example 20% on blocks, 1 lot on streets above)
@@ -467,12 +472,16 @@ function placeTopDown(node: Folder, frame: Frame, plat: Plat, sizes: Map<Path, S
   const city = new City();
   city.addStreet(node.path, frame, lock.reservedLength, roadWidth(depth(node)));
   const offset = { [1]: GAP, [-1]: GAP };
-  for (const p of lock.order) {                                     // order is the only source of position
+  for (const p of lock.order) {
+    // order is the only source of position
     const s = lock.side.get(p)!;
     const [along] = lock.extent.get(p)!;
     const at = offset[s];
     offset[s] += along + GAP;
-    if (lock.ghosts.has(p)) { city.addVacantLot(p, frame, s, at, along); continue; }
+    if (lock.ghosts.has(p)) {
+      city.addVacantLot(p, frame, s, at, along);
+      continue;
+    }
     const child = childAt(node, p);
     if (isFolder(child)) city.merge(placeTopDown(child, perpendicularFrame(frame, s, at, sizes.get(p)!), plat, sizes));
     else city.addParcel(p, blockCellFor(lock, p, frame, s, at));
@@ -488,30 +497,35 @@ sizing plus O(n) placement; integer arithmetic throughout the plat.
 
 ```ts
 interface Features {
-  files: number; folders: number; maxDepth: number;
-  packageRoots: number;          // folders with a manifest (package.json, Cargo.toml, go.mod, ...)
-  topShareLargest: number;       // weight share of the largest top-level folder
-  topGini: number;               // inequality of top-level weights
+  files: number;
+  folders: number;
+  maxDepth: number;
+  packageRoots: number; // folders with a manifest (package.json, Cargo.toml, go.mod, ...)
+  topShareLargest: number; // weight share of the largest top-level folder
+  topGini: number; // inequality of top-level weights
 }
 
 function scores(f: Features): Record<Archetype, number> {
   return {
-    hamlet:      f.files <= 60 && f.folders <= 4 ? 1 : 0,
-    courtyard:   f.folders <= 12 && f.maxDepth <= 2 ? 0.8 : 0,
-    radialCore:  f.topShareLargest,                       // one dominant src/ becomes downtown
-    gridiron:    1 - f.topGini,                           // many comparable siblings
-    archipelago: Math.min(1, f.packageRoots / 4),         // apps/ + packages/ monorepo
+    hamlet: f.files <= 60 && f.folders <= 4 ? 1 : 0,
+    courtyard: f.folders <= 12 && f.maxDepth <= 2 ? 0.8 : 0,
+    radialCore: f.topShareLargest, // one dominant src/ becomes downtown
+    gridiron: 1 - f.topGini, // many comparable siblings
+    archipelago: Math.min(1, f.packageRoots / 4), // apps/ + packages/ monorepo
   };
 }
 
 function chooseArchetype(f: Features, plat: Plat): Archetype {
   const s = scores(f);
-  const best = argmaxStable(s);                            // ties broken by fixed archetype order
+  const best = argmaxStable(s); // ties broken by fixed archetype order
   if (!plat.archetype) return best;
   const margin = s[best] - s[plat.archetype];
   if (best !== plat.archetype && margin > 0.15) {
     plat.archetypeStreak += 1;
-    if (plat.archetypeStreak >= 3) { plat.archetypeStreak = 0; return best; }
+    if (plat.archetypeStreak >= 3) {
+      plat.archetypeStreak = 0;
+      return best;
+    }
   } else plat.archetypeStreak = 0;
   return plat.archetype;
 }
@@ -623,7 +637,8 @@ type Rect = { x: number; y: number; w: number; h: number };
 
 function mulberry32(a: number) {
   return () => {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
     let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -631,7 +646,8 @@ function mulberry32(a: number) {
 }
 const rnd = mulberry32(Number(process.env.SEED ?? 42));
 const lognormal = (mu: number, s: number) => {
-  const u = 1 - rnd(), v = rnd();
+  const u = 1 - rnd(),
+    v = rnd();
   return Math.exp(mu + s * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v));
 };
 let uid = 0;
@@ -648,20 +664,39 @@ function genTree(depth: number): Node {
   return { name: fname(), w: 0, children: kids };
 }
 const clone = (n: Node): Node => ({ name: n.name, w: n.w, children: n.children?.map(clone) });
-const folders = (n: Node, acc: Node[] = []) => { if (n.children) { acc.push(n); n.children.forEach((c) => folders(c, acc)); } return acc; };
-const leaves = (n: Node, p = "", acc: [string, Node][] = []) => {
-  const path = p + "/" + n.name;
-  if (!n.children) acc.push([path, n]); else n.children.forEach((c) => leaves(c, path, acc));
+const folders = (n: Node, acc: Node[] = []) => {
+  if (n.children) {
+    acc.push(n);
+    n.children.forEach((c) => folders(c, acc));
+  }
   return acc;
 };
-function sum(n: Node): number { return n.children ? n.children.reduce((s, c) => s + sum(c), 0) : n.w; }
+const leaves = (n: Node, p = "", acc: [string, Node][] = []) => {
+  const path = p + "/" + n.name;
+  if (!n.children) acc.push([path, n]);
+  else n.children.forEach((c) => leaves(c, path, acc));
+  return acc;
+};
+function sum(n: Node): number {
+  return n.children ? n.children.reduce((s, c) => s + sum(c), 0) : n.w;
+}
 
 function evolve(t: Node): Node {
   const n = clone(t);
-  const fs = folders(n), ls = leaves(n);
-  for (let i = 0; i < 3; i++) { const l = ls[Math.floor(rnd() * ls.length)][1]; l.w *= lognormal(0, 0.15); }
-  if (rnd() < 0.5) { const f = fs[Math.floor(rnd() * fs.length)]; f.children!.push({ name: fname(), w: Math.max(5, lognormal(4.5, 1.1)) }); }
-  if (rnd() < 0.1) { const f = fs[Math.floor(rnd() * fs.length)]; f.children!.push(genTree(0)); }
+  const fs = folders(n),
+    ls = leaves(n);
+  for (let i = 0; i < 3; i++) {
+    const l = ls[Math.floor(rnd() * ls.length)][1];
+    l.w *= lognormal(0, 0.15);
+  }
+  if (rnd() < 0.5) {
+    const f = fs[Math.floor(rnd() * fs.length)];
+    f.children!.push({ name: fname(), w: Math.max(5, lognormal(4.5, 1.1)) });
+  }
+  if (rnd() < 0.1) {
+    const f = fs[Math.floor(rnd() * fs.length)];
+    f.children!.push(genTree(0));
+  }
   if (rnd() < 0.2) {
     const f = fs[Math.floor(rnd() * fs.length)];
     const idx = f.children!.findIndex((c) => !c.children);
@@ -673,159 +708,383 @@ function evolve(t: Node): Node {
 // ---------- layouts ----------
 type Out = Map<string, Rect>;
 const worst = (row: number[], side: number) => {
-  const s = row.reduce((a, b) => a + b, 0); const mx = Math.max(...row), mn = Math.min(...row);
+  const s = row.reduce((a, b) => a + b, 0);
+  const mx = Math.max(...row),
+    mn = Math.min(...row);
   return Math.max((side * side * mx) / (s * s), (s * s) / (side * side * mn));
 };
 function squarify(items: { k: string; a: number }[], r: Rect, out: Map<string, Rect>) {
-  let { x, y, w, h } = r; let i = 0;
+  let { x, y, w, h } = r;
+  let i = 0;
   while (i < items.length) {
-    const side = Math.min(w, h); const row = [items[i]]; i++;
-    while (i < items.length && worst([...row, items[i]].map((t) => t.a), side) <= worst(row.map((t) => t.a), side)) { row.push(items[i]); i++; }
+    const side = Math.min(w, h);
+    const row = [items[i]];
+    i++;
+    while (
+      i < items.length &&
+      worst(
+        [...row, items[i]].map((t) => t.a),
+        side,
+      ) <=
+        worst(
+          row.map((t) => t.a),
+          side,
+        )
+    ) {
+      row.push(items[i]);
+      i++;
+    }
     const s = row.reduce((a, t) => a + t.a, 0);
-    if (w >= h) { const rw = s / h; let yy = y; for (const t of row) { const th = t.a / rw; out.set(t.k, { x, y: yy, w: rw, h: th }); yy += th; } x += rw; w -= rw; }
-    else { const rh = s / w; let xx = x; for (const t of row) { const tw = t.a / rh; out.set(t.k, { x: xx, y, w: tw, h: rh }); xx += tw; } y += rh; h -= rh; }
+    if (w >= h) {
+      const rw = s / h;
+      let yy = y;
+      for (const t of row) {
+        const th = t.a / rw;
+        out.set(t.k, { x, y: yy, w: rw, h: th });
+        yy += th;
+      }
+      x += rw;
+      w -= rw;
+    } else {
+      const rh = s / w;
+      let xx = x;
+      for (const t of row) {
+        const tw = t.a / rh;
+        out.set(t.k, { x: xx, y, w: tw, h: rh });
+        xx += tw;
+      }
+      y += rh;
+      h -= rh;
+    }
   }
 }
 function treemap(n: Node, r: Rect, path: string, out: Out, mode: "sqr" | "osq" | "snd", depth = 0, wfn = sum) {
-  const full = path + "/" + n.name; out.set(full, r);
+  const full = path + "/" + n.name;
+  out.set(full, r);
   if (!n.children) return;
   let kids = n.children.map((c) => ({ c, a: wfn(c) }));
-  const tot = kids.reduce((s, k) => s + k.a, 0); const scale = (r.w * r.h) / tot;
-  if (mode === "sqr") kids.sort((p, q) => q.a - p.a); else kids.sort((p, q) => (p.c.name < q.c.name ? -1 : 1));
+  const tot = kids.reduce((s, k) => s + k.a, 0);
+  const scale = (r.w * r.h) / tot;
+  if (mode === "sqr") kids.sort((p, q) => q.a - p.a);
+  else kids.sort((p, q) => (p.c.name < q.c.name ? -1 : 1));
   const tmp = new Map<string, Rect>();
   if (mode === "snd") {
     let off = 0;
-    for (const k of kids) { const fr = k.a / tot; const rr = depth % 2 === 0 ? { x: r.x + off * r.w, y: r.y, w: fr * r.w, h: r.h } : { x: r.x, y: r.y + off * r.h, w: r.w, h: fr * r.h }; tmp.set(k.c.name, rr); off += fr; }
-  } else squarify(kids.map((k) => ({ k: k.c.name, a: k.a * scale })), r, tmp);
+    for (const k of kids) {
+      const fr = k.a / tot;
+      const rr =
+        depth % 2 === 0
+          ? { x: r.x + off * r.w, y: r.y, w: fr * r.w, h: r.h }
+          : { x: r.x, y: r.y + off * r.h, w: r.w, h: fr * r.h };
+      tmp.set(k.c.name, rr);
+      off += fr;
+    }
+  } else
+    squarify(
+      kids.map((k) => ({ k: k.c.name, a: k.a * scale })),
+      r,
+      tmp,
+    );
   for (const k of kids) treemap(k.c, tmp.get(k.c.name)!, full, out, mode, depth + 1, wfn);
 }
 // proposed stateless: quantised weights + slack, ordered binary split by name (sliceable)
 const B = Math.SQRT2;
 const quant = (w: number) => Math.pow(B, Math.ceil(Math.log(Math.max(w, 1)) / Math.log(B)));
-let LOCK: Map<string, number> | null = null; let CUR = "";
+let LOCK: Map<string, number> | null = null;
+let CUR = "";
 function capOf(key: string, need: number): number {
   if (!LOCK) return quant(need);
   const old = LOCK.get(key);
   let cap = old ?? quant(need);
-  if (need > cap) cap = quant(need);              // grow only when full
+  if (need > cap)
+    cap = quant(need); // grow only when full
   else if (need < cap / (B * B * B)) cap = quant(need); // shrink only when far too big (hysteresis)
-  LOCK.set(key, cap); return cap;
+  LOCK.set(key, cap);
+  return cap;
 }
-function qsum(n: Node, path = CUR): number { const k = path + "/" + n.name; return n.children ? capOf(k, n.children.reduce((s, c) => s + qsum(c, k), 0) * 1.15) : capOf(k, n.w); }
+function qsum(n: Node, path = CUR): number {
+  const k = path + "/" + n.name;
+  return n.children ? capOf(k, n.children.reduce((s, c) => s + qsum(c, k), 0) * 1.15) : capOf(k, n.w);
+}
 function binsplit(n: Node, r: Rect, path: string, out: Out) {
-  const full = path + "/" + n.name; out.set(full, r);
+  const full = path + "/" + n.name;
+  out.set(full, r);
   if (!n.children) return;
-  const kids = [...n.children].sort((p, q) => (p.name < q.name ? -1 : 1)).map((c) => ({ c, a: LOCK ? LOCK.get(full + "/" + c.name)! : qsum(c, full) }));
+  const kids = [...n.children]
+    .sort((p, q) => (p.name < q.name ? -1 : 1))
+    .map((c) => ({ c, a: LOCK ? LOCK.get(full + "/" + c.name)! : qsum(c, full) }));
   const slack = (LOCK ? LOCK.get(full)! : qsum(n, path)) - kids.reduce((s, k) => s + k.a, 0);
   const items = [...kids, { c: null as Node | null, a: slack }]; // vacant lot at the end
   const rec = (its: typeof items, rr: Rect) => {
-    if (its.length === 1) { if (its[0].c) binsplit(its[0].c, rr, full, out); return; }
-    const tot = its.reduce((s, k) => s + k.a, 0); let acc = 0, cut = 1, best = Infinity;
-    for (let i = 1; i < its.length; i++) { acc += its[i - 1].a; const d = Math.abs(acc - tot / 2); if (d < best) { best = d; cut = i; } }
-    const left = its.slice(0, cut), right = its.slice(cut); const fr = left.reduce((s, k) => s + k.a, 0) / tot;
-    if (rr.w >= rr.h) { rec(left, { ...rr, w: rr.w * fr }); rec(right, { x: rr.x + rr.w * fr, y: rr.y, w: rr.w * (1 - fr), h: rr.h }); }
-    else { rec(left, { ...rr, h: rr.h * fr }); rec(right, { x: rr.x, y: rr.y + rr.h * fr, w: rr.w, h: rr.h * (1 - fr) }); }
+    if (its.length === 1) {
+      if (its[0].c) binsplit(its[0].c, rr, full, out);
+      return;
+    }
+    const tot = its.reduce((s, k) => s + k.a, 0);
+    let acc = 0,
+      cut = 1,
+      best = Infinity;
+    for (let i = 1; i < its.length; i++) {
+      acc += its[i - 1].a;
+      const d = Math.abs(acc - tot / 2);
+      if (d < best) {
+        best = d;
+        cut = i;
+      }
+    }
+    const left = its.slice(0, cut),
+      right = its.slice(cut);
+    const fr = left.reduce((s, k) => s + k.a, 0) / tot;
+    if (rr.w >= rr.h) {
+      rec(left, { ...rr, w: rr.w * fr });
+      rec(right, { x: rr.x + rr.w * fr, y: rr.y, w: rr.w * (1 - fr), h: rr.h });
+    } else {
+      rec(left, { ...rr, h: rr.h * fr });
+      rec(right, { x: rr.x, y: rr.y + rr.h * fr, w: rr.w, h: rr.h * (1 - fr) });
+    }
   };
   rec(items, r);
 }
 
-
 // ---------- EvoStreets with slack, ghosts and lot quantisation (stateful plat) ----------
 type V = [number, number];
-type FolderLock = { order: string[]; side: Record<string, 1 | -1>; ext: Record<string, [number, number]>; len: number; lres: number; rres: number };
-const PLAT = new Map<string, FolderLock>(); const LOTS = new Map<string, number>();
+type FolderLock = {
+  order: string[];
+  side: Record<string, 1 | -1>;
+  ext: Record<string, [number, number]>;
+  len: number;
+  lres: number;
+  rres: number;
+};
+const PLAT = new Map<string, FolderLock>();
+const LOTS = new Map<string, number>();
 const GAP = 1;
 const roadW = (depth: number) => Math.max(2, 8 - 2 * depth);
 function lotSide(key: string, w: number) {
-  const need = Math.sqrt(w); const old = LOTS.get(key);
+  const need = Math.sqrt(w);
+  const old = LOTS.get(key);
   let cap = old ?? quant(need * need) ** 0.5;
-  if (need > cap) cap = quant(need * need) ** 0.5; else if (need < cap / 2) cap = quant(need * need) ** 0.5;
-  LOTS.set(key, cap); return cap;
+  if (need > cap) cap = quant(need * need) ** 0.5;
+  else if (need < cap / 2) cap = quant(need * need) ** 0.5;
+  LOTS.set(key, cap);
+  return cap;
 }
 // returns [alongLen, leftRes, rightRes] of the node, filling its lock
 function sizeOf(n: Node, key: string, depth: number): { len: number; l: number; r: number; leaf?: boolean } {
-  if (!n.children) { const sd = lotSide(key, n.w); return { len: sd, l: sd, r: 0, leaf: true }; }
+  if (!n.children) {
+    const sd = lotSide(key, n.w);
+    return { len: sd, l: sd, r: 0, leaf: true };
+  }
   let lk = PLAT.get(key);
   const names = [...n.children].sort((p, q) => (p.name < q.name ? -1 : 1)).map((c) => c.name);
   const fresh = !lk;
-  if (!lk) { lk = { order: [], side: {}, ext: {}, len: 0, lres: 0, rres: 0 }; PLAT.set(key, lk); }
+  if (!lk) {
+    lk = { order: [], side: {}, ext: {}, len: 0, lres: 0, rres: 0 };
+    PLAT.set(key, lk);
+  }
   const byName = new Map(n.children.map((c) => [c.name, c]));
   const sizes = new Map<string, { len: number; l: number; r: number; leaf?: boolean }>();
   for (const c of n.children) sizes.set(c.name, sizeOf(c, key + "/" + c.name, depth + 1));
   // along-parent extent of a child and its depth away from the street
-  const extOf = (nm: string): [number, number] => { const z = sizes.get(nm)!; return z.leaf ? [z.len, z.len] : [z.l + roadW(depth + 1) + z.r, z.len]; };
+  const extOf = (nm: string): [number, number] => {
+    const z = sizes.get(nm)!;
+    return z.leaf ? [z.len, z.len] : [z.l + roadW(depth + 1) + z.r, z.len];
+  };
   const used = { 1: 0, [-1]: 0 } as Record<string, number>;
   for (const nm of lk.order) used[lk.side[nm]] += lk.ext[nm][0] + GAP;
-  for (const nm of names) if (!lk.order.includes(nm)) { // new child: append at end, on the shorter side
-    const sd: 1 | -1 = used[1] <= used[-1] ? 1 : -1; lk.order.push(nm); lk.side[nm] = sd; lk.ext[nm] = extOf(nm); used[sd] += lk.ext[nm][0] + GAP;
-  }
+  for (const nm of names)
+    if (!lk.order.includes(nm)) {
+      // new child: append at end, on the shorter side
+      const sd: 1 | -1 = used[1] <= used[-1] ? 1 : -1;
+      lk.order.push(nm);
+      lk.side[nm] = sd;
+      lk.ext[nm] = extOf(nm);
+      used[sd] += lk.ext[nm][0] + GAP;
+    }
   for (const nm of lk.order) if (byName.has(nm)) lk.ext[nm] = extOf(nm); // live children update; ghosts keep last extent
-  let needLen = 0, needL = 0, needR = 0; const acc = { 1: GAP, [-1]: GAP } as Record<string, number>;
-  for (const nm of lk.order) { const [e, d] = lk.ext[nm]; acc[lk.side[nm]] += e + GAP; if (lk.side[nm] === 1) needL = Math.max(needL, d); else needR = Math.max(needR, d); }
+  let needLen = 0,
+    needL = 0,
+    needR = 0;
+  const acc = { 1: GAP, [-1]: GAP } as Record<string, number>;
+  for (const nm of lk.order) {
+    const [e, d] = lk.ext[nm];
+    acc[lk.side[nm]] += e + GAP;
+    if (lk.side[nm] === 1) needL = Math.max(needL, d);
+    else needR = Math.max(needR, d);
+  }
   needLen = Math.max(acc[1], acc[-1]);
   const grow = (res: number, need: number) => (fresh || need > res || need < res / 2.5 ? need * 1.25 : res);
-  lk.len = grow(lk.len, needLen); lk.lres = grow(lk.lres, needL); lk.rres = grow(lk.rres, needR);
+  lk.len = grow(lk.len, needLen);
+  lk.lres = grow(lk.lres, needL);
+  lk.rres = grow(lk.rres, needR);
   return { len: lk.len, l: lk.lres, r: lk.rres };
 }
 function placeEvo(n: Node, key: string, depth: number, O: V, u: V, v: V, out: Out) {
   const at = (a: number, b: number): V => [O[0] + u[0] * a + v[0] * b, O[1] + u[1] * a + v[1] * b];
-  const box = (p: V, q: V): Rect => ({ x: Math.min(p[0], q[0]), y: Math.min(p[1], q[1]), w: Math.abs(p[0] - q[0]), h: Math.abs(p[1] - q[1]) });
-  const lk = PLAT.get(key)!; const W = roadW(depth);
+  const box = (p: V, q: V): Rect => ({
+    x: Math.min(p[0], q[0]),
+    y: Math.min(p[1], q[1]),
+    w: Math.abs(p[0] - q[0]),
+    h: Math.abs(p[1] - q[1]),
+  });
+  const lk = PLAT.get(key)!;
+  const W = roadW(depth);
   out.set(key, box(at(0, -W / 2 - lk.rres), at(lk.len, W / 2 + lk.lres)));
   const byName = new Map(n.children!.map((c) => [c.name, c]));
   const acc = { 1: GAP, [-1]: GAP } as Record<string, number>;
   for (const nm of lk.order) {
-    const sd = lk.side[nm]; const [e] = lk.ext[nm]; const o = acc[sd]; acc[sd] += e + GAP;
-    const c = byName.get(nm); if (!c) continue; // ghost: vacant lot
+    const sd = lk.side[nm];
+    const [e] = lk.ext[nm];
+    const o = acc[sd];
+    acc[sd] += e + GAP;
+    const c = byName.get(nm);
+    if (!c) continue; // ghost: vacant lot
     const ck = key + "/" + nm;
-    if (!c.children) { const s2 = LOTS.get(ck)!; out.set(ck, box(at(o, sd * W / 2), at(o + s2, sd * (W / 2 + s2)))); continue; }
-    const cl = PLAT.get(ck)!; const cW = roadW(depth + 1);
+    if (!c.children) {
+      const s2 = LOTS.get(ck)!;
+      out.set(ck, box(at(o, (sd * W) / 2), at(o + s2, sd * (W / 2 + s2))));
+      continue;
+    }
+    const cl = PLAT.get(ck)!;
+    const cW = roadW(depth + 1);
     const centre = o + cl.lres + cW / 2;
-    const cu: V = [v[0] * sd, v[1] * sd]; const cv: V = [-u[0], -u[1]];
-    placeEvo(c, ck, depth + 1, at(centre, sd * W / 2), cu, cv, out);
+    const cu: V = [v[0] * sd, v[1] * sd];
+    const cv: V = [-u[0], -u[1]];
+    placeEvo(c, ck, depth + 1, at(centre, (sd * W) / 2), cu, cv, out);
   }
 }
-function runEvo(t: Node): Out { const out: Out = new Map(); sizeOf(t, "/" + t.name, 0); placeEvo(t, "/" + t.name, 0, [0, 0], [1, 0], [0, 1], out); return out; }
+function runEvo(t: Node): Out {
+  const out: Out = new Map();
+  sizeOf(t, "/" + t.name, 0);
+  placeEvo(t, "/" + t.name, 0, [0, 0], [1, 0], [0, 1], out);
+  return out;
+}
 
 function run(mode: string, t: Node): Out {
   if (mode === "evo") return runEvo(t);
   const out: Out = new Map();
-  if (mode === "qbh") { if (!LOCK) LOCK = new Map(); const s = Math.sqrt(qsum(t, "")); binsplit(t, { x: 0, y: 0, w: s, h: s }, "", out); }
-  else if (mode === "qbs") { const s = Math.sqrt(qsum(t)); binsplit(t, { x: 0, y: 0, w: s, h: s }, "", out); }
-  else { const s = Math.sqrt(sum(t) * 1.15); treemap(t, { x: 0, y: 0, w: s, h: s }, "", out, mode as any); }
+  if (mode === "qbh") {
+    if (!LOCK) LOCK = new Map();
+    const s = Math.sqrt(qsum(t, ""));
+    binsplit(t, { x: 0, y: 0, w: s, h: s }, "", out);
+  } else if (mode === "qbs") {
+    const s = Math.sqrt(qsum(t));
+    binsplit(t, { x: 0, y: 0, w: s, h: s }, "", out);
+  } else {
+    const s = Math.sqrt(sum(t) * 1.15);
+    treemap(t, { x: 0, y: 0, w: s, h: s }, "", out, mode as any);
+  }
   return out;
 }
 
-const trees = [genTree(5)]; for (let i = 0; i < 80; i++) trees.push(evolve(trees[i]));
-console.log("leaves start/end:", leaves(trees[0]).length, leaves(trees[80]).length, "folders:", folders(trees[0]).length);
+const trees = [genTree(5)];
+for (let i = 0; i < 80; i++) trees.push(evolve(trees[i]));
+console.log(
+  "leaves start/end:",
+  leaves(trees[0]).length,
+  leaves(trees[80]).length,
+  "folders:",
+  folders(trees[0]).length,
+);
 for (const mode of ["sqr", "osq", "snd", "qbs", "qbh", "evo"]) {
-  let dA = 0, ld = 0, cascades = 0, disp = 0, cnt = 0, moved = 0, ar = 0, arn = 0, arBad = 0, worstStep = 0;
+  let dA = 0,
+    ld = 0,
+    cascades = 0,
+    disp = 0,
+    cnt = 0,
+    moved = 0,
+    ar = 0,
+    arn = 0,
+    arBad = 0,
+    worstStep = 0;
   let prev = run(mode, trees[0]);
   for (let i = 1; i < trees.length; i++) {
     const cur = run(mode, trees[i]);
-    let stepMoved = 0, stepCnt = 0;
+    let stepMoved = 0,
+      stepCnt = 0;
     const leafKeys = new Set(leaves(trees[i]).map(([p]) => p));
-    const root = cur.get("/" + trees[i].name)!; const diag = Math.hypot(root.w, root.h);
-    const leafSide = Math.sqrt([...leafKeys].reduce((s3, k) => { const r = cur.get(k)!; return s3 + r.w * r.h; }, 0));
+    const root = cur.get("/" + trees[i].name)!;
+    const diag = Math.hypot(root.w, root.h);
+    const leafSide = Math.sqrt(
+      [...leafKeys].reduce((s3, k) => {
+        const r = cur.get(k)!;
+        return s3 + r.w * r.h;
+      }, 0),
+    );
     for (const k of leafKeys) {
-      const a = prev.get(k), b = cur.get(k);
-      const r = b!; const q = Math.max(r.w / r.h, r.h / r.w); ar += q; arn++; if (q > 4) arBad++;
+      const a = prev.get(k),
+        b = cur.get(k);
+      const r = b!;
+      const q = Math.max(r.w / r.h, r.h / r.w);
+      ar += q;
+      arn++;
+      if (q > 4) arBad++;
       if (!a) continue;
       const d = Math.hypot(a.x + a.w / 2 - (b!.x + b!.w / 2), a.y + a.h / 2 - (b!.y + b!.h / 2)) / diag;
-      const pk = k.slice(0, k.lastIndexOf("/")); const pa = prev.get(pk), pb = cur.get(pk);
-      if (pa && pb) ld += Math.hypot((a.x + a.w / 2 - pa.x) / pa.w - (b!.x + b!.w / 2 - pb.x) / pb.w, (a.y + a.h / 2 - pa.y) / pa.h - (b!.y + b!.h / 2 - pb.y) / pb.h) / Math.SQRT2;
-      dA += d * diag / leafSide; disp += d; cnt++; stepCnt++; if (d > 0.01) { moved++; stepMoved++; }
+      const pk = k.slice(0, k.lastIndexOf("/"));
+      const pa = prev.get(pk),
+        pb = cur.get(pk);
+      if (pa && pb)
+        ld +=
+          Math.hypot(
+            (a.x + a.w / 2 - pa.x) / pa.w - (b!.x + b!.w / 2 - pb.x) / pb.w,
+            (a.y + a.h / 2 - pa.y) / pa.h - (b!.y + b!.h / 2 - pb.y) / pb.h,
+          ) / Math.SQRT2;
+      dA += (d * diag) / leafSide;
+      disp += d;
+      cnt++;
+      stepCnt++;
+      if (d > 0.01) {
+        moved++;
+        stepMoved++;
+      }
     }
     if (stepMoved / Math.max(1, stepCnt) > 0.25) cascades++;
     worstStep = Math.max(worstStep, stepMoved / Math.max(1, stepCnt));
-    for (const f of folders(trees[i])) { /* folder AR measured below */ }
+    for (const f of folders(trees[i])) {
+      /* folder AR measured below */
+    }
     prev = cur;
   }
-  { const t = trees[trees.length - 1]; const cur = prev; let far = 0, fn = 0; const walk = (n: Node, p: string) => { const k = p + "/" + n.name; if (n.children) { const r = cur.get(k); if (r && r.w > 0 && r.h > 0) { far += Math.max(r.w / r.h, r.h / r.w); fn++; } n.children.forEach((c) => walk(c, k)); } }; walk(t, "");
-    const root = cur.get("/" + t.name)!; const la = leaves(t).reduce((s2, [k]) => { const r = cur.get(k)!; return s2 + r.w * r.h; }, 0);
-    console.log("   " + mode + " final: mean folder-block AR " + (far / fn).toFixed(2) + " | leaf area / city bbox " + (100 * la / (root.w * root.h)).toFixed(1) + "%"); }
-  console.log(`${mode}: mean centroid drift ${(100 * disp / cnt).toFixed(3)}% of diag | leaves moved >1% diag per step ${(100 * moved / cnt).toFixed(2)}% | mean AR ${(ar / arn).toFixed(2)} | AR>4 ${(100 * arBad / arn).toFixed(1)}% | drift/sqrt(leafArea) ${(100 * dA / cnt).toFixed(3)}% | local drift ${(100 * ld / cnt).toFixed(2)}% | cascade steps(>25% moved) ${cascades}/80 | worst step moved ${(100 * worstStep).toFixed(1)}%`);
+  {
+    const t = trees[trees.length - 1];
+    const cur = prev;
+    let far = 0,
+      fn = 0;
+    const walk = (n: Node, p: string) => {
+      const k = p + "/" + n.name;
+      if (n.children) {
+        const r = cur.get(k);
+        if (r && r.w > 0 && r.h > 0) {
+          far += Math.max(r.w / r.h, r.h / r.w);
+          fn++;
+        }
+        n.children.forEach((c) => walk(c, k));
+      }
+    };
+    walk(t, "");
+    const root = cur.get("/" + t.name)!;
+    const la = leaves(t).reduce((s2, [k]) => {
+      const r = cur.get(k)!;
+      return s2 + r.w * r.h;
+    }, 0);
+    console.log(
+      "   " +
+        mode +
+        " final: mean folder-block AR " +
+        (far / fn).toFixed(2) +
+        " | leaf area / city bbox " +
+        ((100 * la) / (root.w * root.h)).toFixed(1) +
+        "%",
+    );
+  }
+  console.log(
+    `${mode}: mean centroid drift ${((100 * disp) / cnt).toFixed(3)}% of diag | leaves moved >1% diag per step ${((100 * moved) / cnt).toFixed(2)}% | mean AR ${(ar / arn).toFixed(2)} | AR>4 ${((100 * arBad) / arn).toFixed(1)}% | drift/sqrt(leafArea) ${((100 * dA) / cnt).toFixed(3)}% | local drift ${((100 * ld) / cnt).toFixed(2)}% | cascade steps(>25% moved) ${cascades}/80 | worst step moved ${(100 * worstStep).toFixed(1)}%`,
+  );
 }
 // Probability that a +x% change crosses a log-bucket boundary (base B), uniform log-position assumption
-for (const x of [0.01, 0.05, 0.1]) console.log(`P(cross bucket | +${x * 100}%) base sqrt2 = ${(Math.log(1 + x) / Math.log(B) * 100).toFixed(1)}%, base 2 = ${(Math.log(1 + x) / Math.log(2) * 100).toFixed(1)}%`);
+for (const x of [0.01, 0.05, 0.1])
+  console.log(
+    `P(cross bucket | +${x * 100}%) base sqrt2 = ${((Math.log(1 + x) / Math.log(B)) * 100).toFixed(1)}%, base 2 = ${((Math.log(1 + x) / Math.log(2)) * 100).toFixed(1)}%`,
+  );
 ```

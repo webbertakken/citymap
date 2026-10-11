@@ -30,13 +30,13 @@ run for this report; **[unverified]** = informed judgement or secondary knowledg
 Lynch found that people build mental maps from paths, edges, districts, nodes and landmarks. [verified]
 <https://en.wikipedia.org/wiki/The_Image_of_the_City>
 
-| Lynch element | City map rendering                          | Repo meaning (proposal, [unverified] as design) |
-|---------------|---------------------------------------------|-------------------------------------------------|
-| Districts     | Tinted ground areas with a name             | Top-level folders, packages, apps               |
-| Paths         | Road hierarchy: avenue, street, lane        | Folder tree edges (parent to child)             |
-| Edges         | Water, rail, parks, ring roads              | Package boundaries, monorepo separators         |
-| Nodes         | Plazas, roundabouts, bridges                | Folders with many children, entry points        |
-| Landmarks     | Distinctive tall or coloured objects        | `README`, `package.json`, `main.ts`, hotspots    |
+| Lynch element | City map rendering                   | Repo meaning (proposal, [unverified] as design) |
+| ------------- | ------------------------------------ | ----------------------------------------------- |
+| Districts     | Tinted ground areas with a name      | Top-level folders, packages, apps               |
+| Paths         | Road hierarchy: avenue, street, lane | Folder tree edges (parent to child)             |
+| Edges         | Water, rail, parks, ring roads       | Package boundaries, monorepo separators         |
+| Nodes         | Plazas, roundabouts, bridges         | Folders with many children, entry points        |
+| Landmarks     | Distinctive tall or coloured objects | `README`, `package.json`, `main.ts`, hotspots   |
 
 Design consequence: **each element gets one visual channel and keeps it**. Districts own hue (subtle), paths own
 width and white/grey value, edges own blue/green, landmarks own height and saturated accent. Mixing channels is what
@@ -79,14 +79,14 @@ line; never overprint important detail; type hierarchy mirrors feature hierarchy
 
 ### 3.1 The options
 
-| Projection           | Camera elevation (orthographic) | Ground tile ratio | Notes |
-|----------------------|---------------------------------|-------------------|-------|
-| Top-down plan        | 90°                             | 1:1 (square)      | Most legible for labels and measurement; no heights |
-| True isometric       | 35.264° (arcsin(1/√3)), yaw 45° | ≈1.732:1          | All three axes 120° apart [verified] |
+| Projection           | Camera elevation (orthographic) | Ground tile ratio | Notes                                                                             |
+| -------------------- | ------------------------------- | ----------------- | --------------------------------------------------------------------------------- |
+| Top-down plan        | 90°                             | 1:1 (square)      | Most legible for labels and measurement; no heights                               |
+| True isometric       | 35.264° (arcsin(1/√3)), yaw 45° | ≈1.732:1          | All three axes 120° apart [verified]                                              |
 | 2:1 "pixel" dimetric | 30°, yaw 45°                    | 2:1               | Ground lines at ≈26.565° (arctan ½); axes 116.565°, 116.565°, 126.870° [verified] |
-| Oblique (cabinet)    | n/a (shear, not a camera)       | plan stays square | Plan undistorted, heights sheared; e.g. Ultima Online [verified] |
-| Trimetric            | arbitrary                       | arbitrary         | SimCity 4 [verified] |
-| Perspective          | any                             | n/a               | Walk-around, "real" feel; scale varies with depth |
+| Oblique (cabinet)    | n/a (shear, not a camera)       | plan stays square | Plan undistorted, heights sheared; e.g. Ultima Online [verified]                  |
+| Trimetric            | arbitrary                       | arbitrary         | SimCity 4 [verified]                                                              |
+| Perspective          | any                             | n/a               | Walk-around, "real" feel; scale varies with depth                                 |
 
 Sources: <https://en.wikipedia.org/wiki/Isometric_projection>,
 <https://en.wikipedia.org/wiki/Isometric_video_game_graphics> (SimCity 2000 listed among fixed isometric games,
@@ -119,24 +119,24 @@ projection into data, which is the main trap of sprite-based isometric engines.
 
 Claims about how the games look are my observation unless a source is given.
 
-| Reference | What to take | What to avoid | Source |
-|-----------|--------------|---------------|--------|
-| SimCity 2000 / 3000 | Fixed dimetric tilt, rotation in 90° steps, zoning colours, terrain and water edges | Pixel art pipeline, dense clutter | <https://en.wikipedia.org/wiki/Isometric_video_game_graphics>, <https://en.wikipedia.org/wiki/SimCity_3000> |
-| Townscaper (Oskar Stålberg) | Distorted (irregular) grid for organic feel, soft pastel palette, endless calm water, rule-based decoration from neighbours | Unbounded randomness (we need determinism) | <https://en.wikipedia.org/wiki/Townscaper>, talk <https://www.youtube.com/watch?v=1hqt8JkYRdI> |
-| Mini Motorways / Mini Metro | Minimalist flat colour, roads as the hero, colour-coded districts, gentle growth animation | Too abstract for parcel-level detail | <https://en.wikipedia.org/wiki/Mini_Motorways> |
-| Islanders | Low-poly cityscape, strong sun, long soft shadows, islands in water | Few, large objects only | <https://en.wikipedia.org/wiki/Islanders_(video_game)> |
-| Monument Valley | Escher-like clarity, flat-shaded faces with 3 tones per hue, generous negative space | Impossible geometry | <https://en.wikipedia.org/wiki/Monument_Valley_(video_game)> |
-| Pocket City | Mobile-legible tilt and touch interaction | [unverified, no primary source fetched] | <https://en.wikipedia.org/wiki/Pocket_City> |
-| The Battle of Polytopia | Bold low-poly tribes as categorical colour | Reviewers found late maps hard to parse when crowded | <https://en.wikipedia.org/wiki/The_Battle_of_Polytopia> |
-| Stamen Toner | High-contrast black/white, figure-ground clarity, Lite/Dark/Blacklite variants | Harshness at full density | <https://docs.stadiamaps.com/map-styles/stamen-toner/> |
-| Stamen Watercolor | Hand-made texture, organic edges | Hard to make deterministic and WCAG-safe; texture fights labels | <https://docs.stadiamaps.com/map-styles/stamen-watercolor/> |
-| MapLibre / Protomaps styles | Zoom-dependent styling, casing + fill roads, symbol collision, light/dark flavours; Protomaps visual design is CC0 | Geographic assumptions | <https://github.com/protomaps/basemaps>, <https://maplibre.org/maplibre-style-spec/> |
-| Snazzy Maps | Proof that one road/water/park schema supports wildly different moods by palette alone | Untested contrast | <https://snazzymaps.com/> |
-| Nolli map | Figure-ground, public space as one continuous void | Monochrome loses districts | see 2.2 |
-| Beck tube map | Octilinear schematisation, equal spacing, colour per line | Loses area semantics | see 2.3 |
-| Swiss / Imhof | Restraint, type hierarchy, soft relief and colour by elevation | Effort-heavy hand craft | see 2.4 |
-| Kevin Lynch | Five elements as the information architecture | n/a | see 2.1 |
-| CodeCity / SoftVis3D | Districts as nested platforms, buildings as classes | Bare boxes, nesting as stacked plinths, no streets | <https://doi.org/10.1109/vissof.2007.4290706>, <https://github.com/stefanrinderle/softvis3d> (LGPL-3.0, Three.js 0.127, last push 2023-09-18) [verified] |
+| Reference                   | What to take                                                                                                                | What to avoid                                                   | Source                                                                                                                                                   |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SimCity 2000 / 3000         | Fixed dimetric tilt, rotation in 90° steps, zoning colours, terrain and water edges                                         | Pixel art pipeline, dense clutter                               | <https://en.wikipedia.org/wiki/Isometric_video_game_graphics>, <https://en.wikipedia.org/wiki/SimCity_3000>                                              |
+| Townscaper (Oskar Stålberg) | Distorted (irregular) grid for organic feel, soft pastel palette, endless calm water, rule-based decoration from neighbours | Unbounded randomness (we need determinism)                      | <https://en.wikipedia.org/wiki/Townscaper>, talk <https://www.youtube.com/watch?v=1hqt8JkYRdI>                                                           |
+| Mini Motorways / Mini Metro | Minimalist flat colour, roads as the hero, colour-coded districts, gentle growth animation                                  | Too abstract for parcel-level detail                            | <https://en.wikipedia.org/wiki/Mini_Motorways>                                                                                                           |
+| Islanders                   | Low-poly cityscape, strong sun, long soft shadows, islands in water                                                         | Few, large objects only                                         | <https://en.wikipedia.org/wiki/Islanders_(video_game)>                                                                                                   |
+| Monument Valley             | Escher-like clarity, flat-shaded faces with 3 tones per hue, generous negative space                                        | Impossible geometry                                             | <https://en.wikipedia.org/wiki/Monument_Valley_(video_game)>                                                                                             |
+| Pocket City                 | Mobile-legible tilt and touch interaction                                                                                   | [unverified, no primary source fetched]                         | <https://en.wikipedia.org/wiki/Pocket_City>                                                                                                              |
+| The Battle of Polytopia     | Bold low-poly tribes as categorical colour                                                                                  | Reviewers found late maps hard to parse when crowded            | <https://en.wikipedia.org/wiki/The_Battle_of_Polytopia>                                                                                                  |
+| Stamen Toner                | High-contrast black/white, figure-ground clarity, Lite/Dark/Blacklite variants                                              | Harshness at full density                                       | <https://docs.stadiamaps.com/map-styles/stamen-toner/>                                                                                                   |
+| Stamen Watercolor           | Hand-made texture, organic edges                                                                                            | Hard to make deterministic and WCAG-safe; texture fights labels | <https://docs.stadiamaps.com/map-styles/stamen-watercolor/>                                                                                              |
+| MapLibre / Protomaps styles | Zoom-dependent styling, casing + fill roads, symbol collision, light/dark flavours; Protomaps visual design is CC0          | Geographic assumptions                                          | <https://github.com/protomaps/basemaps>, <https://maplibre.org/maplibre-style-spec/>                                                                     |
+| Snazzy Maps                 | Proof that one road/water/park schema supports wildly different moods by palette alone                                      | Untested contrast                                               | <https://snazzymaps.com/>                                                                                                                                |
+| Nolli map                   | Figure-ground, public space as one continuous void                                                                          | Monochrome loses districts                                      | see 2.2                                                                                                                                                  |
+| Beck tube map               | Octilinear schematisation, equal spacing, colour per line                                                                   | Loses area semantics                                            | see 2.3                                                                                                                                                  |
+| Swiss / Imhof               | Restraint, type hierarchy, soft relief and colour by elevation                                                              | Effort-heavy hand craft                                         | see 2.4                                                                                                                                                  |
+| Kevin Lynch                 | Five elements as the information architecture                                                                               | n/a                                                             | see 2.1                                                                                                                                                  |
+| CodeCity / SoftVis3D        | Districts as nested platforms, buildings as classes                                                                         | Bare boxes, nesting as stacked plinths, no streets              | <https://doi.org/10.1109/vissof.2007.4290706>, <https://github.com/stefanrinderle/softvis3d> (LGPL-3.0, Three.js 0.127, last push 2023-09-18) [verified] |
 
 The gap SoftVis3D leaves (its frontend pins Three.js `^0.127.0` [verified, package.json]) is exactly the cartographic
 layer: streets with hierarchy, water and parks as edges, labelled districts, soft lighting.
@@ -206,25 +206,25 @@ selection, "changed" outline, construction hatching) needs ≥ 3:1 against its n
 
 Ratios computed with the WCAG relative luminance formula in a Bun script for this report. [measured]
 
-| Theme | Pair | Ratio | Passes |
-|-------|------|-------|--------|
-| Light | label `#1E1E24` on ground `#F2EEE6` | 14.33 | AA text |
-| Light | label `#1E1E24` on parcel `#E4DED2` | 12.38 | AA text |
-| Light | secondary label `#4A4A55` on ground | 7.56 | AAA text |
-| Light | water label `#1F4E6B` on water `#A9CCE3` | 5.27 | AA text |
-| Light | park label `#2F5A22` on park `#C8DDB0` | 5.53 | AA text |
-| Light | accent `#B4472E` on ground | 4.68 | AA text |
-| Light | link/selection `#1D4ED8` on ground | 5.79 | AA (`#2563EB` fails at 4.47) |
-| Light | road casing `#C9C2B4` on ground | 1.53 | decorative only |
-| Light | boundary `#8A8172` on ground / on parcel | 3.32 / 2.87 | ground yes, parcel no: darken where it crosses parcels |
-| Dark | label `#E8E6E1` on ground `#14161B` | 14.51 | AA text |
-| Dark | label on parcel `#1E222A` / road `#2C313B` | 12.78 / 10.46 | AA text |
-| Dark | secondary `#A7ABB5` on ground | 7.87 | AAA text |
-| Dark | water label `#8FC3E6` on `#0F2A3A` | 7.87 | AA text |
-| Dark | park label `#9CCB8A` on `#1B2B1F` | 8.02 | AA text |
-| Dark | accent `#F08A5D`, selection `#7AA7FF` on ground | 7.32, 7.58 | AA text |
-| Dark | boundary `#666D7C` on ground | 3.48 | 3:1 (`#5B6270` fails at 2.95) |
-| Dark | road `#2C313B` on ground | 1.39 | decorative only |
+| Theme | Pair                                            | Ratio         | Passes                                                 |
+| ----- | ----------------------------------------------- | ------------- | ------------------------------------------------------ |
+| Light | label `#1E1E24` on ground `#F2EEE6`             | 14.33         | AA text                                                |
+| Light | label `#1E1E24` on parcel `#E4DED2`             | 12.38         | AA text                                                |
+| Light | secondary label `#4A4A55` on ground             | 7.56          | AAA text                                               |
+| Light | water label `#1F4E6B` on water `#A9CCE3`        | 5.27          | AA text                                                |
+| Light | park label `#2F5A22` on park `#C8DDB0`          | 5.53          | AA text                                                |
+| Light | accent `#B4472E` on ground                      | 4.68          | AA text                                                |
+| Light | link/selection `#1D4ED8` on ground              | 5.79          | AA (`#2563EB` fails at 4.47)                           |
+| Light | road casing `#C9C2B4` on ground                 | 1.53          | decorative only                                        |
+| Light | boundary `#8A8172` on ground / on parcel        | 3.32 / 2.87   | ground yes, parcel no: darken where it crosses parcels |
+| Dark  | label `#E8E6E1` on ground `#14161B`             | 14.51         | AA text                                                |
+| Dark  | label on parcel `#1E222A` / road `#2C313B`      | 12.78 / 10.46 | AA text                                                |
+| Dark  | secondary `#A7ABB5` on ground                   | 7.87          | AAA text                                               |
+| Dark  | water label `#8FC3E6` on `#0F2A3A`              | 7.87          | AA text                                                |
+| Dark  | park label `#9CCB8A` on `#1B2B1F`               | 8.02          | AA text                                                |
+| Dark  | accent `#F08A5D`, selection `#7AA7FF` on ground | 7.32, 7.58    | AA text                                                |
+| Dark  | boundary `#666D7C` on ground                    | 3.48          | 3:1 (`#5B6270` fails at 2.95)                          |
+| Dark  | road `#2C313B` on ground                        | 1.39          | decorative only                                        |
 
 Practice:
 
@@ -242,13 +242,13 @@ Practice:
 
 ### 7.1 Zoom bands (proposal)
 
-| Band | Screen scale (approx.) | Shown | Hidden |
-|------|------------------------|-------|--------|
-| City | whole repo fits | District names (uppercase, letter-spaced, large), water/park names, landmarks as icons | Streets, parcels |
-| Borough | one top-level folder fills view | Sub-district names, avenue names along roads | Parcel outlines merge into blocks |
-| Street | ~20 to 100 parcels visible | All street names, block outlines, kerbs, plazas | File names |
-| Parcel | individual parcels ≥ ~48 px | File names (horizontal, inside or beside parcel), road markings, trees, details | Distant district names fade |
-| Walk | perspective camera | Signposts at junctions, billboards on buildings, HTML overlay on hover | Map-style labels |
+| Band    | Screen scale (approx.)          | Shown                                                                                  | Hidden                            |
+| ------- | ------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------- |
+| City    | whole repo fits                 | District names (uppercase, letter-spaced, large), water/park names, landmarks as icons | Streets, parcels                  |
+| Borough | one top-level folder fills view | Sub-district names, avenue names along roads                                           | Parcel outlines merge into blocks |
+| Street  | ~20 to 100 parcels visible      | All street names, block outlines, kerbs, plazas                                        | File names                        |
+| Parcel  | individual parcels ≥ ~48 px     | File names (horizontal, inside or beside parcel), road markings, trees, details        | Distant district names fade       |
+| Walk    | perspective camera              | Signposts at junctions, billboards on buildings, HTML overlay on hover                 | Map-style labels                  |
 
 District labels should persist one band longer than their content (they act as "you are here").
 
@@ -305,12 +305,12 @@ Setup: Chrome (headless) via Playwright, ANGLE on Vulkan, NVIDIA RTX 4090, 1280 
 coloured rectangles in a deterministic grid, 120 frames of pan + zoom. "16.7 ms" means "held 60 fps". High-end GPU:
 treat as an upper bound; low-end laptops and phones will be several times slower. [measured]
 
-| Renderer | 10k build | 10k median / p95 frame | 100k build | 100k median / p95 frame | 1M build | 1M frame |
-|----------|-----------|------------------------|------------|-------------------------|----------|----------|
-| SVG (DOM rects, `<g>` transform) | 59 ms | 16.7 / 16.8 | 565 ms | 22.1 / 46.7 | not run | not run |
-| Canvas 2D (`fillRect` per parcel) | 9 ms | 16.7 / 16.8 | 66 ms | 36.9 / 59.0 | not run | not run |
-| PixiJS 8.22 `Graphics` (WebGL) | 216 ms | 16.7 / 16.8 | 228 ms | 16.7 / 16.8 | 2019 ms | 16.7 / 16.9 |
-| Three.js 0.186 `InstancedMesh` (WebGL) | 52 ms | 16.7 / 16.8 | 60 ms | 16.7 / 16.8 | 298 ms | 16.7 / 16.8 |
+| Renderer                               | 10k build | 10k median / p95 frame | 100k build | 100k median / p95 frame | 1M build | 1M frame    |
+| -------------------------------------- | --------- | ---------------------- | ---------- | ----------------------- | -------- | ----------- |
+| SVG (DOM rects, `<g>` transform)       | 59 ms     | 16.7 / 16.8            | 565 ms     | 22.1 / 46.7             | not run  | not run     |
+| Canvas 2D (`fillRect` per parcel)      | 9 ms      | 16.7 / 16.8            | 66 ms      | 36.9 / 59.0             | not run  | not run     |
+| PixiJS 8.22 `Graphics` (WebGL)         | 216 ms    | 16.7 / 16.8            | 228 ms     | 16.7 / 16.8             | 2019 ms  | 16.7 / 16.9 |
+| Three.js 0.186 `InstancedMesh` (WebGL) | 52 ms     | 16.7 / 16.8            | 60 ms      | 16.7 / 16.8             | 298 ms   | 16.7 / 16.8 |
 
 Takeaways: SVG and Canvas 2D are fine up to ~10k parcels and fail interactivity at 100k even on a top GPU; both GPU
 paths have large headroom; instancing builds an order of magnitude faster than tessellating `Graphics`.
@@ -320,17 +320,17 @@ sprites at ~0.12 ms CPU in v8. [verified] <https://pixijs.com/blog/pixi-v8-launc
 
 ### 9.2 Comparison
 
-| Option | Version / licence | Flat schematic | Tilted iso | 3D walk | 100k parcels | Labels | Notes |
-|--------|-------------------|----------------|------------|---------|--------------|--------|-------|
-| SVG | platform | Excellent, crisp, accessible DOM, CSS theming | Via transform, no depth | No | Poor (measured) | Native text | Keep as **export** format (docs, PR images, print) |
-| Canvas 2D | platform | Good | Manual painter's sort | No | Poor (measured) | `fillText` | Simple; CPU bound |
-| PixiJS | 8.22.0, MIT | Excellent | Sprites/depth sort by hand | No 3D | Good (measured) | Bitmap/SDF text | WebGPU + WebGL; 2D only, so walk mode needs a second engine |
-| Three.js | 0.186.1, MIT | Good (ortho camera) | Native (ortho camera) | Native | Good (measured) | troika SDF, HTML overlay | `WebGPURenderer` falls back to WebGL2 automatically [verified source]; `BatchedMesh` for many distinct geometries [verified docs]; `MapControls` [verified] |
-| react-three-fiber | 9.8.1, MIT (+ drei 10.7.9) | as Three | as Three | as Three | as Three if instanced | as Three | Declarative scene; avoid one React component per parcel |
-| Babylon.js | 9.30.0, Apache-2.0 | Good | Native | Native, strong (physics, collisions, GUI) | Good: thin instances avoid per-instance JS objects, support picking and shadows [verified] | GUI/textures | Heavier bundle [unverified size]; good WebGPU support |
-| deck.gl | 9.4.0, MIT | Excellent for data layers | `OrbitView` with `orthographic: true` [verified] | Weak (no walk controls, no game lighting) | Excellent (~1M at 60 fps per docs) | `TextLayer` SDF atlas, GPU collision filter [verified] | Cartesian coordinates are default in non-geo views [verified]; great for statistics overlays |
-| MapLibre GL JS | 6.13.0, BSD-3 | Excellent style spec, symbol placement, `fill-extrusion` | Pitch (perspective only) | No | Excellent (vector tiles) | Best-in-class collision | **No pixel/Cartesian CRS**: open request #3890 [verified]; must fake lng/lat near the equator; projection rework in progress (#8286 merged Sep 2026) [verified] |
-| Raw WebGPU | platform | Anything | Anything | Anything | Best | Build yourself | ~86% global support (Chrome 113+, iOS Safari 26+, Firefox partial) [verified caniuse data]; too much engine work for now |
+| Option            | Version / licence          | Flat schematic                                           | Tilted iso                                       | 3D walk                                   | 100k parcels                                                                               | Labels                                                 | Notes                                                                                                                                                           |
+| ----------------- | -------------------------- | -------------------------------------------------------- | ------------------------------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SVG               | platform                   | Excellent, crisp, accessible DOM, CSS theming            | Via transform, no depth                          | No                                        | Poor (measured)                                                                            | Native text                                            | Keep as **export** format (docs, PR images, print)                                                                                                              |
+| Canvas 2D         | platform                   | Good                                                     | Manual painter's sort                            | No                                        | Poor (measured)                                                                            | `fillText`                                             | Simple; CPU bound                                                                                                                                               |
+| PixiJS            | 8.22.0, MIT                | Excellent                                                | Sprites/depth sort by hand                       | No 3D                                     | Good (measured)                                                                            | Bitmap/SDF text                                        | WebGPU + WebGL; 2D only, so walk mode needs a second engine                                                                                                     |
+| Three.js          | 0.186.1, MIT               | Good (ortho camera)                                      | Native (ortho camera)                            | Native                                    | Good (measured)                                                                            | troika SDF, HTML overlay                               | `WebGPURenderer` falls back to WebGL2 automatically [verified source]; `BatchedMesh` for many distinct geometries [verified docs]; `MapControls` [verified]     |
+| react-three-fiber | 9.8.1, MIT (+ drei 10.7.9) | as Three                                                 | as Three                                         | as Three                                  | as Three if instanced                                                                      | as Three                                               | Declarative scene; avoid one React component per parcel                                                                                                         |
+| Babylon.js        | 9.30.0, Apache-2.0         | Good                                                     | Native                                           | Native, strong (physics, collisions, GUI) | Good: thin instances avoid per-instance JS objects, support picking and shadows [verified] | GUI/textures                                           | Heavier bundle [unverified size]; good WebGPU support                                                                                                           |
+| deck.gl           | 9.4.0, MIT                 | Excellent for data layers                                | `OrbitView` with `orthographic: true` [verified] | Weak (no walk controls, no game lighting) | Excellent (~1M at 60 fps per docs)                                                         | `TextLayer` SDF atlas, GPU collision filter [verified] | Cartesian coordinates are default in non-geo views [verified]; great for statistics overlays                                                                    |
+| MapLibre GL JS    | 6.13.0, BSD-3              | Excellent style spec, symbol placement, `fill-extrusion` | Pitch (perspective only)                         | No                                        | Excellent (vector tiles)                                                                   | Best-in-class collision                                | **No pixel/Cartesian CRS**: open request #3890 [verified]; must fake lng/lat near the equator; projection rework in progress (#8286 merged Sep 2026) [verified] |
+| Raw WebGPU        | platform                   | Anything                                                 | Anything                                         | Anything                                  | Best                                                                                       | Build yourself                                         | ~86% global support (Chrome 113+, iOS Safari 26+, Firefox partial) [verified caniuse data]; too much engine work for now                                        |
 
 ### 9.3 Same data, flat and 3D
 

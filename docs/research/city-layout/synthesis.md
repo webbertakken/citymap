@@ -37,27 +37,27 @@ divergence is a decision for the owner.
 
 ## Real-world dimensions, scaled (u = one local street width)
 
-| Element | Rule |
-| --- | --- |
-| Road widths | lane 0.5 u, street 1 u, collector 1.6 u, avenue 2.5 u, boulevard 4 u |
-| Length shares | local 65-75%, collector 10-15%, arterial and above 10-20% |
-| Block short side | 3-9 u (5-7 default; 3-4 in dense cores); long side 1-4× short side |
-| Parcel frontage | module 0.35-0.5 u × k (k ∈ 1..4); depth half the block depth (1:2 to 1:6) |
-| Neighbourhood unit | 3-8 blocks across between collectors |
-| Edges | water (strongest, bridges only), rail or highway, fringe belt park (default, growth reserve) |
+| Element            | Rule                                                                                         |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| Road widths        | lane 0.5 u, street 1 u, collector 1.6 u, avenue 2.5 u, boulevard 4 u                         |
+| Length shares      | local 65-75%, collector 10-15%, arterial and above 10-20%                                    |
+| Block short side   | 3-9 u (5-7 default; 3-4 in dense cores); long side 1-4× short side                           |
+| Parcel frontage    | module 0.35-0.5 u × k (k ∈ 1..4); depth half the block depth (1:2 to 1:6)                    |
+| Neighbourhood unit | 3-8 blocks across between collectors                                                         |
+| Edges              | water (strongest, bridges only), rail or highway, fringe belt park (default, growth reserve) |
 
 The generator computes these morphometrics (orientation entropy, node degree, dead-end share, block shape factor) on
 its own output and asserts them per archetype: our test oracle for "looks like a real city".
 
 ## Lynch's five elements as the vocabulary
 
-| Lynch | Repo |
-| --- | --- |
-| Districts | folders, packages, workspace members (islands) |
-| Paths | tree edges as roads, class by depth and mass |
-| Edges | water between workspace members, fringe belts between districts |
-| Nodes | root square (town hall: README, manifests), entry points as stations, plazas at major junctions |
-| Landmarks | README, entry points, hotspots |
+| Lynch     | Repo                                                                                            |
+| --------- | ----------------------------------------------------------------------------------------------- |
+| Districts | folders, packages, workspace members (islands)                                                  |
+| Paths     | tree edges as roads, class by depth and mass                                                    |
+| Edges     | water between workspace members, fringe belts between districts                                 |
+| Nodes     | root square (town hall: README, manifests), entry points as stations, plazas at major junctions |
+| Landmarks | README, entry points, hotspots                                                                  |
 
 Land use from Linguist-style rules: source residential, tests workshops or industrial edge, fixtures warehouses,
 docs civic quarter, assets parks, CI and scripts utilities, vendored free port, generated factories. Dependencies

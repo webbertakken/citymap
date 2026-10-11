@@ -44,14 +44,14 @@ split moved 1.
 
 For each technique:
 
-| Criterion | What we need |
-|---|---|
-| Determinism | Same input bytes produce identical geometry, across runs, machines and (ideally) TS and Rust |
-| Stability | Adding, removing or growing a few files or folders changes only the local neighbourhood |
-| Tree control | The folder hierarchy maps onto the method's own structure, not bolted on |
-| Output | A road graph (nodes, edges, hierarchy) and addressable parcels (polygons with an id and street frontage) |
-| Complexity | Implementation and runtime cost at 10 to 100 000 leaves |
-| Implementations | Open source code, licence, maturity |
+| Criterion       | What we need                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------- |
+| Determinism     | Same input bytes produce identical geometry, across runs, machines and (ideally) TS and Rust             |
+| Stability       | Adding, removing or growing a few files or folders changes only the local neighbourhood                  |
+| Tree control    | The folder hierarchy maps onto the method's own structure, not bolted on                                 |
+| Output          | A road graph (nodes, edges, hierarchy) and addressable parcels (polygons with an id and street frontage) |
+| Complexity      | Implementation and runtime cost at 10 to 100 000 leaves                                                  |
+| Implementations | Open source code, licence, maturity                                                                      |
 
 Two determinism facts apply to everything below:
 
@@ -357,22 +357,22 @@ SoftVis3D's evostreet layout does in spirit (3.12).
 
 ## 4. Comparison matrix
 
-| Technique | Deterministic | Stable under small change | Tree-driven | Road graph | Parcels | Complexity | Open code (licence) |
-|---|---|---|---|---|---|---|---|
-| L-system growth (Parish, Müller) | seeded | poor | no | yes | yes (lots) | medium | CityEngine commercial |
-| Queue road growth (Citygen) | seeded | poor | weak | yes | via faces | low-medium | t-mw/citygen (MIT) |
-| Tensor field + streamlines (Chen) | seedable | field good, tracing poor | orientation only | yes | via faces | medium-high | MapGenerator (LGPL-3.0) |
-| Recursive OBB parcels (Vanegas) | yes | **good** | **yes** | via cut edges | **yes** | medium | none official; ideas in Martin Evans' blog |
-| Straight-skeleton parcels (Vanegas) | yes | good | per block | frontage | **yes** | high | straight-skeleton (MIT) |
-| Voronoi wards (Watabou) | seeded | local if unrelaxed | via sites | yes (edges) | yes | medium | TownGeneratorOS (GPL-3.0) |
-| Irregular quad grid (Townscaper) | seeded | good per chunk | substrate | edges | quads | medium | write-ups only |
-| WFC / model synthesis | seeded | poor (chunked: fair) | no | no | no | medium | WFC (MIT), DeBroglie (MIT) |
-| Agent / simulation | seeded | poor | weak | yes | yes | high | research only |
-| Road-attached zoning (C:S) | yes | **good** | per street | uses existing | **yes** | low | game; mod code MIT |
-| Squarified treemap | yes | poor (size sort) | **yes** | no | rectangles | low | d3-hierarchy (ISC) |
-| Ordered / slice treemap | yes | **good** | **yes** | cut edges | rectangles | low | d3-hierarchy (ISC) |
-| Stable local-move treemap | needs prior layout | **very good** | yes | no | rectangles | medium | research code |
-| EvoStreets | yes | good (history) | **yes** | **yes** (tree) | yes | low | codecity-visualizer (MIT) |
+| Technique                           | Deterministic      | Stable under small change | Tree-driven      | Road graph     | Parcels    | Complexity  | Open code (licence)                        |
+| ----------------------------------- | ------------------ | ------------------------- | ---------------- | -------------- | ---------- | ----------- | ------------------------------------------ |
+| L-system growth (Parish, Müller)    | seeded             | poor                      | no               | yes            | yes (lots) | medium      | CityEngine commercial                      |
+| Queue road growth (Citygen)         | seeded             | poor                      | weak             | yes            | via faces  | low-medium  | t-mw/citygen (MIT)                         |
+| Tensor field + streamlines (Chen)   | seedable           | field good, tracing poor  | orientation only | yes            | via faces  | medium-high | MapGenerator (LGPL-3.0)                    |
+| Recursive OBB parcels (Vanegas)     | yes                | **good**                  | **yes**          | via cut edges  | **yes**    | medium      | none official; ideas in Martin Evans' blog |
+| Straight-skeleton parcels (Vanegas) | yes                | good                      | per block        | frontage       | **yes**    | high        | straight-skeleton (MIT)                    |
+| Voronoi wards (Watabou)             | seeded             | local if unrelaxed        | via sites        | yes (edges)    | yes        | medium      | TownGeneratorOS (GPL-3.0)                  |
+| Irregular quad grid (Townscaper)    | seeded             | good per chunk            | substrate        | edges          | quads      | medium      | write-ups only                             |
+| WFC / model synthesis               | seeded             | poor (chunked: fair)      | no               | no             | no         | medium      | WFC (MIT), DeBroglie (MIT)                 |
+| Agent / simulation                  | seeded             | poor                      | weak             | yes            | yes        | high        | research only                              |
+| Road-attached zoning (C:S)          | yes                | **good**                  | per street       | uses existing  | **yes**    | low         | game; mod code MIT                         |
+| Squarified treemap                  | yes                | poor (size sort)          | **yes**          | no             | rectangles | low         | d3-hierarchy (ISC)                         |
+| Ordered / slice treemap             | yes                | **good**                  | **yes**          | cut edges      | rectangles | low         | d3-hierarchy (ISC)                         |
+| Stable local-move treemap           | needs prior layout | **very good**             | yes              | no             | rectangles | medium      | research code                              |
+| EvoStreets                          | yes                | good (history)            | **yes**          | **yes** (tree) | yes        | low         | codecity-visualizer (MIT)                  |
 
 ---
 
@@ -383,12 +383,12 @@ a parcel counts as "moved" if its centre shifts more than 25 units. Squarified p
 recursive binary split of the **name-sorted** list at the weight midpoint, cut across the longer side.
 (Script kept at `/tmp/pcg-research/exp/stability.ts`, not in the repo.)
 
-| Scenario | Squarified: parcels moved / mean shift | Name-ordered split: moved / mean shift |
-|---|---|---|
-| Add one small folder | 14 / 31.5 | 6 / 10.4 |
-| Grow one folder x3 | 13 / 29.9 | 1 / 3.3 |
-| Remove one folder | 8 / 14.3 | 0 / 1.4 |
-| Mean aspect (max side / min side) | 1.31 | 2.68 |
+| Scenario                          | Squarified: parcels moved / mean shift | Name-ordered split: moved / mean shift |
+| --------------------------------- | -------------------------------------- | -------------------------------------- |
+| Add one small folder              | 14 / 31.5                              | 6 / 10.4                               |
+| Grow one folder x3                | 13 / 29.9                              | 1 / 3.3                                |
+| Remove one folder                 | 8 / 14.3                               | 0 / 1.4                                |
+| Mean aspect (max side / min side) | 1.31                                   | 2.68                                   |
 
 Reading: ordering by a stable key cuts movement by an order of magnitude; the price is elongated parcels.
 Elongated parcels are not a defect in a city: they are **street-frontage strips** (3.4, 3.10). The fix for
@@ -419,14 +419,14 @@ forces; the sediment (noise) is local.
 2. **Archetype selection** from tree-shape metrics, with hysteresis (section 6.3). The archetype only decides
    **levels 0 to 1** of the partition (macro form).
 3. **Macro form** (per archetype):
-   - *Polycentric islands*: one island per top-level group (`apps/*`, `packages/*`), placed on an
+   - _Polycentric islands_: one island per top-level group (`apps/*`, `packages/*`), placed on an
      append-stable **hex spiral** in name order (3.6), separated by water; bridges and highways connect
      islands along dependency edges using shortest paths on the island adjacency graph with Citygen-style
      snapping rules (3.2).
-   - *Radial old town*: Watabou-style spiral sites (3.5), one or more per top-level folder in name order,
+   - _Radial old town_: Watabou-style spiral sites (3.5), one or more per top-level folder in name order,
      unrelaxed or 1 to 2 local Lloyd iterations; arteries as gate-to-centre shortest paths on Voronoi edges.
-   - *Gridiron*: name-ordered recursive split with a dominant grid angle per district from a path hash.
-   - *Street village / hamlet*: one EvoStreet spine (3.12) with road-attached parcels (3.10).
+   - _Gridiron_: name-ordered recursive split with a dominant grid angle per district from a path hash.
+   - _Street village / hamlet_: one EvoStreet spine (3.12) with road-attached parcels (3.10).
 4. **Meso partition** (all archetypes): each district polygon is recursively split **between sibling folders
    in name order** (Vanegas OBB style with snapping, 3.4). **Every cut is a street**; its rank is the tree
    depth of the split (depth 0 avenue, 1 street, 2 lane, deeper alleys). This yields a planar road graph with
@@ -459,13 +459,13 @@ forces; the sediment (noise) is local.
 
 ### 6.3 Archetype choice from first principles (hypothesis to validate)
 
-| Tree shape signal | Archetype | Rationale |
-|---|---|---|
-| Fewer than about 20 files, depth at most 2 | Hamlet / courtyard | A single street or square suffices |
-| One dominant chain, siblings off a spine | Street village (EvoStreet) | Linear growth along one road |
-| One dominant root with many balanced children | Radial old town | Monocentric cities trend radial (Parish and Müller) |
-| Many similar-sized siblings, shallow | Gridiron | Planned, polycentric density trends raster (Parish and Müller) |
-| Two or more heavy top-level groups (`apps/`, `packages/`, workspaces) | Polycentric islands | Separate centres, joined by bridges |
+| Tree shape signal                                                     | Archetype                  | Rationale                                                      |
+| --------------------------------------------------------------------- | -------------------------- | -------------------------------------------------------------- |
+| Fewer than about 20 files, depth at most 2                            | Hamlet / courtyard         | A single street or square suffices                             |
+| One dominant chain, siblings off a spine                              | Street village (EvoStreet) | Linear growth along one road                                   |
+| One dominant root with many balanced children                         | Radial old town            | Monocentric cities trend radial (Parish and Müller)            |
+| Many similar-sized siblings, shallow                                  | Gridiron                   | Planned, polycentric density trends raster (Parish and Müller) |
+| Two or more heavy top-level groups (`apps/`, `packages/`, workspaces) | Polycentric islands        | Separate centres, joined by bridges                            |
 
 Signals: Gini coefficient of top-level weights, entropy of child counts, depth, presence of workspace
 manifests (`package.json` workspaces, `Cargo.toml` workspace, `pnpm-workspace.yaml`). Hysteresis bands
