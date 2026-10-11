@@ -3,6 +3,9 @@
   "references": [
     {
       "path": "packages/ground-plan"
+    },
+    {
+      "path": "packages/history"
     }
   ]
 }
