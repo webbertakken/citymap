@@ -1,3 +1,6 @@
 AMBIGUITIES.md
 DECISIONS.md
 node_modules/
+coverage/
+*.tsbuildinfo
+.view-*

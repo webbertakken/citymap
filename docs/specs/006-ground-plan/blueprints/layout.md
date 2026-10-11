@@ -84,7 +84,7 @@ the road's width; an empty side becomes a reserve block. Collectors and up give 
 
 Applies when `options.jog` allows it (`top-level`: the key is the root path or starts with `root>`), each side holds
 two or more items, and the chord is at least `LONG_CUT` of the town's diameter. Both sides decide with the forced
-normal `perp(n)` (keys `key>L`, `key>R`); both must be square (dot ≥ DIRECTION² × 9999/10000), all four parts
+normal `perp(n)` (keys `key>L`, `key>R`); both must be square (n·m ≥ |m|² × 9999/10000), all four parts
 non-empty, and `|t1 − t2| ≥ MIN_JOG`. The main cut shifts by `±JOG/2` per side; four pieces are each two half-planes of
 the land, keys `key>L>L`, `key>L>R`, `key>R>R`, `key>R>L`; four roads end in T-junctions round a plaza (inset by
 pavement). Wards and district seeds as an unjogged cut.
