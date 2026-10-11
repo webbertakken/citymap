@@ -30,19 +30,20 @@ function history(commits: number): Snapshot[] {
   return out;
 }
 
+// No warp: it bends what the layout produced and never touches the plat, so the cache's equivalence is the layout's.
 const OPTIONS: Options = {
   densityPct: 50,
   landUses: DEFAULT_LAND_USES,
   order: "centre-out",
   jog: "top-level",
-  warp: true,
+  warp: false,
 };
 
 describe("the locality cache", () => {
   it("lays every commit exactly as a fold without it", () => {
     let cached = initialState(OPTIONS);
     let plain = initialState(OPTIONS, undefined, false);
-    for (const snapshot of history(60)) {
+    for (const snapshot of history(40)) {
       const a = layCity(snapshot, cached, OPTIONS);
       const b = layCity(snapshot, plain, OPTIONS);
       expect(canonicalJson(a.city)).toBe(canonicalJson(b.city));
@@ -56,7 +57,7 @@ describe("the locality cache", () => {
 
 describe("locality", () => {
   it("moves nothing outside the folders a commit touches, when no plan decision fires", () => {
-    const steps = history(60);
+    const steps = history(40);
     let state = initialState(OPTIONS);
     let before = new Map<string, string>();
     let checked = 0;

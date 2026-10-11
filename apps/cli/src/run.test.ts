@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseCity } from "@citymap/ground-plan";
+import { gitEnvironment } from "@citymap/history";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseCommandLine, type LayCommand } from "./args";
 import { LOCKFILE, runLay, type Io } from "./run";
@@ -11,7 +12,8 @@ const dirs: string[] = [];
 afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
-const git = (dir: string, ...args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
+const git = (dir: string, ...args: string[]) =>
+  execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", env: gitEnvironment() }).trim();
 function repo(commits: number): string {
   const dir = mkdtempSync(join(tmpdir(), "citymap-cli-"));
   dirs.push(dir);

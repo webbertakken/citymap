@@ -4,10 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { isAncestor, resolveCommit } from "./ancestry";
+import { gitEnvironment } from "./env";
 
 const dir = mkdtempSync(join(tmpdir(), "citymap-ancestry-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
-const git = (...args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
+const git = (...args: string[]) =>
+  execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", env: gitEnvironment() }).trim();
 git("init", "-q", "-b", "main");
 const commit = (name: string) => {
   writeFileSync(join(dir, name), name);
