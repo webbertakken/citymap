@@ -43,6 +43,7 @@ describe("main", () => {
     // This repository itself, named from this file so the working directory does not matter.
     const root = fileURLToPath(new URL("../../..", import.meta.url));
     expect(await main([root], x.value, x.error)).toBe(0);
-    expect(x.out.at(-1)).toMatch(/^fold\/done repository=citymap /);
+    // The repository is named after its folder, which differs between checkouts.
+    expect(x.out.at(-1)).toMatch(/^fold\/done repository=\S+ commits=\d+ /);
   }, 60_000);
 });
