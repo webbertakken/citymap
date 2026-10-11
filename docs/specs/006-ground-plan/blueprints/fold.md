@@ -45,6 +45,7 @@ fingerprint is the first token:
 | `plat/recut`             | a remembered cut moves (key, demands, caps)                    |
 | `plat/radial-resector`   | a radial layout re-sectors (path)                              |
 | `plat/renew`             | a neighbourhood renews (key, vacant, remembered)               |
+| `plat/narrow`            | a neighbourhood narrows its lot class (key, from, to)          |
 | `plat/grow`              | a town's outline grows (key, from, to)                         |
 | `plat/old-town`          | an archetype switch freezes an old town (key, from, to, lots)  |
 | `plat/forget`            | remembered records are dropped (key, count)                    |

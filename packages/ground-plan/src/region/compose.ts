@@ -1,7 +1,6 @@
 import { classifyNode } from "../archetype/classify";
 import { isFlat, type Form } from "../archetype/forms";
 import type { City, Road, Town } from "../city/city";
-import type { RoadClass } from "../constants";
 import { CitymapError } from "../errors";
 import { floorDiv, isqrt, mulDiv } from "../fixed/arithmetic";
 import { DIRECTION, TURN, dir, normalise, type Dir } from "../fixed/direction";
@@ -9,12 +8,13 @@ import { compareKeys, fnv1a } from "../fixed/hash";
 import { centroid, type Pt } from "../fixed/polygon";
 import { densify, warper } from "../fixed/warp";
 import { landKey, type LandUse } from "../land-use/land-use";
-import { emptyTownPlat, type OldTown, type Plat } from "../plat/plat";
+import { emptyTownPlat, type OldTown, type Plat, type TownPlat } from "../plat/plat";
 import type { Snapshot } from "../snapshot/snapshot";
 import type { PlatEvent } from "../town/context";
 import { layoutTown } from "../town/layout";
 import { buildTree } from "../tree/tree";
 import { workspaceGroups } from "../workspace/workspace";
+import { highwayBetween, withApproach } from "./highway";
 import { outlineFor } from "./outline";
 
 export interface Options {
@@ -34,7 +34,6 @@ export interface FoldState {
 const GROWTH_PCT = 135;
 /** Open country between towns. */
 const GAP = 720;
-const RANK: readonly RoadClass[] = ["lane", "street", "collector", "avenue", "boulevard"];
 
 interface Part {
   readonly name: string;
@@ -54,6 +53,20 @@ const along = (d: Dir, length: number): Pt => ({
 
 /** The steps (0.01 rad each) of a hash, as angle steps. */
 const hashAngle = (key: string, modulo: number) => floorDiv((fnv1a(key) % modulo) * TURN * 100, 628 * 100);
+
+/** A town moved by an offset: every point of its outline, water, roads, blocks, lots and districts. */
+export function translateTown(town: Town, by: Pt): Town {
+  const move = (pts: readonly Pt[]) => pts.map((p) => ({ x: p.x + by.x, y: p.y + by.y }));
+  return {
+    ...town,
+    outline: move(town.outline),
+    water: town.water.map(move),
+    roads: town.roads.map((r) => ({ ...r, pts: move(r.pts) })),
+    blocks: town.blocks.map((b) => ({ ...b, pts: move(b.pts) })),
+    lots: town.lots.map((l) => ({ ...l, pts: move(l.pts) })),
+    districts: town.districts.map((d) => ({ ...d, pts: move(d.pts) })),
+  };
+}
 
 function oldTownName(name: string, count: number) {
   return count > 1 ? `${name} old town ${count}` : `${name} old town`;
@@ -99,7 +112,8 @@ export function layCity(
     const before = last[part.key];
     const switched = previous !== undefined && rootForm !== previous && !(isFlat(previous) && isFlat(rootForm));
     if (switched && before) {
-      const townPlat = plat.towns[part.key] ?? emptyTownPlat();
+      // A town laid before has its plat.
+      const townPlat = plat.towns[part.key] as TownPlat;
       const members: Record<string, string[]> = {};
       for (const lots of Object.values(townPlat.shares)) for (const lot of lots) members[lot.key] = [...lot.members];
       for (const lot of before.lots) if (!lot.vacant) members[lot.key] ??= [lot.key];
@@ -129,7 +143,6 @@ export function layCity(
   const blockers = oldTowns.map((o) => footprint(o.town));
   const placed: { centre: Pt; radius: number }[] = [];
   const towns: Town[] = [];
-  const firstRadius = (index: number) => (placed[0] ? placed[0].radius : 0) + index;
 
   laidParts.forEach(({ part, rootForm, tree, shares, offLand, docs }, i) => {
     const townPlat = { ...(plat.towns[part.key] ?? emptyTownPlat()), shares };
@@ -162,61 +175,38 @@ export function layCity(
     } else {
       const angle = -TURN / 4 + floorDiv((i - 1) * TURN, laidParts.length - 1) + floorDiv((fnv1a(part.key) % 100) * 163, 100);
       const d = dir(angle);
-      centre = outward(along(d, firstRadius(radius + GAP)), d);
+      // The main town is placed first, so a group town starts beyond it.
+      centre = outward(along(d, (placed[0] as { radius: number }).radius + radius + GAP), d);
     }
     townPlat.centre = centre;
     placed.push({ centre, radius });
-    const outline = outlineFor(townPlat.area2, centre, part.key);
+    // A town is laid in its own coordinates, about its centre, then set down where it stands: a town that moves
+    // outward moves whole, and its cuts, grids and warp never shift inside it.
+    const outline = outlineFor(townPlat.area2, { x: 0, y: 0 }, part.key);
     const laid = layoutTown(part.name, part.key, tree, outline, townPlat, options, rootForm);
     events.push(...laid.events);
     plat.towns[part.key] = laid.plat;
-    const town: Town = { ...laid.town, stats: { ...laid.town.stats, offLand, docs } };
+    const town: Town = { ...translateTown(laid.town, centre), stats: { ...laid.town.stats, offLand, docs } };
     last[part.key] = town;
     towns.push(town);
   });
 
-  // Highways join a real road of one class in both towns at their edges, and take that class: seamless roads.
+  // Highways join each group town to the main town, and each old town to the town that replaced it.
+  const joined = new Map<Town, Town>();
+  const ready = (town: Town, toward: Town) => {
+    const t2 = withApproach(joined.get(town) ?? town, centroid(toward.outline));
+    joined.set(town, t2);
+    return t2;
+  };
   const highways: Road[] = [];
-  const withApproach = new Map<Town, Town>();
-  const ends = (town: Town, toward: Pt) => {
-    let t = withApproach.get(town) ?? town;
-    const c = centroid(t.outline);
-    if (t.roads.length === 0) {
-      const door = t.outline.reduce((a, b) => (distance2(b, toward) < distance2(a, toward) ? b : a));
-      t = { ...t, roads: [{ pts: [door, c], cls: "street" }] };
-    }
-    withApproach.set(town, t);
-    const reach2 = Math.max(...t.outline.map((p) => distance2(p, c)));
-    const all = t.roads.flatMap((r) => [
-      { p: r.pts[0] as Pt, rank: RANK.indexOf(r.cls) },
-      { p: r.pts[r.pts.length - 1] as Pt, rank: RANK.indexOf(r.cls) },
-    ]);
-    const edge = all.filter((e) => distance2(e.p, c) * 100 >= 64 * reach2);
-    return edge.length > 0 ? edge : all;
-  };
-  const join = (from: Town, to: Town) => {
-    const a = ends(from, centroid(to.outline));
-    const b = ends(to, centroid(from.outline));
-    const rank = Math.max(0, Math.min(Math.max(...a.map((e) => e.rank)), Math.max(...b.map((e) => e.rank))));
-    const pick = (list: typeof a) => (list.some((e) => e.rank === rank) ? list.filter((e) => e.rank === rank) : list);
-    let best: [Pt, Pt] = [(a[0] as (typeof a)[number]).p, (b[0] as (typeof b)[number]).p];
-    let bestLength = Infinity;
-    for (const x of pick(a))
-      for (const y of pick(b)) {
-        const length = distance2(x.p, y.p);
-        if (length < bestLength) {
-          bestLength = length;
-          best = [x.p, y.p];
-        }
-      }
-    highways.push({ pts: best, cls: RANK[rank] as RoadClass });
-  };
+  const pairs: [Town, Town][] = [];
   const main = towns[0];
-  if (main) for (const town of towns.slice(1)) join(main, town);
+  if (main) for (const town of towns.slice(1)) pairs.push([main, town]);
   for (const o of oldTowns) {
-    const successor = towns.find((t) => t.key === o.successor) ?? main;
-    if (successor) join(successor, o.town);
+    const successor = towns.find((t2) => t2.key === o.successor) ?? main;
+    if (successor) pairs.push([successor, o.town]);
   }
+  for (const [from, to] of pairs) highways.push(highwayBetween(ready(from, to), ready(to, from)));
   const bend = warper(fnv1a(snapshot.repository) ^ 0x51ed27, [[240, 5600]]);
   // The bend fades to nothing at both ends, so a highway meets its roads exactly.
   const fade = (pts: Pt[]) =>
@@ -226,7 +216,7 @@ export function layCity(
       const q = bend(p);
       return { x: p.x + mulDiv(q.x - p.x, weight, 1000, "round"), y: p.y + mulDiv(q.y - p.y, weight, 1000, "round") };
     });
-  const finalTowns = [...towns, ...oldTowns.map((o) => o.town)].map((t) => withApproach.get(t) ?? t);
+  const finalTowns = [...towns, ...oldTowns.map((o) => o.town)].map((t2) => joined.get(t2) ?? t2);
   return {
     city: {
       repository: snapshot.repository,

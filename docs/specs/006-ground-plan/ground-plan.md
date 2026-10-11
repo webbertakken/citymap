@@ -81,6 +81,8 @@ Each concept has one name; the names in brackets are not used.
 
 - A neighbourhood sets its lot class once, at its first lay: its lots widen to fill the blocks they need, up to lot
   class 4. Frontage left in the last block stays garden and spare blocks stay reserve plots; both are room to grow.
+- When a neighbourhood's lots outgrow its slots at that class, the class narrows until they fit and the neighbourhood
+  re-lays its lots in order; the move stays inside the neighbourhood.
 - Density is a setting (a slider), 50% by default: a folder's land is its lot area over density, plus a road margin.
   Low density gives suburban plots, high density narrow plots in a dense core.
 
@@ -109,11 +111,13 @@ is therefore readable as distance from the core, and newcomers join the edges.
   sideways by 3 u between them. The four roads end in T-junctions round a plaza, and each of the four pieces is the
   land within two half-planes.
 - The plat remembers every cut: its line, its class, the items on each side, and each side's band (1.35 times its
-  demand at the last cut). A newcomer joins the side with more spare band. A cut moves, to the split of today's demand,
+  demand at the last cut). A newcomer joins the side with more spare band. A side left empty lends its land to the
+  other side, which extends over it; the cut stays remembered and nothing already laid moves. A cut moves, to the split of today's demand,
   only when a side outgrows its band. This holds at every level, the top two
   folder levels included.
 - The plat remembers every neighbourhood: its grid origin, angle and pitch, its lot class, its park line, and the slot
-  of every lot. Lots keep their slots; a newcomer takes the first free slot after its folder's last lot. Cells come
+  of every lot; a park line that no longer crosses its land is laid afresh. Lots keep their slots; a newcomer takes the
+  first free slot after its folder's last lot. Cells come
   and go only with the neighbourhood's land; a lot whose slot is gone takes a free one.
 - Shared lots remember their members: a new file joins a lot with room, and a lot keeps its place while any member
   lives.

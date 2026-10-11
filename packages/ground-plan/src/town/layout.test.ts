@@ -119,6 +119,28 @@ describe("layoutTown", () => {
     expect(movedFolders.size).toBeLessThanOrEqual(1);
   });
 
+  it("lends an emptied side's land to its sibling, which grows over it without moving", () => {
+    const first = lay(treeOf(sixRepo()));
+    const [pairKey, pair] = Object.entries(first.plat.cuts).find(([, c]) => c.left.length === 1 && c.right.length === 1) ?? [];
+    expect(pair).toBeDefined();
+    const [stay, gone] = [pair?.left[0] as string, pair?.right[0] as string];
+    const goneCount = sixRepo().filter((f) => f.path.startsWith(`${gone}/`)).length;
+    // More than the old half holds even at lot class 1, but within the band of the land the pair had.
+    const newcomers = files(stay, goneCount + 60, 9000).map((f) => ({ ...f, path: f.path.replace("/f", "/n"), identity: `n${f.identity}` }));
+    const next = [...sixRepo().filter((f) => !f.path.startsWith(`${gone}/`)), ...newcomers];
+    const second = lay(treeOf(next), first.plat, {}, 100, treeOf(sixRepo()));
+    expect(second.town.form).toBe(first.town.form);
+    expect(second.town.stats.overflow).toBe(0);
+    expect(second.plat.cuts[pairKey as string]).toBeDefined();
+    // Every surviving lot keeps its slot (only strips clipped by the old cut may now reach into the lent land), except in
+    // a neighbourhood that narrowed its lot class to seat the newcomers, which re-lays by design.
+    const narrowed = new Set(second.events.filter((e) => e.code === "plat/narrow").map((e) => e.detail.key));
+    for (const [key, grid] of Object.entries(first.plat.grids).filter(([k]) => !narrowed.has(k)))
+      for (const [lot, slot] of Object.entries(grid.slots))
+        if (second.plat.grids[key]?.slots[lot] !== undefined) expect(second.plat.grids[key]?.slots[lot]).toBe(slot);
+    expect(Object.keys(second.plat.grids[stay]?.slots ?? {}).length).toBeGreaterThan(Object.keys(first.plat.grids[stay]?.slots ?? {}).length);
+  });
+
   it("moves a remembered cut when one side outgrows its band", () => {
     const first = lay(treeOf(sixRepo()));
     const second = lay(treeOf([...sixRepo(), ...files("a/more", 600, 5000)]), first.plat);

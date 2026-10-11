@@ -217,6 +217,29 @@ describe("neighbourhood edge cases", () => {
     expect(ctx.lots).toHaveLength(8);
   });
 
+  it("narrows its lot class and re-lays when its lots outgrow their slots", () => {
+    const ctx = emptyCtx();
+    neighbourhood(ctx, rect(1800, 900), seeds(10), 0, "k", "d", "neighbourhood");
+    const wide = ctx.plat.grids.k?.span ?? 0;
+    expect(wide).toBeGreaterThan(1);
+    const later = { ...emptyCtx(), plat: ctx.plat };
+    neighbourhood(later, rect(1800, 900), seeds(60), 0, "k", "d", "neighbourhood");
+    expect(later.plat.grids.k?.span).toBeLessThan(wide);
+    expect(later.overflow).toBe(0);
+    expect(later.events.map((e) => e.code)).toContain("plat/narrow");
+  });
+
+  it("lays a park line afresh when it no longer crosses its land", () => {
+    const docs = 400;
+    const ctx = emptyCtx();
+    neighbourhood(ctx, rect(1800, 900), seeds(20), docs * 3000, "k", "d", "neighbourhood");
+    const moved = { ...emptyCtx(), plat: ctx.plat };
+    const elsewhere = { p: rect(1800, 900).p.map((q) => ({ x: q.x + 5000, y: q.y + 5000 })), w: [0, 0, 0, 0] };
+    neighbourhood(moved, elsewhere, seeds(20), docs * 3000, "k", "d", "neighbourhood");
+    expect(moved.overflow).toBe(0);
+    expect(moved.lots).toHaveLength(20);
+  });
+
   it("has no slots on land smaller than a block", () => {
     const ctx = emptyCtx();
     neighbourhood(ctx, rect(40, 40), seeds(3), 0, "k", "d", "neighbourhood");

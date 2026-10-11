@@ -60,7 +60,8 @@ export function neighbourhood(
   let parkLine: GridRecord["park"] = null;
   if (parkDemand > 0) {
     // A strip of park along the far side, cut off by a footpath; its line is remembered.
-    parkLine = grid?.park ?? null;
+    // A remembered line that no longer crosses the land (a cut above it moved) is laid afresh.
+    parkLine = grid?.park && chord(raw.p, grid.park.n, grid.park.c) ? grid.park : null;
     if (!parkLine) {
       const total2 = area2(raw.p);
       const n = perp(longestEdge(raw.p));
@@ -182,6 +183,12 @@ export function neighbourhood(
     const modules = narrow.filter((s) => s.cell <= lastCell).length;
     g.span = Math.min(MAX_CLASS, Math.max(1, floorDiv(modules, Math.max(1, lots.length))));
     while (g.span > 1 && slotsFor(g.span).length < lots.length) g.span--;
+  } else if (g.span > 1 && slotsFor(g.span).length < lots.length) {
+    // The lots outgrew their slots at this class: narrow it until they fit, and re-lay them in order.
+    const from = g.span;
+    while (g.span > 1 && slotsFor(g.span).length < lots.length) g.span--;
+    emit(ctx, "plat/narrow", { key, from, to: g.span });
+    g.slots = {};
   }
   const ordered = slotsFor(g.span);
   // A street village fills outward from its high street: the rows either side of it first.

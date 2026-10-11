@@ -77,7 +77,8 @@ collector then street; else street. `first` is the first cut of a folder's own l
 `split(items, poly, mass, top, key, district)`: decide; one item places it (folder: partition, own lots:
 neighbourhood, park: park). Otherwise try the pinwheel; else emit the chord as a road of the cut's class (when both
 sides hold items), record wards for collectors and up, and recurse into both halves (`key>L`, `key>R`), clipped with
-the road's width; an empty side becomes a reserve block. Collectors and up give each half its own district seed
+the road's width. When one side is empty, the other recurses on the whole land under its own sub-key: cuts and grids
+are absolute, so its lots stay put and its grid gains the vacated cells. Collectors and up give each half its own district seed
 (`seedOf(sub)`).
 
 ## Pinwheel (jogging cut)
@@ -116,7 +117,8 @@ recurse as `path>L`, `path>R` with their own district seeds.
 `neighbourhood(poly, lots, parkDemand, key, district, form)`:
 
 1. Park strip: when `parkDemand > 0`, a remembered line along the longest edge's normal leaves
-   `min(600 ‰, parkDemand / area)` of the land as park beyond a lane.
+   `min(600 ‰, parkDemand / area)` of the land as park beyond a lane. A remembered line that no longer crosses the land is laid
+   afresh.
 2. Land = `inset(poly, PAVEMENT)`; empty land counts every lot as overflow (`town/overflow`).
 3. Grid (remembered `GridRecord`): direction of the land's longest edge; origin and pitch fit the land: `rows =
    max(1, roundDiv(across + 64, BLOCK_SHORT + 64))`, `cols` likewise with `BLOCK_LONG`; pitches are
@@ -129,6 +131,8 @@ recurse as `path>L`, `path>R` with their own district seeds.
 7. First lay: a hamlet's green is the full cell nearest the land's centroid (when two or more full cells exist and
    one-module slots still hold every lot); `span` = modules in the blocks the lots need ÷ lots, 1 to `MAX_CLASS`,
    narrowed until every lot fits.
+   Later lays: when the slots at `span` hold fewer than the lots, `span` narrows until they fit (or reaches 1), the
+   remembered slots clear, and `plat/narrow` is logged (key, from, to).
 8. Street village order: slots by row distance from `high`, then serpentine index.
 9. Renewal: when remembered keys that are vacant are more than half of all remembered, log `plat/renew` and clear
    the slots.
