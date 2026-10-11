@@ -5,11 +5,11 @@ import { layCity, type FoldState, type Options } from "../region/compose";
 import type { Snapshot } from "../snapshot/snapshot";
 import type { PlatEvent } from "../town/context";
 
-/** A fold's first state: an empty plat for the options' land setting, or a lockfile's plat. */
-export const initialState = (options: Options, plat?: Plat): FoldState => ({
-  plat: plat ?? emptyPlat(landKey(options.landUses)),
-  last: {},
-});
+/** A fold's first state: an empty plat for the options' land setting, or a lockfile's plat; with a locality cache. */
+export const initialState = (options: Options, plat?: Plat, cache = true): FoldState => {
+  const start = { plat: plat ?? emptyPlat(landKey(options.landUses)), last: {} };
+  return cache ? { ...start, cache: { towns: {}, hits: 0 } } : start;
+};
 
 /** Folds a history of snapshots, oldest first, into the last city and its state; events go to the listener. */
 export function foldHistory(

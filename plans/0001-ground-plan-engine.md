@@ -14,7 +14,7 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 - [x] Merge the research branch (PR #1) and branch from main
 - [x] Architecture spec (003)
 - [x] Blueprints, defaults ledger, completeness
-- [ ] Merge `build/ci` (oxfmt, oxlint, vitest projects, hooks, CI); every package joins the root references
+- [x] Merge `build/ci` (oxfmt, oxlint, vitest projects, hooks, CI); every package joins the root references
 - [ ] Webber answers ambiguities 5 to 7 (loop connectors, Voronoi outlines, morphometric targets)
 
 ## Phase 1: fixed-point core (`packages/ground-plan/src/fixed`)
@@ -53,21 +53,21 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 
 ## Phase 4: region and fold
 
-- [ ] Parts, outlines, growth, placement
-- [ ] Highways with seamless gates
-- [ ] Archetype switch and old towns
-- [ ] `layCity`, `foldHistory`, events, summary line
-- [ ] Determinism and locality property tests
-- [ ] Locality cache, proven identical with it off
-- [ ] Commit
+- [x] Parts, outlines, growth, placement
+- [x] Highways with seamless gates
+- [x] Archetype switch and old towns
+- [x] `layCity`, `foldHistory`, events, summary line
+- [x] Determinism and locality property tests
+- [x] Locality cache, proven identical with it off
+- [x] Commit
 
 ## Phase 5: history and CLI
 
-- [ ] `packages/history`: streaming `git log` reader, exact renames, submodules, folder first-seen; tests on a generated
+- [x] `packages/history`: streaming `git log` reader, exact renames, submodules, folder first-seen; tests on a generated
       fixture repository
-- [ ] `packages/svg`: Paper atlas and Dracula themes from the prototype, escaped labels
-- [ ] `apps/cli`: `citymap <repo> [--commit] [--out city.json] [--svg map.svg] [--lock] [--verbose]`
-- [ ] Commit
+- [x] `packages/svg`: Paper atlas and Dracula themes from the prototype, escaped labels
+- [x] `apps/cli`: `citymap <repo> [--commit] [--out city.json] [--svg map.svg] [--lock] [--verbose]`
+- [x] Commit
 
 ## Phase 6: corpus verification
 

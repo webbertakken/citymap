@@ -54,6 +54,7 @@ export function emptyCtx(root: TreeNode = treeOf([]), landArea2 = 0): Ctx {
     districts: [],
     water: [],
     landArea2,
+    cache: undefined,
     form: "neighbourhood",
     overflow: 0,
     lotArea2: 0,

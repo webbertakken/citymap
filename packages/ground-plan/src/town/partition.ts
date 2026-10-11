@@ -18,8 +18,6 @@ const MAX_SPAN = 1946;
 /** A radial core reaches at most this share (‰) of the way to the edge, so the ring keeps room. */
 const RADIAL_MAX_SCALE = 950;
 const RIVER = (5 * U) / 2;
-/** A folder is labelled when it is a top-level folder or holds at least this share (‰) of the town's mass. */
-const LABEL_MILLE = 15;
 
 /** Oldest in the middle, then alternately either side, so newcomers join the edges. */
 export function centreOut<T>(ordered: readonly T[]): T[] {
@@ -62,8 +60,64 @@ function itemsOf(ctx: Ctx, node: TreeNode, district: string): Item[] {
   return items.toSorted((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.key, b.key));
 }
 
-/** Lays out a folder on its land: one neighbourhood when flat, else arranged by its district form. */
+/** Shallow copies: an enclosing folder sets the district form on blocks and lots it did not lay. */
+function copies<T extends object>(list: readonly T[]): T[] {
+  const out: T[] = [];
+  for (const item of list) out.push({ ...item });
+  return out;
+}
+
+/**
+ * The folder's own plat record (its grid, first cut or radial layout) is still there: forgetting is the only way
+ * anything but the folder's own layout changes its records, and it removes this one.
+ */
+const recorded = (ctx: Ctx, path: string) =>
+  [ctx.plat.grids[path], ctx.plat.cuts[path], ctx.plat.radial[path]].some((record) => record !== undefined);
+
+/** Lays out a folder on its land, replaying its last layout when nothing about it changed. */
 export function partition(ctx: Ctx, node: TreeNode, poly: Poly, district: string) {
+  const cache = ctx.cache;
+  if (!cache || node === ctx.root) return layFolder(ctx, node, poly, district);
+  const key = `${node.digest}|${node.name}|${node.depth}|${district}|${poly.p.map((q) => `${q.x},${q.y}`).join(";")}|${poly.w.join(",")}`;
+  const hit = cache.entries.get(node.path);
+  if (hit && hit.key === key && recorded(ctx, node.path)) {
+    cache.hits++;
+    ctx.roads.push(...hit.roads);
+    for (const b of hit.blocks) ctx.blocks.push({ ...b });
+    for (const l of hit.lots) ctx.lots.push({ ...l });
+    ctx.districts.push(...hit.districts);
+    ctx.water.push(...hit.water);
+    ctx.events.push(...hit.overflowEvents);
+    ctx.overflow += hit.overflow;
+    ctx.lotArea2 += hit.lotArea2;
+    return;
+  }
+  const before = {
+    roads: ctx.roads.length,
+    blocks: ctx.blocks.length,
+    lots: ctx.lots.length,
+    districts: ctx.districts.length,
+    water: ctx.water.length,
+    events: ctx.events.length,
+    overflow: ctx.overflow,
+    lotArea2: ctx.lotArea2,
+  };
+  layFolder(ctx, node, poly, district);
+  cache.entries.set(node.path, {
+    key,
+    roads: ctx.roads.slice(before.roads),
+    blocks: copies(ctx.blocks.slice(before.blocks)),
+    lots: copies(ctx.lots.slice(before.lots)),
+    districts: ctx.districts.slice(before.districts),
+    water: ctx.water.slice(before.water),
+    overflow: ctx.overflow - before.overflow,
+    lotArea2: ctx.lotArea2 - before.lotArea2,
+    overflowEvents: ctx.events.slice(before.events).filter((e) => e.code === "town/overflow"),
+  });
+}
+
+/** Lays out a folder on its land: one neighbourhood when flat, else arranged by its district form. */
+function layFolder(ctx: Ctx, node: TreeNode, poly: Poly, district: string) {
   const previous = ctx.plat.forms[node.path];
   const form = node === ctx.root && ctx.rootForm !== undefined ? ctx.rootForm : classifyNode(node, previous);
   if (previous !== undefined && previous !== form) {
@@ -72,7 +126,8 @@ export function partition(ctx: Ctx, node: TreeNode, poly: Poly, district: string
   }
   ctx.plat.forms[node.path] = form;
   if (node === ctx.root) ctx.form = form;
-  if (node.depth >= 1 && (node.depth === 1 || node.massMille * 1000 >= LABEL_MILLE * ctx.root.massMille))
+  // Every folder records its district; which are labelled is decided over the whole town at the end of the lay.
+  if (node.depth >= 1)
     ctx.districts.push({
       pts: [...poly.p],
       path: node.path,

@@ -52,6 +52,11 @@ export function mulDiv(a: number, b: number, c: number, rounding: Rounding): num
 export function isqrt(n: number): number {
   if (n < 0) throw new CitymapError("fixed/negative-sqrt", `cannot take the square root of ${n}`);
   if (n < 2) return n;
+  if (n < 2 ** 52) {
+    // Below 2^52 the root is under 2^26, where just below a square the true root sits more than 2^-27 under the next
+    // integer, over half an ulp: correctly rounded Math.sqrt never rounds up across it, so its floor is exact.
+    return Math.floor(Math.sqrt(n));
+  }
   const target = BigInt(n);
   // Newton from above (Math.sqrt is correctly rounded, so this start exceeds the root) descends to the floor.
   let x = BigInt(Math.floor(Math.sqrt(n))) + 1n;

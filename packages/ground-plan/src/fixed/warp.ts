@@ -71,3 +71,20 @@ export function densify(pts: readonly Pt[], step: number, closed: boolean): Pt[]
   if (!closed && last) out.push(last);
   return out;
 }
+
+/** Coordinates fit in 22 bits each side of zero, so a point packs into one safe integer. */
+const pack = (q: Pt) => (q.x + 2 ** 21) * 2 ** 22 + (q.y + 2 ** 21);
+
+/** A warp that remembers its results: exact, as warps are pure; the memory clears once it holds `limit` points. */
+export function memoised(warp: (q: Pt) => Pt, limit: number): (q: Pt) => Pt {
+  const seen = new Map<number, Pt>();
+  return (q) => {
+    const key = pack(q);
+    const hit = seen.get(key);
+    if (hit) return hit;
+    if (seen.size >= limit) seen.clear();
+    const out = warp(q);
+    seen.set(key, out);
+    return out;
+  };
+}

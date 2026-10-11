@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { gitEnvironment } from "./env";
 import { parseRawLog, readHistory, type HistoryEvent } from "./read";
 
 const repos: string[] = [];
@@ -10,7 +11,8 @@ afterEach(() => {
   for (const dir of repos.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-const git = (dir: string, ...args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" });
+const git = (dir: string, ...args: string[]) =>
+  execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", env: gitEnvironment() });
 const write = (dir: string, path: string, text: string) => {
   mkdirSync(join(dir, path, ".."), { recursive: true });
   writeFileSync(join(dir, path), text);
@@ -196,5 +198,25 @@ describe("parseRawLog", () => {
 
   it("rejects a stream that does not start with a commit", () => {
     expect(() => [...parseRawLog([":100644 100644 a b M", "x"])]).toThrow("history/parse");
+  });
+});
+
+describe("readHistory inside a git hook", () => {
+  it("reads the folder it is given, whatever repository the environment names", async () => {
+    const hook = repo();
+    write(hook, "hook.ts", "h");
+    commit(hook, "hook");
+    const dir = repo();
+    write(dir, "mine.ts", "m");
+    commit(dir, "mine");
+    const before = process.env.GIT_DIR;
+    process.env.GIT_DIR = join(hook, ".git");
+    try {
+      const snaps = await collect(dir);
+      expect(snaps.at(-1)?.files.map((f) => f.path)).toEqual(["mine.ts"]);
+    } finally {
+      if (before === undefined) delete process.env.GIT_DIR;
+      else process.env.GIT_DIR = before;
+    }
   });
 });

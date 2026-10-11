@@ -13,6 +13,7 @@ const node = (over: Partial<TreeNode> & { path: string }): TreeNode => ({
   children: [],
   massMille: 0,
   demand: 0,
+  digest: "",
   ...over,
 });
 

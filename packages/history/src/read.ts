@@ -3,6 +3,7 @@ import { once } from "node:events";
 import { statSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { CitymapError, compareKeys, type FileEntry, type Snapshot } from "@citymap/ground-plan";
+import { gitEnvironment } from "./env";
 
 /** One changed path of a commit, from git's raw diff against the first parent. */
 interface RawEntry {
@@ -158,7 +159,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
       options.to ?? "HEAD",
       "--",
     ],
-    { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, GIT_NO_LAZY_FETCH: "1" } },
+    { stdio: ["ignore", "pipe", "pipe"], env: gitEnvironment() },
   );
   let stderr = "";
   child.stderr.setEncoding("utf8");

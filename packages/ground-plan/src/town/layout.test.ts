@@ -276,3 +276,16 @@ describe("neighbourhoods", () => {
     expect(second.town.lots.map((l) => l.address)).toEqual(first.town.lots.map((l) => l.address));
   });
 });
+
+describe("warp memory", () => {
+  it("lays a town the same after its warp was dropped for others", () => {
+    const tree = treeOf(files("", 5));
+    const outline = outlineFor(tree.demand * 2, { x: 0, y: 0 }, "w");
+    const options = { ...OPTIONS, warp: true };
+    const first = layoutTown("w", "w0", tree, outline, emptyTownPlat(), options);
+    for (let i = 1; i <= 70; i++) layoutTown("w", `w${i}`, tree, outline, emptyTownPlat(), options);
+    expect(canonicalJson(layoutTown("w", "w0", tree, outline, emptyTownPlat(), options).town)).toBe(
+      canonicalJson(first.town),
+    );
+  });
+});

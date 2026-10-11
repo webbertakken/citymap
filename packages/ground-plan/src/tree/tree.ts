@@ -1,6 +1,6 @@
 import { LOT_AREA, MARGIN } from "../constants";
 import { floorDiv, isqrt } from "../fixed/arithmetic";
-import { compareKeys } from "../fixed/hash";
+import { compareKeys, fnv1a } from "../fixed/hash";
 import { LAND_USES, WEIGHT_MILLE, classifyLandUse, lotCapacity, type LandUse } from "../land-use/land-use";
 import type { FileEntry, Snapshot } from "../snapshot/snapshot";
 
@@ -23,6 +23,8 @@ export interface TreeNode {
   readonly children: readonly TreeNode[];
   readonly massMille: number;
   readonly demand: number;
+  /** A 64-bit digest (hex) of the folder's content: its lots, docs, first appearance and its children's digests. */
+  readonly digest: string;
 }
 
 /** A shared lot: its key (its founding identity) and its member identities. */
@@ -90,6 +92,10 @@ function shareLots(
   return seeds.toSorted(byAge);
 }
 
+/** Two independent 32-bit FNV-1a hashes of a text, as 16 hex digits: collisions are out of practical reach. */
+const digest64 = (text: string) =>
+  fnv1a(text).toString(16).padStart(8, "0") + fnv1a(`\u0000${text}`).toString(16).padStart(8, "0");
+
 /** A chain of folders without land of their own, each with one child, merged into its last folder. */
 function collapseChain(node: TreeNode): TreeNode {
   let n = node;
@@ -110,6 +116,7 @@ export function buildTree(
   snapshot: Snapshot,
   options: TreeOptions,
   shares: Shares,
+  useOf: (path: string) => LandUse = classifyLandUse,
 ): { tree: TreeNode; shares: Record<string, ShareRecord[]>; offLand: number; docs: number } {
   const { root, exclude, densityPct } = options;
   const takesLand = new Set(options.landUses);
@@ -128,7 +135,7 @@ export function buildTree(
   let docs = 0;
   for (const entry of snapshot.files) {
     if (!entry.path.startsWith(prefix) || exclude.some((e) => entry.path.startsWith(`${e}/`))) continue;
-    const use = classifyLandUse(entry.path);
+    const use = useOf(entry.path);
     if (!takesLand.has(use)) {
       offLand++;
       continue;
@@ -146,7 +153,23 @@ export function buildTree(
     const lots = shareLots(path, entry.files, shares, nextShares);
     const children = [...entry.kids].toSorted(compareKeys).map((kid) => make(kid, depth + 1));
     const ownMass = entry.files.reduce((sum, f) => sum + WEIGHT_MILLE[f.use], 0);
+    const massMille = ownMass + children.reduce((sum, c) => sum + c.massMille, 0);
+    const demand =
+      landFor(lots.length * LOT_AREA, densityPct) +
+      landFor((entry.docs * LOT_AREA) / 2, densityPct) +
+      children.reduce((sum, c) => sum + c.demand, 0);
+    // Everything layout reads of a folder: a file joining a shared lot changes its mass but not its lots.
+    const content = [
+      path,
+      snapshot.folderFirstSeen.get(path) ?? 0,
+      entry.docs,
+      massMille,
+      demand,
+      ...lots.map((l) => `${l.key}>${l.path}>${l.use}>${l.firstSeen}`),
+      ...children.map((c) => c.digest),
+    ].join("|");
     return {
+      digest: digest64(content),
       path,
       name: path === root ? root || snapshot.repository : path.slice(path.lastIndexOf("/") + 1),
       depth,
@@ -154,11 +177,8 @@ export function buildTree(
       lots,
       docs: entry.docs,
       children,
-      massMille: ownMass + children.reduce((sum, c) => sum + c.massMille, 0),
-      demand:
-        landFor(lots.length * LOT_AREA, densityPct) +
-        landFor((entry.docs * LOT_AREA) / 2, densityPct) +
-        children.reduce((sum, c) => sum + c.demand, 0),
+      massMille,
+      demand,
     };
   };
   // Below the root, a folder with no land of its own and a single child merges into that child.

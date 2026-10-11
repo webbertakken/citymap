@@ -53,6 +53,26 @@ export interface DraftBlock {
   form?: DistrictForm;
 }
 
+/** What laying out one folder appended, to replay when nothing about it changed. */
+export interface CacheEntry {
+  readonly key: string;
+  readonly roads: readonly Road[];
+  readonly blocks: readonly DraftBlock[];
+  readonly lots: readonly DraftLot[];
+  readonly districts: readonly District[];
+  readonly water: readonly Pt[][];
+  readonly overflow: number;
+  readonly lotArea2: number;
+  readonly overflowEvents: readonly PlatEvent[];
+}
+
+/** One town's locality cache: per folder path, its last layout; valid while the town's constants hold. */
+export interface TownCache {
+  constants: string;
+  readonly entries: Map<string, CacheEntry>;
+  hits: number;
+}
+
 /** The mutable state of laying out one town. */
 export interface Ctx {
   readonly options: LayoutOptions;
@@ -66,6 +86,7 @@ export interface Ctx {
   readonly districts: District[];
   readonly water: Pt[][];
   readonly landArea2: number;
+  readonly cache: TownCache | undefined;
   form: Form;
   overflow: number;
   lotArea2: number;

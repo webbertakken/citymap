@@ -1,6 +1,6 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { densify, lattice, noise, warper } from "./warp";
+import { densify, lattice, memoised, noise, warper } from "./warp";
 
 const reference = (seed: number, i: number, j: number) => {
   let h = Math.imul(i, 0x27d4eb2d) ^ Math.imul(j, 0x165667b1) ^ seed;
@@ -94,5 +94,22 @@ describe("densify", () => {
       true,
     );
     expect(ring).toHaveLength(3);
+  });
+});
+
+describe("memoised", () => {
+  it("returns what the warp returns, computing each point once until the cache fills", () => {
+    let calls = 0;
+    const warp = memoised((q) => {
+      calls++;
+      return { x: q.x + 1, y: q.y - 1 };
+    }, 2);
+    expect(warp({ x: 5, y: 5 })).toEqual({ x: 6, y: 4 });
+    expect(warp({ x: 5, y: 5 })).toEqual({ x: 6, y: 4 });
+    expect(calls).toBe(1);
+    warp({ x: -(2 ** 21), y: 2 ** 21 - 1 });
+    warp({ x: 7, y: 7 });
+    expect(warp({ x: 5, y: 5 })).toEqual({ x: 6, y: 4 });
+    expect(calls).toBe(4);
   });
 });

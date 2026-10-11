@@ -15,9 +15,14 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
   one. Same inputs, same outputs, bit for bit.
 - `foldHistory` lays every snapshot in order and returns the last city. With `start` (a lockfile), the first snapshot
   must be the lockfile's commit; it is laid once to restore runtime state (`last` towns) before folding on.
-- **Locality cache**: the fold skips re-laying a folder whose subtree digest (FNV-1a over its sorted `identity@path`
-  list and the options), input polygon and plat records are unchanged since the previous lay, reusing its output and
-  plat entries. The cache is an optimisation: with it off, results are identical (tested).
+- **Locality cache**: a fold carries, per town, the last result of laying out each folder: the folder's content digest
+  (a 64-bit hash of its lots, docs and children's digests), its land polygon and widths, its district seed, and the
+  town's constants (options, land area, root). When all match on the next lay, and the folder's own plat record (its
+  form, and its grid, cut or radial record) is still present, the recorded roads, blocks, lots, districts, water,
+  overflow and lot area are appended again and the folder's subtree is skipped; overflow events repeat, decisions do
+  not. A folder's plat records change only in its own layout or when an ancestor forgets them, which removes the record
+  the check looks for. Results with the cache are identical to results without it (tested). District labels are filtered
+  by the root's mass at the end of the lay, so the root's growth does not invalidate the cache.
 - `Options`: `densityPct` (50, range 20 to 80), `landUses`, `order` (`centre-out` | `first-seen`), `jog` (`off` |
   `top-level` | `all`; default `top-level`), `warp` (true).
 
