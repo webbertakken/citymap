@@ -6,6 +6,9 @@
     },
     {
       "path": "packages/history"
+    },
+    {
+      "path": "packages/svg"
     }
   ]
 }

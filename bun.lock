@@ -30,6 +30,13 @@
         "@citymap/ground-plan": "workspace:*",
       },
     },
+    "packages/svg": {
+      "name": "@citymap/svg",
+      "version": "0.0.0",
+      "dependencies": {
+        "@citymap/ground-plan": "workspace:*",
+      },
+    },
   },
   "packages": {
     "@babel/helper-string-parser": ["@babel/helper-string-parser@7.29.7", "", {}, "sha512-Pb5ijPrZ89GDH8223L4UP8i6QApWxs04RbPQJTeWDV0/keR2E36MeKnyr6LYmUUvqRRI+Iv87SuF1W6ErINzYw=="],
@@ -45,6 +52,8 @@
     "@citymap/ground-plan": ["@citymap/ground-plan@workspace:packages/ground-plan"],
 
     "@citymap/history": ["@citymap/history@workspace:packages/history"],
+
+    "@citymap/svg": ["@citymap/svg@workspace:packages/svg"],
 
     "@jridgewell/resolve-uri": ["@jridgewell/resolve-uri@3.1.2", "", {}, "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw=="],
 
