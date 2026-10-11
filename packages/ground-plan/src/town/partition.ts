@@ -175,7 +175,11 @@ export function radial(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, dist
       scale = Math.min(RADIAL_MAX_SCALE, floorDiv(scale * isqrt(ratio), 1000));
     }
     if (!bounds) return false;
-    if (known) emit(ctx, "plat/radial-resector", { path: node.path });
+    if (known) {
+      emit(ctx, "plat/radial-resector", { path: node.path });
+      // Every sector turns: each item lays afresh in its new land rather than keep a grid that lies across it.
+      for (const item of items) forget(ctx, item.key);
+    }
     rec = {
       core: core.key,
       start,

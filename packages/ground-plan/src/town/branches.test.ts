@@ -240,6 +240,31 @@ describe("neighbourhood edge cases", () => {
     expect(moved.lots).toHaveLength(20);
   });
 
+  it("lays its grid afresh when the cuts around it moved its land off the grid", () => {
+    const box = (x: number, y: number, w: number, h: number) => ({
+      p: [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }],
+      w: [0, 0, 0, 0],
+    });
+    const first = emptyCtx();
+    neighbourhood(first, box(0, 0, 600, 400), seeds(6), 0, "k", "d", "neighbourhood");
+    const moved = { ...emptyCtx(), plat: first.plat };
+    neighbourhood(moved, box(350, 250, 500, 400), seeds(6), 0, "k", "d", "neighbourhood");
+    expect(moved.overflow).toBe(0);
+    expect(moved.events.map((e) => e.code)).toContain("plat/regrid");
+    expect(moved.lots).toHaveLength(6);
+    expect(moved.roads.length).toBeLessThanOrEqual(first.roads.length + 2);
+  });
+
+  it("keeps its grid when a fresh one would seat no more lots", () => {
+    const first = emptyCtx();
+    neighbourhood(first, rect(600, 400), seeds(6), 0, "k", "d", "neighbourhood");
+    const squeezed = { ...emptyCtx(), plat: first.plat };
+    // The same land with far more lots than any grid on it can seat.
+    neighbourhood(squeezed, rect(600, 400), seeds(200), 0, "k", "d", "neighbourhood");
+    expect(squeezed.events.map((e) => e.code)).not.toContain("plat/regrid");
+    expect(squeezed.overflow).toBeGreaterThan(0);
+  });
+
   it("has no slots on land smaller than a block", () => {
     const ctx = emptyCtx();
     neighbourhood(ctx, rect(40, 40), seeds(3), 0, "k", "d", "neighbourhood");

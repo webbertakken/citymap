@@ -83,6 +83,8 @@ Each concept has one name; the names in brackets are not used.
   class 4. Frontage left in the last block stays garden and spare blocks stay reserve plots; both are room to grow.
 - When a neighbourhood's lots outgrow its slots at that class, the class narrows until they fit and the neighbourhood
   re-lays its lots in order; the move stays inside the neighbourhood.
+- When its grid cannot seat its lots even at class 1, because the cuts around it moved its land, and a fresh grid on
+  the same land can, the neighbourhood lays its grid afresh; no file is left without a lot that its land could hold.
 - Density is a setting (a slider), 50% by default: a folder's land is its lot area over density, plus a road margin.
   Low density gives suburban plots, high density narrow plots in a dense core.
 
@@ -143,6 +145,8 @@ is therefore readable as distance from the core, and newcomers join the edges.
   - **radial**: the dominant child at the core, the others in ring sectors in age order, a ring road round the core
     and spokes between the sectors. The core is the polygon through the spokes' inner ends, so every sector is
     convex. It needs three or more ring items and sectors under 171°, and otherwise falls back to polycentric.
+    Sectors are remembered; a newcomer or an item outgrowing its band re-sectors the ring, which re-lays the ring's
+    items afresh.
   - **twin**: the two heaviest children on either bank of a river 2.5 u wide, the rest joining the lighter bank in age
     order; one bridge, or two on a river longer than 12 u.
   - **polycentric**: recursive cuts, as in Structure. Many similar children (integrations, examples) take this form

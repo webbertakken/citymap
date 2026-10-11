@@ -83,6 +83,10 @@ describe("layoutTown", () => {
     const grown = lay(treeOf([...radialRepo(), ...files("down", 40, 2000)]), first.plat, {}, 100, treeOf(radialRepo()));
     expect(codes(grown.events)).toContain("plat/radial-resector");
     expect(grown.plat.radial[""]?.order).toEqual([...[...RING].sort(), "down"]);
+    // Every ring item lays afresh in its new sector: its old grid would lie across the turned land.
+    const forgotten = grown.events.filter((e) => e.code === "plat/forget").map((e) => e.detail.key);
+    expect([...forgotten].sort()).toEqual(expect.arrayContaining(["core", ...RING]));
+    expect(grown.town.stats.overflow).toBe(0);
   });
 
   it("falls back to cuts when a radial ring has fewer than three items", () => {

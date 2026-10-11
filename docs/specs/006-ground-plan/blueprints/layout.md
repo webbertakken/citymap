@@ -97,6 +97,7 @@ For a node classified radial, with at least one folder item:
 - Core: the heaviest folder (ties to the earlier item). Ring: every other item; fewer than 3 declines.
 - Remembered `RadialRecord` is dropped when its core changed; it is re-sectored when a ring item is new, or any
   item's demand exceeds its cap (log `plat/radial-resector`). Order keeps remembered items, newcomers at the end.
+  A re-sector forgets every item's own records, so each lays afresh in its new sector.
 - Start angle `unitMille(seed#radial) × TURN / 1000`. Sector bounds: for each ring item but the last, the least
   angle step whose sector area reaches its demand share (integer bisection over steps, at most `MAX_SPAN`); the last
   must span 1 to `MAX_SPAN` steps, else decline.
@@ -133,6 +134,8 @@ recurse as `path>L`, `path>R` with their own district seeds.
    narrowed until every lot fits.
    Later lays: when the slots at `span` hold fewer than the lots, `span` narrows until they fit (or reaches 1), the
    remembered slots clear, and `plat/narrow` is logged (key, from, to).
+   Then, when the slots still hold fewer than the lots and a fresh grid on today's land holds more, the grid record is
+   dropped and the neighbourhood lays afresh, logging `plat/regrid` (key). Nothing is drawn until this is settled.
 8. Street village order: slots by row distance from `high`, then serpentine index.
 9. Renewal: when remembered keys that are vacant are more than half of all remembered, log `plat/renew` and clear
    the slots.
