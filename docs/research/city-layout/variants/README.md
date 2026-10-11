@@ -44,16 +44,16 @@ Sheets: `img/towns-towns-<repo>.webp` (plan), `img/towns-density-<repo>.webp` (3
 
 | Repo           | Lots   | Lot coverage of land | Local street share | Long straight roads | Lots without room |
 | -------------- | ------ | -------------------- | ------------------ | ------------------- | ----------------- |
-| takken.io      | 244    | 21.8%                | 88%                | 9                   | 0                 |
-| react          | 2,019  | 39.1%                | 76%                | 10                  | 5                 |
-| redux          | 92     | 17.2%                | 80%                | 5                   | 0                 |
-| next.js        | 8,032  | 37.5%                | 81%                | 24                  | 8                 |
-| game-ci-cli    | 702    | 28%                  | 80%                | 6                   | 0                 |
-| livediagram    | 4,121  | 36.3%                | 74%                | 9                   | 10                |
-| studio-worker  | 101    | 27.7%                | 100%               | 3                   | 0                 |
-| home-assistant | 13,198 | 45%                  | 80%                | 2                   | 8                 |
-| typescript     | 929    | 38.5%                | 80%                | 8                   | 1                 |
-| rust           | 6,237  | 31.3%                | 72%                | 3                   | 23                |
+| takken.io      | 244    | 22.1%                | 88%                | 9                   | 0                 |
+| react          | 2,018  | 35.5%                | 75%                | 7                   | 6                 |
+| redux          | 92     | 13.2%                | 80%                | 5                   | 0                 |
+| next.js        | 8,024  | 36.5%                | 80%                | 26                  | 16                |
+| game-ci-cli    | 702    | 26%                  | 80%                | 7                   | 0                 |
+| livediagram    | 4,122  | 36.9%                | 72%                | 11                  | 9                 |
+| studio-worker  | 101    | 26.1%                | 100%               | 3                   | 0                 |
+| home-assistant | 13,193 | 43.7%                | 80%                | 3                   | 13                |
+| typescript     | 929    | 37.6%                | 80%                | 8                   | 1                 |
+| rust           | 6,243  | 29%                  | 71%                | 5                   | 17                |
 
 "Long straight roads" counts roads longer than 45% of their town's diameter that stay within 0.5% of a straight line.
 Small towns still have too many: the warp bends less than a cut is long, and every cut runs wall to wall.
@@ -82,7 +82,7 @@ Stability, share of surviving lots that moved more than 2 units, per first-paren
 What still moves:
 
 - **Cuts outgrowing their band.** Every cut that moved sits in the top two folder levels: 19 in takken.io's 239
-  commits, 5 in React's 1,200. The spec's fixed frame says these never move outside an archetype switch.
+  commits, 5 in React's 1,200. The owner chose to let them move with the band rather than freeze them.
 - **Unflattening.** takken.io began as one neighbourhood and re-laid once (2024) when it outgrew the flatten band: an
   archetype switch, which the old-town island rule will keep. Cutting the root from day one instead moved more (1.7%
   per commit, 12.6% on deletions), as tiny districts kept outgrowing their bands.
@@ -90,24 +90,26 @@ What still moves:
 
 ### Jogging cuts
 
-A long cut (at least 30% of the town's diameter) with two or more items on each side becomes a pinwheel: both sides
+A long cut (at least 30% of the town's diameter) with two or more items on each side becomes a pinwheel (by default only
+the cuts between a town's top-level folders, `jog: "top-level"`; `"all"` jogs every long cut): both sides
 split square to it, and where those cross cuts fall at least 2 u apart, the long cut steps 3 u sideways between them.
-Four roads end in T-junctions round a plaza; every piece stays convex. `Options.jog` switches it; the plat remembers
-it through the same cut records. `img/towns-jog-<repo>.webp` sets straight cuts (STATE A) beside jogging cuts.
+Four roads end in T-junctions round a plaza; every piece stays convex. `Options.jog` (`off`, `top-level`, `all`) sets it; the plat remembers
+it through the same cut records. `img/towns-jog-<repo>.webp` sets straight cuts (STATE A), top-level jogs and every long cut jogging side by side.
+Top-level only keeps STATE A's straight streets inside districts and breaks only the cross-town roads.
 
-| Repo           | Pinwheels     | Long straight roads, straight | Long straight roads, jogging |
-| -------------- | ------------- | ----------------------------- | ---------------------------- |
-| next.js        | 13            | 24                            | 24                           |
-| react          | (not counted) | 10                            | 7                            |
-| home-assistant | 5             | 2                             | 5                            |
-| takken.io      | 1             | 9                             | 9                            |
+| Repo           | Long straight roads, straight | Top-level jogs | Every long cut jogs | Lots without room (straight, top-level, all) |
+| -------------- | ----------------------------- | -------------- | ------------------- | -------------------------------------------- |
+| next.js        | 24                            | 26             | 24                  | 8, 16, 18                                    |
+| react          | 10                            | 7              | 7                   | 5, 6, 5                                      |
+| home-assistant | 2                             | 3              | 5                   | 8, 13, 11                                    |
+| takken.io      | 9                             | 9              | 9                   | 0, 0, 0                                      |
 
 - The count barely moves: a pinwheel road still runs from the town edge to just past the middle (about 55% of a
   top-level cut), so one long road becomes two half roads that both pass the 45% threshold.
 - Cuts with a single item on one side (one heavy folder against the rest) cannot pinwheel and stay straight.
 - Forcing the cross cuts square rearranges the districts: jogging changes STATE A's layout as well as its roads.
 - Stability holds: React 0.1% per commit and 1.2% on deleting commits; takken.io 1.2% and 5.9%.
-- Lots without room rise slightly (next.js 8 to 18): the plaza and the step take land from pieces sized without them.
+- Lots without room rise slightly: the plaza and the step take land from pieces sized without them.
 
 ## Sheets
 

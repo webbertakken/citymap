@@ -104,14 +104,14 @@ is therefore readable as distance from the core, and newcomers join the edges.
   contiguous run.
 - Chains of folders without land of their own and with a single child collapse into one.
 - Land between collectors or bigger roads is a ward.
-- Long cuts jog. A cut at least 30% of its town's diameter long, with two or more items on each side, becomes a
+- Long top-level cuts jog. A cut between a town's top-level folders, at least 30% of the town's diameter long, with two or more items on each side, becomes a
   pinwheel: each side splits again square to it, and where those cross cuts fall at least 2 u apart, the long cut steps
   sideways by 3 u between them. The four roads end in T-junctions round a plaza, and each of the four pieces is the
   land within two half-planes.
 - The plat remembers every cut: its line, its class, the items on each side, and each side's band (1.35 times its
   demand at the last cut). A newcomer joins the side with more spare band. A cut moves, to the split of today's demand,
-  only when a side outgrows its band. The cuts of the top two folder levels form the fixed frame and only move on an
-  archetype switch.
+  only when a side outgrows its band. This holds at every level, the top two
+  folder levels included.
 - The plat remembers every neighbourhood: its grid origin, angle and pitch, its lot class, its park line, and the slot
   of every lot. Lots keep their slots; a newcomer takes the first free slot after its folder's last lot. Cells come
   and go only with the neighbourhood's land; a lot whose slot is gone takes a free one.

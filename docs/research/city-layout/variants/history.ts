@@ -332,7 +332,7 @@ if (stepMode) {
               live.map((f) => f.path),
             ),
           },
-          { density: 0.5, order: "centre-out", warp: true, jog: true, noLand: ["tests", "fixtures"] },
+          { density: 0.5, order: "centre-out", warp: true, jog: "top-level", noLand: ["tests", "fixtures"] },
           mode === "plat" ? regionPlat : emptyRegionPlat(),
         );
         const liveLots = region.towns.flatMap((town) => town.lots.filter((l) => !l.vacant));
@@ -432,7 +432,7 @@ if (filmMode) {
     density: 0.5,
     order: "centre-out" as const,
     warp: true,
-    jog: true,
+    jog: "top-level" as const,
     noLand: ["tests", "fixtures"] as LandUse[],
   };
   for (const frame of frames) {
