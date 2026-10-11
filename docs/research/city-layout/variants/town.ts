@@ -36,7 +36,12 @@ const MODULE = 4; // lot frontage, 0.5 u
 const PAVEMENT = 1.5;
 const LOT_AREA = MODULE * (BLOCK_SHORT / 2);
 const FLATTEN_BLOCKS = 9;
-const MAX_CLASS = 4; // a folder smaller than this many blocks is one neighbourhood
+const MAX_CLASS = 4;
+/** A cut at least this share of its town's diameter long is a long cut, and jogs when it can. */
+const LONG_CUT = 0.3;
+/** The sideways step of a jogging cut, and the least gap between its cross cuts that makes a plaza. */
+const JOG = 3 * U;
+const MIN_JOG = 2 * U; // a folder smaller than this many blocks is one neighbourhood
 /** Land uses that take no land unless the land dimension includes them. */
 export const DEFAULT_NO_LAND: LandUse[] = ["tests", "fixtures"];
 const MARGIN = ROAD_WIDTH.street / 2 + PAVEMENT;
@@ -108,6 +113,8 @@ export interface Options {
   /** The land dimension: land uses that take no land (tests and fixtures by default). */
   noLand: LandUse[];
   order: "centre-out" | "first-seen";
+  /** Jogging cuts: long cuts whose sides split again become pinwheels round a plaza. */
+  jog: boolean;
   warp: boolean;
 }
 
@@ -118,7 +125,7 @@ export interface Road {
 export interface Block {
   pts: Pt[];
   district: string;
-  kind: "built" | "open" | "park";
+  kind: "built" | "open" | "park" | "plaza";
 }
 export interface Lot {
   pts: Pt[];
@@ -380,7 +387,18 @@ export function layoutTown(
     }
   };
 
-  const split = (items: Item[], poly: Poly, mass: number, top: boolean, key: string, district: string) => {
+  /**
+   * The remembered binary decision at a key: which items go to which side of which line. A forced normal (a pinwheel's
+   * cross cuts) replaces the longest-extent rule and the tilt. Null when one item is left and no cut is remembered.
+   */
+  const decide = (
+    items: Item[],
+    poly: Poly,
+    mass: number,
+    top: boolean,
+    key: string,
+    normal?: [number, number],
+  ): { rec: CutRecord; left: Item[]; right: Item[] } | null => {
     let rec: CutRecord | undefined = plat.cuts[key];
     if (
       rec &&
@@ -392,7 +410,7 @@ export function layoutTown(
       rec = undefined;
     }
     if (!rec) {
-      if (items.length === 1) return place(poly, items[0], district);
+      if (items.length === 1) return null;
       // A fresh cut: split the ordered items where the land is halved, across the longer extent, path-seeded tilt.
       const total = demandOf(items);
       let acc = 0;
@@ -406,14 +424,19 @@ export function layoutTown(
           k = i;
         }
       }
-      const theta = longestEdgeAngle(poly.p);
-      const along = extent(poly.p, Math.cos(theta), Math.sin(theta));
-      const across = extent(poly.p, -Math.sin(theta), Math.cos(theta));
-      const base = along[1] - along[0] >= across[1] - across[0] ? theta : theta + Math.PI / 2;
-      // Seeds and tints use the key without separators, so a first lay draws exactly what STATE A drew.
-      const tilt = (unit(`${seedOf(key)}#tilt`) - 0.5) * 0.35;
-      const nx = Math.cos(base + tilt);
-      const ny = Math.sin(base + tilt);
+      let nx: number;
+      let ny: number;
+      if (normal) [nx, ny] = normal;
+      else {
+        const theta = longestEdgeAngle(poly.p);
+        const along = extent(poly.p, Math.cos(theta), Math.sin(theta));
+        const across = extent(poly.p, -Math.sin(theta), Math.cos(theta));
+        const base = along[1] - along[0] >= across[1] - across[0] ? theta : theta + Math.PI / 2;
+        // Seeds and tints use the key without separators, so a first lay draws exactly what STATE A drew.
+        const tilt = (unit(`${seedOf(key)}#tilt`) - 0.5) * 0.35;
+        nx = Math.cos(base + tilt);
+        ny = Math.sin(base + tilt);
+      }
       const left = items.slice(0, k);
       const right = items.slice(k);
       rec = {
@@ -453,8 +476,118 @@ export function layoutTown(
       }
     }
     const r = rec;
-    const left = items.filter((i) => r.left.includes(i.key));
-    const right = items.filter((i) => r.right.includes(i.key));
+    return {
+      rec: r,
+      left: items.filter((i) => r.left.includes(i.key)),
+      right: items.filter((i) => r.right.includes(i.key)),
+    };
+  };
+
+  /** The part of a road segment whose coordinate along (mx, my) lies within [lo, hi]. */
+  const trim = (seg: [Pt, Pt], mx: number, my: number, lo: number, hi: number): Pt[] | null => {
+    const v0 = mx * seg[0].x + my * seg[0].y;
+    const v1 = mx * seg[1].x + my * seg[1].y;
+    if (Math.abs(v1 - v0) < 1e-9) return v0 >= lo && v0 <= hi ? seg : null;
+    const at = (v: number) => Math.min(1, Math.max(0, (v - v0) / (v1 - v0)));
+    const [u0, u1] = [at(lo), at(hi)].sort((a, b) => a - b);
+    if (u1 - u0 < 1e-6) return null;
+    const point = (u: number): Pt => ({
+      x: seg[0].x + (seg[1].x - seg[0].x) * u,
+      y: seg[0].y + (seg[1].y - seg[0].y) * u,
+    });
+    return [point(u0), point(u1)];
+  };
+
+  /**
+   * Jogging cuts: a long cut whose sides each split again becomes a pinwheel. The two cross cuts are forced square to
+   * the main cut; where they fall at different points along it, the main cut steps sideways between them by JOG, and
+   * the four roads end in T-junctions round a small plaza. Every piece stays convex: two half-planes of the land.
+   */
+  const pinwheel = (
+    decision: { rec: CutRecord; left: Item[]; right: Item[] },
+    poly: Poly,
+    key: string,
+    district: string,
+  ): boolean => {
+    const { rec: r, left, right } = decision;
+    if (!options.jog || left.length < 2 || right.length < 2) return false;
+    const seg = chord(poly.p, r.nx, r.ny, r.c);
+    const diameter = 2 * Math.sqrt(town.stats.landArea / Math.PI);
+    if (!seg || Math.hypot(seg[1].x - seg[0].x, seg[1].y - seg[0].y) < LONG_CUT * diameter) return false;
+    const mx = -r.ny;
+    const my = r.nx;
+    const below = decide(left, clip(poly, r.nx, r.ny, r.c, 0), massOf(left), false, `${key}>L`, [mx, my]);
+    const above = decide(right, clip(poly, -r.nx, -r.ny, -r.c, 0), massOf(right), false, `${key}>R`, [mx, my]);
+    if (!below || !above) return false;
+    const square = (rec: CutRecord) => rec.nx * mx + rec.ny * my > 0.9999;
+    if (!square(below.rec) || !square(above.rec)) return false;
+    if ([below.left, below.right, above.left, above.right].some((part) => part.length === 0)) return false;
+    const t1 = below.rec.c;
+    const t2 = above.rec.c;
+    if (Math.abs(t1 - t2) < MIN_JOG) return false;
+    const sigma = t1 > t2 ? -1 : 1;
+    const sLeft = r.c + (sigma * JOG) / 2;
+    const sRight = r.c - (sigma * JOG) / 2;
+    const [lo, hi] = [Math.min(t1, t2), Math.max(t1, t2)];
+    const wMain = ROAD_WIDTH[r.cls];
+    const wBelow = ROAD_WIDTH[below.rec.cls];
+    const wAbove = ROAD_WIDTH[above.rec.cls];
+    const n = (p: Poly, nx: number, ny: number, c: number, w: number) => clip(p, nx, ny, c, w);
+    // Pieces in rotation: below-left, below-right, above-right, above-left; each is the land within two half-planes.
+    const pieces: [Item[], Poly, string][] = [
+      [below.left, n(n(poly, r.nx, r.ny, sLeft, wMain), mx, my, t1, wBelow), `${key}>L>L`],
+      [below.right, n(n(poly, r.nx, r.ny, sRight, wMain), -mx, -my, -t1, wBelow), `${key}>L>R`],
+      [above.right, n(n(poly, -r.nx, -r.ny, -sRight, wMain), -mx, -my, -t2, wAbove), `${key}>R>R`],
+      [above.left, n(n(poly, -r.nx, -r.ny, -sLeft, wMain), mx, my, t2, wAbove), `${key}>R>L`],
+    ];
+    // Roads: each runs from the town edge to the far side of the plaza, where it meets the next in a T.
+    const roads: [Pt[] | null, RoadClass][] = [];
+    const along = (c: number) => chord(poly.p, r.nx, r.ny, c);
+    const across = (c: number) => chord(poly.p, mx, my, c);
+    const leftRoad = along(sLeft);
+    const rightRoad = along(sRight);
+    const belowRoad = across(t1);
+    const aboveRoad = across(t2);
+    const [sLo, sHi] = [Math.min(sLeft, sRight), Math.max(sLeft, sRight)];
+    if (leftRoad) roads.push([trim(leftRoad, mx, my, -Infinity, hi), r.cls]);
+    if (rightRoad) roads.push([trim(rightRoad, mx, my, lo, Infinity), r.cls]);
+    if (belowRoad) roads.push([trim(belowRoad, r.nx, r.ny, -Infinity, sHi), below.rec.cls]);
+    if (aboveRoad) roads.push([trim(aboveRoad, r.nx, r.ny, sLo, Infinity), above.rec.cls]);
+    for (const [pts, cls] of roads) if (pts) town.roads.push({ pts, cls });
+    const plazaLand = n(
+      n(
+        n(n(poly, mx, my, hi, t1 > t2 ? wBelow : wAbove), -mx, -my, -lo, t1 > t2 ? wAbove : wBelow),
+        r.nx,
+        r.ny,
+        sHi,
+        wMain,
+      ),
+      -r.nx,
+      -r.ny,
+      -sLo,
+      wMain,
+    );
+    const plaza = inset(plazaLand, PAVEMENT);
+    if (plaza.p.length >= 3) town.blocks.push({ pts: plaza.p, district, kind: "plaza" });
+    // Districts and wards follow the same keys and tints as an unjogged cut would.
+    const major = (cls: RoadClass) => cls !== "street" && cls !== "lane";
+    if (major(r.cls)) wards(poly, r, left, right, key);
+    const sideDistrict = (sub: string) => (major(r.cls) ? seedOf(sub) : district);
+    const subDistrict = (rec: CutRecord, side: string, sub: string) =>
+      major(rec.cls) ? seedOf(sub) : sideDistrict(side);
+    for (const [part, piece, sub] of pieces) {
+      const side = sub.slice(0, -2);
+      const rec = side.endsWith(">L") ? below.rec : above.rec;
+      split(part, piece, massOf(part), false, sub, subDistrict(rec, side, sub));
+    }
+    return true;
+  };
+
+  const split = (items: Item[], poly: Poly, mass: number, top: boolean, key: string, district: string) => {
+    const decision = decide(items, poly, mass, top, key);
+    if (!decision) return place(poly, items[0], district);
+    if (pinwheel(decision, poly, key, district)) return;
+    const { rec: r, left, right } = decision;
     const seg = chord(poly.p, r.nx, r.ny, r.c);
     const major = r.cls !== "street" && r.cls !== "lane";
     if (seg && left.length > 0 && right.length > 0) town.roads.push({ pts: seg, cls: r.cls });

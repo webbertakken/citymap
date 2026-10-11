@@ -88,6 +88,27 @@ What still moves:
   per commit, 12.6% on deletions), as tiny districts kept outgrowing their bands.
 - **Renewal.** A neighbourhood more than half vacant re-lays its lots in order; redux's deleting commits are mostly this.
 
+### Jogging cuts
+
+A long cut (at least 30% of the town's diameter) with two or more items on each side becomes a pinwheel: both sides
+split square to it, and where those cross cuts fall at least 2 u apart, the long cut steps 3 u sideways between them.
+Four roads end in T-junctions round a plaza; every piece stays convex. `Options.jog` switches it; the plat remembers
+it through the same cut records. `img/towns-jog-<repo>.webp` sets straight cuts (STATE A) beside jogging cuts.
+
+| Repo           | Pinwheels     | Long straight roads, straight | Long straight roads, jogging |
+| -------------- | ------------- | ----------------------------- | ---------------------------- |
+| next.js        | 13            | 24                            | 24                           |
+| react          | (not counted) | 10                            | 7                            |
+| home-assistant | 5             | 2                             | 5                            |
+| takken.io      | 1             | 9                             | 9                            |
+
+- The count barely moves: a pinwheel road still runs from the town edge to just past the middle (about 55% of a
+  top-level cut), so one long road becomes two half roads that both pass the 45% threshold.
+- Cuts with a single item on one side (one heavy folder against the rest) cannot pinwheel and stay straight.
+- Forcing the cross cuts square rearranges the districts: jogging changes STATE A's layout as well as its roads.
+- Stability holds: React 0.1% per commit and 1.2% on deleting commits; takken.io 1.2% and 5.9%.
+- Lots without room rise slightly (next.js 8 to 18): the plaza and the step take land from pieces sized without them.
+
 ## Sheets
 
 - `img/area-<repo>.webp` - when judging lot size: file count, lines, bytes, shared lots; top row whole city, bottom a district
@@ -191,16 +212,16 @@ pm2 start bun --name citymap-dev --cwd "$PWD" -- serve.ts   # https://127.0.0.1:
 Clones are blob-less (`git clone --filter=blob:none`); history replay runs with `GIT_NO_LAZY_FETCH=1` so it never
 fetches contents. Rendering needs Inkscape and ImageMagick.| Repo | Lots | Lot coverage of land | Local street share | Long straight roads | Lots without room |
 | --- | --- | --- | --- | --- | --- |
-| takken.io | 244 | 20.2% | 88% | 9 | 0 |
-| react | 2,019 | 36% | 76% | 10 | 5 |
-| redux | 92 | 13.1% | 80% | 5 | 0 |
-| next.js | 8,032 | 36.2% | 81% | 24 | 8 |
-| game-ci-cli | 702 | 26.1% | 80% | 6 | 0 |
-| livediagram | 4,121 | 34.5% | 74% | 9 | 10 |
+| takken.io | 244 | 22.1% | 88% | 9 | 0 |
+| react | 2,019 | 34.7% | 74% | 7 | 5 |
+| redux | 92 | 13.2% | 80% | 5 | 0 |
+| next.js | 8,022 | 35.8% | 79% | 24 | 18 |
+| game-ci-cli | 702 | 25.7% | 76% | 4 | 0 |
+| livediagram | 4,124 | 36.7% | 72% | 10 | 7 |
 | studio-worker | 101 | 26.1% | 100% | 3 | 0 |
-| home-assistant | 13,198 | 43.7% | 80% | 2 | 8 |
-| typescript | 929 | 37.6% | 80% | 8 | 1 |
-| rust | 6,237 | 29.4% | 72% | 4 | 23 |
+| home-assistant | 13,195 | 43.1% | 79% | 5 | 11 |
+| typescript | 927 | 36.7% | 80% | 7 | 3 |
+| rust | 6,246 | 29.6% | 69% | 6 | 14 |
 
 "Long straight roads" counts roads longer than 45% of their town's diameter that stay within 0.5% of a straight line.
 Small towns still have too many: the warp bends less than a cut is long, and every cut runs wall to wall.

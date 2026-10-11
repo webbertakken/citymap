@@ -34,6 +34,8 @@ Each concept has one name; the names in brackets are not used.
 | renewal         | Clearing a folder's vacant lots and re-laying its land.                                            |
 | reserve plot    | A block with no lots yet: room for growth.                                                         |
 | park            | Land of docs.                                                                                      |
+| pinwheel        | Four pieces turning round a plaza, their roads ending in T-junctions: how a long cut jogs.         |
+| plaza           | The open square at the heart of a pinwheel.                                                        |
 | density         | The setting for land per lot, from suburban to dense core.                                         |
 | old town        | A city kept whole, as an island, when its archetype switches.                                      |
 | land use        | The role of a file (source, tests, fixtures and so on), from path rules.                           |
@@ -102,8 +104,10 @@ is therefore readable as distance from the core, and newcomers join the edges.
   contiguous run.
 - Chains of folders without land of their own and with a single child collapse into one.
 - Land between collectors or bigger roads is a ward.
-- Long cuts jog: where a cut meets a crossing road, its continuation may shift sideways, so no straight road crosses a
-  whole district.
+- Long cuts jog. A cut at least 30% of its town's diameter long, with two or more items on each side, becomes a
+  pinwheel: each side splits again square to it, and where those cross cuts fall at least 2 u apart, the long cut steps
+  sideways by 3 u between them. The four roads end in T-junctions round a plaza, and each of the four pieces is the
+  land within two half-planes.
 - The plat remembers every cut: its line, its class, the items on each side, and each side's band (1.35 times its
   demand at the last cut). A newcomer joins the side with more spare band. A cut moves, to the split of today's demand,
   only when a side outgrows its band. The cuts of the top two folder levels form the fixed frame and only move on an

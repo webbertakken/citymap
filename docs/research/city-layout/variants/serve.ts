@@ -48,6 +48,7 @@ function sheets(): Sheet[] {
 const SECTION_TITLES: Record<string, string> = {
   towns: "Towns (plan)",
   hero: "Hero (2:1 dimetric)",
+  jog: "Jogging cuts",
   land: "Land dimension",
   themes: "Themes",
   density: "Density (grain)",
