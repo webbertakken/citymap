@@ -110,6 +110,7 @@ export function buildTree(
   snapshot: Snapshot,
   options: TreeOptions,
   shares: Shares,
+  useOf: (path: string) => LandUse = classifyLandUse,
 ): { tree: TreeNode; shares: Record<string, ShareRecord[]>; offLand: number; docs: number } {
   const { root, exclude, densityPct } = options;
   const takesLand = new Set(options.landUses);
@@ -128,7 +129,7 @@ export function buildTree(
   let docs = 0;
   for (const entry of snapshot.files) {
     if (!entry.path.startsWith(prefix) || exclude.some((e) => entry.path.startsWith(`${e}/`))) continue;
-    const use = classifyLandUse(entry.path);
+    const use = useOf(entry.path);
     if (!takesLand.has(use)) {
       offLand++;
       continue;

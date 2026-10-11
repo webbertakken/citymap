@@ -7,7 +7,7 @@ import { DIRECTION, TURN, dir, normalise, type Dir } from "../fixed/direction";
 import { compareKeys, fnv1a } from "../fixed/hash";
 import { centroid, type Pt } from "../fixed/polygon";
 import { densify, warper } from "../fixed/warp";
-import { landKey, type LandUse } from "../land-use/land-use";
+import { classifyLandUse, landKey, type LandUse } from "../land-use/land-use";
 import { emptyTownPlat, type OldTown, type Plat } from "../plat/plat";
 import type { Snapshot } from "../snapshot/snapshot";
 import type { PlatEvent } from "../town/context";
@@ -90,10 +90,22 @@ export function layCity(
       plat: state.plat.landKey,
       options: key,
     });
-  const plat: Plat = structuredClone(state.plat);
+  // Shallow copies of the records this lay changes; each town's own plat is copied where it is laid.
+  const plat: Plat = {
+    ...state.plat,
+    towns: { ...state.plat.towns },
+    old: { ...state.plat.old },
+    rootForms: { ...state.plat.rootForms },
+  };
+  // Each path's land use, classified once for every tree this lay builds.
+  const uses = new Map(snapshot.files.map((f) => [f.path, classifyLandUse(f.path)]));
+  const useOf = (path: string) => uses.get(path)!;
   const last: Record<string, Town> = { ...state.last };
   const events: PlatEvent[] = [];
-  const groups = workspaceGroups(snapshot.files.map((f) => f.path));
+  const groups = workspaceGroups(
+    snapshot.files.map((f) => f.path),
+    useOf,
+  );
   const parts: Part[] = [
     { name: snapshot.repository, key: snapshot.repository, root: "", exclude: groups, firstSeen: 0 },
     ...groups
@@ -120,9 +132,16 @@ export function layCity(
     const treeFor = () => {
       const held = heldBy(part.key);
       const files = held.size > 0 ? snapshot.files.filter((f) => !held.has(f.identity)) : snapshot.files;
-      return buildTree({ ...snapshot, files }, treeOptions(part), (plat.towns[part.key] ?? emptyTownPlat()).shares);
+      return buildTree(
+        { ...snapshot, files },
+        treeOptions(part),
+        (plat.towns[part.key] ?? emptyTownPlat()).shares,
+        useOf,
+      );
     };
-    const whole = buildTree(snapshot, treeOptions(part), {}).tree;
+    let built = treeFor();
+    // The root's form is judged over the whole part, old towns' files included; without old towns that is this tree.
+    const whole = plat.old[part.key] ? buildTree(snapshot, treeOptions(part), {}, useOf).tree : built.tree;
     const previous = plat.rootForms[part.key];
     const rootForm: Form = classifyNode(whole, previous);
     plat.rootForms[part.key] = rootForm;
@@ -134,7 +153,8 @@ export function layCity(
       const members: Record<string, string[]> = {};
       for (const lots of Object.values(townPlat.shares)) for (const lot of lots) members[lot.key] = [...lot.members];
       for (const lot of before.lots) if (!lot.vacant) members[lot.key] ??= [lot.key];
-      const list = (plat.old[part.key] ??= []);
+      const list = [...(plat.old[part.key] ?? [])];
+      plat.old[part.key] = list;
       const name = oldTownName(part.name, list.length + 1);
       events.push({
         code: "plat/old-town",
@@ -142,8 +162,8 @@ export function layCity(
       });
       list.push({ town: { ...before, name, old: true }, members });
       plat.towns[part.key] = emptyTownPlat();
+      built = treeFor();
     }
-    const built = treeFor();
     return built.tree.demand > 0 ? [{ part, rootForm, ...built }] : [];
   });
 

@@ -89,6 +89,10 @@ describe("isqrt", () => {
     expect(isqrt(2 ** 52)).toBe(2 ** 26);
   });
 
+  it("is exact just below the largest squares of the fast path", () => {
+    for (let k = 2 ** 26 - 64; k < 2 ** 26; k++) expect(isqrt(k * k - 1)).toBe(k - 1);
+  });
+
   it("brackets every input", () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: Number.MAX_SAFE_INTEGER }), (n) => {
