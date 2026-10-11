@@ -5,6 +5,12 @@ export type ErrorCode =
   | "fixed/negative-sqrt"
   | "fixed/zero-direction"
   | "fixed/warp-folds"
+  | "snapshot/bad-shape"
+  | "snapshot/not-sorted"
+  | "snapshot/duplicate-path"
+  | "snapshot/bad-path"
+  | "snapshot/too-large"
+  | "snapshot/bad-index"
   | "engine/invariant";
 
 /** The only error the engine throws: a stable code, a message, and structured detail for logs. */
