@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { CitymapError } from "@citymap/ground-plan";
+import { gitEnvironment } from "./env";
 
 /** Runs git with an argument list (never a shell); resolves its exit code and output. */
 function git(dir: string, args: readonly string[]): Promise<{ code: number; stdout: string; stderr: string }> {
@@ -7,7 +8,7 @@ function git(dir: string, args: readonly string[]): Promise<{ code: number; stdo
     execFile(
       "git",
       ["-c", "core.hooksPath=/dev/null", "-C", dir, ...args],
-      { env: { ...process.env, GIT_NO_LAZY_FETCH: "1" } },
+      { env: gitEnvironment() },
       (error, stdout, stderr) => {
         // An exit status is a number; git that could not start at all (ENOENT) is reported as -1 with its reason.
         const code = error === null ? 0 : typeof error.code === "number" ? error.code : -1;
