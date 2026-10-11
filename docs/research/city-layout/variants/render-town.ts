@@ -48,11 +48,10 @@ const DRACULA_ACCENTS = ["#BD93F9", "#FF79C6", "#8BE9FD", "#50FA7B", "#FFB86C", 
 const accentOf = (key: string) => DRACULA_ACCENTS[fnv1a(key) % DRACULA_ACCENTS.length];
 
 /** District forms on the archetype sheets: hues clear of the park greens, one per form. */
-export const FORM_HUE: Record<string, number> = { radial: 55, twin: 235, gridiron: 300, polycentric: 15 };
+export const FORM_HUE: Record<string, number> = { radial: 55, twin: 235, polycentric: 15 };
 const FORM_ACCENT: Record<string, string> = {
   radial: "#FFB86C",
   twin: "#8BE9FD",
-  gridiron: "#BD93F9",
   polycentric: "#FF79C6",
 };
 
