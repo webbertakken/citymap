@@ -28,7 +28,12 @@ describe("main", () => {
     expect(await main(["/no/such/repository"], x.value, x.error)).toBe(1);
     expect(x.err[0]).toMatch(/^error history\/git-failed/);
     const y = io();
-    const throwing: Io = { ...y.value, now: () => { throw new Error("clock"); } };
+    const throwing: Io = {
+      ...y.value,
+      now: () => {
+        throw new Error("clock");
+      },
+    };
     expect(await main(["."], throwing, y.error)).toBe(1);
     expect(y.err[0]).toBe("error engine/unexpected: Error: clock");
   });

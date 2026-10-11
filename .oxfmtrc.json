@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 120,
+  "semi": true,
+  "singleQuote": false,
+  "trailingComma": "all",
+  "proseWrap": "always",
+  "sortPackageJson": false,
+  "sortImports": {
+    "newlinesBetween": false
+  },
+  "ignorePatterns": [
+    "AGENTS.md",
+    "docs/research/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/out/**",
+    "**/.next/**",
+    "**/coverage/**",
+    "**/test-results/**",
+    "**/playwright-report/**",
+    "**/*.tsbuildinfo",
+    "bun.lock",
+    "**/__golden__/**",
+    "packages/ground-plan/src/fixed/directions.ts"
+  ]
+}

@@ -33,11 +33,31 @@ const full = (): Plat => ({
         "": { n: [4096, 0], c: -40960, cls: "avenue", left: ["a"], right: ["b"], capLeft: 1, capRight: 2, river: true },
       },
       grids: {
-        a: { dir: [0, 4096], a0: 1, b0: -2, rowPitch: 448, colPitch: 832, span: 2, green: "0,1", high: 1, park: { n: [4096, 0], c: 5 }, slots: { "a@0": "0,0,0,1" } },
+        a: {
+          dir: [0, 4096],
+          a0: 1,
+          b0: -2,
+          rowPitch: 448,
+          colPitch: 832,
+          span: 2,
+          green: "0,1",
+          high: 1,
+          park: { n: [4096, 0], c: 5 },
+          slots: { "a@0": "0,0,0,1" },
+        },
       },
       shares: { "|config": [{ key: "a.json@0", members: ["a.json@0"] }] },
       forms: { "": "radial", a: "hamlet" },
-      radial: { "": { core: "a", start: 12, order: ["b", "c", "d"], bounds: [12, 300, 900, 4108], scaleMille: 500, caps: { a: 9 } } },
+      radial: {
+        "": {
+          core: "a",
+          start: 12,
+          order: ["b", "c", "d"],
+          bounds: [12, 300, 900, 4108],
+          scaleMille: 500,
+          caps: { a: 9 },
+        },
+      },
       addresses: { "a@0": "a:0.0.1" },
     },
   },
@@ -54,7 +74,7 @@ describe("serialisePlat and parsePlat", () => {
 
   it("writes the same text whatever the key order", () => {
     const plat = full();
-    const shuffled = JSON.parse(JSON.stringify(plat, Object.keys(plat).reverse())) as Plat;
+    const shuffled = parsePlat(JSON.stringify(plat, Object.keys(plat).toReversed()));
     expect(serialisePlat({ ...shuffled, ...plat })).toBe(serialisePlat(plat));
   });
 
@@ -69,8 +89,7 @@ describe("serialisePlat and parsePlat", () => {
   });
 
   it("rejects a bad shape with the pointer of the fault", () => {
-    const plat = full() as unknown as { towns: { demo: { grids: { a: { dir: number[] } } } } };
-    plat.towns.demo.grids.a.dir = [1, 2, 3];
-    expect(() => parsePlat(JSON.stringify(plat))).toThrow("plat/bad-shape: /towns/demo/grids/a/dir: expected a pair of integers");
+    const text = serialisePlat(full()).replace('"dir":[0,4096]', '"dir":[0,4096,1]');
+    expect(() => parsePlat(text)).toThrow("plat/bad-shape: /towns/demo/grids/a/dir/2:");
   });
 });

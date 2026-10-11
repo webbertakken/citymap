@@ -10,9 +10,9 @@ const encode = (value: unknown, path: string): string => {
   }
   if (Array.isArray(value)) return `[${value.map((v, i) => encode(v, `${path}/${i}`)).join(",")}]`;
   if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
+    const entries = Object.entries(value)
       .filter(([, v]) => v !== undefined)
-      .sort(([a], [b]) => compareKeys(a, b));
+      .toSorted(([a], [b]) => compareKeys(a, b));
     return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${encode(v, `${path}/${k}`)}`).join(",")}}`;
   }
   throw new CitymapError("engine/invariant", `${path || "/"} holds a ${typeof value}`, { path });

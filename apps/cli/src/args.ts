@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { CitymapError } from "@citymap/ground-plan";
-import { THEMES, type Camera, type ThemeName } from "@citymap/svg";
+import { THEME_NAMES, type Camera } from "@citymap/svg";
 
 export interface LayCommand {
   readonly kind: "lay";
@@ -8,7 +8,7 @@ export interface LayCommand {
   readonly to: string;
   readonly out: string | null;
   readonly svg: string | null;
-  readonly theme: ThemeName;
+  readonly theme: (typeof THEME_NAMES)[number];
   readonly camera: Camera;
   readonly lock: boolean;
   readonly verbose: boolean;
@@ -27,7 +27,7 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --to=<ref>          commit to lay (default HEAD)
   --out=<file>        write the city as JSON
   --svg=<file>        write the city as SVG
-  --theme=<name>      ${Object.keys(THEMES).join(", ")} (default paper-atlas)
+  --theme=<name>      ${THEME_NAMES.join(", ")} (default paper-atlas)
   --camera=<view>     plan or dimetric (default plan)
   --lock              write citymap.lock.json at the repository root, and resume from it next time
   --tests             give tests land (the land dimension; default: tests and fixtures take none)
@@ -41,8 +41,10 @@ const usage = (message: string): never => {
   throw new CitymapError("cli/usage", message);
 };
 
-const oneOf = <T extends string>(name: string, value: string, options: readonly T[]): T =>
-  options.includes(value as T) ? (value as T) : usage(`--${name} is one of ${options.join(", ")}, not ${value}`);
+function oneOf<T extends string>(name: string, value: string, options: readonly T[]): T {
+  const found = options.find((option) => option === value);
+  return found ?? usage(`--${name} is one of ${options.join(", ")}, not ${value}`);
+}
 
 /** The command a command line asks for, or a named rejection. */
 export function parseCommandLine(argv: readonly string[]): Command {
@@ -50,20 +52,21 @@ export function parseCommandLine(argv: readonly string[]): Command {
   try {
     parsed = parse(argv);
   } catch (error) {
-    return usage(String((error as Error).message));
+    return usage(String(error));
   }
   const { values, positionals } = parsed;
   if (values.help) return { kind: "help" };
   if (positionals.length !== 1) return usage("name one repository");
   const density = Number(values.density);
-  if (!Number.isInteger(density) || density < 20 || density > 80) usage(`--density is an integer from 20 to 80, not ${values.density}`);
+  if (!Number.isInteger(density) || density < 20 || density > 80)
+    usage(`--density is an integer from 20 to 80, not ${values.density}`);
   return {
     kind: "lay",
-    repo: positionals[0] as string,
+    repo: positionals[0]!,
     to: values.to,
     out: values.out ?? null,
     svg: values.svg ?? null,
-    theme: oneOf("theme", values.theme, Object.keys(THEMES) as ThemeName[]),
+    theme: oneOf("theme", values.theme, THEME_NAMES),
     camera: oneOf("camera", values.camera, ["plan", "dimetric"] as const),
     lock: values.lock,
     verbose: values.verbose,

@@ -1,0 +1,40 @@
+name: Workflows
+
+# Lints the workflows themselves, only when they change. Not a required check: it does not run on most pull requests.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "mise.toml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - "mise.toml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # shellcheck too: actionlint runs it over every `run:` script it finds on the PATH.
+      - name: Set up actionlint and shellcheck
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          install_args: actionlint shellcheck
+
+      - name: actionlint
+        run: actionlint

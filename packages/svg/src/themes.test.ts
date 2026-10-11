@@ -1,9 +1,9 @@
 import { fnv1a } from "@citymap/ground-plan";
 import { describe, expect, it } from "vitest";
 import { contrast, mix, oklch } from "./colour";
-import { THEMES, hueOf, type ThemeName } from "./themes";
+import { THEMES, THEME_NAMES, hueOf } from "./themes";
 
-const names = Object.keys(THEMES) as ThemeName[];
+const names = THEME_NAMES;
 
 describe("themes", () => {
   it.each(names)("keeps %s labels and header text at WCAG AA contrast", (name) => {
@@ -15,7 +15,15 @@ describe("themes", () => {
 
   it.each(names)("gives %s colours for every part of the model", (name) => {
     const t = THEMES[name];
-    for (const c of [t.block(7), t.lot(7, true), t.lot(7, false), t.plinth(7), ...t.reserve(7), t.form("twin", true), t.form("radial", false)])
+    for (const c of [
+      t.block(7),
+      t.lot(7, true),
+      t.lot(7, false),
+      t.plinth(7),
+      ...t.reserve(7),
+      t.form("twin", true),
+      t.form("radial", false),
+    ])
       expect(c).toMatch(/^#[0-9a-f]{6}$/i);
   });
 

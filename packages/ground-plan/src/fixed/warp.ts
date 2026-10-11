@@ -32,10 +32,7 @@ export function noise(seed: number, x: number, y: number, wavelength: number): n
   const c = lattice(seed, i, j + 1);
   const d = lattice(seed, i + 1, j + 1);
   return (
-    a +
-    floorDiv((b - a) * u, ONE) +
-    floorDiv((c - a) * v, ONE) +
-    floorDiv(floorDiv(u * v, ONE) * (a - b - c + d), ONE)
+    a + floorDiv((b - a) * u, ONE) + floorDiv((c - a) * v, ONE) + floorDiv(floorDiv(u * v, ONE) * (a - b - c + d), ONE)
   );
 }
 
@@ -63,8 +60,8 @@ export function densify(pts: readonly Pt[], step: number, closed: boolean): Pt[]
   const out: Pt[] = [];
   const segments = closed ? pts.length : pts.length - 1;
   for (let i = 0; i < segments; i++) {
-    const a = pts[i] as Pt;
-    const b = pts[(i + 1) % pts.length] as Pt;
+    const a = pts[i]!;
+    const b = pts[(i + 1) % pts.length]!;
     const length = isqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2);
     const parts = Math.max(1, floorDiv(length + step - 1, step));
     for (let k = 0; k < parts; k++)

@@ -1,4 +1,4 @@
-import fc from "fast-check";
+import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { DIRECTION, dir, negate, type Dir } from "./direction";
 import {
@@ -26,7 +26,7 @@ const NORTH: Dir = [0, DIRECTION];
 describe("area2", () => {
   it("is twice the area, positive anticlockwise", () => {
     expect(area2(square(1000).p)).toBe(2_000_000);
-    expect(area2([...square(1000).p].reverse())).toBe(-2_000_000);
+    expect(area2(square(1000).p.toReversed())).toBe(-2_000_000);
     expect(area2([])).toBe(0);
   });
 
@@ -43,7 +43,7 @@ describe("centroid", () => {
   });
 
   it("does not depend on orientation", () => {
-    expect(centroid([...square(1000).p].reverse())).toEqual(pt(500, 500));
+    expect(centroid(square(1000).p.toReversed())).toEqual(pt(500, 500));
   });
 
   it("is the origin for no points", () => {
@@ -100,7 +100,10 @@ describe("inset", () => {
   });
 
   it("skips a repeated vertex", () => {
-    const repeated: Poly = { p: [pt(0, 0), pt(0, 0), pt(1000, 0), pt(1000, 1000), pt(0, 1000)], w: [64, 64, 64, 64, 64] };
+    const repeated: Poly = {
+      p: [pt(0, 0), pt(0, 0), pt(1000, 0), pt(1000, 1000), pt(0, 1000)],
+      w: [64, 64, 64, 64, 64],
+    };
     expect(area2(inset(repeated, 12).p)).toBe(2 * 912 * 912);
   });
 

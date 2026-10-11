@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LAND_USES, LAND_USES, WEIGHT_MILLE, classifyLandUse, landKey, lotCapacity, type LandUse } from "./land-use";
+import {
+  DEFAULT_LAND_USES,
+  LAND_USES,
+  WEIGHT_MILLE,
+  classifyLandUse,
+  landKey,
+  lotCapacity,
+  type LandUse,
+} from "./land-use";
 
 describe("classifyLandUse", () => {
   const cases: [string, LandUse][] = [
@@ -50,7 +58,7 @@ describe("classifyLandUse", () => {
 
 describe("weights and lot capacity", () => {
   it("weighs every land use", () => {
-    expect(Object.keys(WEIGHT_MILLE).sort()).toEqual([...LAND_USES].sort());
+    expect(new Set(Object.keys(WEIGHT_MILLE))).toEqual(new Set(LAND_USES));
     expect(WEIGHT_MILLE.source).toBe(1000);
     expect(WEIGHT_MILLE.tests).toBe(300);
   });

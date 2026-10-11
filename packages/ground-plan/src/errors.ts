@@ -22,7 +22,8 @@ export type ErrorCode =
   | "history/git-failed"
   | "history/parse"
   | "cli/usage"
-  | "cli/lockfile"
+  | "lock/bad-json"
+  | "lock/bad-shape"
   | "engine/invariant";
 
 /** The only error the engine throws: a stable code, a message, and structured detail for logs. */

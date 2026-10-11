@@ -1,4 +1,4 @@
-import fc from "fast-check";
+import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { floorDiv, isqrt, mulDiv, roundDiv } from "./arithmetic";
 
@@ -40,11 +40,7 @@ describe("roundDiv", () => {
 
   it("matches the bigint reference", () => {
     fc.assert(
-      fc.property(
-        safe,
-        positive,
-        (a, b) => roundDiv(a, b) === Number(bigFloor(2n * big(a) + big(b), 2n * big(b))),
-      ),
+      fc.property(safe, positive, (a, b) => roundDiv(a, b) === Number(bigFloor(2n * big(a) + big(b), 2n * big(b)))),
     );
   });
 });

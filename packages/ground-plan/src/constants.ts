@@ -1,7 +1,8 @@
 // Dimensions of the ground plan in fixed units (64 per u); provenance in the blueprint's DEFAULTS.md.
 
 /** Road classes, smallest first. */
-export type RoadClass = "lane" | "street" | "collector" | "avenue" | "boulevard" | "highway";
+export const ROAD_CLASSES = ["lane", "street", "collector", "avenue", "boulevard", "highway"] as const;
+export type RoadClass = (typeof ROAD_CLASSES)[number];
 
 export const ROAD_WIDTH: Readonly<Record<RoadClass, number>> = {
   lane: 40,

@@ -23,8 +23,8 @@ export function edgeEnds(town: Town): End[] {
   const c = centroid(town.outline);
   const reach2 = Math.max(...town.outline.map((p) => distance2(p, c)));
   const all = town.roads.flatMap((r) => [
-    { p: r.pts[0] as Pt, rank: RANK.indexOf(r.cls) },
-    { p: r.pts[r.pts.length - 1] as Pt, rank: RANK.indexOf(r.cls) },
+    { p: r.pts[0]!, rank: RANK.indexOf(r.cls) },
+    { p: r.pts[r.pts.length - 1]!, rank: RANK.indexOf(r.cls) },
   ]);
   const edge = all.filter((e) => distance2(e.p, c) * 100 >= 64 * reach2);
   return edge.length > 0 ? edge : all;
@@ -39,7 +39,7 @@ export function highwayBetween(from: Town, to: Town): Road {
   const b = edgeEnds(to);
   const rank = Math.max(0, Math.min(Math.max(...a.map((e) => e.rank)), Math.max(...b.map((e) => e.rank))));
   const pick = (list: End[]) => (list.some((e) => e.rank === rank) ? list.filter((e) => e.rank === rank) : list);
-  let best: [Pt, Pt] = [(a[0] as End).p, (b[0] as End).p];
+  let best: [Pt, Pt] = [a[0]!.p, b[0]!.p];
   let bestLength = Infinity;
   for (const x of pick(a))
     for (const y of pick(b)) {
@@ -49,5 +49,5 @@ export function highwayBetween(from: Town, to: Town): Road {
         best = [x.p, y.p];
       }
     }
-  return { pts: best, cls: RANK[rank] as RoadClass };
+  return { pts: best, cls: RANK[rank]! };
 }

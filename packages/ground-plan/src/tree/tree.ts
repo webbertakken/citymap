@@ -83,11 +83,26 @@ function shareLots(
     }
     out[key] = lots;
     for (const lot of lots) {
-      const oldest = lot.members.map((m) => live.get(m) as FileEntry).sort(byAge)[0] as FileEntry;
+      const oldest = lot.members.map((m) => live.get(m)!).toSorted(byAge)[0]!;
       seeds.push({ key: lot.key, path: oldest.path, use, firstSeen: oldest.firstSeen });
     }
   }
-  return seeds.sort(byAge);
+  return seeds.toSorted(byAge);
+}
+
+/** A chain of folders without land of their own, each with one child, merged into its last folder. */
+function collapseChain(node: TreeNode): TreeNode {
+  let n = node;
+  while (n.lots.length === 0 && n.docs === 0 && n.children.length === 1) {
+    const child = n.children[0]!;
+    n = {
+      ...child,
+      name: `${n.name}/${child.name}`,
+      depth: n.depth,
+      firstSeen: Math.min(n.firstSeen, child.firstSeen),
+    };
+  }
+  return n;
 }
 
 /** The town's folder tree: lots shared, chains collapsed, mass and demand summed. Pure: shares are copied. */
@@ -127,9 +142,9 @@ export function buildTree(
   }
   const nextShares: Record<string, ShareRecord[]> = {};
   const make = (path: string, depth: number): TreeNode => {
-    const entry = raw.get(path) as Raw;
+    const entry = raw.get(path)!;
     const lots = shareLots(path, entry.files, shares, nextShares);
-    const children = [...entry.kids].sort(compareKeys).map((kid) => make(kid, depth + 1));
+    const children = [...entry.kids].toSorted(compareKeys).map((kid) => make(kid, depth + 1));
     const ownMass = entry.files.reduce((sum, f) => sum + WEIGHT_MILLE[f.use], 0);
     return {
       path,
@@ -148,11 +163,7 @@ export function buildTree(
   };
   // Below the root, a folder with no land of its own and a single child merges into that child.
   const collapse = (node: TreeNode, isRoot: boolean): TreeNode => {
-    let n = node;
-    while (!isRoot && n.lots.length === 0 && n.docs === 0 && n.children.length === 1) {
-      const child = n.children[0] as TreeNode;
-      n = { ...child, name: `${n.name}/${child.name}`, depth: n.depth, firstSeen: Math.min(n.firstSeen, child.firstSeen) };
-    }
+    const n = isRoot ? node : collapseChain(node);
     return { ...n, children: n.children.map((c) => collapse({ ...c, depth: n.depth + 1 }, false)) };
   };
   return { tree: collapse(make(root, 0), true), shares: nextShares, offLand, docs };

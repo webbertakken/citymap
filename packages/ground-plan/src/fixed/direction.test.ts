@@ -1,4 +1,4 @@
-import fc from "fast-check";
+import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { DIRECTION, TURN, dir, negate, normalise, perp, rotate } from "./direction";
 import { COSINE } from "./directions";

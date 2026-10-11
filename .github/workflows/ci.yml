@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege: CI only checks out and verifies, so the token stays read-only. The Tests job adds id-token: write,
+# the OIDC token Codecov accepts in place of a secret.
+permissions:
+  contents: read
+
+# A newer push to a pull request supersedes its running checks; every commit on main finishes, so each one reports.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # CI never commits, so the Git hooks stay uninstalled.
+  HUSKY: 0
+
+# Parallel jobs, so a pull request waits for the slowest one rather than the sum. Each runs what `bun run check` runs
+# locally (docs/instructions/development.md); the scripts live in package.json, not here.
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Node runs the tools' launchers (oxfmt, oxlint, tsc, vitest); its version is pinned in mise.toml.
+      - name: Set up Node
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          install_args: node
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Format check
+        run: bun run format:check
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Type check
+        run: bun run typecheck
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          install_args: node
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Enforces the 100% coverage thresholds in vitest.config.ts and writes coverage/lcov.info.
+      - name: Tests with coverage
+        run: bun run coverage
+
+      # OIDC, so no Codecov secret; a pull request from a fork uploads tokenless instead. The report informs and never
+      # gates (codecov.yml): a Codecov outage logs its error and the job still passes.
+      - name: Upload coverage
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          use_oidc: true
+          files: coverage/lcov.info
+          disable_search: true
+          fail_ci_if_error: false
+
+  # ---------------------------------------------------------------------------------------------------------------------
+  # LATER: the web app (apps/web), once it exists. Two jobs beside the ones above, each with the same set-up steps.
+  #
+  # build:
+  #   name: Build
+  #   Runs `bun run build` (Next.js 16). `next build` may skip its own type check behind an env var, logged, since the
+  #   Checks job type checks everything. Restore `apps/web/.next/cache` with actions/cache/restore keyed on the
+  #   lockfile and sha; save it only on main.
+  #
+  # e2e:
+  #   name: End-to-end
+  #   Builds the app itself (no artefact hand-off), installs Playwright's Chromium with its system dependencies, and
+  #   runs the Playwright suite in dark mode (`colorScheme: "dark"` in playwright.config.ts). Uploads the report and
+  #   traces only on failure, with a short retention. Shard with `--shard=i/N` once it outgrows the Checks job.
+  # ---------------------------------------------------------------------------------------------------------------------

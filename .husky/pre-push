@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# CI's checks for what the push changes (docs/instructions/development.md); the push's refs arrive on stdin.
+exec bun scripts/pre-push.ts

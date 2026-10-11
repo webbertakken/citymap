@@ -11,7 +11,7 @@ const QUARTER = TURN / 4;
 /** An integer direction (or any integer vector). */
 export type Dir = readonly [number, number];
 
-const at = (i: number): number => COSINE[i] as number;
+const at = (i: number): number => COSINE[i]!;
 /** Negation without minus zero, which would compare and serialise differently. */
 const neg = (v: number): number => 0 - v;
 

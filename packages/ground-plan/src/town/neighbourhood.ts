@@ -2,7 +2,18 @@ import type { FlatForm } from "../archetype/forms";
 import { BLOCK_LONG, BLOCK_SHORT, MODULE, PAVEMENT, ROAD_WIDTH, U } from "../constants";
 import { floorDiv, mulDiv, roundDiv } from "../fixed/arithmetic";
 import { DIRECTION, negate, normalise, perp, type Dir } from "../fixed/direction";
-import { area2, centroid, chord, clip, extent, inset, longestEdge, offsetFor, type Poly, type Pt } from "../fixed/polygon";
+import {
+  area2,
+  centroid,
+  chord,
+  clip,
+  extent,
+  inset,
+  longestEdge,
+  offsetFor,
+  type Poly,
+  type Pt,
+} from "../fixed/polygon";
 import type { GridRecord } from "../plat/plat";
 import type { LotSeed } from "../tree/tree";
 import { emit, road, toPoly, type Ctx } from "./context";
@@ -45,9 +56,9 @@ const cellId = (cell: Cell) => `${cell.r},${cell.c}`;
 function clipTo(poly: Poly, land: readonly Pt[]): Poly {
   let out = poly;
   for (let i = 0; i < land.length && out.p.length >= 3; i++) {
-    const p = land[i] as Pt;
+    const p = land[i]!;
     // Land comes from inset, which never repeats a point.
-    const q = land[(i + 1) % land.length] as Pt;
+    const q = land[(i + 1) % land.length]!;
     const n = normalise(q.y - p.y, p.x - q.x);
     out = clip(out, n, n[0] * p.x + n[1] * p.y, 0);
   }
@@ -66,7 +77,16 @@ function freshGrid(land: readonly Pt[]): GridRecord {
   const across = ceilDiv(eb1, DIRECTION) - b0;
   const rows = Math.max(1, roundDiv(across + U, BLOCK_SHORT + U));
   const cols = Math.max(1, roundDiv(along + U, BLOCK_LONG + U));
-  return { dir: a, a0, b0, rowPitch: floorDiv(across + U, rows), colPitch: floorDiv(along + U, cols), span: 0, park: null, slots: {} };
+  return {
+    dir: a,
+    a0,
+    b0,
+    rowPitch: floorDiv(across + U, rows),
+    colPitch: floorDiv(along + U, cols),
+    span: 0,
+    park: null,
+    slots: {},
+  };
 }
 
 /** The cells a grid gives on today's land, in serpentine order, and its slots at any lot class. Pure. */
@@ -100,7 +120,14 @@ function layGrid(g: GridRecord, land: readonly Pt[]): Laid {
       if (block.p.length < 3) continue;
       const mid = floorDiv(t0 + t1, 2);
       const full = area2(block.p) * 10 >= 4 * (s1 - s0) * (t1 - t0);
-      const halves: [number, number][] = !full ? [] : backToBack ? [[t0, mid], [mid, t1]] : [[t0, t1]];
+      const halves: [number, number][] = !full
+        ? []
+        : backToBack
+          ? [
+              [t0, mid],
+              [mid, t1],
+            ]
+          : [[t0, t1]];
       cells.push({ pts: [...block.p], used: false, r, c, s0, s1, halves });
     }
   }
@@ -204,14 +231,19 @@ export function neighbourhood(
   if (g.span === 0) {
     // First lay: one-module slots tell how many blocks the lots need; lots then widen to fill those blocks.
     const narrow = slotsFor(1);
-    const lastCell = narrow[Math.max(1, lots.length) - 1]?.cell ?? (narrow[narrow.length - 1]?.cell ?? -1);
+    const lastCell = narrow[Math.max(1, lots.length) - 1]?.cell ?? narrow[narrow.length - 1]?.cell ?? -1;
     const modules = narrow.filter((s) => s.cell <= lastCell).length;
     g.span = Math.min(MAX_CLASS, Math.max(1, floorDiv(modules, Math.max(1, lots.length))));
     while (g.span > 1 && slotsFor(g.span).length < lots.length) g.span--;
   }
   for (let r = rMin + 1; r <= rMax; r++)
-    road(ctx, chord(land, perp(g.dir), (g.b0 + r * g.rowPitch - U / 2) * DIRECTION), r === g.high ? "collector" : "street");
-  for (let c = cMin + 1; c <= cMax; c++) road(ctx, chord(land, g.dir, (g.a0 + c * g.colPitch - U / 2) * DIRECTION), "lane");
+    road(
+      ctx,
+      chord(land, perp(g.dir), (g.b0 + r * g.rowPitch - U / 2) * DIRECTION),
+      r === g.high ? "collector" : "street",
+    );
+  for (let c = cMin + 1; c <= cMax; c++)
+    road(ctx, chord(land, g.dir, (g.a0 + c * g.colPitch - U / 2) * DIRECTION), "lane");
   const ordered = slotsFor(g.span);
   // A street village fills outward from its high street: the rows either side of it first.
   const high = g.high;
@@ -220,10 +252,10 @@ export function neighbourhood(
       ? ordered
       : ordered
           .map((s, i) => {
-            const r = (cells[s.cell] as Cell).r;
+            const r = cells[s.cell]!.r;
             return { s, i, d: r >= high ? r - high : high - 1 - r };
           })
-          .sort((x, y) => x.d - y.d || x.i - y.i)
+          .toSorted((x, y) => x.d - y.d || x.i - y.i)
           .map((x) => x.s);
   const slotIndex = new Map(slots.map((s, i) => [s.id, i]));
   const live = new Set(lots.map((l) => l.key));
@@ -258,16 +290,16 @@ export function neighbourhood(
       if (i >= slots.length) i = free(0);
       if (i >= slots.length) continue;
       taken.set(i, lot.key);
-      g.slots[lot.key] = (slots[i] as Slot).id;
+      g.slots[lot.key] = slots[i]!.id;
       lastOfFolder.set(folderOf(lot.path), Math.max(lastOfFolder.get(folderOf(lot.path)) ?? -1, i));
     }
-    const slot = slots[slotIndex.get(g.slots[lot.key] as string) as number] as Slot;
-    (cells[slot.cell] as Cell).used = true;
+    const slot = slots[slotIndex.get(g.slots[lot.key]!)!]!;
+    cells[slot.cell]!.used = true;
     ctx.plat.addresses[lot.key] ??= `${key}:${slot.id.replaceAll(",", ".")}`;
     ctx.lots.push({
       pts: slot.pts,
       key: lot.key,
-      address: ctx.plat.addresses[lot.key] as string,
+      address: ctx.plat.addresses[lot.key]!,
       vacant: false,
       path: lot.path,
       use: lot.use,
@@ -278,13 +310,13 @@ export function neighbourhood(
   }
   for (const [i, lotKey] of taken) {
     if (live.has(lotKey)) continue;
-    const slot = slots[i] as Slot;
-    (cells[slot.cell] as Cell).used = true;
+    const slot = slots[i]!;
+    cells[slot.cell]!.used = true;
     ctx.lots.push({
       pts: slot.pts,
       key: lotKey,
       // A vacant lot was placed before, so its address was issued then.
-      address: ctx.plat.addresses[lotKey] as string,
+      address: ctx.plat.addresses[lotKey]!,
       vacant: true,
       path: "",
       use: "source",

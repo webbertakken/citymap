@@ -8,4 +8,4 @@ export const FLAT_FORMS: readonly FlatForm[] = ["hamlet", "street-village", "nei
 export const DISTRICT_FORMS: readonly DistrictForm[] = ["radial", "twin", "polycentric"];
 export const FORMS: readonly Form[] = [...FLAT_FORMS, ...DISTRICT_FORMS];
 
-export const isFlat = (form: Form | undefined): form is FlatForm => FLAT_FORMS.includes(form as FlatForm);
+export const isFlat = (form: Form | undefined): form is FlatForm => FLAT_FORMS.some((flat) => flat === form);

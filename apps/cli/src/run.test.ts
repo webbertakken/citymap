@@ -39,14 +39,18 @@ function memoryIo(files: Record<string, string> = {}) {
   };
   return { io, files, lines };
 }
-const command = (dir: string, ...flags: string[]) => parseCommandLine([dir, ...flags]) as LayCommand;
+const command = (dir: string, ...flags: string[]): LayCommand => {
+  const parsed = parseCommandLine([dir, ...flags]);
+  if (parsed.kind !== "lay") throw new Error("expected a lay command");
+  return parsed;
+};
 
 describe("runLay", () => {
   it("writes the city as JSON and SVG and logs a summary", async () => {
     const dir = repo(3);
     const { io, files, lines } = memoryIo();
     const city = await runLay(command(dir, "--out=city.json", "--svg=map.svg", "--theme=night-atlas", "--verbose"), io);
-    expect(parseCity(files["city.json"] as string)).toEqual(city);
+    expect(parseCity(files["city.json"]!)).toEqual(city);
     expect(files["map.svg"]).toContain("<svg ");
     expect(lines.at(-1)).toMatch(/^fold\/done repository=citymap-cli-\S+ commits=3 lots=36 overflow=0 ms=\d+$/);
     expect(lines.some((l) => l.startsWith("plat/grow"))).toBe(true);
@@ -56,7 +60,7 @@ describe("runLay", () => {
     const dir = repo(3);
     const first = memoryIo();
     const city = await runLay(command(dir, "--lock"), first.io);
-    const lock = first.files[join(dir, LOCKFILE)] as string;
+    const lock = first.files[join(dir, LOCKFILE)]!;
     expect(JSON.parse(lock).index).toBe(2);
     const second = memoryIo({ [join(dir, LOCKFILE)]: lock });
     const again = await runLay(command(dir), second.io);
@@ -69,7 +73,7 @@ describe("runLay", () => {
     const dir = repo(2);
     const first = memoryIo();
     await runLay(command(dir, "--lock"), first.io);
-    const lock = first.files[join(dir, LOCKFILE)] as string;
+    const lock = first.files[join(dir, LOCKFILE)]!;
     const tests = memoryIo({ [join(dir, LOCKFILE)]: lock });
     await runLay(command(dir, "--tests"), tests.io);
     expect(tests.lines.some((l) => l.startsWith("lock/ignored reason=land"))).toBe(true);
@@ -84,9 +88,11 @@ describe("runLay", () => {
 
   it("rejects a broken lockfile by name", async () => {
     const dir = repo(1);
-    await expect(runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: "{" }).io)).rejects.toThrow("cli/lockfile");
-    await expect(runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: '{"commit":1}' }).io)).rejects.toThrow("cli/lockfile");
-    await expect(runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: '{"commit":"a","index":-1}' }).io)).rejects.toThrow("cli/lockfile");
+    await expect(runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: "{" }).io)).rejects.toThrow("lock/");
+    await expect(runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: '{"commit":1}' }).io)).rejects.toThrow("lock/");
+    await expect(
+      runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: '{"commit":"a","index":-1}' }).io),
+    ).rejects.toThrow("lock/");
   });
 
   it("rejects a ref that names no commit", async () => {

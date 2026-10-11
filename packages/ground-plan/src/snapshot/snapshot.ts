@@ -29,7 +29,8 @@ const reject = (code: ErrorCode, message: string, detail: Record<string, unknown
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-const isIndex = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
+const isIndex = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
 const validPath = (path: string) =>
   path.length > 0 &&
@@ -38,7 +39,12 @@ const validPath = (path: string) =>
   path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
 
 function parseFile(value: unknown, at: number): FileEntry {
-  if (!isRecord(value) || typeof value.path !== "string" || typeof value.identity !== "string" || !isIndex(value.firstSeen))
+  if (
+    !isRecord(value) ||
+    typeof value.path !== "string" ||
+    typeof value.identity !== "string" ||
+    !isIndex(value.firstSeen)
+  )
     return reject("snapshot/bad-shape", `file ${at} needs a path, an identity and a firstSeen index`, { at });
   if (!validPath(value.path)) return reject("snapshot/bad-path", `file ${at} has a bad path`, { at });
   return { path: value.path, identity: value.identity, firstSeen: value.firstSeen };
@@ -56,11 +62,16 @@ export function parseSnapshot(input: unknown): Snapshot {
   if (!Array.isArray(files)) return reject("snapshot/bad-shape", "a snapshot's files are an array");
   if (files.length > MAX_FILES)
     return reject("snapshot/too-large", `a snapshot holds at most ${MAX_FILES} files`, { files: files.length });
-  if (!isRecord(folderFirstSeen) || !Object.values(folderFirstSeen).every(isIndex))
+  const folders = new Map<string, number>();
+  if (!isRecord(folderFirstSeen))
     return reject("snapshot/bad-shape", "a snapshot's folderFirstSeen maps folders to indices");
+  for (const [folder, born] of Object.entries(folderFirstSeen)) {
+    if (!isIndex(born)) return reject("snapshot/bad-shape", "a snapshot's folderFirstSeen maps folders to indices");
+    folders.set(folder, born);
+  }
   const parsed = files.map(parseFile);
   for (let i = 1; i < parsed.length; i++) {
-    const order = compareKeys((parsed[i - 1] as FileEntry).path, (parsed[i] as FileEntry).path);
+    const order = compareKeys(parsed[i - 1]!.path, parsed[i]!.path);
     if (order === 0) reject("snapshot/duplicate-path", `file ${i} repeats a path`, { at: i });
     if (order > 0) reject("snapshot/not-sorted", `file ${i} is out of order`, { at: i });
   }
@@ -69,6 +80,6 @@ export function parseSnapshot(input: unknown): Snapshot {
     commit,
     index,
     files: parsed,
-    folderFirstSeen: new Map(Object.entries(folderFirstSeen as Record<string, number>)),
+    folderFirstSeen: folders,
   };
 }

@@ -1,7 +1,8 @@
 import { fnv1a, type DistrictForm } from "@citymap/ground-plan";
 import { mix, oklch } from "./colour";
 
-export type ThemeName = "paper-atlas" | "night-atlas" | "beck" | "nolli" | "dracula";
+export const THEME_NAMES = ["paper-atlas", "night-atlas", "beck", "nolli", "dracula"] as const;
+export type ThemeName = (typeof THEME_NAMES)[number];
 
 /** A theme is data over the model: every colour the renderers use. Districts arrive as tint seeds. */
 export interface Theme {
@@ -37,16 +38,30 @@ export const hueOf = (district: number) => {
 };
 
 const FORM_HUE: Readonly<Record<DistrictForm, number>> = { radial: 55, twin: 235, polycentric: 15 };
-const FORM_ACCENT: Readonly<Record<DistrictForm, string>> = { radial: "#FFB86C", twin: "#8BE9FD", polycentric: "#FF79C6" };
+const FORM_ACCENT: Readonly<Record<DistrictForm, string>> = {
+  radial: "#FFB86C",
+  twin: "#8BE9FD",
+  polycentric: "#FF79C6",
+};
 
 // Dracula (draculatheme.com): background, current line, foreground, comment and the seven accents.
 const DRACULA = { background: "#282A36", line: "#44475A", foreground: "#F8F8F2", comment: "#6272A4", deep: "#191A21" };
 const DRACULA_ACCENTS = ["#BD93F9", "#FF79C6", "#8BE9FD", "#50FA7B", "#FFB86C", "#F1FA8C", "#FF5555"] as const;
-const accent = (district: number) => DRACULA_ACCENTS[district % DRACULA_ACCENTS.length] as string;
+const accent = (district: number) => DRACULA_ACCENTS[district % DRACULA_ACCENTS.length]!;
 
 // Beck: the flat, saturated fields of a transit diagram.
-const BECK = ["#E32017", "#FFD300", "#00782A", "#003688", "#0098D4", "#95CDBA", "#EE7C0E", "#9B0056", "#A0A5A9"] as const;
-const beck = (district: number) => BECK[district % BECK.length] as string;
+const BECK = [
+  "#E32017",
+  "#FFD300",
+  "#00782A",
+  "#003688",
+  "#0098D4",
+  "#95CDBA",
+  "#EE7C0E",
+  "#9B0056",
+  "#A0A5A9",
+] as const;
+const beck = (district: number) => BECK[district % BECK.length]!;
 
 export const THEMES: Readonly<Record<ThemeName, Theme>> = {
   "paper-atlas": {

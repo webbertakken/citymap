@@ -4,12 +4,16 @@ import { DEFAULT_LAND_USES } from "../land-use/land-use";
 import type { FileEntry, Snapshot } from "../snapshot/snapshot";
 import { buildTree, landFor, type TreeNode } from "./tree";
 
-const at = (path: string, firstSeen = 0, identity = `${path}@${firstSeen}`): FileEntry => ({ path, identity, firstSeen });
+const at = (path: string, firstSeen = 0, identity = `${path}@${firstSeen}`): FileEntry => ({
+  path,
+  identity,
+  firstSeen,
+});
 const snapshot = (files: FileEntry[], folders: Record<string, number> = {}): Snapshot => ({
   repository: "demo",
   commit: "worktree",
   index: 0,
-  files: [...files].sort((a, b) => (a.path < b.path ? -1 : 1)),
+  files: files.toSorted((a, b) => (a.path < b.path ? -1 : 1)),
   folderFirstSeen: new Map(Object.entries(folders)),
 });
 const options = { root: "", exclude: [], landUses: DEFAULT_LAND_USES, densityPct: 50 };
@@ -46,7 +50,11 @@ describe("buildTree", () => {
   });
 
   it("gives tests land when the land dimension includes them", () => {
-    const { tree, offLand } = buildTree(snapshot([at("a.test.ts"), at("b.test.ts")]), { ...options, landUses: [...DEFAULT_LAND_USES, "tests"] }, {});
+    const { tree, offLand } = buildTree(
+      snapshot([at("a.test.ts"), at("b.test.ts")]),
+      { ...options, landUses: [...DEFAULT_LAND_USES, "tests"] },
+      {},
+    );
     expect(offLand).toBe(0);
     expect(tree.lots).toHaveLength(1);
     expect(tree.massMille).toBe(600);
@@ -76,7 +84,9 @@ describe("buildTree", () => {
 
   it("collapses chains of empty single-child folders", () => {
     const { tree } = buildTree(snapshot([at("src/main/kotlin/app/A.kt", 3)], { src: 1, "src/main": 2 }), options, {});
-    expect(tree.children.map((c) => [c.path, c.name, c.depth, c.firstSeen])).toEqual([["src/main/kotlin/app", "src/main/kotlin/app", 1, 0]]);
+    expect(tree.children.map((c) => [c.path, c.name, c.depth, c.firstSeen])).toEqual([
+      ["src/main/kotlin/app", "src/main/kotlin/app", 1, 0],
+    ]);
   });
 
   it("builds a sub-town from its root and leaves excluded folders out", () => {

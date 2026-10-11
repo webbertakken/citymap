@@ -7,5 +7,9 @@
     "types": ["bun", "node"]
   },
   "include": ["src"],
-  "references": [{ "path": "../../packages/ground-plan" }, { "path": "../../packages/history" }, { "path": "../../packages/svg" }]
+  "references": [
+    { "path": "../../packages/ground-plan" },
+    { "path": "../../packages/history" },
+    { "path": "../../packages/svg" }
+  ]
 }

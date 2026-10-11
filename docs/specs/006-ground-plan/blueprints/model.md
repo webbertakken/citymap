@@ -27,23 +27,23 @@ interface FileEntry {
 
 ## Land use and weight
 
-- `classifyLandUse(path)`: the prototype's rules in `land-use.ts`, earliest first (vendored, generated, fixtures,
-  tests, examples, docs, ci, assets, config, source), with **binary detection by extension only** (assets), so the
-  fold never reads contents. `.gitattributes` overrides (`linguist-vendored`, `linguist-generated`,
-  `linguist-documentation`) apply when the snapshot carries them (`Snapshot.attributes`, later).
+- `classifyLandUse(path)`: the prototype's rules in `land-use.ts`, earliest first (vendored, generated, fixtures, tests,
+  examples, docs, ci, assets, config, source), with **binary detection by extension only** (assets), so the fold never
+  reads contents. `.gitattributes` overrides (`linguist-vendored`, `linguist-generated`, `linguist-documentation`) apply
+  when the snapshot carries them (`Snapshot.attributes`, later).
 - `WEIGHT_MILLE`: source 1000; config, assets, ci, docs 500; tests, examples 300; fixtures, generated, vendored 50.
 - `LotCapacity(use) = max(1, roundDiv(1000, weightMille))`: source 1, config 2, tests 3, fixtures 20.
-- `Options.landUses`: the land uses that take land; default all but `tests` and `fixtures` (spec: land dimension).
-  The plat is keyed by the sorted set (`landKey`), so each setting is its own plat.
+- `Options.landUses`: the land uses that take land; default all but `tests` and `fixtures` (spec: land dimension). The
+  plat is keyed by the sorted set (`landKey`), so each setting is its own plat.
 
 ## Workspace members
 
-- A **workspace member** is a folder other than the root that directly holds a manifest: `package.json`,
-  `Cargo.toml`, `pyproject.toml`, `go.mod`, `composer.json`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `mix.exs`,
-  `*.csproj`, `*.gemspec`. Read from paths only.
-- Members nested inside another member are dropped. A **workspace group** is a folder holding at least two direct
-  member children whose land files are at least half source (`2 × source ≥ land`, land excluding tests, fixtures,
-  docs). Groups nested in groups are dropped. Sorted by `compareKeys`.
+- A **workspace member** is a folder other than the root that directly holds a manifest: `package.json`, `Cargo.toml`,
+  `pyproject.toml`, `go.mod`, `composer.json`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `mix.exs`, `*.csproj`,
+  `*.gemspec`. Read from paths only.
+- Members nested inside another member are dropped. A **workspace group** is a folder holding at least two direct member
+  children whose land files are at least half source (`2 × source ≥ land`, land excluding tests, fixtures, docs). Groups
+  nested in groups are dropped. Sorted by `compareKeys`.
 
 ## Tree
 
@@ -59,16 +59,21 @@ interface TreeNode {
   readonly massMille: number; // Σ own WEIGHT_MILLE + Σ children
   readonly demand: number; // land in fixed units², see Land
 }
-interface LotSeed { readonly key: string; readonly path: string; readonly use: LandUse; readonly firstSeen: number }
+interface LotSeed {
+  readonly key: string;
+  readonly path: string;
+  readonly use: LandUse;
+  readonly firstSeen: number;
+}
 ```
 
 - `buildTree(snapshot, root, exclude, options, shares)`: files under `root/` not under any `exclude/`; files whose use
   takes no land count into `stats.offLand`; docs count into their folder's `docs` and take no lot.
-- **Sharing**: per folder and land use, the plat's `ShareRecord[]` (key `${folder}|${use}`) keeps each lot's
-  members. Dead members drop; empty lots drop; each unplaced identity, in `(firstSeen, path)` order, joins the first
-  lot with room or founds a lot keyed by its identity. A lot's seed is its oldest live member, with the lot key.
-- **Chain collapse**: below the root, a node without own lots or docs and with one child merges into it, the name
-  joined with `/`, the depth kept, firstSeen the minimum.
+- **Sharing**: per folder and land use, the plat's `ShareRecord[]` (key `${folder}|${use}`) keeps each lot's members.
+  Dead members drop; empty lots drop; each unplaced identity, in `(firstSeen, path)` order, joins the first lot with
+  room or founds a lot keyed by its identity. A lot's seed is its oldest live member, with the lot key.
+- **Chain collapse**: below the root, a node without own lots or docs and with one child merges into it, the name joined
+  with `/`, the depth kept, firstSeen the minimum.
 - **Land**: `landFor(lotArea) = (isqrt(lotArea × 100 / densityPct) + 2 × MARGIN)²`, 0 when `lotArea = 0`;
   `demand = landFor(lots × LOT_AREA) + landFor(docs × LOT_AREA / 2) + Σ children`.
 
@@ -83,15 +88,55 @@ interface Plat {
   rootForms: Record<string, Form>;
 }
 interface TownPlat {
-  centre: Pt | null; area2: number; cap2: number; diameter: number;
-  cuts: Record<string, CutRecord>; grids: Record<string, GridRecord>; shares: Record<string, ShareRecord[]>;
-  forms: Record<string, Form>; radial: Record<string, RadialRecord>; addresses: Record<string, string>;
+  centre: Pt | null;
+  area2: number;
+  cap2: number;
+  diameter: number;
+  cuts: Record<string, CutRecord>;
+  grids: Record<string, GridRecord>;
+  shares: Record<string, ShareRecord[]>;
+  forms: Record<string, Form>;
+  radial: Record<string, RadialRecord>;
+  addresses: Record<string, string>;
 }
-interface CutRecord { n: Dir; c: number; cls: RoadClass; left: string[]; right: string[]; capLeft: number; capRight: number; river?: true }
-interface RadialRecord { core: string; start: number; order: string[]; bounds: number[]; scaleMille: number; caps: Record<string, number> }
-interface GridRecord { dir: Dir; a0: number; b0: number; rowPitch: number; colPitch: number; span: number; green?: string; high?: number; park: { n: Dir; c: number } | null; slots: Record<string, string> }
-interface ShareRecord { key: string; members: string[] }
-interface OldTown { town: Town; members: Record<string, string[]> }
+interface CutRecord {
+  n: Dir;
+  c: number;
+  cls: RoadClass;
+  left: string[];
+  right: string[];
+  capLeft: number;
+  capRight: number;
+  river?: true;
+}
+interface RadialRecord {
+  core: string;
+  start: number;
+  order: string[];
+  bounds: number[];
+  scaleMille: number;
+  caps: Record<string, number>;
+}
+interface GridRecord {
+  dir: Dir;
+  a0: number;
+  b0: number;
+  rowPitch: number;
+  colPitch: number;
+  span: number;
+  green?: string;
+  high?: number;
+  park: { n: Dir; c: number } | null;
+  slots: Record<string, string>;
+}
+interface ShareRecord {
+  key: string;
+  members: string[];
+}
+interface OldTown {
+  town: Town;
+  members: Record<string, string[]>;
+}
 ```
 
 - Every field is an integer, a string, or a record/array of them. `Dir` is `[x, y]` from the direction table or
@@ -107,12 +152,55 @@ interface OldTown { town: Town; members: Record<string, string[]> }
 ## City model (output)
 
 ```ts
-interface City { repository: string; commit: string; towns: Town[]; highways: Road[]; stats: CityStats }
-interface Town { key: string; name: string; form: Form; old: boolean; outline: Pt[]; water: Pt[][]; roads: Road[]; blocks: Block[]; lots: Lot[]; districts: District[]; stats: TownStats }
-interface Road { pts: Pt[]; cls: RoadClass }
-interface Block { pts: Pt[]; district: number; kind: "built" | "reserve" | "park" | "plaza" | "green"; form?: DistrictForm }
-interface Lot { pts: Pt[]; key: string; address: string; vacant: boolean; path: string; use: LandUse; district: number; form?: DistrictForm }
-interface District { pts: Pt[]; path: string; name: string; depth: number; massMille: number; form?: Form; ward: boolean }
+interface City {
+  repository: string;
+  commit: string;
+  towns: Town[];
+  highways: Road[];
+  stats: CityStats;
+}
+interface Town {
+  key: string;
+  name: string;
+  form: Form;
+  old: boolean;
+  outline: Pt[];
+  water: Pt[][];
+  roads: Road[];
+  blocks: Block[];
+  lots: Lot[];
+  districts: District[];
+  stats: TownStats;
+}
+interface Road {
+  pts: Pt[];
+  cls: RoadClass;
+}
+interface Block {
+  pts: Pt[];
+  district: number;
+  kind: "built" | "reserve" | "park" | "plaza" | "green";
+  form?: DistrictForm;
+}
+interface Lot {
+  pts: Pt[];
+  key: string;
+  address: string;
+  vacant: boolean;
+  path: string;
+  use: LandUse;
+  district: number;
+  form?: DistrictForm;
+}
+interface District {
+  pts: Pt[];
+  path: string;
+  name: string;
+  depth: number;
+  massMille: number;
+  form?: Form;
+  ward: boolean;
+}
 ```
 
 - `district` on blocks and lots is the tint seed (`seedOf` of the district key), an unsigned 32-bit integer.

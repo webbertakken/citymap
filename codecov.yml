@@ -1,0 +1,12 @@
+# The report informs; it never gates. The enforced bar is the 100% thresholds in vitest.config.ts, run by CI's Tests job.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+# Off: on the free plan Codecov writes a fixed, patch-only comment whatever this file asks for.
+comment: false

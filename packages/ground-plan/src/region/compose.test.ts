@@ -1,19 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { centroid } from "../fixed/polygon";
-import { DEFAULT_LAND_USES } from "../land-use/land-use";
 import { foldHistory, initialState } from "../fold/fold";
+import { DEFAULT_LAND_USES } from "../land-use/land-use";
 import { canonicalJson } from "../plat/canonical";
 import { emptyPlat } from "../plat/plat";
 import type { FileEntry, Snapshot } from "../snapshot/snapshot";
 import { files, snapshotOf } from "../testing/fixtures";
 import { layCity, translateTown, type Options } from "./compose";
 
-const OPTIONS: Options = { densityPct: 50, landUses: DEFAULT_LAND_USES, order: "centre-out", jog: "top-level", warp: false };
+const OPTIONS: Options = {
+  densityPct: 50,
+  landUses: DEFAULT_LAND_USES,
+  order: "centre-out",
+  jog: "top-level",
+  warp: false,
+};
 const at = (index: number, entries: FileEntry[], folders: Record<string, number> = {}): Snapshot => ({
   ...snapshotOf(entries, folders),
   index,
 });
-const manifest = (folder: string, born = 0): FileEntry => ({ path: `${folder}/package.json`, identity: `${folder}/package.json@${born}`, firstSeen: born });
+const manifest = (folder: string, born = 0): FileEntry => ({
+  path: `${folder}/package.json`,
+  identity: `${folder}/package.json@${born}`,
+  firstSeen: born,
+});
 const monorepo = (extra: FileEntry[] = []): FileEntry[] => [
   ...files("src", 120),
   manifest("packages/a"),
@@ -83,7 +93,11 @@ describe("layCity", () => {
     // The new town holds only files the old town does not: the newcomers.
     expect(second.city.towns.find((t) => !t.old)?.stats.lots).toBe(2000);
     // A second switch makes a second old town, beside the first.
-    const third = layCity(at(2, [...heavy, ...["p", "q", "r", "s", "t", "u", "v", "w"].flatMap((d, i) => files(d, 700, 9000 + i * 1000))]), second.state, OPTIONS);
+    const third = layCity(
+      at(2, [...heavy, ...["p", "q", "r", "s", "t", "u", "v", "w"].flatMap((d, i) => files(d, 700, 9000 + i * 1000))]),
+      second.state,
+      OPTIONS,
+    );
     expect(third.city.towns.filter((t) => t.old).map((t) => t.name)).toEqual(["demo old town", "demo old town 2"]);
   });
 
@@ -96,13 +110,27 @@ describe("layCity", () => {
   });
 
   it("gives a town without roads an approach street for its highway", () => {
-    const { city } = layCity(at(0, [...files("src", 3), manifest("packages/a"), ...files("packages/a", 2), manifest("packages/b"), ...files("packages/b", 2)]), initialState(OPTIONS), OPTIONS);
+    const { city } = layCity(
+      at(0, [
+        ...files("src", 3),
+        manifest("packages/a"),
+        ...files("packages/a", 2),
+        manifest("packages/b"),
+        ...files("packages/b", 2),
+      ]),
+      initialState(OPTIONS),
+      OPTIONS,
+    );
     expect(city.highways).toHaveLength(1);
     expect(city.towns.every((t) => t.roads.length > 0)).toBe(true);
   });
 
   it("skips a repository with no land at all", () => {
-    const { city } = layCity(at(0, [{ path: "a.test.ts", identity: "a", firstSeen: 0 }]), initialState(OPTIONS), OPTIONS);
+    const { city } = layCity(
+      at(0, [{ path: "a.test.ts", identity: "a", firstSeen: 0 }]),
+      initialState(OPTIONS),
+      OPTIONS,
+    );
     expect(city.towns).toEqual([]);
     expect(city.highways).toEqual([]);
   });
@@ -117,14 +145,25 @@ describe("layCity", () => {
   it("freezes vacant lots too, and keeps old towns of every town, lit by their members", () => {
     const six = ["a", "b", "c", "d", "e", "f"].flatMap((d, i) => files(d, 100, i * 200));
     const first = layCity(at(0, six), initialState(OPTIONS), OPTIONS);
-    const fewer = layCity(at(1, six.filter((f) => f.path !== "a/f0000.ts")), first.state, OPTIONS);
+    const fewer = layCity(
+      at(
+        1,
+        six.filter((f) => f.path !== "a/f0000.ts"),
+      ),
+      first.state,
+      OPTIONS,
+    );
     const heavy = [...six.filter((f) => !f.path.startsWith("f/")), ...files("core", 2000, 5000)];
     const switched = layCity(at(2, heavy), fewer.state, OPTIONS);
     const old = switched.state.plat.old.demo?.[0];
     expect(old?.town.lots.some((l) => l.vacant)).toBe(true);
     // A second old town under another key, whose town is gone, and a lot without members: it joins the main town.
-    const stray = { town: { ...(old?.town as NonNullable<typeof old>["town"]), key: "other", name: "other old town" }, members: {} };
-    const state = { ...switched.state, plat: { ...switched.state.plat, old: { ...switched.state.plat.old, other: [stray] } } };
+    if (!old) throw new Error("no old town");
+    const stray = { town: { ...old.town, key: "other", name: "other old town" }, members: {} };
+    const state = {
+      ...switched.state,
+      plat: { ...switched.state.plat, old: { ...switched.state.plat.old, other: [stray] } },
+    };
     const next = layCity(at(3, heavy), state, OPTIONS);
     expect(next.city.towns.filter((t) => t.old).map((t) => t.name)).toEqual(["demo old town", "other old town"]);
     expect(next.city.towns.find((t) => t.name === "other old town")?.lots.every((l) => l.vacant)).toBe(true);
