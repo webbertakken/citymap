@@ -15,6 +15,10 @@ interface Theme {
   outline: string;
   park: string;
   plaza: string;
+  water: string;
+  waterline: string;
+  /** Fills by district form, for the archetype sheets. */
+  form: (form: string, lot: boolean) => string;
   casing: string;
   road: string;
   label: string;
@@ -43,6 +47,15 @@ const DRACULA = { background: "#282A36", line: "#44475A", foreground: "#F8F8F2",
 const DRACULA_ACCENTS = ["#BD93F9", "#FF79C6", "#8BE9FD", "#50FA7B", "#FFB86C", "#F1FA8C", "#FF5555"];
 const accentOf = (key: string) => DRACULA_ACCENTS[fnv1a(key) % DRACULA_ACCENTS.length];
 
+/** District forms on the archetype sheets: hues clear of the park greens, one per form. */
+export const FORM_HUE: Record<string, number> = { radial: 55, twin: 235, gridiron: 300, polycentric: 15 };
+const FORM_ACCENT: Record<string, string> = {
+  radial: "#FFB86C",
+  twin: "#8BE9FD",
+  gridiron: "#BD93F9",
+  polycentric: "#FF79C6",
+};
+
 const THEMES: Record<ThemeName, Theme> = {
   "paper-atlas": {
     country: "#E4E6D6",
@@ -50,6 +63,9 @@ const THEMES: Record<ThemeName, Theme> = {
     outline: "#D3CCBD",
     park: "#BFD8A6",
     plaza: "#E9DFCB",
+    water: "#A9CCE3",
+    waterline: "#7FAFD0",
+    form: (f, lot) => oklch(lot ? 0.82 : 0.92, lot ? 0.08 : 0.03, FORM_HUE[f] ?? 0),
     casing: "#C3BBAC",
     road: "#FFFFFF",
     label: "#1E1E24",
@@ -67,6 +83,9 @@ const THEMES: Record<ThemeName, Theme> = {
     outline: DRACULA.line,
     park: mix(DRACULA.background, "#50FA7B", 0.28),
     plaza: mix(DRACULA.background, DRACULA.foreground, 0.16),
+    water: mix(DRACULA.background, "#8BE9FD", 0.3),
+    waterline: mix(DRACULA.background, "#8BE9FD", 0.6),
+    form: (f, lot) => mix(DRACULA.background, FORM_ACCENT[f] ?? DRACULA.comment, lot ? 0.5 : 0.12),
     casing: "#191A21",
     road: DRACULA.line,
     label: DRACULA.foreground,
@@ -98,9 +117,12 @@ export function renderRegion(
     theme?: ThemeName;
     /** Lot keys painted in the alarm colour with a dark edge: lots that moved since the previous frame. */
     highlight?: Set<string>;
+    /** Colour lots and blocks by their district form instead of by district. */
+    colourBy?: "district" | "form";
   },
 ): string {
   const theme = THEMES[options.theme ?? "paper-atlas"];
+  const byForm = options.colourBy === "form";
   const squash = options.camera === "plan" ? 1 : 0.5;
   const project = (p: Pt): Pt =>
     options.camera === "plan"
@@ -129,7 +151,7 @@ export function renderRegion(
   region.towns.forEach((town, ti) => {
     out.push(`<clipPath id="town${ti}"><path d="${poly(town.outline)}"/></clipPath>`);
     out.push(
-      `<path d="${poly(town.outline)}" fill="${theme.ground}" stroke="${theme.outline}" stroke-width="${sw(4)}"/>`,
+      `<path d="${poly(town.outline)}" fill="${theme.ground}" stroke="${theme.outline}" stroke-width="${sw(4)}"${town.old ? ` stroke-dasharray="${sw(10)} ${sw(6)}"` : ""}/>`,
     );
     out.push(`<g clip-path="url(#town${ti})">`);
     for (const b of town.blocks) {
@@ -141,9 +163,21 @@ export function renderRegion(
         );
         continue;
       }
-      const fill = b.kind === "park" ? theme.park : b.kind === "plaza" ? theme.plaza : theme.block(b.district);
+      const fill =
+        b.kind === "park"
+          ? theme.park
+          : b.kind === "plaza"
+            ? theme.plaza
+            : byForm
+              ? theme.form(b.form ?? "polycentric", false)
+              : theme.block(b.district);
       out.push(`<path d="${poly(b.pts)}" fill="${fill}"/>`);
     }
+    // Water: a twin's river, under its bridges.
+    for (const w of town.water)
+      out.push(
+        `<path d="${poly(w)}" fill="${theme.water}" stroke="${theme.waterline}" stroke-width="${Math.max(0.6, 0.6 * scale).toFixed(2)}"/>`,
+      );
     // Roads: all casings, then all fills, smallest class first, so junctions merge.
     const roads = [...town.roads].sort((a, b) => ORDER.indexOf(a.cls) - ORDER.indexOf(b.cls));
     for (const r of roads)
@@ -171,7 +205,11 @@ export function renderRegion(
         continue;
       }
       const moved = options.highlight?.has(lot.key) ?? false;
-      const fill = moved ? "#E4572E" : theme.lot(lot.district, lot.landUse === "source");
+      const fill = moved
+        ? "#E4572E"
+        : byForm
+          ? theme.form(lot.form ?? "polycentric", true)
+          : theme.lot(lot.district, lot.landUse === "source");
       if (options.camera === "dimetric") {
         const lift = 3 * scale;
         out.push(
