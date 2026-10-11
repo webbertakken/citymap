@@ -99,32 +99,47 @@ export function flatLayer(
   return builder.done();
 }
 
-/** A polyline as quads of the given width (fixed units), one per segment, with a square cap at each inner joint. */
+/**
+ * A polyline as quads of the given width (fixed units), one per segment, mitred at each joint: the offset at a joint
+ * runs along the bisector of the two normals, long enough to keep each edge's width, and no longer than twice the
+ * half width, so hairpins stay bounded.
+ */
 export function roadRibbon(pts: readonly Pt[], width: number): Pt[][] {
   const half = width / 2;
-  const quads: Pt[][] = [];
-  for (let i = 0; i + 1 < pts.length; i++) {
-    const a = pts[i]!;
-    const b = pts[i + 1]!;
+  const line = pts.filter((p, i) => i === 0 || p.x !== pts[i - 1]!.x || p.y !== pts[i - 1]!.y);
+  if (line.length < 2) return [];
+  // Each segment's unit normal, to its left.
+  const normals = line.slice(1).map((b, i) => {
+    const a = line[i]!;
     const length = Math.hypot(b.x - a.x, b.y - a.y);
-    if (length === 0) continue;
-    const nx = (-(b.y - a.y) / length) * half;
-    const ny = ((b.x - a.x) / length) * half;
-    quads.push([
-      { x: a.x - nx, y: a.y - ny },
-      { x: b.x - nx, y: b.y - ny },
-      { x: b.x + nx, y: b.y + ny },
-      { x: a.x + nx, y: a.y + ny },
-    ]);
-    if (i + 2 < pts.length)
-      quads.push([
-        { x: b.x - half, y: b.y - half },
-        { x: b.x + half, y: b.y - half },
-        { x: b.x + half, y: b.y + half },
-        { x: b.x - half, y: b.y + half },
-      ]);
-  }
-  return quads;
+    return { x: -(b.y - a.y) / length, y: (b.x - a.x) / length };
+  });
+  const offsets = line.map((_, i) => {
+    const before = normals[i - 1];
+    const after = normals[i];
+    if (!before || !after) {
+      const n = (before ?? after)!;
+      return { x: n.x * half, y: n.y * half };
+    }
+    const sum = { x: before.x + after.x, y: before.y + after.y };
+    const size = Math.hypot(sum.x, sum.y);
+    // A full reversal has no bisector: turn round the end at the limit, along the first segment.
+    const m = size < 1e-9 ? { x: before.y, y: -before.x } : { x: sum.x / size, y: sum.y / size };
+    const reach = Math.min(2 * half, half / Math.max(1e-9, m.x * before.x + m.y * before.y));
+    return { x: m.x * reach, y: m.y * reach };
+  });
+  return normals.map((_, i) => {
+    const a = line[i]!;
+    const b = line[i + 1]!;
+    const oa = offsets[i]!;
+    const ob = offsets[i + 1]!;
+    return [
+      { x: a.x - oa.x, y: a.y - oa.y },
+      { x: b.x - ob.x, y: b.y - ob.y },
+      { x: b.x + ob.x, y: b.y + ob.y },
+      { x: a.x + oa.x, y: a.y + oa.y },
+    ];
+  });
 }
 
 /** Lots as low plinths: a top face at base + LOT_HEIGHT and a side per edge, darker. */

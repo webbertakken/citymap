@@ -39,21 +39,44 @@ describe("flatLayer", () => {
 });
 
 describe("roadRibbon", () => {
-  it("draws a quad per segment and a cap at each joint", () => {
+  it("draws one quad per segment, mitred at each joint so the outline runs on unbroken", () => {
     const pts: Pt[] = [
       { x: 0, y: 0 },
       { x: 640, y: 0 },
       { x: 640, y: 640 },
     ];
     const ribbon = roadRibbon(pts, 64);
-    // Two segment quads and one joint cap, four corners each.
-    expect(ribbon.length).toBe(3);
+    expect(ribbon).toHaveLength(2);
+    // The right-angle joint mitres to the outer and inner corners of the turn.
     expect(ribbon[0]).toEqual([
       { x: 0, y: -32 },
-      { x: 640, y: -32 },
-      { x: 640, y: 32 },
+      { x: 672, y: -32 },
+      { x: 608, y: 32 },
       { x: 0, y: 32 },
     ]);
+    expect(ribbon[1]![0]).toEqual({ x: 672, y: -32 });
+  });
+
+  it("limits the mitre of a hairpin to twice the half width", () => {
+    const pts: Pt[] = [
+      { x: 0, y: 0 },
+      { x: 640, y: 0 },
+      { x: 0, y: 1 },
+    ];
+    const corner = roadRibbon(pts, 64)[0]![1]!;
+    expect(Math.hypot(corner.x - 640, corner.y)).toBeLessThanOrEqual(64 + 1e-9);
+  });
+
+  it("turns round the end of a full reversal at the limit", () => {
+    const back = roadRibbon(
+      [
+        { x: 0, y: 0 },
+        { x: 640, y: 0 },
+        { x: 0, y: 0 },
+      ],
+      64,
+    );
+    expect(back[0]![2]).toEqual({ x: 704, y: 0 });
   });
 
   it("skips zero-length segments", () => {

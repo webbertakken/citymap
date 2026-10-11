@@ -10,8 +10,8 @@ body {
   font-family: "Noto Sans", "DejaVu Sans", system-ui, sans-serif;
 }
 .viewer {
-  display: grid;
-  grid-template-rows: auto auto 1fr;
+  display: flex;
+  flex-direction: column;
   height: 100dvh;
 }
 .bar {
@@ -31,7 +31,7 @@ body {
   min-width: 10rem;
   font-size: 0.875rem;
 }
-.bar label {
+.bar .field {
   display: inline-flex;
   gap: 0.4rem;
   align-items: center;
@@ -69,6 +69,7 @@ button[aria-pressed="true"] {
 .body {
   position: relative;
   display: grid;
+  flex: 1;
   grid-template-columns: 1fr 18rem;
   min-height: 0;
 }
@@ -109,9 +110,9 @@ button[aria-pressed="true"] {
 .panel {
   overflow: auto;
   padding: 0.75rem 1rem;
-  color: #10141a;
-  background: #ffffff;
-  border-left: 1px solid #50565f;
+  color: var(--panel-text);
+  background: var(--panel);
+  border-left: 1px solid var(--panel-line);
 }
 .panel h2 {
   margin: 0.75rem 0 0.25rem;

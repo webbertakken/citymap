@@ -10,6 +10,7 @@ import {
   useState,
   useSyncExternalStore,
   type ComponentType,
+  type CSSProperties,
 } from "react";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
 import { fit, type Mode, type View, type Viewport } from "../view/view";
@@ -49,6 +50,8 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
   const [mode, setMode] = useState<Mode>("dimetric");
   const [viewport, setViewport] = useState<Viewport>({ width: 800, height: 600 });
   const [view, setView] = useState<View>({ mode: "dimetric", centre: { x: 0, z: 0 }, zoom: 1 });
+  // A newly opened city stays fitted to the map, whatever size the map turns out to be, until the person moves it.
+  const [fitted, setFitted] = useState(true);
   const scene = useMemo(() => (city ? buildScene(city, THEMES[theme]) : null), [city, theme]);
 
   const show = useCallback(
@@ -59,6 +62,7 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
         `${next.towns.length} towns · ${next.towns.reduce((s, t) => s + t.stats.lots, 0).toLocaleString("en-GB")} lots`,
       );
       setView(fit(buildScene(next, THEMES[theme]).bounds, mode, viewport));
+      setFitted(true);
       document.title = `${name} · citymap`;
     },
     [mode, theme, viewport],
@@ -116,8 +120,16 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
     };
   }, []);
   const colours = THEMES[theme];
+  // The page and the panel take the theme's colours; custom properties carry them into the stylesheet.
+  const style: CSSProperties & Record<`--${string}`, string> = {
+    background: colours.country,
+    color: colours.headerText,
+    "--panel": colours.header,
+    "--panel-text": colours.headerText,
+    "--panel-line": colours.outline,
+  };
   return (
-    <main className="viewer" style={{ background: colours.country, color: colours.headerText }} data-theme={theme}>
+    <main className="viewer" style={style} data-theme={theme}>
       <TopBar
         title={city?.repository ?? "citymap"}
         status={status}
@@ -149,8 +161,14 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
             view={view}
             theme={colours}
             Canvas={Canvas}
-            onView={setView}
-            onViewport={setViewport}
+            onView={(next) => {
+              setFitted(false);
+              setView(next);
+            }}
+            onViewport={(size) => {
+              setViewport(size);
+              if (fitted) setView(fit(scene.bounds, view.mode, size));
+            }}
           />
         ) : (
           <div className="map empty" />

@@ -212,3 +212,23 @@ describe("Viewer, rendered elsewhere", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("Viewer fitting", () => {
+  it("keeps a new city fitted to the map as it is measured, until the person moves it", async () => {
+    let width = 800;
+    const box = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => width);
+    render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
+    const map = await screen.findByRole("application");
+    const first = read();
+    width = 1600;
+    fireEvent(window, new Event("resize"));
+    const wider = read();
+    expect(wider).not.toBe(first);
+    fireEvent.keyDown(map, { key: "ArrowRight" });
+    const moved = read();
+    width = 400;
+    fireEvent(window, new Event("resize"));
+    expect(read()).toBe(moved);
+    box.mockRestore();
+  });
+});

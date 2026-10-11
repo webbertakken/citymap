@@ -31,16 +31,16 @@ export function TopBar(props: TopBarProps) {
       <p className="status" aria-live="polite">
         {props.status}
       </p>
-      <label>
-        City
-        <select value={props.selected} onChange={(e) => props.onCity(e.target.value)}>
+      <span className="field">
+        <label htmlFor="city">City</label>
+        <select id="city" value={props.selected} onChange={(e) => props.onCity(e.target.value)}>
           {props.cities.map((c) => (
             <option key={c.file} value={c.file}>
               {c.name} ({c.lots.toLocaleString("en-GB")} lots)
             </option>
           ))}
         </select>
-      </label>
+      </span>
       <button type="button" onClick={() => input.current?.click()}>
         Open a city file…
       </button>
@@ -54,9 +54,10 @@ export function TopBar(props: TopBarProps) {
           Plan
         </button>
       </fieldset>
-      <label>
-        Theme
+      <span className="field">
+        <label htmlFor="theme">Theme</label>
         <select
+          id="theme"
           value={props.theme}
           onChange={(e) => props.onTheme(THEME_NAMES.find((t) => t === e.target.value) ?? props.theme)}
         >
@@ -66,7 +67,7 @@ export function TopBar(props: TopBarProps) {
             </option>
           ))}
         </select>
-      </label>
+      </span>
     </header>
   );
 }
