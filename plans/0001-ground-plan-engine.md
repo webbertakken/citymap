@@ -38,16 +38,16 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 
 ## Phase 3: town layout (`town`)
 
-- [ ] `classifyNode` with every threshold and band tested
-- [ ] `decide` and `split`: fresh, remembered, recut, empty side, forget
-- [ ] Pinwheel with its guards
-- [ ] Radial: sectors, core scale, decline cases, re-sector
-- [ ] Twin: banks, river, bridges
-- [ ] Neighbourhood: park strip, grid, cells, slots, span, green, high street, renewal, newcomers, addresses
-- [ ] Wards, districts, park and reserve blocks
-- [ ] Organic warp of a laid town
-- [ ] Golden fixtures: hamlet, twin, radial
-- [ ] Commit
+- [x] `classifyNode` with every threshold and band tested
+- [x] `decide` and `split`: fresh, remembered, recut, empty side, forget
+- [x] Pinwheel with its guards
+- [x] Radial: sectors, core scale, decline cases, re-sector
+- [x] Twin: banks, river, bridges
+- [x] Neighbourhood: park strip, grid, cells, slots, span, green, high street, renewal, newcomers, addresses
+- [x] Wards, districts, park and reserve blocks
+- [x] Organic warp of a laid town
+- [x] Golden fixtures: hamlet, twin, radial
+- [x] Commit
 
 ## Phase 4: region and fold
 
