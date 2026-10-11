@@ -2,7 +2,7 @@
 // Small folders flatten into one of three neighbourhood forms; larger ones take a district form that arranges children.
 
 export type FlatForm = "hamlet" | "street-village" | "neighbourhood";
-export type DistrictForm = "radial" | "twin" | "gridiron" | "polycentric";
+export type DistrictForm = "radial" | "twin" | "polycentric";
 export type Form = FlatForm | DistrictForm;
 
 export const FLAT_FORMS: FlatForm[] = ["hamlet", "street-village", "neighbourhood"];
@@ -44,7 +44,6 @@ export function features(mass: number, childMasses: number[], lots: number): Fea
 const RULES: { form: DistrictForm; margin: (f: Features) => number }[] = [
   { form: "radial", margin: (f) => f.s1 - 0.6 },
   { form: "twin", margin: (f) => Math.min(f.s2 - 0.3, f.s1 + f.s2 - 0.75) },
-  { form: "gridiron", margin: (f) => Math.min(Math.log(f.neff / 7), 0.25 - f.s1) },
   { form: "polycentric", margin: () => 1 },
 ];
 const STAY = 0.15;

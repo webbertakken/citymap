@@ -73,15 +73,6 @@ const SECTIONS: Record<string, { repos: string[]; shots: Shot[] }> = {
       { caption: "by district form", options: BASE, camera: "plan", colourBy: "form" },
     ],
   },
-  gridiron: {
-    repos: ["home-assistant", "react", "next.js"],
-    shots: [
-      { caption: "A: rows of single folders (now)", options: { ...BASE, gridiron: "rows" }, camera: "plan" },
-      { caption: "B: staggered rows", options: { ...BASE, gridiron: "staggered" }, camera: "plan" },
-      { caption: "C: superblocks of 12 folders", options: { ...BASE, gridiron: "superblocks" }, camera: "plan" },
-      { caption: "D: no gridiron (recursive cuts)", options: { ...BASE, gridiron: "off" }, camera: "plan" },
-    ],
-  },
   jog: {
     repos: ["next.js", "react", "home-assistant", "takken.io"],
     shots: [
@@ -119,7 +110,7 @@ for (const name of sectionArg === "all" ? Object.keys(SECTIONS) : [sectionArg]) 
       const region = regions[i];
       const stats = regionStats(region);
       const forms = [...new Set(region.towns.map((t) => `${t.name} ${t.form}`))].join(", ");
-      const legend = shot.colourBy === "form" ? " · radial orange, twin blue, gridiron violet, polycentric rose" : "";
+      const legend = shot.colourBy === "form" ? " · radial orange, twin blue, polycentric rose" : "";
       const subtitle = `roots: ${forms}${legend} · ${region.towns.length} town${region.towns.length > 1 ? "s" : ""} · ${stats.lots} lots · lot coverage ${stats.lotCoverage}% · ${region.tests} files without land (${shot.options.noLand.join(", ")}) · ${region.docs} docs as parks · ${stats.longStraightRoads} long straight roads`;
       const svg = join(workDir, `${repo}-${i}.svg`);
       const png = join(workDir, `${repo}-${i}.png`);

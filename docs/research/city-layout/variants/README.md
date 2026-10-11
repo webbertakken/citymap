@@ -116,26 +116,26 @@ Top-level only keeps STATE A's straight streets inside districts and breaks only
 
 `archetype.ts` classifies each folder with hysteresis (spec: Archetypes). Flattened folders become a hamlet round
 a green, a street village along a high street, or a plain neighbourhood; larger folders arrange their children as
-radial (ring road, spokes, convex sectors), twin (two banks of a river, one or two bridges), gridiron (remembered
-rows of square cells) or polycentric (the recursive cuts). `img/towns-forms-<repo>.webp` shows each map beside the
-same map coloured by form: radial orange, twin blue, gridiron violet, polycentric rose.
+radial (ring road, spokes, convex sectors), twin (two banks of a river, one or two bridges) or polycentric (the recursive cuts). `img/towns-forms-<repo>.webp` shows each map beside the
+same map coloured by form: radial orange, twin blue, polycentric rose.
 
 | Repo           | Lots   | Coverage | Local streets | Long straight roads | Without room |
 | -------------- | ------ | -------- | ------------- | ------------------- | ------------ |
 | takken.io      | 244    | 22.1%    | 88%           | 9                   | 0            |
-| react          | 2,003  | 27.7%    | 64%           | 8                   | 21           |
-| next.js        | 7,985  | 34.6%    | 72%           | 34                  | 55           |
-| home-assistant | 13,184 | 38.3%    | 51%           | 38                  | 22           |
-| rust           | 6,194  | 29.5%    | 58%           | 10                  | 66           |
+| react          | 2,019  | 32.9%    | 65%           | 6                   | 5            |
+| next.js        | 8,011  | 35.3%    | 79%           | 18                  | 29           |
+| home-assistant | 13,193 | 43.7%    | 79%           | 3                   | 13           |
+| rust           | 6,209  | 28.2%    | 64%           | 5                   | 51           |
 
-- Roots: react radial with a gridiron `packages` town; next.js a twin; home-assistant radial round a gridiron of
-  integrations; takken.io and redux polycentric; rust polycentric.
-- Gridirons trade the local streets for long straight rows: home-assistant goes from 3 to 38 long straight roads.
+- Roots: react radial; next.js a twin; home-assistant radial; takken.io, redux and rust polycentric.
+- A gridiron was tried and dropped (commit 7f3ecdb, `img/towns-gridiron-<repo>.webp`): rows of single folders,
+  staggered rows and superblocks of 12 folders against recursive cuts. Rows turned home-assistant into stripes, 38
+  long straight roads against 3; recursive cuts read best on every repo and leave the fewest lots without room.
 - A town whose root switches form is frozen as an old town where it stood, dashed, its lots lit while their files
   live; the new town grows beside it (`img/towns-plat-takken.io.webp`: takken.io in 2024).
 - The root's form is classified over the whole repository, so a young new town keeps it: one old town, not four.
 - Stability holds: React 0.2% per commit and 2.8% on deleting commits; takken.io 0.7% and 4.7%; next.js 0% and
-  0.1%; home-assistant 0% and 0%; redux 0.5% and 13.1%.
+  0.1%; home-assistant 0% and 0.1%; redux 0.5% and 13.1%.
 
 ## Sheets
 

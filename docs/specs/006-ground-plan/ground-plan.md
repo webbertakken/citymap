@@ -124,7 +124,7 @@ is therefore readable as distance from the core, and newcomers join the edges.
 
 ## Archetypes
 
-- Each folder has a form (hamlet, street village, archipelago, radial, twin, gridiron, polycentric) and a tier by
+- Each folder has a form (hamlet, street village, archipelago, radial, twin, polycentric) and a tier by
   decade of mass (hamlet under 30, village under 300, town under 3,000, city under 30,000, metropolis above).
 - Features are continuous; the choice uses a Schmitt trigger: a challenger enters at margin 0 or more, the incumbent
   stays down to -0.15, and a switch needs +0.1. Tiers move up at the threshold times 1.25 and down at the threshold
@@ -141,8 +141,8 @@ is therefore readable as distance from the core, and newcomers join the edges.
     convex. It needs three or more ring items and sectors under 171°, and otherwise falls back to polycentric.
   - **twin**: the two heaviest children on either bank of a river 2.5 u wide, the rest joining the lighter bank in age
     order; one bridge, or two on a river longer than 12 u.
-  - **gridiron**: rows of cells, every cut square to one axis; rows are remembered and newcomers join the last row.
-  - **polycentric**: recursive cuts, as in Structure.
+  - **polycentric**: recursive cuts, as in Structure. Many similar children (integrations, examples) take this form
+    too: there is no gridiron, as rows of single folders read as stripes of long straight roads.
 - Archipelago is the region's form: workspace groups become towns (Edges and open land).
 
 ## Edges and open land

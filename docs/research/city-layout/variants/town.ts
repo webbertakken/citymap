@@ -45,10 +45,6 @@ const JOG = 3 * U;
 const MIN_JOG = 2 * U;
 /** A twin city's river width. */
 const RIVER = 2.5 * U;
-/** Folders per superblock in a superblock gridiron. */
-const SUPERBLOCK = 12;
-/** Column bands in a staggered gridiron. */
-const STAGGER_COLUMNS = 3;
 /** A radial core spans at most this share of the way to the edge, so the ring keeps room for its sectors. */
 const RADIAL_MAX_SCALE = 0.95; // a folder smaller than this many blocks is one neighbourhood
 /** Land uses that take no land unless the land dimension includes them. */
@@ -84,13 +80,6 @@ export interface RadialRecord {
   scale: number;
   caps: Record<string, number>;
 }
-/** A remembered gridiron: its axis and the item keys of each row; newcomers join the last row, the frontier. */
-export interface RowsRecord {
-  theta: number;
-  rows: string[][];
-  /** The column band of each row, for staggered grids. */
-  column?: number[];
-}
 /** A remembered neighbourhood: its grid origin, angle and pitch, its park strip, and the slot of every lot. */
 export interface GridRecord {
   theta: number;
@@ -122,7 +111,6 @@ export interface TownPlat {
   grids: Record<string, GridRecord>;
   shares: Record<string, ShareRecord[]>;
   forms: Record<string, Form>;
-  rows: Record<string, RowsRecord>;
   radial: Record<string, RadialRecord>;
 }
 export const emptyTownPlat = (): TownPlat => ({
@@ -134,7 +122,6 @@ export const emptyTownPlat = (): TownPlat => ({
   grids: {},
   shares: {},
   forms: {},
-  rows: {},
   radial: {},
 });
 
@@ -152,8 +139,6 @@ export interface Options {
   order: "centre-out" | "first-seen";
   /** Jogging cuts: long cuts whose sides split again become pinwheels round a plaza; everywhere or top-level only. */
   jog: "off" | "top-level" | "all";
-  /** How a gridiron lays its cells: rows of folders, staggered rows, superblocks of folders, or no gridiron. */
-  gridiron?: "rows" | "staggered" | "superblocks" | "off";
   warp: boolean;
 }
 
@@ -165,7 +150,7 @@ export interface Block {
   pts: Pt[];
   district: string;
   kind: "built" | "open" | "park" | "plaza";
-  /** The innermost district form round this block (radial, twin, gridiron, polycentric). */
+  /** The innermost district form round this block (radial, twin, polycentric). */
   form?: DistrictForm;
 }
 export interface Lot {
@@ -327,15 +312,6 @@ export function buildNodes(
 // Partition items: a child folder, a folder's own lots, or a folder's own park.
 type Item =
   | { kind: "folder"; node: Node; gross: number; mass: number; firstSeen: number; key: string }
-  | {
-      kind: "group";
-      items: Item[];
-      normal?: [number, number];
-      gross: number;
-      mass: number;
-      firstSeen: number;
-      key: string;
-    }
   | { kind: "lots"; lots: FileRecord[]; gross: number; mass: number; firstSeen: number; key: string; district: string }
   | { kind: "park"; gross: number; mass: number; firstSeen: number; key: string; district: string };
 
@@ -424,13 +400,11 @@ export function layoutTown(
   const forget = (path: string) => {
     for (const key of Object.keys(plat.cuts)) if (owned(key, path)) delete plat.cuts[key];
     for (const key of Object.keys(plat.grids)) if (owned(key, path)) delete plat.grids[key];
-    for (const key of Object.keys(plat.rows)) if (owned(key, path)) delete plat.rows[key];
     for (const key of Object.keys(plat.radial)) if (owned(key, path)) delete plat.radial[key];
   };
 
   const place = (poly: Poly, item: Item, district: string) => {
     if (item.kind === "folder") partition(item.node, poly, district);
-    else if (item.kind === "group") split(item.items, poly, item.mass, false, item.key, district, item.normal);
     else if (item.kind === "lots") neighbourhood(poly, item.lots, 0, item.key, item.district, "neighbourhood");
     else park(poly, item.district);
   };
@@ -670,18 +644,10 @@ export function layoutTown(
     return true;
   };
 
-  const split = (
-    items: Item[],
-    poly: Poly,
-    mass: number,
-    top: boolean,
-    key: string,
-    district: string,
-    normal?: [number, number],
-  ) => {
-    const decision = decide(items, poly, mass, top, key, normal);
+  const split = (items: Item[], poly: Poly, mass: number, top: boolean, key: string, district: string) => {
+    const decision = decide(items, poly, mass, top, key);
     if (!decision) return place(poly, items[0], district);
-    if (!normal && pinwheel(decision, poly, key, district)) return;
+    if (pinwheel(decision, poly, key, district)) return;
     const { rec: r, left, right } = decision;
     const seg = chord(poly.p, r.nx, r.ny, r.c);
     const major = r.cls !== "street" && r.cls !== "lane";
@@ -693,7 +659,7 @@ export function layoutTown(
     ];
     for (const [part, half, sub] of halves) {
       if (part.length === 0) reserve(half, district);
-      else split(part, half, massOf(part), false, sub, major ? seedOf(sub) : district, normal);
+      else split(part, half, massOf(part), false, sub, major ? seedOf(sub) : district);
     }
   };
 
@@ -748,8 +714,7 @@ export function layoutTown(
       const ordered = items.sort((a, b) => a.firstSeen - b.firstSeen || byPath(a.key, b.key));
       const done =
         (form === "radial" && radial(node, ordered, poly, district)) ||
-        (form === "twin" && twin(node, ordered, poly, district)) ||
-        (form === "gridiron" && gridiron(node, ordered, poly, district));
+        (form === "twin" && twin(node, ordered, poly, district));
       if (!done)
         split(
           options.order === "centre-out" ? centreOut(ordered) : ordered,
@@ -952,75 +917,6 @@ export function layoutTown(
    * Gridiron: comparable children in rows of cells, every cut square to one axis. Rows are remembered; newcomers join
    * the last row, the grid\x27s frontier.
    */
-  function gridiron(node: Node, items: Item[], poly: Poly, district: string): boolean {
-    const style = options.gridiron ?? "rows";
-    if (style === "off") return false;
-    let rec: RowsRecord | undefined = plat.rows[node.path];
-    if (!rec) {
-      const theta = longestEdgeAngle(poly.p);
-      const along = extent(poly.p, Math.cos(theta), Math.sin(theta));
-      const across = extent(poly.p, -Math.sin(theta), Math.cos(theta));
-      const ratio = (across[1] - across[0]) / Math.max(1, along[1] - along[0]);
-      // Superblocks: a grid of blocks that each hold a handful of folders; plain rows: a grid of single folders.
-      const cells = style === "superblocks" ? Math.ceil(items.length / SUPERBLOCK) : items.length;
-      const count = Math.max(1, Math.round(Math.sqrt(cells * ratio)));
-      const columns = style === "staggered" ? Math.max(1, Math.min(STAGGER_COLUMNS, Math.floor(cells / count))) : 1;
-      const rows: string[][] = [];
-      const column: number[] = [];
-      // Staggered: each column band takes its own number of rows, so row streets end at the column streets.
-      const perColumn = Math.ceil(items.length / columns);
-      for (let c = 0; c < columns; c++) {
-        const band = items.slice(c * perColumn, (c + 1) * perColumn);
-        const n = Math.max(1, count + (columns > 1 ? (c % 2 === 0 ? 0 : 1) : 0));
-        const per = Math.ceil(band.length / n);
-        for (let i = 0; i < band.length; i += per) {
-          rows.push(band.slice(i, i + per).map((x) => x.key));
-          column.push(c);
-        }
-      }
-      rec = { theta, rows, column };
-      plat.rows[node.path] = rec;
-    } else {
-      const known = new Set(rec.rows.flat());
-      const fresh = items.filter((i) => !known.has(i.key)).map((i) => i.key);
-      if (fresh.length) rec.rows[rec.rows.length - 1].push(...fresh);
-    }
-    const along: [number, number] = [Math.cos(rec.theta), Math.sin(rec.theta)];
-    const across: [number, number] = [-Math.sin(rec.theta), Math.cos(rec.theta)];
-    const byKey = new Map(items.map((x) => [x.key, x]));
-    const group = (members: Item[], key: string, normal?: [number, number]): Item => ({
-      kind: "group" as const,
-      items: members,
-      normal,
-      gross: demandOf(members),
-      mass: massOf(members),
-      firstSeen: Math.min(...members.map((m) => m.firstSeen)),
-      key,
-    });
-    const rowItems = (keys: string[], i: number): Item | undefined => {
-      const members = keys.map((k) => byKey.get(k)).filter((x): x is Item => x !== undefined);
-      if (members.length === 0) return undefined;
-      if (style !== "superblocks") return group(members, `${node.path}#row${i}`, along);
-      // A superblock is cut freely inside: its folders meet on local streets, not on the grid.
-      const blocks: Item[] = [];
-      for (let j = 0; j < members.length; j += SUPERBLOCK)
-        blocks.push(group(members.slice(j, j + SUPERBLOCK), `${node.path}#row${i}#block${j / SUPERBLOCK}`));
-      return group(blocks, `${node.path}#row${i}`, along);
-    };
-    const rows = rec.rows.map(rowItems);
-    const column = rec.column ?? rec.rows.map(() => 0);
-    const bands = [...new Set(column)].map((c) => {
-      const members = rows.filter((r, i): r is Item => r !== undefined && column[i] === c);
-      return members.length ? group(members, `${node.path}#column${c}`, across) : undefined;
-    });
-    const groups = bands.filter((b): b is Item => b !== undefined);
-    if (groups.length === 0) return false;
-    if (groups.length === 1 && groups[0].kind === "group")
-      split(groups[0].items, poly, node.mass, true, node.path, district, across);
-    else split(groups, poly, node.mass, true, node.path, district, along);
-    return true;
-  }
-
   function park(poly: Poly, district: string) {
     const p = inset(poly, PAVEMENT);
     if (p.p.length >= 3) town.blocks.push({ pts: p.p, district, kind: "park" });
