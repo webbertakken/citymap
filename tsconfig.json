@@ -1,4 +1,4 @@
 {
   "files": [],
-  "references": [{ "path": "./tsconfig.tooling.json" }, { "path": "./packages/smoke" }]
+  "references": [{ "path": "./tsconfig.tooling.json" }]
 }
