@@ -113,8 +113,8 @@ export interface Options {
   /** The land dimension: land uses that take no land (tests and fixtures by default). */
   noLand: LandUse[];
   order: "centre-out" | "first-seen";
-  /** Jogging cuts: long cuts whose sides split again become pinwheels round a plaza. */
-  jog: boolean;
+  /** Jogging cuts: long cuts whose sides split again become pinwheels round a plaza; everywhere or top-level only. */
+  jog: "off" | "top-level" | "all";
   warp: boolean;
 }
 
@@ -510,7 +510,9 @@ export function layoutTown(
     district: string,
   ): boolean => {
     const { rec: r, left, right } = decision;
-    if (!options.jog || left.length < 2 || right.length < 2) return false;
+    if (options.jog === "off" || left.length < 2 || right.length < 2) return false;
+    // Top-level cuts divide the town's top-level folders: the root's own cuts, before any child folder's.
+    if (options.jog === "top-level" && !(key === root.path || key.startsWith(`${root.path}>`))) return false;
     const seg = chord(poly.p, r.nx, r.ny, r.c);
     const diameter = 2 * Math.sqrt(town.stats.landArea / Math.PI);
     if (!seg || Math.hypot(seg[1].x - seg[0].x, seg[1].y - seg[0].y) < LONG_CUT * diameter) return false;
