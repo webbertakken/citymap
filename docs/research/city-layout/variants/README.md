@@ -108,7 +108,8 @@ Top-level only keeps STATE A's straight streets inside districts and breaks only
   top-level cut), so one long road becomes two half roads that both pass the 45% threshold.
 - Cuts with a single item on one side (one heavy folder against the rest) cannot pinwheel and stay straight.
 - Forcing the cross cuts square rearranges the districts: jogging changes STATE A's layout as well as its roads.
-- Stability holds: React 0.1% per commit and 1.2% on deleting commits; takken.io 1.2% and 5.9%.
+- Stability holds with top-level jogs: React 0.1% per commit and 1.3% on deleting commits; takken.io 1.2% and
+  5.9%; redux 0.5% and 16.3%.
 - Lots without room rise slightly: the plaza and the step take land from pieces sized without them.
 
 ## Sheets
