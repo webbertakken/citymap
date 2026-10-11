@@ -85,7 +85,7 @@ describe("layoutTown", () => {
     expect(grown.plat.radial[""]?.order).toEqual([...[...RING].sort(), "down"]);
     // Every ring item lays afresh in its new sector: its old grid would lie across the turned land.
     const forgotten = grown.events.filter((e) => e.code === "plat/forget").map((e) => e.detail.key);
-    expect([...forgotten].sort()).toEqual(expect.arrayContaining(["core", ...RING]));
+    expect(forgotten).toEqual(expect.arrayContaining(["core", ...RING]));
     expect(grown.town.stats.overflow).toBe(0);
   });
 

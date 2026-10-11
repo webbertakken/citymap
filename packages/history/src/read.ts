@@ -105,6 +105,8 @@ function snapshotOf(repository: string, sha: string, index: number, state: Map<s
 export interface ReadOptions {
   /** The commit to read up to; HEAD by default. */
   readonly to?: string;
+  /** The first index to yield: earlier commits still apply to the tree, but build no snapshot. */
+  readonly from?: number;
   /** The repository's display name; the folder name by default. */
   readonly repository?: string;
   readonly onEvent?: (event: HistoryEvent) => void;
@@ -122,6 +124,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
   if (!isDirectory) throw new CitymapError("history/not-a-repo", `${dir} is not a directory`, { dir });
   const repository = options.repository ?? basename(dir);
   const onEvent = options.onEvent ?? (() => {});
+  const from = options.from ?? 0;
   const child = spawn(
     "git",
     [
@@ -164,7 +167,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
     if (cut <= 0) return;
     for (const commit of parseRawLog(pending.slice(0, cut))) {
       apply(state, folders, commit, index, onEvent);
-      yield snapshotOf(repository, commit.sha, index, state, folders);
+      if (index >= from) yield snapshotOf(repository, commit.sha, index, state, folders);
       index++;
     }
     pending = pending.slice(cut);

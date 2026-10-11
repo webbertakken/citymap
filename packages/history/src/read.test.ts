@@ -142,6 +142,20 @@ describe("readHistory", () => {
     ]);
   });
 
+  it("starts yielding at a given index, with the tree as it stood", async () => {
+    const dir = repo();
+    write(dir, "a.ts", "a");
+    commit(dir, "one");
+    write(dir, "b.ts", "b");
+    commit(dir, "two");
+    write(dir, "c.ts", "c");
+    commit(dir, "three");
+    const snaps = [];
+    for await (const s of readHistory(dir, { from: 1 })) snaps.push(s);
+    expect(snaps.map((s) => s.index)).toEqual([1, 2]);
+    expect(snaps[0]?.files.map((f) => f.identity)).toEqual(["a.ts@0", "b.ts@1"]);
+  });
+
   it("rejects a folder that is not a repository, and a failing git", async () => {
     await expect(collect(join(tmpdir(), "citymap-no-such-dir"))).rejects.toThrow("history/not-a-repo");
     const dir = repo();
