@@ -57,9 +57,9 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 - [x] Highways with seamless gates
 - [x] Archetype switch and old towns
 - [x] `layCity`, `foldHistory`, events, summary line
-- [ ] Determinism and locality property tests
-- [ ] Locality cache, proven identical with it off
-- [ ] Commit
+- [x] Determinism and locality property tests
+- [x] Locality cache, proven identical with it off
+- [x] Commit
 
 ## Phase 5: history and CLI
 

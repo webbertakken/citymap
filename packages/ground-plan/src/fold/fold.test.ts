@@ -53,3 +53,36 @@ describe("the locality cache", () => {
     expect(cached.cache?.hits ?? 0).toBeGreaterThan(0);
   });
 });
+
+describe("locality", () => {
+  it("moves nothing outside the folders a commit touches, when no plan decision fires", () => {
+    const steps = history(60);
+    let state = initialState(OPTIONS);
+    let before = new Map<string, string>();
+    let checked = 0;
+    const moved: string[] = [];
+    for (const [i, snapshot] of steps.entries()) {
+      const laid = layCity(snapshot, state, OPTIONS);
+      const now = new Map(
+        laid.city.towns.flatMap((t) => t.lots.filter((l) => !l.vacant).map((l) => [l.key, canonicalJson(l.pts)])),
+      );
+      const previous = steps[i - 1];
+      const old = new Set(previous?.files.map((f) => f.path));
+      const removed = previous?.files.some((f) => !snapshot.files.some((g) => g.path === f.path)) ?? true;
+      const decided = laid.events.some((e) => e.code !== "town/overflow");
+      if (!decided && !removed) {
+        const touched = new Set(
+          snapshot.files.filter((f) => !old.has(f.path)).map((f) => f.path.slice(0, f.path.lastIndexOf("/"))),
+        );
+        for (const [key, pts] of now)
+          if (before.has(key) && !touched.has(key.slice(0, key.lastIndexOf("/"))) && before.get(key) !== pts)
+            moved.push(`${i}:${key}`);
+        checked++;
+      }
+      before = now;
+      state = laid.state;
+    }
+    expect(moved).toEqual([]);
+    expect(checked).toBeGreaterThan(5);
+  });
+});
