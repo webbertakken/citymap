@@ -11,6 +11,12 @@ export type ErrorCode =
   | "snapshot/bad-path"
   | "snapshot/too-large"
   | "snapshot/bad-index"
+  | "plat/bad-json"
+  | "plat/bad-version"
+  | "plat/too-new"
+  | "plat/bad-shape"
+  | "city/bad-json"
+  | "city/bad-shape"
   | "engine/invariant";
 
 /** The only error the engine throws: a stable code, a message, and structured detail for logs. */

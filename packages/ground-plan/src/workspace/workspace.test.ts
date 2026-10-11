@@ -27,6 +27,7 @@ describe("workspaceGroups", () => {
       "fixtures/x/package.json",
       "fixtures/y/package.json",
       "lone/z/package.json",
+      "toplevel/package.json",
     ];
     expect(workspaceGroups(paths)).toEqual(["packages"]);
   });
