@@ -6,7 +6,11 @@ citymap has no releases yet. Only the latest commit on `main` receives security 
 
 ## Reporting a vulnerability
 
-Please report vulnerabilities privately by email to [webber@takken.io](mailto:webber@takken.io), not in a public issue.
+Please report vulnerabilities privately, never in a public issue, in either of these ways:
+
+- [report a vulnerability](https://github.com/webbertakken/citymap/security/advisories/new) on GitHub, which opens a
+  private advisory;
+- email [webber@takken.io](mailto:webber@takken.io).
 
 Include what you can:
 
