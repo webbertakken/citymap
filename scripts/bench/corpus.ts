@@ -21,7 +21,7 @@ export interface Totals {
   readonly overflow: number;
   /** Road ends that meet a lesser road. */
   readonly violations: number;
-  /** Fine-grained towns of a targeted tier whose shares fall outside its bands. */
+  /** Fine-grained towns whose shares fall outside their tier's envelope. */
   readonly outside: number;
 }
 

@@ -73,16 +73,19 @@ const many = (cls: Road["cls"], n: number, y: number) =>
   Array.from({ length: n }, (_, i) => road(cls, i * 2000, y, i * 2000 + 1000, y));
 
 describe("judgeTown", () => {
-  it("judges a fine-grained town of a tier with targets against its bands", () => {
-    const fine = town([...many("street", 70, 0), ...many("collector", 15, 5000), ...many("avenue", 15, 9000)], 1000);
+  it("judges a fine-grained town against its tier's band, then against the band widened by ten points", () => {
+    // A town: local 65 to 80 %, collector 20 to 35 %, arterial up to 10 %.
+    const fine = town([...many("street", 72, 0), ...many("collector", 25, 5000), ...many("avenue", 3, 9000)], 1000);
     expect(judgeTown(fine)).toMatchObject({ tier: "town", verdict: "within" });
+    const near = town([...many("street", 85, 0), ...many("collector", 15, 5000)], 1000);
+    expect(judgeTown(near)).toMatchObject({ tier: "town", verdict: "envelope" });
     const flat = town(many("street", 100, 0), 1000);
     expect(judgeTown(flat)).toMatchObject({ tier: "town", verdict: "outside" });
   });
 
-  it("reports a town too coarse to judge, or of a tier without targets, without a verdict on its shares", () => {
+  it("reports a town too coarse to judge without a verdict on its shares, and holds the real-city bands", () => {
     expect(judgeTown(town(many("street", 5, 0), 1000)).verdict).toBe("coarse");
-    expect(judgeTown(town(many("street", 100, 0), 100)).verdict).toBe("untargeted");
-    expect(TIER_TARGETS.village).toBeUndefined();
+    expect(judgeTown(town(many("street", 100, 0), 10))).toMatchObject({ tier: "hamlet", verdict: "within" });
+    expect(TIER_TARGETS.village).toEqual({ local: [0.55, 0.8], collector: [0.2, 0.45], arterial: [0, 0] });
   });
 });

@@ -11,14 +11,19 @@ export interface Shares {
 type Bands = { readonly [K in keyof Shares]: readonly [number, number] };
 
 /**
- * Provisional bands per tier (research: road-hierarchy-targets), to be replaced by real-city figures. Hamlets and villages
- * have none: a few roads cannot hold a share.
+ * Road length shares per tier: the interquartile ranges of 68 real settlements of the matching size in OpenStreetMap
+ * (England and Germany), rounded and cross-checked with FHWA and DfT ranges (docs/research/road-hierarchy-targets,
+ * urban-morphology). A lot stands for a plot of about 2.3 people.
  */
-export const TIER_TARGETS: Partial<Record<Tier, Bands>> = {
-  town: { local: [0.6, 0.8], collector: [0.1, 0.25], arterial: [0.05, 0.2] },
-  city: { local: [0.6, 0.75], collector: [0.1, 0.2], arterial: [0.1, 0.2] },
+export const TIER_TARGETS: Readonly<Record<Tier, Bands>> = {
+  hamlet: { local: [0.85, 1], collector: [0, 0.15], arterial: [0, 0] },
+  village: { local: [0.55, 0.8], collector: [0.2, 0.45], arterial: [0, 0] },
+  town: { local: [0.65, 0.8], collector: [0.2, 0.35], arterial: [0, 0.1] },
+  city: { local: [0.65, 0.8], collector: [0.1, 0.25], arterial: [0.05, 0.15] },
   metropolis: { local: [0.6, 0.75], collector: [0.1, 0.2], arterial: [0.1, 0.2] },
 };
+/** Real places of one size scatter about this far beyond the band: within it a town is in its envelope. */
+export const ENVELOPE = 0.1;
 /** A town whose largest road is more than this share of its length is too coarse for its shares to be judged. */
 export const COARSE_SHARE = 0.05;
 
@@ -55,7 +60,9 @@ export function measureTown(town: Town) {
   const shares = { local: 0, collector: 0, arterial: 0 };
   // Roads without length (or none) give nothing to measure.
   if (total === 0) return { shares, largest: 0, ends: 0, violations: 0 };
-  for (const r of town.roads) shares[GROUP(r.cls)] += length(r) / total;
+  // Each group's length first, then one division, so shares that make up the whole sum to exactly 1.
+  for (const r of town.roads) shares[GROUP(r.cls)] += length(r);
+  for (const k of KEYS) shares[k] /= total;
   const largest = Math.max(...town.roads.map((r) => length(r) / total));
   const ends = town.roads.flatMap((r, i) => [r.pts[0]!, r.pts[r.pts.length - 1]!].map((p) => ({ p, r, i })));
   // An end meets the roads it touches (within their half width); ending on a lesser one inverts the hierarchy.
@@ -70,17 +77,14 @@ export function measureTown(town: Town) {
   return { shares, largest, ends: ends.length, violations };
 }
 
-/** A town's tier and measures, and its verdict: within or outside its tier's bands, too coarse, or untargeted. */
+/** A town's tier and measures, and its verdict: within its tier's band, in its envelope, outside both, or too coarse. */
 export function judgeTown(town: Town) {
   const tier = tierOf(town);
   const m = measureTown(town);
   const bands = TIER_TARGETS[tier];
-  const verdict = !bands
-    ? "untargeted"
-    : m.largest > COARSE_SHARE
-      ? "coarse"
-      : KEYS.every((k) => m.shares[k] >= bands[k][0] && m.shares[k] <= bands[k][1])
-        ? "within"
-        : "outside";
+  const inside = (slack: number) =>
+    KEYS.every((k) => m.shares[k] >= bands[k][0] - slack && m.shares[k] <= bands[k][1] + slack);
+  const verdict =
+    m.largest > COARSE_SHARE ? "coarse" : inside(0) ? "within" : inside(ENVELOPE) ? "envelope" : "outside";
   return { tier, ...m, verdict };
 }

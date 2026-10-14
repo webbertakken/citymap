@@ -77,10 +77,20 @@ Each concept has one name; the names in brackets are not used.
 | Element          | Rule                                                                                                        |
 | ---------------- | ----------------------------------------------------------------------------------------------------------- |
 | Road widths      | lane 0.625 u, street 1 u, collector 1.5 u, avenue 2.25 u, boulevard 3.25 u, highway 2.75 u                  |
-| Length shares    | local 65 to 75%, collector 10 to 15%, arterial and above 10 to 20%                                          |
 | Block short side | 6 u short and 12 u long at the default density, plus streets between; long side 1 to 4 times the short side |
 | Lot              | frontage one module times its lot class; depth half the block depth (1:2 to 1:6)                            |
 | Neighbourhood    | 3 to 8 blocks across between collectors                                                                     |
+
+- Road length shares follow the town's tier, as in real settlements of the matching size (one lot stands for a plot of
+  about 2.3 people). They are an outcome the corpus is checked against, never an input to the layout:
+
+  | Tier       | Local   | Collector | Arterial and up |
+  | ---------- | ------- | --------- | --------------- |
+  | hamlet     | 85-100% | 0-15%     | 0%              |
+  | village    | 55-80%  | 20-45%    | 0%              |
+  | town       | 65-80%  | 20-35%    | 0-10%           |
+  | city       | 65-80%  | 10-25%    | 5-15%           |
+  | metropolis | 60-75%  | 10-20%    | 10-20%          |
 
 - A neighbourhood sets its lot class once, at its first lay: its lots widen to fill the blocks they need, up to lot
   class 4. Frontage left in the last block stays garden and spare blocks stay reserve plots; both are room to grow.

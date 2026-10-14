@@ -25,7 +25,7 @@ describe("corpus", () => {
     const io = ports(null);
     expect(await corpus(["demo", "missing"], io, false)).toBe(0);
     expect(io.lines[0]).toMatch(
-      /^bench\/town repo=demo town=demo tier=village verdict=untargeted shares=\d+\/\d+\/\d+ largest=\d+ inversions=\d+\/\d+ overflow=\d+$/,
+      /^bench\/town repo=demo town=demo tier=village verdict=\w+ shares=\d+\/\d+\/\d+ largest=\d+ inversions=\d+\/\d+ overflow=\d+$/,
     );
     expect(io.lines).toContain("bench/skipped name=corpus reason=no-repository repo=missing");
     expect(io.lines.at(-1)).toMatch(/^bench\/baseline recorded overflow=\d+ inversions=\d+ outside=0 repos=demo$/);
