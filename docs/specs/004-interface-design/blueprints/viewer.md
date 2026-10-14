@@ -58,6 +58,20 @@ in `BufferGeometry`.
 - Dark preference: `matchMedia("(prefers-color-scheme: dark)")` picks Night atlas at start.
 - `dpr={[1, 2]}` on the canvas; `frameloop="demand"`, so nothing renders unless the view changes.
 
+## Web experience
+
+- LCP: the status and the panel's text paint first (about 30 ms on loopback); a town label may follow (about 100 ms).
+  Budget: the last largest paint under 2.5 s.
+- CLS 0: the bar is two blocks, the place (heading and breadcrumb over the status, `flex-direction: column`) on the left
+  and the controls on the right (`margin-left: auto`); the city select has a fixed width (15rem), so a longer name,
+  status or option never moves a control. The town list's empty state has a town heading's margins. Shifts after input
+  (a breadcrumb appearing) are the person's own and do not count.
+- INP under 200 ms on a phone: the view while fitted is derived from the scene (`fit(scene.bounds, mode, viewport)`),
+  never built twice; the whole city's scene and pick index stay built while one town is shown, so going back costs
+  nothing. Measured on a Pixel 7 profile with the processor slowed fourfold (CDP `Emulation.setCPUThrottlingRate`).
+- `e2e/vitals.spec.ts` records `largest-contentful-paint`, `layout-shift` and `event` entries (from 16 ms) through
+  `PerformanceObserver` before the page's scripts run, and asserts the three budgets.
+
 ## Tests
 
 - `packages/scene`: unit tests for triangulation, ribbons, plinths, layers and labels (Vitest, Node).

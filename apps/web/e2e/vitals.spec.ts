@@ -1,0 +1,87 @@
+import { expect, test, type Page } from "@playwright/test";
+
+// Core Web Vitals as the viewer spec sets them: the largest paint is text painted before the scene loads, nothing
+// shifts, and every interaction answers within 200 ms on a phone (here with its processor slowed fourfold).
+
+interface Vitals {
+  readonly paints: { readonly tag: string; readonly time: number }[];
+  shift: number;
+  readonly events: { readonly name: string; readonly target: string; readonly duration: number }[];
+}
+
+/** Starts recording paints, shifts and event timings before the page's own scripts run. */
+async function record(page: Page) {
+  await page.addInitScript(() => {
+    const seen: Vitals = { paints: [], shift: 0, events: [] };
+    Reflect.set(window, "__vitals", seen);
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        const element: unknown = Reflect.get(e, "element");
+        const tag = element instanceof Element ? element.tagName : "";
+        seen.paints.push({ tag, time: Number(Reflect.get(e, "renderTime")) || e.startTime });
+      }
+    }).observe({ type: "largest-contentful-paint", buffered: true });
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries())
+        if (!Reflect.get(e, "hadRecentInput")) seen.shift += Number(Reflect.get(e, "value"));
+    }).observe({ type: "layout-shift", buffered: true });
+    // Event timings from 16 ms up (the default is 104 ms), so the budget sees every slow-ish answer.
+    const events: PerformanceObserverInit & { durationThreshold: number } = {
+      type: "event",
+      buffered: true,
+      durationThreshold: 16,
+    };
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (!Reflect.get(e, "interactionId")) continue;
+        const target: unknown = Reflect.get(e, "target");
+        const label = target instanceof Element ? (target.getAttribute("aria-label") ?? target.textContent ?? "") : "";
+        seen.events.push({ name: e.name, target: label.slice(0, 40), duration: e.duration });
+      }
+    }).observe(events);
+  });
+}
+
+const vitals = (page: Page): Promise<Vitals> => page.evaluate(() => Reflect.get(window, "__vitals"));
+
+test("paints text as its largest content before the scene, and shifts nothing as cities load", async ({ page }) => {
+  await record(page);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
+  await page.waitForTimeout(500);
+  const { paints } = await vitals(page);
+  // The first largest paint is text of the bar or the panel; a town's label may outgrow it once drawn.
+  expect(["P", "H1", "H2"]).toContain(paints[0]?.tag);
+  expect(paints.at(-1)!.time).toBeLessThan(2500);
+  // A city chosen from the select is an input: its shifts are the person's own. Wait past the input window.
+  await page.getByLabel("City", { exact: true }).selectOption("livediagram.json");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("livediagram");
+  await page.waitForTimeout(800);
+  expect((await vitals(page)).shift).toBe(0);
+});
+
+test("answers every interaction within 200 ms on a slowed phone", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the phone budget");
+  await record(page);
+  await page.goto("/");
+  await page.getByLabel("City", { exact: true }).selectOption("livediagram.json");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("livediagram");
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  const map = page.getByRole("application");
+  const box = (await map.boundingBox())!;
+  await map.tap({ position: { x: box.width / 2, y: box.height / 2 } });
+  await map.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("+");
+  await page.keyboard.press("-");
+  await page.keyboard.press("0");
+  await page.getByRole("button", { name: "Plan" }).tap();
+  await page.getByRole("button", { name: "Towns and districts" }).tap();
+  await page.getByRole("button", { name: "Show only this town: apps/live", exact: true }).tap();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("button").tap();
+  await page.waitForTimeout(500);
+  const { events } = await vitals(page);
+  expect(events.length).toBeGreaterThan(0);
+  expect(events.filter((e) => e.duration >= 200)).toEqual([]);
+});

@@ -63,8 +63,10 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
 ## Web experience
 
 - The page is a static export: no server work at request time.
-- Largest Contentful Paint is the bar's heading, painted before the scene loads; the scene loads after it.
-- Nothing shifts once painted: the bar and the map have fixed sizes from the first paint (Cumulative Layout Shift 0).
+- Largest Contentful Paint is text of the bar or the panel, painted before the scene loads; once the scene is drawn a
+  town's label may become the largest, well within 2.5 s.
+- Nothing shifts once painted: the bar and the map have fixed sizes from the first paint, and the controls keep their
+  place whatever the city's name and status say (Cumulative Layout Shift 0).
 - Interactions answer within one frame of input; the scene is drawn as a few merged meshes per town, not one object per
   lot (Interaction to Next Paint under 200 ms on a phone).
 - Phones draw at a device pixel ratio of at most 2.

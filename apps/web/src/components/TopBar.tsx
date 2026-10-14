@@ -30,59 +30,73 @@ export function TopBar(props: TopBarProps) {
   };
   return (
     <header className="bar">
-      <h1>{props.title}</h1>
-      {props.town !== null && (
-        <nav aria-label="Breadcrumb" className="crumbs">
-          <ol>
-            <li>
-              <button type="button" onClick={props.onWhole}>
-                {props.title}
-              </button>
-            </li>
-            <li aria-current="page">{props.town}</li>
-          </ol>
-        </nav>
-      )}
-      <p className="status" aria-live="polite">
-        {props.status}
-      </p>
-      <span className="field">
-        <label htmlFor="city">City</label>
-        <select id="city" value={props.selected} onChange={(e) => props.onCity(e.target.value)}>
-          {props.cities.map((c) => (
-            <option key={c.file} value={c.file}>
-              {c.name} ({c.lots.toLocaleString("en-GB")} lots)
-            </option>
-          ))}
-        </select>
-      </span>
-      <button type="button" onClick={() => input.current?.click()}>
-        Open a city file…
-      </button>
-      <input ref={input} type="file" accept="application/json,.json" hidden onChange={picked} aria-label="City file" />
-      <fieldset className="toggle">
-        <legend>View</legend>
-        <button type="button" aria-pressed={props.mode === "dimetric"} onClick={() => props.onMode("dimetric")}>
-          Dimetric
+      {/* The place (name, breadcrumb, status) stacks on the left; the controls sit right, so neither moves the other. */}
+      <div className="place">
+        <div className="title">
+          <h1>{props.title}</h1>
+          {props.town !== null && (
+            <nav aria-label="Breadcrumb" className="crumbs">
+              <ol>
+                <li>
+                  <button type="button" onClick={props.onWhole}>
+                    {props.title}
+                  </button>
+                </li>
+                <li aria-current="page">{props.town}</li>
+              </ol>
+            </nav>
+          )}
+        </div>
+        <p className="status" aria-live="polite">
+          {props.status}
+        </p>
+      </div>
+      <div className="controls">
+        <span className="field">
+          <label htmlFor="city">City</label>
+          <select id="city" value={props.selected} onChange={(e) => props.onCity(e.target.value)}>
+            {props.cities.map((c) => (
+              <option key={c.file} value={c.file}>
+                {c.name} ({c.lots.toLocaleString("en-GB")} lots)
+              </option>
+            ))}
+          </select>
+        </span>
+        <button type="button" onClick={() => input.current?.click()}>
+          Open a city file…
         </button>
-        <button type="button" aria-pressed={props.mode === "plan"} onClick={() => props.onMode("plan")}>
-          Plan
-        </button>
-      </fieldset>
-      <span className="field">
-        <label htmlFor="theme">Theme</label>
-        <select
-          id="theme"
-          value={props.theme}
-          onChange={(e) => props.onTheme(THEME_NAMES.find((t) => t === e.target.value) ?? props.theme)}
-        >
-          {THEME_NAMES.map((t) => (
-            <option key={t} value={t}>
-              {THEMES[t].label}
-            </option>
-          ))}
-        </select>
-      </span>
+        <input
+          ref={input}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={picked}
+          aria-label="City file"
+        />
+        <fieldset className="toggle">
+          <legend>View</legend>
+          <button type="button" aria-pressed={props.mode === "dimetric"} onClick={() => props.onMode("dimetric")}>
+            Dimetric
+          </button>
+          <button type="button" aria-pressed={props.mode === "plan"} onClick={() => props.onMode("plan")}>
+            Plan
+          </button>
+        </fieldset>
+        <span className="field">
+          <label htmlFor="theme">Theme</label>
+          <select
+            id="theme"
+            value={props.theme}
+            onChange={(e) => props.onTheme(THEME_NAMES.find((t) => t === e.target.value) ?? props.theme)}
+          >
+            {THEME_NAMES.map((t) => (
+              <option key={t} value={t}>
+                {THEMES[t].label}
+              </option>
+            ))}
+          </select>
+        </span>
+      </div>
     </header>
   );
 }
