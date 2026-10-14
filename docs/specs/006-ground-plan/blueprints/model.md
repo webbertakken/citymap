@@ -177,6 +177,7 @@ interface Town {
 interface Road {
   pts: Pt[];
   cls: RoadClass;
+  width?: number; // fixed units, when its right of way draws it narrower than its class
 }
 interface Block {
   pts: Pt[];

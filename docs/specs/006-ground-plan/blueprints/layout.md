@@ -31,8 +31,12 @@ All lengths in fixed units (`UNIT` = 64 per u). Provenance and ranges in [DEFAUL
 collector then street; else street. `first` is the first cut of a folder's own land (its `top` cut). Thresholds are
 `TIER_MASS_MILLE` (30,000, 300,000, 3,000,000). A remembered cut is reclassed at every lay by
 `reclass(cls, massMille, first)`: up a tier while mass × 100 ≥ threshold × `TIER_BAND_PCT` (125), down while mass × 125
-< the lower threshold × 100, logging `plat/reclass` (key, from, to); a river is never reclassed. A radial's ring and
-spokes are classed afresh at each lay.
+< the lower threshold × 100, logging `plat/reclass` (key, from, to); a river is never reclassed. `CutRecord.row` is the
+right-of-way class, set whenever the cut is laid (fresh or recut) to `cutClass(mass × GROWTH_PCT / 100, first)` (a
+river's is its own class); a record without one reads as its class. Land is clipped at `ROAD_WIDTH[row]`; the road is
+drawn at its class's width, or at the right of way's when the class is wider (`carriageway`, which then sets
+`Road.width`). `starved()` measures each side after its half of the right of way. A radial's ring and spokes are classed
+afresh at each lay.
 
 ## Classify
 

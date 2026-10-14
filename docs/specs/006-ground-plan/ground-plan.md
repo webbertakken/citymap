@@ -138,7 +138,10 @@ therefore readable as distance from the core, and newcomers join the edges.
   (hamlet under 30, village under 300, town under 3,000, city under 30,000, metropolis above).
 - Features are continuous; the choice uses a Schmitt trigger: a challenger enters at margin 0 or more, the incumbent
   stays down to -0.15, and a switch needs +0.1. Roads follow their land's tier as it grows and shrinks: a laid road
-  moves up a class at the tier's threshold times 1.25 and down below the threshold divided by 1.25.
+  moves up a class at the tier's threshold times 1.25 and down below the threshold divided by 1.25. A road's class and
+  its land are separate: each cut reserves, when it is laid, the width of the class its land reaches at the top of its
+  band (its right of way), so a reclass widens the road within it and takes no lots; a class beyond the right of way
+  keeps its width until the cut is laid again.
 - A twin is a folder with two dominant cores (lib and test, src and docs): two town halves facing each other across a
   river.
 - A flattened folder takes a neighbourhood form: a hamlet (mass under 25) gathers round a green, the full block nearest
