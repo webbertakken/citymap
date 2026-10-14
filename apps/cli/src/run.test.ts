@@ -71,6 +71,30 @@ describe("runLay", () => {
     expect(again).toEqual(city);
   });
 
+  it("saves the lock along the way, so a fold cut short resumes where it was", async () => {
+    const dir = repo(5);
+    const saved = memoryIo();
+    const locks: string[] = [];
+    const io: Io = {
+      ...saved.io,
+      writeFile: (path, text) => {
+        locks.push(text);
+        saved.io.writeFile(path, text);
+      },
+    };
+    const city = await runLay(command(dir, "--lock"), io, 2);
+    const shas = git(dir, "rev-list", "--reverse", "HEAD").split("\n");
+    expect(saved.lines.filter((l) => l.startsWith("lock/saved"))).toEqual([
+      `lock/saved commit=${shas[1]} index=1`,
+      `lock/saved commit=${shas[3]} index=3`,
+      `lock/saved commit=${shas[4]} index=4`,
+    ]);
+    // A fold stopped after its second save resumes from that lock and lays the same city.
+    const resumed = memoryIo({ [join(dir, LOCKFILE)]: locks[1]! });
+    expect(await runLay(command(dir), resumed.io)).toEqual(city);
+    expect(resumed.lines).toContain(`lock/resume commit=${shas[3]} index=3`);
+  });
+
   it("ignores a lockfile for another land setting or off the history", async () => {
     const dir = repo(2);
     const first = memoryIo();

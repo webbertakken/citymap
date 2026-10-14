@@ -80,6 +80,13 @@ Each run ends with one summary line: `fold/done repository=… commits=… lots=
 - Budgets on the development machine, measured by `bun run bench` (growth checks, not absolute ceilings in CI): lay one
   HEAD snapshot of next.js (~30 k files) under 400 ms; home-assistant under 600 ms; a 1,200-commit react fold under 20 s
   with the locality cache; linux HEAD under 5 s and its full fold cached incrementally on disk.
+- `bun run bench` (`scripts/bench`) reads the repositories under `~/.cache/citymap/repos` (or `$CITYMAP_REPOS`). A HEAD
+  lay is timed on a snapshot of `git ls-tree -r HEAD` (files only, every one born at commit 0), built before the clock
+  starts; the figure is the median of five lays from an empty plat, so it says what a lay costs rather than what
+  compiling it does. A fold is timed from the first commit, reading included. One line per budget: `bench/within`,
+  `bench/over` (exit code 1) or `bench/skipped` with `reason=no-repository`.
+- With `--lock`, the CLI saves the lock every `LOCK_EVERY` (1,000) laid commits as well as at the end, logging
+  `lock/saved`, so a long fold cut short resumes near where it stopped.
 - Limits: 2,000,000 files per snapshot, path depth 64, 10,000 children per folder; beyond them a named rejection
   (`snapshot/too-large`, `tree/too-deep`, `tree/too-wide`).
 - Memory: one tree state and one plat in memory; snapshots stream.

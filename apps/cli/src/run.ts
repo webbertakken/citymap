@@ -24,6 +24,8 @@ export interface Io {
 }
 
 export const LOCKFILE = "citymap.lock.json";
+/** With `--lock`, the lock is also saved every this many laid commits, so a long fold cut short resumes near its end. */
+export const LOCK_EVERY = 1000;
 
 interface Lock {
   readonly commit: string;
@@ -54,7 +56,7 @@ async function readLock(repo: string, target: string, options: Options, io: Io):
 }
 
 /** Folds the repository's history into its city and writes what the command asks for. Returns the city. */
-export async function runLay(command: LayCommand, io: Io): Promise<City> {
+export async function runLay(command: LayCommand, io: Io, lockEvery = LOCK_EVERY): Promise<City> {
   const started = io.now();
   const repo = resolve(command.repo);
   const options: Options = {
@@ -73,6 +75,10 @@ export async function runLay(command: LayCommand, io: Io): Promise<City> {
   let index = 0;
   const onEvent = (e: { code: string; detail: Readonly<Record<string, string | number>> }) =>
     io.log(`${e.code} ${fields(e.detail)}`);
+  const saveLock = (commit: string, at: number) => {
+    io.writeFile(join(repo, LOCKFILE), serialiseLock({ commit, index: at, plat: state.plat }));
+    io.log(`lock/saved commit=${commit} index=${at}`);
+  };
   for await (const snapshot of readHistory(repo, { to: target, from: lock?.index ?? 0, onEvent })) {
     const laid = layCity(snapshot, state, options);
     state = laid.state;
@@ -81,6 +87,7 @@ export async function runLay(command: LayCommand, io: Io): Promise<City> {
     commits++;
     // The lock's own commit is laid again to restore the towns as they stood; its decisions are already in the plat.
     if (command.verbose) for (const event of laid.events) onEvent(event);
+    if (command.lock && commits % lockEvery === 0 && snapshot.commit !== target) saveLock(snapshot.commit, index);
   }
   const laid = city!;
   const lots = laid.towns.reduce((sum, t) => sum + t.stats.lots, 0);
@@ -96,7 +103,7 @@ export async function runLay(command: LayCommand, io: Io): Promise<City> {
         camera: command.camera,
       }),
     );
-  if (command.lock) io.writeFile(join(repo, LOCKFILE), serialiseLock({ commit: target, index, plat: state.plat }));
+  if (command.lock) saveLock(target, index);
   io.log(
     `fold/done repository=${laid.repository} commits=${commits} lots=${lots} overflow=${overflow} ms=${Math.round(io.now() - started)}`,
   );
