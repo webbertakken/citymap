@@ -90,8 +90,8 @@ export class Workspaces {
     this.pending.clear();
     const patterns = [...this.known.values()].filter((p): p is Patterns => p !== null);
     if (patterns.length === 0) this.current = undefined;
-    else if (changed || this.foldersChanged || !this.current)
-      this.current = resolveWorkspaces(patterns, this.holding.keys());
+    // Patterns only change with `changed`, so otherwise the members stand until the folders holding files change.
+    else if (changed || this.foldersChanged) this.current = resolveWorkspaces(patterns, this.holding.keys());
     this.foldersChanged = false;
     return this.current;
   }

@@ -46,6 +46,8 @@ describe("readHistory workspaces", () => {
     commit(dir, "workspaces");
     write(dir, "packages/b/deep/index.ts", "b");
     commit(dir, "a new member");
+    write(dir, "packages/b/deep/index.ts", "b2");
+    commit(dir, "an edit, no folder changes");
     write(dir, "package.json", JSON.stringify({ workspaces: { packages: ["packages/*", "tools/*"] } }));
     commit(dir, "more patterns");
     remove(dir, "packages/a/index.ts");
@@ -56,6 +58,7 @@ describe("readHistory workspaces", () => {
     expect(snaps.map((s) => s.workspaces)).toEqual([
       undefined,
       ["packages/a"],
+      ["packages/a", "packages/b"],
       ["packages/a", "packages/b"],
       ["packages/a", "packages/b", "packages/skip", "tools/t"],
       ["packages/b", "packages/skip", "tools/t"],
