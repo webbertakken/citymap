@@ -14,9 +14,9 @@ every coordinate the city model emits, is an integer computed by the rules below
   - `roundDiv(a, b)`: ⌊(2a + b) / (2b)⌋ for b > 0 (half toward +∞).
   - `mulDiv(a, b, c, rounding)`: a × b / c with the named rounding, exact for any safe a, b, c.
 - `isqrt(n)`: ⌊√n⌋ for 0 ≤ n < 2^53, by Newton iteration on integers from `2^⌈bits/2⌉`; `isqrt` of a negative is a
-  `RangeError` named `fixed/negative-sqrt`.
+  `CitymapError` `fixed/negative-sqrt`.
 - Ratios (shares, densities, weights) are integers in **per mille** (‰, 0 to 1000) or **per cent**, named by suffix:
-  `densityPct`, `weightPermille`, `shareMille`.
+  `densityPct`, `massMille`, `scaleMille`, `unitMille`, `WEIGHT_MILLE`.
 
 ## Units
 

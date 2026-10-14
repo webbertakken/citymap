@@ -1,4 +1,4 @@
-import { ROAD_WIDTH, U, type RoadClass } from "../constants";
+import { ROAD_WIDTH, U, type RoadClass, GROWTH_PCT } from "../constants";
 import { floorDiv, isqrt, mulDiv, roundDiv } from "../fixed/arithmetic";
 import { DIRECTION, negate, perp, rotate, type Dir } from "../fixed/direction";
 import { unitMille } from "../fixed/hash";
@@ -8,7 +8,6 @@ import { demandOf, emit, forget, massOf, road, seedKey, type Ctx, type Item } fr
 import { neighbourhood } from "./neighbourhood";
 import { partition } from "./partition";
 
-const GROWTH_PCT = 135;
 /** The largest tilt of a fresh cut, in angle steps (0.175 rad). */
 const TILT = 114;
 /** A cut at least this share (‰) of its town's diameter long is a long cut, and jogs when it can. */

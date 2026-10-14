@@ -1,6 +1,7 @@
 import { classifyNode } from "../archetype/classify";
 import { isFlat, type Form } from "../archetype/forms";
 import type { City, Road, Town } from "../city/city";
+import { GROWTH_PCT } from "../constants";
 import { CitymapError } from "../errors";
 import { floorDiv, isqrt, mulDiv } from "../fixed/arithmetic";
 import { DIRECTION, TURN, dir, normalise, type Dir } from "../fixed/direction";
@@ -50,7 +51,6 @@ export interface FoldState {
   readonly cache?: FoldCache;
 }
 
-const GROWTH_PCT = 135;
 /** Open country between towns. */
 const GAP = 720;
 

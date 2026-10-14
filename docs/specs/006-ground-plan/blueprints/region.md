@@ -57,5 +57,6 @@ Reference: `docs/research/city-layout/variants/region.ts`. Module: `packages/gro
 
 ## Stats
 
-`CityStats`: towns, lots, overflow, offLand, docs, lot coverage (‰ of land), road length share per class (‰), long
-straight roads (roads whose straight run is at least 45 % of their town's diameter).
+Each town carries `TownStats`: `lots`, `overflow` (files without room), `offLand` (files of land uses that take none),
+`docs`, and doubled areas `lotArea2` and `landArea2` (fixed units²). The city has no stats of its own; the CLI's summary
+line sums the towns. Movement between commits is measured outside the engine (`scripts/stability`).

@@ -27,3 +27,7 @@ export const MARGIN = U / 2 + PAVEMENT;
 /** A folder under this many blocks of land flattens into one neighbourhood. */
 export const FLATTEN_BLOCKS = 9;
 export const FLATTEN_LIMIT = FLATTEN_BLOCKS * (BLOCK_SHORT + U) * (BLOCK_LONG + U);
+/** A flat folder stays flat up to this share of the limit, and a district flattens below its inverse, in per cent. */
+export const FLATTEN_HYSTERESIS_PCT = 150;
+/** A new cut, partition or town gives each side this share of its demand as room to grow, in per cent. */
+export const GROWTH_PCT = 135;

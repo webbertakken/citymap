@@ -33,7 +33,7 @@ interface FileEntry {
   reads contents. `.gitattributes` overrides (`linguist-vendored`, `linguist-generated`, `linguist-documentation`) apply
   when the snapshot carries them (`Snapshot.attributes`, later).
 - `WEIGHT_MILLE`: source 1000; config, assets, ci, docs 500; tests, examples 300; fixtures, generated, vendored 50.
-- `LotCapacity(use) = max(1, roundDiv(1000, weightMille))`: source 1, config 2, tests 3, fixtures 20.
+- `lotCapacity(use) = max(1, roundDiv(1000, WEIGHT_MILLE[use]))`: source 1, config 2, tests 3, fixtures 20.
 - `Options.landUses`: the land uses that take land; default all but `tests` and `fixtures` (spec: land dimension). The
   plat is keyed by the sorted set (`landKey`), so each setting is its own plat.
 
@@ -147,7 +147,7 @@ interface OldTown {
   trailing newline. `parsePlat` validates the shape and `version`; rejections `plat/bad-json`, `plat/bad-version`,
   `plat/bad-shape` (with the JSON pointer). Round-trip is the identity (property test).
 - **Migration**: a newer `version` is rejected with `plat/too-new`; an older one is migrated by a chain of pure
-  `migrateN` functions, each tested on a stored fixture. Version 1 has none.
+  `migrate<N>` functions (each from version N to N + 1), each tested on a stored fixture. Version 1 has none.
 - **Lockfile**: `citymap.lock.json` at the repository root holds `{ commit, plat }`; when present and its commit is an
   ancestor-or-equal of the laid commit, the fold starts from it instead of commit 0. It is written at the end of a fold
   and every 1,000 laid commits along the way.
@@ -160,7 +160,6 @@ interface City {
   commit: string;
   towns: Town[];
   highways: Road[];
-  stats: CityStats;
 }
 interface Town {
   key: string;
@@ -173,7 +172,7 @@ interface Town {
   blocks: Block[];
   lots: Lot[];
   districts: District[];
-  stats: TownStats;
+  stats: TownStats; // lots, overflow, offLand, docs, lotArea2, landArea2 (doubled areas, fixed units²)
 }
 interface Road {
   pts: Pt[];

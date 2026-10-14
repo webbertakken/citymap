@@ -8,20 +8,20 @@ restates it in the fixed-point core. Module: `packages/ground-plan/src/town/`.
 
 All lengths in fixed units (`UNIT` = 64 per u). Provenance and ranges in [DEFAULTS](DEFAULTS.md).
 
-| Name                   | Value                         | Name                 | Value              |
-| ---------------------- | ----------------------------- | -------------------- | ------------------ |
-| `ROAD_WIDTH.lane`      | 40                            | `BLOCK_SHORT`        | 384 (6 u)          |
-| `ROAD_WIDTH.street`    | 64                            | `BLOCK_LONG`         | 768 (12 u)         |
-| `ROAD_WIDTH.collector` | 96                            | `MODULE`             | 32 (0.5 u)         |
-| `ROAD_WIDTH.avenue`    | 144                           | `PAVEMENT`           | 12                 |
-| `ROAD_WIDTH.boulevard` | 208                           | `LOT_AREA`           | MODULE × 192       |
-| `ROAD_WIDTH.highway`   | 176                           | `MARGIN`             | 32 + PAVEMENT      |
-| `FLATTEN_BLOCKS`       | 9                             | `MAX_CLASS`          | 4                  |
-| `GROWTH_ROOM`          | 135 / 100                     | `FLATTEN_HYSTERESIS` | 150 / 100          |
-| `RENEWAL`              | vacant × 2 > remembered       | `LONG_CUT`           | 300 ‰ of diameter  |
-| `JOG`                  | 192 (3 u)                     | `MIN_JOG`            | 128 (2 u)          |
-| `RIVER`                | 160 (2.5 u)                   | `RADIAL_MAX_SCALE`   | 950 ‰              |
-| `TILT`                 | ±114 angle steps (±0.175 rad) | `MAX_SPAN`           | 1946 steps (0.95π) |
+| Name                   | Value                         | Name                     | Value              |
+| ---------------------- | ----------------------------- | ------------------------ | ------------------ |
+| `ROAD_WIDTH.lane`      | 40                            | `BLOCK_SHORT`            | 384 (6 u)          |
+| `ROAD_WIDTH.street`    | 64                            | `BLOCK_LONG`             | 768 (12 u)         |
+| `ROAD_WIDTH.collector` | 96                            | `MODULE`                 | 32 (0.5 u)         |
+| `ROAD_WIDTH.avenue`    | 144                           | `PAVEMENT`               | 12                 |
+| `ROAD_WIDTH.boulevard` | 208                           | `LOT_AREA`               | MODULE × 192       |
+| `ROAD_WIDTH.highway`   | 176                           | `MARGIN`                 | 32 + PAVEMENT      |
+| `FLATTEN_BLOCKS`       | 9                             | `MAX_CLASS`              | 4                  |
+| `GROWTH_PCT`           | 135 %                         | `FLATTEN_HYSTERESIS_PCT` | 150 %              |
+| `RENEWAL`              | vacant × 2 > remembered       | `LONG_CUT`               | 300 ‰ of diameter  |
+| `JOG`                  | 192 (3 u)                     | `MIN_JOG`                | 128 (2 u)          |
+| `RIVER`                | 160 (2.5 u)                   | `RADIAL_MAX_SCALE`       | 950 ‰              |
+| `TILT`                 | ±114 angle steps (±0.175 rad) | `MAX_SPAN`               | 1946 steps (0.95π) |
 
 `FLATTEN_LIMIT = FLATTEN_BLOCKS × (BLOCK_SHORT + 64) × (BLOCK_LONG + 64)`.
 
@@ -35,8 +35,8 @@ collector then street; else street. `first` is the first cut of a folder's own l
 `classifyNode(node, previous)`:
 
 1. `flat` = no children, or `demand ≤ FLATTEN_LIMIT`; if `previous` is flat (and children exist) the bound is
-   `FLATTEN_LIMIT × 1.5`; if `previous` is a district form the node is flat only without children or under
-   `FLATTEN_LIMIT / 1.5`.
+   `FLATTEN_LIMIT × FLATTEN_HYSTERESIS_PCT / 100`; if `previous` is a district form the node is flat only without
+   children or under `FLATTEN_LIMIT × 100 / FLATTEN_HYSTERESIS_PCT`.
 2. Features (integers): `s1`, `s2` (‰ of mass in the heaviest two children), `f0` (‰ in own files), `lots` (flattened
    lot count when flat). Shares are `floorDiv(m × 1000, mass)`; mass 0 gives 0.
 3. Flat: hamlet when `mass < 25,000` (`< 31,250` if previous is hamlet); else street village when `lots ≥ 40` and
@@ -63,13 +63,15 @@ collector then street; else street. `first` is the first cut of a folder's own l
 
 ## Decide and split
 
-`decide(items, poly, mass, top, key, forcedNormal?, assign?)` returns the remembered decision:
+`decide(ctx, items, poly, massMille, first, key, forced?, assign?)` returns the remembered decision (`first`: the
+top-level cut, the only one that jogs by default; `forced`: a normal replacing the fresh rule; `assign`: fixed sides):
 
 - A remembered cut whose line no longer crosses `poly`, or none of whose items remain, is forgotten.
 - **Fresh cut** (one item and nothing remembered: none): split index `k` minimising `|Σ demand[0..k) − total/2|`
   (doubled to stay integral, ties to the lower `k`). Normal: the forced one, or the longest edge's direction or its
   perpendicular (whichever has the larger extent across it), rotated by `TILT × (unitMille(seed#tilt) − 500) / 500`
-  angle steps. `c = offsetFor(poly, n, demandLeft / total)`. `capX = demandX × 1.35` (`roundDiv`).
+  angle steps. `c = offsetFor(poly, n, demandLeft / total)`. each side's cap is its demand × `GROWTH_PCT` / 100
+  (`roundDiv`).
 - **Remembered cut**: newcomers, in item order, join the side with more spare cap (ties left). When a side's demand
   exceeds its cap and both sides hold demand, log `plat/recut` and move `c` to today's split with new caps; when one
   side is empty, raise the caps only.
