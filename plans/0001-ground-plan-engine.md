@@ -89,9 +89,9 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 
 ## Phase 8: fold-back
 
-- [ ] Reconcile the specs with what shipped, re-derive the blueprints, update DEFAULTS and COMPLETENESS
-- [ ] Traceability table: every spec rule to its tests
-- [ ] Verify every symbol, file and reference in the docs; indexes current
+- [x] Reconcile the specs with what shipped, re-derive the blueprints, update DEFAULTS and COMPLETENESS
+- [x] Traceability table: every spec rule to its tests
+- [x] Verify every symbol, file and reference in the docs; indexes current
 - [ ] PR with images, merged after the local gate
 
 ## Phase 7b: workspaces from manifests, split groups, drill down
