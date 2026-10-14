@@ -1,17 +1,14 @@
-// Dev server for the rendered sheets: an authenticated HTTPS gallery that refreshes a sheet as soon as it is regenerated.
-// Usage: bun serve.ts   (PORT, default 5190; password in ~/.secrets/citymap-dev-password, user "webber")
+// Dev server for the rendered sheets: an HTTPS gallery on loopback that refreshes a sheet as soon as it is regenerated.
+// Usage: bun serve.ts   (PORT, default 5190)
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { timingSafeEqual } from "node:crypto";
 
 const HERE = import.meta.dir;
 const IMG = join(HERE, "img");
 const CACHE = join(homedir(), ".cache/citymap");
 const STABILITY = join(CACHE, "render");
 const PORT = Number(process.env.PORT ?? 5190);
-const USER = "webber";
-const PASSWORD = readFileSync(join(homedir(), ".secrets/citymap-dev-password"), "utf8").trim();
 const PRIVATE_FILE = join(CACHE, "private-repos");
 const PRIVATE = existsSync(PRIVATE_FILE)
   ? readFileSync(PRIVATE_FILE, "utf8")
@@ -24,14 +21,6 @@ const isPublic = (name: string) => !PRIVATE.some((p) => name.toLowerCase().inclu
 const SHEET = /^[a-z0-9._-]+\.(webp|png)$/i;
 
 const log = (event: string, detail = "") => console.log(`[citymap-dev] ${new Date().toISOString()} ${event} ${detail}`);
-
-function authorised(request: Request): boolean {
-  const header = request.headers.get("authorization") ?? "";
-  if (!header.startsWith("Basic ")) return false;
-  const given = Buffer.from(atob(header.slice(6)));
-  const expected = Buffer.from(`${USER}:${PASSWORD}`);
-  return given.length === expected.length && timingSafeEqual(given, expected);
-}
 
 interface Sheet {
   name: string;
@@ -138,13 +127,6 @@ Bun.serve({
   },
   fetch(request) {
     const url = new URL(request.url);
-    if (!authorised(request)) {
-      log("auth-refused", url.pathname);
-      return new Response("Authentication required", {
-        status: 401,
-        headers: { "WWW-Authenticate": 'Basic realm="citymap", charset="UTF-8"' },
-      });
-    }
     if (url.pathname === "/") return new Response(page(), { headers: { "Content-Type": "text/html; charset=utf-8" } });
     if (url.pathname === "/api/sheets") return Response.json(sheets());
     if (url.pathname.startsWith("/img/")) {

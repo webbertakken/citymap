@@ -297,7 +297,7 @@ bun history.ts react switch 2017-09-01 2017-11-01 head
 bun history.ts react steps:2019-01-01:150
 LAYOUT=towns bun history.ts react steps:2019-01-01:150
 bun towns.ts all
-pm2 start bun --name citymap-dev --cwd "$PWD" -- serve.ts   # https://127.0.0.1:5190, user webber, password in ~/.secrets/citymap-dev-password
+pm2 start bun --name citymap-dev --cwd "$PWD" -- serve.ts   # https://127.0.0.1:5190
 ```
 
 Clones are blob-less (`git clone --filter=blob:none`); history replay runs with `GIT_NO_LAZY_FETCH=1` so it never
@@ -424,7 +424,7 @@ bun history.ts react switch 2017-09-01 2017-11-01 head
 bun history.ts react steps:2019-01-01:150
 LAYOUT=towns bun history.ts react steps:2019-01-01:150
 bun towns.ts all
-pm2 start bun --name citymap-dev --cwd "$PWD" -- serve.ts   # https://127.0.0.1:5190, user webber, password in ~/.secrets/citymap-dev-password
+pm2 start bun --name citymap-dev --cwd "$PWD" -- serve.ts   # https://127.0.0.1:5190
 ```
 
 Clones are blob-less (`git clone --filter=blob:none`); history replay runs with `GIT_NO_LAZY_FETCH=1` so it never
