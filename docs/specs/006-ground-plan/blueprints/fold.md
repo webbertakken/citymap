@@ -87,6 +87,15 @@ Each run ends with one summary line: `fold/done repository=… commits=… lots=
   starts; the figure is the median of five lays from an empty plat, so it says what a lay costs rather than what
   compiling it does. A fold is timed from the first commit, reading included. One line per budget: `bench/within`,
   `bench/over` (exit code 1) or `bench/skipped` with `reason=no-repository`.
+- After the budgets, the bench lays each corpus repository (`CORPUS` in `scripts/bench/corpus.ts`) at HEAD once and logs
+  every live town: `bench/town repo town tier verdict shares largest inversions overflow`. Tier is by lots on the spec's
+  decades; shares are road length local (lane, street) / collector / arterial; largest is the longest road's share;
+  inversions are road ends that meet a lesser road. A town's shares are judged only for a tier with targets
+  (`TIER_TARGETS`, provisional: town and up) and when its largest road is at most `COARSE_SHARE` (5 %); otherwise its
+  verdict is `untargeted` or `coarse`, reported, never failed.
+- The ratchet sums files without a lot, inversions and towns outside their bands over the corpus and compares them with
+  `scripts/bench/baseline.json`: any rise fails the bench (`bench/ratchet worse=…`); `bun run bench --rebase` records
+  the run's totals as the new baseline, deliberately, in the commit that earns it.
 - With `--lock`, the CLI saves the lock every `LOCK_EVERY` (1,000) laid commits as well as at the end, logging
   `lock/saved`, so a long fold cut short resumes near where it stopped.
 - Limits: `MAX_FILES` (2,000,000) files per snapshot, checked by `layCity` (`snapshot/too-large`); `MAX_PATH_BYTES`

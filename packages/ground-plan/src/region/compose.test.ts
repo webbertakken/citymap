@@ -282,6 +282,9 @@ describe("layCity bounds", () => {
   });
 });
 
+/** A road class's rank, smallest first. */
+const rank = (cls: string) => ["lane", "street", "collector", "avenue", "boulevard"].indexOf(cls);
+
 describe("loop connectors", () => {
   // The files of react's main town at a HEAD that leaves dead ends near each other (those that take land).
   const paths = readFileSync(join(import.meta.dirname, "../testing/react-head-paths.txt"), "utf8")
@@ -306,5 +309,17 @@ describe("loop connectors", () => {
     expect(added).toHaveLength(1);
     const [a, b] = added[0]!.pts;
     expect(Math.hypot(a!.x - b!.x, a!.y - b!.y)).toBeLessThanOrEqual(LOOP_REACH);
+  });
+
+  it("never ranks a sub-cut above the cut it divides, within a folder", () => {
+    const options = { ...OPTIONS, warp: false };
+    const { state } = layCity(snapshot, initialState(options), options);
+    const inversions = Object.values(state.plat.towns).flatMap((laid) =>
+      Object.entries(laid.cuts).flatMap(([key, cut]) => {
+        const parent = key.includes(">") ? laid.cuts[key.slice(0, key.lastIndexOf(">"))] : undefined;
+        return parent && rank(cut.cls) > rank(parent.cls) ? [`${key}: ${cut.cls} under ${parent.cls}`] : [];
+      }),
+    );
+    expect(inversions).toEqual([]);
   });
 });

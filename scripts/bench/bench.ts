@@ -34,7 +34,7 @@ export interface Ports {
   readonly log: (line: string) => void;
 }
 
-const OPTIONS: Options = {
+export const OPTIONS: Options = {
   densityPct: 50,
   landUses: DEFAULT_LAND_USES,
   order: "centre-out",

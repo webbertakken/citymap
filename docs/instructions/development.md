@@ -41,6 +41,8 @@ How to set up citymap, keep the gate green, and what the hooks and CI run. The t
 
 - `bun run bench` times the fold blueprint's budgets on the repositories under `~/.cache/citymap/repos`; a missing one
   is skipped by name. Run it under PM2: the linux HEAD and react fold take a few minutes together.
+- The bench then lays the corpus at HEAD and holds its ratchet against `scripts/bench/baseline.json`. A change that
+  earns better totals records them with `bun run bench --rebase` in the same commit; a rise fails the bench.
 
 ## Hooks
 
