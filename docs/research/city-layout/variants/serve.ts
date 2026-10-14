@@ -53,6 +53,10 @@ const SECTION_TITLES: Record<string, string> = {
   land: "Land dimension",
   themes: "Themes",
   density: "Density (grain)",
+  corridor: "Corridor (opt-in)",
+  archipelago: "Archipelago (opt-in)",
+  quarters: "Quarters (opt-in)",
+  tiers: "Tiers (opt-in)",
   plat: "Plat films (history, moved lots in red)",
 };
 function grouped(list: Sheet[]): [string, Sheet[]][] {

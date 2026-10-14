@@ -23,11 +23,17 @@ import { composeRegion, emptyRegionPlat } from "./region";
 import { renderRegion } from "./render-town";
 import type { LandUse } from "./land-use";
 import type { Pt } from "./geometry";
+import { ARCHETYPES, type Archetype } from "./archetype";
 
 const CACHE = join(homedir(), ".cache/citymap");
 const HERE = import.meta.dir;
 const WATER = 36;
 const RENEWAL_THRESHOLD = 0.5;
+// ARCHETYPES=corridor,quarters measures the towns layout with opt-in archetypes; unset, the approved forms only.
+const OPT_IN = (process.env.ARCHETYPES ?? "").split(",").filter(Boolean);
+for (const name of OPT_IN)
+  if (!ARCHETYPES.includes(name as Archetype)) throw new Error(`[history] unknown archetype ${name}`);
+const archetypeOption = OPT_IN.length ? { archetypes: OPT_IN as Archetype[] } : {};
 
 type Mode = "compaction" | "vacant" | "renewal" | "renewal+renames" | "snapshot" | "plat";
 const MODES: { mode: Mode; caption: string }[] = [
@@ -332,7 +338,14 @@ if (stepMode) {
               live.map((f) => f.path),
             ),
           },
-          { density: 0.5, order: "centre-out", warp: true, jog: "top-level", noLand: ["tests", "fixtures"] },
+          {
+            density: 0.5,
+            order: "centre-out",
+            warp: true,
+            jog: "top-level",
+            noLand: ["tests", "fixtures"],
+            ...archetypeOption,
+          },
           mode === "plat" ? regionPlat : emptyRegionPlat(),
         );
         const liveLots = region.towns.flatMap((town) => town.lots.filter((l) => !l.vacant));
@@ -434,6 +447,7 @@ if (filmMode) {
     warp: true,
     jog: "top-level" as const,
     noLand: ["tests", "fixtures"] as LandUse[],
+    ...archetypeOption,
   };
   for (const frame of frames) {
     const live = filesFor(frame, "renewal+renames").filter((f) => !f.ghost);

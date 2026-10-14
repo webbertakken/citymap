@@ -81,6 +81,35 @@ const SECTIONS: Record<string, { repos: string[]; shots: Shot[] }> = {
       { caption: "every long cut jogs", options: { ...BASE, jog: "all" }, camera: "plan" },
     ],
   },
+  // Opt-in archetypes: the approved approach beside each variant, on the repositories the variant affects.
+  corridor: {
+    repos: ["home-assistant", "typescript", "next.js", "react", "rust"],
+    shots: [
+      { caption: "current", options: BASE, camera: "plan" },
+      { caption: "corridor", options: { ...BASE, archetypes: ["corridor"] }, camera: "plan" },
+    ],
+  },
+  archipelago: {
+    repos: ["react", "rust", "livediagram", "game-ci-cli", "next.js"],
+    shots: [
+      { caption: "current", options: BASE, camera: "plan" },
+      { caption: "archipelago", options: { ...BASE, archetypes: ["archipelago"] }, camera: "plan" },
+    ],
+  },
+  quarters: {
+    repos: ["home-assistant", "rust", "typescript", "next.js", "react", "livediagram"],
+    shots: [
+      { caption: "current", options: BASE, camera: "plan" },
+      { caption: "quarters", options: { ...BASE, archetypes: ["quarters"] }, camera: "plan" },
+    ],
+  },
+  tiers: {
+    repos: ["home-assistant", "rust", "next.js", "typescript", "react", "takken.io"],
+    shots: [
+      { caption: "current", options: BASE, camera: "plan" },
+      { caption: "tiers", options: { ...BASE, archetypes: ["tiers"] }, camera: "plan" },
+    ],
+  },
   hero: {
     repos: ["takken.io", "react"],
     shots: [{ caption: "2:1 dimetric", options: BASE, camera: "dimetric" }],

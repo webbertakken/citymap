@@ -91,7 +91,7 @@ export function composeRegion(data: RepoData, options: Options, plat: RegionPlat
       // The root's form describes the whole repository, old towns included, so a young new town keeps it.
       const whole = buildNodes(data, p.root, p.exclude, options.density, options.noLand, {});
       const previous = plat.rootForms[p.key];
-      const rootForm = classifyNode(whole.root, previous);
+      const rootForm = classifyNode(whole.root, previous, new Set(options.archetypes ?? []));
       plat.rootForms[p.key] = rootForm;
       const townPlat = platOf(p.key);
       const last = plat.last[p.key];

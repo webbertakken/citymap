@@ -18,7 +18,18 @@ import {
   type Pt,
 } from "./geometry";
 import { LAND_USE_WEIGHT, type LandUse } from "./land-use";
-import { districtForm, features, flatForm, isFlat, type DistrictForm, type FlatForm, type Form } from "./archetype";
+import {
+  districtForm,
+  features,
+  flatForm,
+  isFlat,
+  tierOf,
+  type Archetype,
+  type DistrictForm,
+  type FlatForm,
+  type Form,
+  type Tier,
+} from "./archetype";
 
 export type RoadClass = "lane" | "street" | "collector" | "avenue" | "boulevard" | "highway";
 export const ROAD_WIDTH: Record<RoadClass, number> = {
@@ -45,6 +56,8 @@ const JOG = 3 * U;
 const MIN_JOG = 2 * U;
 /** A twin city's river width. */
 const RIVER = 2.5 * U;
+/** An archipelago's canals below its first cut, which is a river. */
+const CANAL = 1.5 * U;
 /** A radial core spans at most this share of the way to the edge, so the ring keeps room for its sectors. */
 const RADIAL_MAX_SCALE = 0.95; // a folder smaller than this many blocks is one neighbourhood
 /** Land uses that take no land unless the land dimension includes them. */
@@ -112,6 +125,10 @@ export interface TownPlat {
   shares: Record<string, ShareRecord[]>;
   forms: Record<string, Form>;
   radial: Record<string, RadialRecord>;
+  /** Quarters (opt-in): the members of each quarter of a folder, in age order. */
+  quarters?: Record<string, string[][]>;
+  /** Tiers (opt-in): the town's settlement tier, held with hysteresis. */
+  tier?: Tier;
 }
 export const emptyTownPlat = (): TownPlat => ({
   centre: null,
@@ -140,6 +157,8 @@ export interface Options {
   /** Jogging cuts: long cuts whose sides split again become pinwheels round a plaza; everywhere or top-level only. */
   jog: "off" | "top-level" | "all";
   warp: boolean;
+  /** Opt-in archetypes beyond the approved set; none by default. */
+  archetypes?: Archetype[];
 }
 
 export interface Road {
@@ -198,7 +217,15 @@ export interface Node {
   children: Node[];
   gross: number; // land area the subtree needs
   mass: number;
+  /** A package: a declared workspace member, or a folder holding a package manifest of its own. */
+  pkg?: boolean;
+  /** Mass of the subtree's source files. */
+  source?: number;
 }
+
+/** Package manifests that make a folder a package when no workspace declares it (research §7, fallback). */
+const MANIFEST =
+  /^(package\.json|Cargo\.toml|go\.mod|pyproject\.toml|setup\.py|[^/]+\.gemspec|pom\.xml|build\.gradle(\.kts)?)$/;
 
 const identityOf = (file: FileRecord) => file.identity ?? file.path;
 
@@ -255,6 +282,11 @@ export function buildNodes(
     return entry;
   };
   get(rootPath);
+  const folderOf = (path: string) => path.slice(0, Math.max(path.lastIndexOf("/"), 0));
+  const packages = new Set([
+    ...data.members,
+    ...data.files.filter((f) => MANIFEST.test(f.path.slice(f.path.lastIndexOf("/") + 1))).map((f) => folderOf(f.path)),
+  ]);
   let tests = 0;
   let docs = 0;
   for (const file of data.files) {
@@ -291,6 +323,9 @@ export function buildNodes(
     };
     node.mass =
       files.reduce((s, f) => s + LAND_USE_WEIGHT[f.landUse], 0) + node.children.reduce((s, c) => s + c.mass, 0);
+    node.pkg = packages.has(path);
+    node.source =
+      files.filter((f) => f.landUse === "source").length + node.children.reduce((s, c) => s + (c.source ?? 0), 0);
     node.gross =
       landFor(node.lots.length * LOT_AREA, density) +
       landFor(node.docs * LOT_AREA * 0.5, density) +
@@ -313,7 +348,10 @@ export function buildNodes(
 type Item =
   | { kind: "folder"; node: Node; gross: number; mass: number; firstSeen: number; key: string }
   | { kind: "lots"; lots: FileRecord[]; gross: number; mass: number; firstSeen: number; key: string; district: string }
-  | { kind: "park"; gross: number; mass: number; firstSeen: number; key: string; district: string };
+  | { kind: "park"; gross: number; mass: number; firstSeen: number; key: string; district: string }
+  | { kind: "group"; items: Item[]; gross: number; mass: number; firstSeen: number; key: string }
+  | { kind: "quarter"; members: Item[]; gross: number; mass: number; firstSeen: number; key: string };
+type FolderItem = Extract<Item, { kind: "folder" }>;
 
 function centreOut<T>(ordered: T[]): T[] {
   // Oldest in the middle, then alternately to either side, so newcomers join the edges.
@@ -335,12 +373,24 @@ function flatten(node: Node): { lots: FileRecord[]; docs: number } {
 }
 
 const FLATTEN_LIMIT = FLATTEN_BLOCKS * (BLOCK_SHORT + U) * (BLOCK_LONG + U);
+/** A quarter (opt-in) closes once its members need this many blocks of land: about five blocks across. */
+const QUARTER_BLOCKS = 24;
+const QUARTER_LAND = QUARTER_BLOCKS * (BLOCK_SHORT + U) * (BLOCK_LONG + U);
+/** A last quarter under this share of a full one joins the quarter before it at first lay. */
+const QUARTER_TAIL = 0.4;
 
 /**
  * A folder's form, given the form it had: flat (one neighbourhood) or a district form, each with hysteresis. Flattening
  * holds up to 1.5 times the flatten limit; cutting holds down to its inverse.
  */
-export function classifyNode(node: Node, previous: Form | undefined): Form {
+/** A child folder that would be an island of an archipelago: a package whose land is mostly source (research §5). */
+const isIsland = (c: Node) => c.pkg === true && c.mass > 0 && (c.source ?? 0) >= 0.5 * c.mass;
+
+export function classifyNode(
+  node: Node,
+  previous: Form | undefined,
+  enabled: ReadonlySet<Archetype> = new Set(),
+): Form {
   let flat = node.children.length === 0 || node.gross <= FLATTEN_LIMIT;
   if (previous && isFlat(previous) && node.children.length > 0) flat = node.gross <= FLATTEN_LIMIT * FLATTEN_HYSTERESIS;
   if (previous && !isFlat(previous))
@@ -350,7 +400,12 @@ export function classifyNode(node: Node, previous: Form | undefined): Form {
     node.children.map((c) => c.mass),
     flat ? flatten(node).lots.length : 0,
   );
-  return flat ? flatForm(f, previous) : districtForm(f, previous);
+  if (enabled.has("archipelago")) {
+    const islands = node.children.filter(isIsland);
+    f.members = islands.length;
+    f.memberCover = node.mass > 0 ? islands.reduce((s, c) => s + c.mass, 0) / node.mass : 0;
+  }
+  return flat ? flatForm(f, previous) : districtForm(f, previous, enabled);
 }
 
 export function layoutTown(
@@ -375,6 +430,7 @@ export function layoutTown(
     districts: [],
     stats: { lots: 0, overflow: 0, tests: 0, docs: 0, lotArea: 0, landArea: area(outline) },
   };
+  const enabled: ReadonlySet<Archetype> = new Set(options.archetypes ?? []);
 
   // Road class follows the tier of the folder being cut (mass by decade): only a city earns a boulevard, and only
   // its first cut; the rest of its cuts are one class lower.
@@ -384,9 +440,28 @@ export function layoutTown(
     [30, "collector", "street"],
     [0, "street", "street"],
   ];
-  const cutClass = (mass: number, top: boolean): RoadClass => {
+  const coldClass = (mass: number, top: boolean): RoadClass => {
     const tier = TIERS.find(([threshold]) => mass >= threshold)!;
     return top ? tier[1] : tier[2];
+  };
+  // Tiers (opt-in): the town's tier, held with hysteresis, sets its first cut's class (a hamlet's is a street, a city's
+  // a boulevard). Every other cut, the town's later cuts and every nested folder's, stays at least one class below, so
+  // a town has one road of its top class and nested folders never outrank it; below that, mass decides as before.
+  const tierTop: Record<Tier, RoadClass> = {
+    hamlet: "street",
+    village: "collector",
+    town: "avenue",
+    city: "boulevard",
+    metropolis: "boulevard",
+  };
+  const LADDER: RoadClass[] = ["street", "collector", "avenue", "boulevard"];
+  if (enabled.has("tiers")) plat.tier = tierOf(root.mass, plat.tier);
+  const cutClass = (mass: number, top: boolean, key: string): RoadClass => {
+    const cold = coldClass(mass, top);
+    if (!plat.tier) return cold;
+    const townTop = LADDER.indexOf(tierTop[plat.tier]);
+    if (top && key === root.path) return LADDER[townTop];
+    return LADDER[Math.min(LADDER.indexOf(cold), Math.max(0, townTop - 1))];
   };
 
   // Plat keys: a folder's cut is keyed by its path, deeper cuts append ">L" or ">R", item grids append "#lots".
@@ -401,10 +476,13 @@ export function layoutTown(
     for (const key of Object.keys(plat.cuts)) if (owned(key, path)) delete plat.cuts[key];
     for (const key of Object.keys(plat.grids)) if (owned(key, path)) delete plat.grids[key];
     for (const key of Object.keys(plat.radial)) if (owned(key, path)) delete plat.radial[key];
+    for (const key of Object.keys(plat.quarters ?? {})) if (owned(key, path)) delete plat.quarters![key];
   };
 
   const place = (poly: Poly, item: Item, district: string) => {
     if (item.kind === "folder") partition(item.node, poly, district);
+    else if (item.kind === "group") split(item.items, poly, item.mass, false, item.key, district);
+    else if (item.kind === "quarter") quarter(poly, item, district);
     else if (item.kind === "lots") neighbourhood(poly, item.lots, 0, item.key, item.district, "neighbourhood");
     else park(poly, item.district);
   };
@@ -432,7 +510,10 @@ export function layoutTown(
       [clip(poly, rec.nx, rec.ny, rec.c, 0), left],
       [clip(poly, -rec.nx, -rec.ny, -rec.c, 0), right],
     ] as const) {
-      const heaviest = part.filter((i) => i.kind === "folder").sort((p, q) => q.mass - p.mass)[0];
+      const heaviest = part
+        .flatMap((i) => (i.kind === "quarter" ? i.members : [i]))
+        .filter((i) => i.kind === "folder")
+        .sort((p, q) => q.mass - p.mass)[0];
       if (heaviest && heaviest.kind === "folder" && part.length > 1)
         town.districts.push({
           pts: side.p,
@@ -456,6 +537,8 @@ export function layoutTown(
     key: string,
     normal?: [number, number],
     assign?: [Item[], Item[]],
+    /** A fixed road class (a quarter's local streets) instead of the class by mass. */
+    cls?: RoadClass,
   ): { rec: CutRecord; left: Item[]; right: Item[] } | null => {
     let rec: CutRecord | undefined = plat.cuts[key];
     if (
@@ -502,7 +585,7 @@ export function layoutTown(
         nx,
         ny,
         c: offsetFor(poly, nx, ny, demandOf(left) / total),
-        cls: cutClass(mass, top),
+        cls: cls ?? cutClass(mass, top, key),
         left: left.map((i) => i.key),
         right: right.map((i) => i.key),
         capLeft: demandOf(left) * GROWTH_ROOM,
@@ -644,28 +727,95 @@ export function layoutTown(
     return true;
   };
 
-  const split = (items: Item[], poly: Poly, mass: number, top: boolean, key: string, district: string) => {
-    const decision = decide(items, poly, mass, top, key);
-    if (!decision) return place(poly, items[0], district);
-    if (pinwheel(decision, poly, key, district)) return;
-    const { rec: r, left, right } = decision;
-    const seg = chord(poly.p, r.nx, r.ny, r.c);
-    const major = r.cls !== "street" && r.cls !== "lane";
-    if (seg && left.length > 0 && right.length > 0) town.roads.push({ pts: seg, cls: r.cls });
-    if (major) wards(poly, r, left, right, key);
-    const halves: [Item[], Poly, string][] = [
-      [left, clip(poly, r.nx, r.ny, r.c, left.length && right.length ? ROAD_WIDTH[r.cls] : 0), `${key}>L`],
-      [right, clip(poly, -r.nx, -r.ny, -r.c, left.length && right.length ? ROAD_WIDTH[r.cls] : 0), `${key}>R`],
-    ];
-    for (const [part, half, sub] of halves) {
-      if (part.length === 0) reserve(half, district);
-      else split(part, half, massOf(part), false, sub, major ? seedOf(sub) : district);
+  /** A band of water along a cut, its banks pavement; one bridge, or two at a third and two thirds of a long one. */
+  const waterway = (poly: Poly, r: CutRecord, seg: [Pt, Pt], width: number) => {
+    const water = clip(clip(poly, r.nx, r.ny, r.c + width / 2, 0), -r.nx, -r.ny, -(r.c - width / 2), 0);
+    if (water.p.length >= 3) town.water.push(water.p);
+    const length = Math.hypot(seg[1].x - seg[0].x, seg[1].y - seg[0].y);
+    for (const f of length > 12 * U ? [1 / 3, 2 / 3] : [1 / 2]) {
+      const m = { x: seg[0].x + (seg[1].x - seg[0].x) * f, y: seg[0].y + (seg[1].y - seg[0].y) * f };
+      const h = width / 2 + PAVEMENT * 2;
+      town.roads.push({
+        pts: [
+          { x: m.x - r.nx * h, y: m.y - r.ny * h },
+          { x: m.x + r.nx * h, y: m.y + r.ny * h },
+        ],
+        cls: "street",
+      });
     }
   };
 
+  /** Recursive cuts; in an archipelago (canals) every cut is water, the first a river and the rest canals. */
+  const split = (
+    items: Item[],
+    poly: Poly,
+    mass: number,
+    top: boolean,
+    key: string,
+    district: string,
+    canals = false,
+  ) => {
+    const decision = decide(items, poly, mass, top, key);
+    if (!decision) return place(poly, items[0], district);
+    if (!canals && pinwheel(decision, poly, key, district)) return;
+    const { rec: r, left, right } = decision;
+    const seg = chord(poly.p, r.nx, r.ny, r.c);
+    const major = r.cls !== "street" && r.cls !== "lane";
+    const width = canals ? (top ? RIVER : CANAL) : ROAD_WIDTH[r.cls];
+    if (seg && left.length > 0 && right.length > 0) {
+      if (canals) waterway(poly, r, seg, width);
+      else town.roads.push({ pts: seg, cls: r.cls });
+    }
+    if (major) wards(poly, r, left, right, key);
+    const halves: [Item[], Poly, string][] = [
+      [left, clip(poly, r.nx, r.ny, r.c, left.length && right.length ? width : 0), `${key}>L`],
+      [right, clip(poly, -r.nx, -r.ny, -r.c, left.length && right.length ? width : 0), `${key}>R`],
+    ];
+    for (const [part, half, sub] of halves) {
+      if (part.length === 0) reserve(half, district);
+      else split(part, half, massOf(part), false, sub, major ? seedOf(sub) : district, canals);
+    }
+  };
+
+  /** A cut folder's items in age order: its child folders, its own lots, its park. */
+  function itemsOf(node: Node, district: string): Item[] {
+    const items: Item[] = node.children.map((c) => ({
+      kind: "folder" as const,
+      node: c,
+      gross: c.gross,
+      mass: c.mass,
+      firstSeen: c.firstSeen,
+      key: c.path,
+    }));
+    if (node.lots.length > 0) {
+      const gross = landFor(node.lots.length * LOT_AREA, options.density);
+      const mass = node.lots.reduce((s, f) => s + LAND_USE_WEIGHT[f.landUse], 0);
+      items.push({
+        kind: "lots",
+        lots: node.lots,
+        gross,
+        mass,
+        firstSeen: node.lots[0].firstSeen,
+        key: `${node.path}#lots`,
+        district,
+      });
+    }
+    if (node.docs > 0) {
+      items.push({
+        kind: "park",
+        gross: landFor(node.docs * LOT_AREA * 0.5, options.density),
+        mass: 0,
+        firstSeen: node.firstSeen,
+        key: `${node.path}#park`,
+        district,
+      });
+    }
+    return items.sort((a, b) => a.firstSeen - b.firstSeen || byPath(a.key, b.key));
+  }
+
   function partition(node: Node, poly: Poly, district: string) {
     const previous = plat.forms[node.path];
-    const form = node === root && rootForm ? rootForm : classifyNode(node, previous);
+    const form = node === root && rootForm ? rootForm : classifyNode(node, previous, enabled);
     if (previous && previous !== form) {
       console.log(`[plat] switch ${node.path || "(root)"} ${previous} -> ${form} mass ${Math.round(node.mass)}`);
       forget(node.path);
@@ -680,41 +830,13 @@ export function layoutTown(
       const f = flatten(node);
       neighbourhood(poly, f.lots, landFor(f.docs * LOT_AREA * 0.5, options.density), node.path, district, form);
     } else {
-      const items: Item[] = node.children.map((c) => ({
-        kind: "folder" as const,
-        node: c,
-        gross: c.gross,
-        mass: c.mass,
-        firstSeen: c.firstSeen,
-        key: c.path,
-      }));
-      if (node.lots.length > 0) {
-        const gross = landFor(node.lots.length * LOT_AREA, options.density);
-        const mass = node.lots.reduce((s, f) => s + LAND_USE_WEIGHT[f.landUse], 0);
-        items.push({
-          kind: "lots",
-          lots: node.lots,
-          gross,
-          mass,
-          firstSeen: node.lots[0].firstSeen,
-          key: `${node.path}#lots`,
-          district,
-        });
-      }
-      if (node.docs > 0) {
-        items.push({
-          kind: "park",
-          gross: landFor(node.docs * LOT_AREA * 0.5, options.density),
-          mass: 0,
-          firstSeen: node.firstSeen,
-          key: `${node.path}#park`,
-          district,
-        });
-      }
-      const ordered = items.sort((a, b) => a.firstSeen - b.firstSeen || byPath(a.key, b.key));
+      const ordered = itemsOf(node, district);
       const done =
         (form === "radial" && radial(node, ordered, poly, district)) ||
-        (form === "twin" && twin(node, ordered, poly, district));
+        (form === "twin" && twin(node, ordered, poly, district)) ||
+        (form === "corridor" && corridor(node, ordered, poly, district)) ||
+        (form === "archipelago" && archipelago(node, ordered, poly, district)) ||
+        (form === "quarters" && quarters(node, ordered, poly, district));
       if (!done)
         split(
           options.order === "centre-out" ? centreOut(ordered) : ordered,
@@ -750,6 +872,114 @@ export function layoutTown(
     }
     return best;
   };
+
+  /**
+   * Corridor (opt-in): a folder whose dominant child holds 90% of its mass collapses into a gateway. The chain of
+   * corridor folders below it collapses with it: every level's small items gather in one faubourg, a quarter at the
+   * edge of the land cut off by a single avenue, and the first folder below the chain that is no corridor takes the
+   * rest. The avenue is the shortest chord that leaves the faubourg its share of the land, so it never crosses town.
+   */
+  function corridor(node: Node, items: Item[], poly: Poly, district: string): boolean {
+    const wayside: Item[] = [];
+    const chain: Node[] = [];
+    let levelItems = items;
+    let core: FolderItem | undefined;
+    for (;;) {
+      const folders = levelItems.filter((i): i is FolderItem => i.kind === "folder");
+      if (folders.length === 0) return false;
+      const heaviest = folders.reduce((a, b) => (b.mass > a.mass ? b : a));
+      core = heaviest;
+      wayside.push(...levelItems.filter((i) => i !== heaviest));
+      const next = heaviest.node;
+      const previous = plat.forms[next.path];
+      if (classifyNode(next, previous, enabled) !== "corridor") break;
+      if (previous && previous !== "corridor") {
+        console.log(`[plat] switch ${next.path} ${previous} -> corridor mass ${Math.round(next.mass)}`);
+        forget(next.path);
+      }
+      plat.forms[next.path] = "corridor";
+      chain.push(next);
+      levelItems = itemsOf(next, district);
+    }
+    if (!core || wayside.length === 0) return false;
+    const dest = core;
+    const key = node.path;
+    let rec: CutRecord | undefined = plat.cuts[key];
+    if (rec && (rec.right.length !== 1 || rec.right[0] !== dest.key || !chord(poly.p, rec.nx, rec.ny, rec.c))) {
+      console.log(`[plat] corridor ${key || "(root)"} re-laid: destination ${rec.right[0]} -> ${dest.key}`);
+      forget(key);
+      rec = undefined;
+    }
+    const dl = demandOf(wayside);
+    const dr = dest.gross;
+    if (!rec) {
+      // The faubourg's avenue: of 32 directions, the one whose cut is shortest; ties go to the earliest.
+      const offset = (unit(`${seedOf(key)}#gate`) * Math.PI) / 16;
+      let best: { nx: number; ny: number; c: number; length: number } | null = null;
+      for (let k = 0; k < 32; k++) {
+        const theta = offset + (k * Math.PI) / 16;
+        const nx = Math.cos(theta);
+        const ny = Math.sin(theta);
+        const c = offsetFor(poly, nx, ny, dl / (dl + dr));
+        const seg = chord(poly.p, nx, ny, c);
+        if (!seg) continue;
+        const length = Math.hypot(seg[1].x - seg[0].x, seg[1].y - seg[0].y);
+        if (!best || length < best.length - 1e-6) best = { nx, ny, c, length };
+      }
+      if (!best) return false;
+      rec = {
+        nx: best.nx,
+        ny: best.ny,
+        c: best.c,
+        cls: cutClass(node.mass, false, node.path),
+        left: wayside.map((i) => i.key),
+        right: [dest.key],
+        capLeft: dl * GROWTH_ROOM,
+        capRight: dr * GROWTH_ROOM,
+      };
+      plat.cuts[key] = rec;
+    } else {
+      // Newcomers join the faubourg; the avenue moves only when a side outgrows its band.
+      for (const item of wayside) if (!rec.left.includes(item.key)) rec.left.push(item.key);
+      if (dl > rec.capLeft || dr > rec.capRight) {
+        console.log(
+          `[plat] recut ${key || "(root)"} corridor demand ${Math.round(dl)}/${Math.round(dr)} over ${Math.round(rec.capLeft)}/${Math.round(rec.capRight)}`,
+        );
+        rec.c = offsetFor(poly, rec.nx, rec.ny, dl / (dl + dr));
+        rec.capLeft = dl * GROWTH_ROOM;
+        rec.capRight = dr * GROWTH_ROOM;
+      }
+    }
+    const r = rec;
+    const w = ROAD_WIDTH[r.cls];
+    const seg = chord(poly.p, r.nx, r.ny, r.c);
+    if (seg) town.roads.push({ pts: seg, cls: r.cls });
+    const major = r.cls !== "street" && r.cls !== "lane";
+    if (major) wards(poly, r, wayside, [dest], key);
+    const faubourg = clip(poly, r.nx, r.ny, r.c, w);
+    const land = clip(poly, -r.nx, -r.ny, -r.c, w);
+    for (const level of chain)
+      if (level.mass >= 0.015 * root.mass)
+        town.districts.push({
+          pts: land.p,
+          path: level.path,
+          name: level.name,
+          depth: level.depth,
+          mass: level.mass,
+          form: "corridor",
+        });
+    const ordered = [...wayside].sort((a, b) => a.firstSeen - b.firstSeen || byPath(a.key, b.key));
+    split(
+      options.order === "centre-out" ? centreOut(ordered) : ordered,
+      faubourg,
+      massOf(wayside),
+      false,
+      `${key}>L`,
+      major ? seedOf(`${key}>L`) : district,
+    );
+    place(land, dest, major ? seedOf(`${key}>R`) : district);
+    return true;
+  }
 
   /**
    * Radial old town: the dominant child at the core, the others in ring sectors ordered by age, a ring road round the
@@ -852,8 +1082,8 @@ export function layoutTown(
       plat.radial[node.path] = rec;
     }
     const r = rec;
-    const ringClass = cutClass(node.mass, true);
-    const spokeClass = cutClass(node.mass, false);
+    const ringClass = cutClass(node.mass, true, node.path);
+    const spokeClass = cutClass(node.mass, false, node.path);
     const wRing = ROAD_WIDTH[ringClass];
     const wSpoke = ROAD_WIDTH[spokeClass];
     const inner = r.bounds.slice(0, -1).map((a) => point(a, r.scale));
@@ -887,21 +1117,7 @@ export function layoutTown(
     const { rec: r, left: l, right: rr } = decision;
     const seg = chord(poly.p, r.nx, r.ny, r.c);
     if (!seg) return false;
-    // The river: a band of water along the cut, its banks pavement; bridges at a third and two thirds of its length.
-    const water = clip(clip(poly, r.nx, r.ny, r.c + RIVER / 2, 0), -r.nx, -r.ny, -(r.c - RIVER / 2), 0);
-    if (water.p.length >= 3) town.water.push(water.p);
-    const length = Math.hypot(seg[1].x - seg[0].x, seg[1].y - seg[0].y);
-    for (const f of length > 12 * U ? [1 / 3, 2 / 3] : [1 / 2]) {
-      const m = { x: seg[0].x + (seg[1].x - seg[0].x) * f, y: seg[0].y + (seg[1].y - seg[0].y) * f };
-      const h = RIVER / 2 + PAVEMENT * 2;
-      town.roads.push({
-        pts: [
-          { x: m.x - r.nx * h, y: m.y - r.ny * h },
-          { x: m.x + r.nx * h, y: m.y + r.ny * h },
-        ],
-        cls: "street",
-      });
-    }
+    waterway(poly, r, seg, RIVER);
     const banks: [Item[], Poly, string][] = [
       [l, clip(poly, r.nx, r.ny, r.c, RIVER), `${node.path}>L`],
       [rr, clip(poly, -r.nx, -r.ny, -r.c, RIVER), `${node.path}>R`],
@@ -914,9 +1130,151 @@ export function layoutTown(
   }
 
   /**
-   * Gridiron: comparable children in rows of cells, every cut square to one axis. Rows are remembered; newcomers join
-   * the last row, the grid\x27s frontier.
+   * Archipelago (opt-in): every package child is an island, everything else one mainland; every cut between them is
+   * a canal with one bridge, or two on a canal longer than 12 u. The mainland is cut by streets as usual.
    */
+  function archipelago(node: Node, items: Item[], poly: Poly, district: string): boolean {
+    const islands = items.filter((i) => i.kind === "folder" && isIsland(i.node));
+    if (islands.length < 2) return false;
+    const rest = items.filter((i) => !islands.includes(i));
+    const mainland: Item[] =
+      rest.length <= 1
+        ? rest
+        : [
+            {
+              kind: "group",
+              items: rest,
+              gross: demandOf(rest),
+              mass: massOf(rest),
+              firstSeen: Math.min(...rest.map((i) => i.firstSeen)),
+              key: `${node.path}#mainland`,
+            },
+          ];
+    const ordered = [...islands, ...mainland].sort((a, b) => a.firstSeen - b.firstSeen || byPath(a.key, b.key));
+    split(
+      options.order === "centre-out" ? centreOut(ordered) : ordered,
+      poly,
+      node.mass,
+      true,
+      node.path,
+      district,
+      true,
+    );
+    return true;
+  }
+
+  /**
+   * Quarters (opt-in): many comparable children are grouped into planned quarters. Children small enough to flatten
+   * join quarters in age order, a quarter closing once its members need about 24 blocks. Quarters and the children too
+   * big for one are cut as usual, so collectors run between quarters; inside a quarter every cut is a local street
+   * square to the quarter's frame. Membership is remembered; a newcomer joins the last quarter while it has room, else
+   * opens the next one at the frontier.
+   */
+  function quarters(node: Node, items: Item[], poly: Poly, district: string): boolean {
+    const forms = new Map<string, Form>();
+    const eligible = items.filter((i) => {
+      if (i.kind === "lots") return true;
+      if (i.kind !== "folder" || i.gross > QUARTER_LAND) return false;
+      const form = classifyNode(i.node, plat.forms[i.node.path], enabled);
+      forms.set(i.key, form);
+      return isFlat(form);
+    });
+    if (eligible.length < 2) return false;
+    const byKey = new Map(eligible.map((i) => [i.key, i]));
+    const demand = (keys: string[]) => keys.reduce((s, k) => s + (byKey.get(k)?.gross ?? 0), 0);
+    const records = (plat.quarters ??= {});
+    let groups = records[node.path];
+    if (!groups) {
+      groups = [];
+      let current: string[] = [];
+      for (const item of eligible) {
+        current.push(item.key);
+        if (demand(current) >= QUARTER_LAND) {
+          groups.push(current);
+          current = [];
+        }
+      }
+      if (current.length > 0) {
+        if (groups.length > 0 && demand(current) < QUARTER_TAIL * QUARTER_LAND)
+          groups[groups.length - 1].push(...current);
+        else groups.push(current);
+      }
+    } else {
+      // Members that left (deleted, or grown past flattening) drop out; a quarter keeps its index even when empty.
+      groups = groups.map((g) => g.filter((k) => byKey.has(k)));
+      const known = new Set(groups.flat());
+      for (const item of eligible) {
+        if (known.has(item.key)) continue;
+        const last = groups[groups.length - 1];
+        if (last && demand(last) < QUARTER_LAND) last.push(item.key);
+        else groups.push([item.key]);
+      }
+    }
+    records[node.path] = groups;
+    for (const [key, form] of forms) if (byKey.has(key)) plat.forms[key] = form;
+    const grouped = new Set(groups.flat());
+    const quarterItems: Item[] = groups.flatMap((keys, q) => {
+      const members = keys.map((k) => byKey.get(k)!);
+      if (members.length === 0) return [];
+      return [
+        {
+          kind: "quarter" as const,
+          members,
+          gross: demandOf(members),
+          mass: massOf(members),
+          firstSeen: Math.min(...members.map((m) => m.firstSeen)),
+          key: `${node.path}#q${q}`,
+        },
+      ];
+    });
+    const ordered = [...quarterItems, ...items.filter((i) => !grouped.has(i.key))].sort(
+      (a, b) => a.firstSeen - b.firstSeen || byPath(a.key, b.key),
+    );
+    split(options.order === "centre-out" ? centreOut(ordered) : ordered, poly, node.mass, true, node.path, district);
+    return true;
+  }
+
+  /**
+   * One quarter, cut square to its own frame (its longest edge) with local streets only, so every member is a
+   * rectangle-like block of one orientation and the quarter reads as one planned neighbourhood.
+   */
+  function quarter(poly: Poly, item: Extract<Item, { kind: "quarter" }>, district: string) {
+    // A quarter takes the name of its heaviest folder, like a ward.
+    const heaviest = item.members.filter((m) => m.kind === "folder").sort((p, q) => q.mass - p.mass)[0];
+    if (heaviest && heaviest.kind === "folder")
+      town.districts.push({ pts: poly.p, path: item.key, name: heaviest.node.name, depth: 9, mass: item.mass });
+    frameSplit(item.members, poly, item.key, district, longestEdgeAngle(poly.p));
+  }
+
+  const frameSplit = (items: Item[], poly: Poly, key: string, district: string, theta: number) => {
+    const along = extent(poly.p, Math.cos(theta), Math.sin(theta));
+    const across = extent(poly.p, -Math.sin(theta), Math.cos(theta));
+    const base = along[1] - along[0] >= across[1] - across[0] ? theta : theta + Math.PI / 2;
+    const decision = decide(
+      items,
+      poly,
+      massOf(items),
+      false,
+      key,
+      [Math.cos(base), Math.sin(base)],
+      undefined,
+      "street",
+    );
+    if (!decision) return place(poly, items[0], district);
+    const { rec: r, left, right } = decision;
+    const seg = chord(poly.p, r.nx, r.ny, r.c);
+    const both = left.length > 0 && right.length > 0;
+    if (seg && both) town.roads.push({ pts: seg, cls: r.cls });
+    const halves: [Item[], Poly, string][] = [
+      [left, clip(poly, r.nx, r.ny, r.c, both ? ROAD_WIDTH[r.cls] : 0), `${key}>L`],
+      [right, clip(poly, -r.nx, -r.ny, -r.c, both ? ROAD_WIDTH[r.cls] : 0), `${key}>R`],
+    ];
+    for (const [part, half, sub] of halves) {
+      if (part.length === 0) reserve(half, district);
+      else frameSplit(part, half, sub, district, theta);
+    }
+  };
+
   function park(poly: Poly, district: string) {
     const p = inset(poly, PAVEMENT);
     if (p.p.length >= 3) town.blocks.push({ pts: p.p, district, kind: "park" });
