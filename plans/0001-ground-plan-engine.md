@@ -82,8 +82,8 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 - [x] `packages/scene`: city model to Three.js geometry (instanced lots, merged roads, water, labels), framework free
 - [x] `apps/web`: Next.js 16, React 19, react-three-fiber; dimetric and plan cameras; themes; phone layout
 - [x] Local repository loading through the CLI's JSON (hosted import is later)
-- [ ] Playwright end-to-end tests in dark mode; WCAG 2.2 AA checks; Core Web Vitals measured
-- [ ] Walkthrough on the wall; commit
+- [x] Playwright end-to-end tests in dark mode; WCAG 2.2 AA checks; Core Web Vitals measured
+- [x] Shots on the wall (walkthroughs are retired there; the steps go in the reply); commit
 
 ## Phase 8: fold-back
 
