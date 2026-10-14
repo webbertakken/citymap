@@ -43,7 +43,15 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
   `**`, `!` negation) matched against the folders of the tree; `snapshot.workspaces` lists the matching folders that
   hold files, sorted. A blob that cannot be read (a blob-less clone never fetches) logs `history/manifest-unavailable`
   and leaves the patterns as they were; no manifest at all leaves `workspaces` out.
-- `GIT_NO_LAZY_FETCH=1` is set, so a blob-less clone never fetches.
+- Manifest blobs are read through one `git cat-file --batch`, pipelined: each chunk of the log asks for the blobs its
+  snapshots need (a manifest changed twice between two snapshots is read once). In a partial clone, where asking for a
+  missing blob costs git seconds, the blobs it holds are listed once (`--batch-all-objects`) and only those are asked
+  for. A batch process that exits mid-answer (git before 2.44 on a failed fetch) marks that blob unavailable and the
+  rest go to a fresh one.
+- `GIT_NO_LAZY_FETCH=1` is set, and blob reads allow no protocol (`GIT_ALLOW_PROTOCOL=none`, which every git honours),
+  so a blob-less clone never fetches.
+- Every git call clears the variables a git hook sets (`GIT_DIR`, `GIT_INDEX_FILE` and the like), so a fold run from a
+  hook reads the folder it was given.
 - Failures: `history/git-failed` (exit code, stderr's first line), `history/parse` (offset).
 
 ## Observability
