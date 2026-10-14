@@ -1,4 +1,4 @@
-import { ROAD_WIDTH, U, type RoadClass, GROWTH_PCT } from "../constants";
+import { GROWTH_PCT, ROAD_WIDTH, TIER_BAND_PCT, TIER_MASS_MILLE, U, type RoadClass } from "../constants";
 import { floorDiv, isqrt, mulDiv, roundDiv } from "../fixed/arithmetic";
 import { DIRECTION, negate, perp, rotate, type Dir } from "../fixed/direction";
 import { unitMille } from "../fixed/hash";
@@ -32,12 +32,23 @@ function starved(poly: Poly, r: CutRecord, dl: number, dr: number): boolean {
   return short(left, dl) || short(total - left, dr);
 }
 
+/** Road classes by tier (hamlet, village, town, city): a folder's first cut, and its others one class lower. */
+const FIRST_CLASS: readonly RoadClass[] = ["street", "collector", "avenue", "boulevard"];
+const OTHER_CLASS: readonly RoadClass[] = ["street", "street", "collector", "avenue"];
+
 /** Road class by the tier of the land being cut: a folder's first cut is one class above its others. */
 export function cutClass(massMille: number, first: boolean): RoadClass {
-  if (massMille >= 3_000_000) return first ? "boulevard" : "avenue";
-  if (massMille >= 300_000) return first ? "avenue" : "collector";
-  if (massMille >= 30_000) return first ? "collector" : "street";
-  return "street";
+  const tier = TIER_MASS_MILLE.filter((threshold) => massMille >= threshold).length;
+  return (first ? FIRST_CLASS : OTHER_CLASS)[tier]!;
+}
+
+/** A laid road's class as its land's mass moves: a tier up past its threshold × the band, down below it ÷ the band. */
+export function reclass(cls: RoadClass, massMille: number, first: boolean): RoadClass {
+  const classes = first ? FIRST_CLASS : OTHER_CLASS;
+  let tier = classes.indexOf(cls);
+  while (tier < TIER_MASS_MILLE.length && massMille * 100 >= TIER_MASS_MILLE[tier]! * TIER_BAND_PCT) tier++;
+  while (tier > 0 && massMille * TIER_BAND_PCT < TIER_MASS_MILLE[tier - 1]! * 100) tier--;
+  return classes[tier]!;
 }
 
 const isMajor = (cls: RoadClass) => cls !== "street" && cls !== "lane";
@@ -154,6 +165,12 @@ export function decide(
     ctx.plat.cuts[key] = rec;
   } else {
     const r = rec;
+    // A road follows its land's tier, within the band; a river stays a river.
+    const cls = r.river ? r.cls : reclass(r.cls, massMille, first);
+    if (cls !== r.cls) {
+      emit(ctx, "plat/reclass", { key, from: r.cls, to: cls });
+      r.cls = cls;
+    }
     const sideOf = (i: Item) => (r.left.includes(i.key) ? "L" : r.right.includes(i.key) ? "R" : null);
     const demandOn = (s: "L" | "R") => demandOf(items.filter((i) => sideOf(i) === s));
     for (const item of items.filter((i) => sideOf(i) === null))

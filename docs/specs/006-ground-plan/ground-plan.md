@@ -137,8 +137,8 @@ therefore readable as distance from the core, and newcomers join the edges.
 - Each folder has a form (hamlet, street village, archipelago, radial, twin, polycentric) and a tier by decade of mass
   (hamlet under 30, village under 300, town under 3,000, city under 30,000, metropolis above).
 - Features are continuous; the choice uses a Schmitt trigger: a challenger enters at margin 0 or more, the incumbent
-  stays down to -0.15, and a switch needs +0.1. A cut keeps the road class it was laid with, so a tier crossing never
-  re-classes a laid road; a radial's ring and spokes take the class of today's tier.
+  stays down to -0.15, and a switch needs +0.1. Roads follow their land's tier as it grows and shrinks: a laid road
+  moves up a class at the tier's threshold times 1.25 and down below the threshold divided by 1.25.
 - A twin is a folder with two dominant cores (lib and test, src and docs): two town halves facing each other across a
   river.
 - A flattened folder takes a neighbourhood form: a hamlet (mass under 25) gathers round a green, the full block nearest

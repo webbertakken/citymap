@@ -39,3 +39,33 @@ describe("decide", () => {
     expect(kept.rec.c).toBe(c);
   });
 });
+
+describe("decide road classes", () => {
+  const pair = [item("a", 1000), item("b", 1000)];
+
+  it("raises a remembered cut's class once the land's mass passes a tier by the band, and lowers it below", () => {
+    const ctx = emptyCtx();
+    expect(decide(ctx, pair, rect(1000, 1000), 20_000, true, "k")!.rec.cls).toBe("street");
+    // 30,000 ‰ makes a collector tier; the band holds the street until 37,500.
+    expect(decide(ctx, pair, rect(1000, 1000), 37_499, true, "k")!.rec.cls).toBe("street");
+    expect(decide(ctx, pair, rect(1000, 1000), 37_500, true, "k")!.rec.cls).toBe("collector");
+    // Down only below 30,000 / 1.25 = 24,000.
+    expect(decide(ctx, pair, rect(1000, 1000), 24_000, true, "k")!.rec.cls).toBe("collector");
+    expect(decide(ctx, pair, rect(1000, 1000), 23_999, true, "k")!.rec.cls).toBe("street");
+    expect(ctx.events.map((e) => [e.code, e.detail.from, e.detail.to])).toEqual([
+      ["plat/reclass", "street", "collector"],
+      ["plat/reclass", "collector", "street"],
+    ]);
+  });
+
+  it("climbs several tiers at once, keeps a later cut one class lower, and leaves a river alone", () => {
+    const ctx = emptyCtx();
+    decide(ctx, pair, rect(1000, 1000), 1000, true, "first");
+    expect(decide(ctx, pair, rect(1000, 1000), 4_000_000, true, "first")!.rec.cls).toBe("boulevard");
+    decide(ctx, pair, rect(1000, 1000), 1000, false, "later");
+    expect(decide(ctx, pair, rect(1000, 1000), 4_000_000, false, "later")!.rec.cls).toBe("avenue");
+    const banks: [Item[], Item[]] = [[pair[0]!], [pair[1]!]];
+    decide(ctx, pair, rect(1000, 1000), 1000, true, "river", undefined, banks);
+    expect(decide(ctx, pair, rect(1000, 1000), 4_000_000, true, "river", undefined, banks)!.rec.cls).toBe("street");
+  });
+});

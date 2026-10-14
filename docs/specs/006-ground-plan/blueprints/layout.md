@@ -28,9 +28,11 @@ All lengths in fixed units (`UNIT` = 64 per u). Provenance and ranges in [DEFAUL
 ## Road class by tier
 
 `cutClass(massMille, first)`: mass ≥ 3,000,000 ‰ boulevard then avenue; ≥ 300,000 avenue then collector; ≥ 30,000
-collector then street; else street. `first` is the first cut of a folder's own land (its `top` cut). A cut's class is
-set when the cut is first laid and kept in its `CutRecord.cls`; a recut moves the line, never the class. A radial's ring
-and spokes are classed afresh at each lay.
+collector then street; else street. `first` is the first cut of a folder's own land (its `top` cut). Thresholds are
+`TIER_MASS_MILLE` (30,000, 300,000, 3,000,000). A remembered cut is reclassed at every lay by
+`reclass(cls, massMille, first)`: up a tier while mass × 100 ≥ threshold × `TIER_BAND_PCT` (125), down while mass × 125
+< the lower threshold × 100, logging `plat/reclass` (key, from, to); a river is never reclassed. A radial's ring and
+spokes are classed afresh at each lay.
 
 ## Classify
 
