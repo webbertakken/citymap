@@ -137,6 +137,69 @@ same map coloured by form: radial orange, twin blue, polycentric rose.
 - Stability holds: React 0.2% per commit and 2.8% on deleting commits; takken.io 0.7% and 4.7%; next.js 0% and
   0.1%; home-assistant 0% and 0.1%; redux 0.5% and 13.1%.
 
+### Opt-in archetypes
+
+Four further forms sit behind `Options.archetypes` (`corridor`, `archipelago`, `quarters`, `tiers`), each off by
+default; `ARCHETYPES=a,b` turns them on in `history.ts`. With none named, every default sheet (towns, forms, jog,
+land, density, themes, hero, and the private repository's sheet) renders byte-identical to commit fcf556c, and all 20
+stability lines (snapshot and plat, ten repositories) match it digit for digit. `img/towns-<form>-<repo>.webp` sets
+the approved map (left) beside the variant (right).
+
+Stability is plat mean moved per commit and on deleting commits, approved against variant, from
+`LAYOUT=towns bun history.ts <repo> steps:<date>:<count>`; every run held under 4 GB, so rust ran 120 commits from
+2025 and typescript 200.
+
+| Repo           | Window        | Approved   | Corridor   | Archipelago | Quarters   | Tiers      |
+| -------------- | ------------- | ---------- | ---------- | ----------- | ---------- | ---------- |
+| react          | 2017-06, 1200 | 0.2%, 2.8% | 0.2%, 2.7% | 0.2%, 3%    | 0.2%, 2.8% | 0.2%, 2.8% |
+| takken.io      | all, 239      | 0.7%, 4.7% | 0.7%, 4.7% |             |            | 0.7%, 4.7% |
+| game-ci-cli    | all, 612      | 0.5%, 4.2% |            | 0.6%, 5.5%  |            |            |
+| livediagram    | 2025, 400     | 0%, 0%     |            | 0%, 0%      | 0%, 0%     |            |
+| next.js        | 2025, 300     | 0%, 0.1%   | 0%, 0.1%   | 0%, 0.1%    | 0%, 0.1%   | 0%, 0.1%   |
+| home-assistant | 2025, 300     | 0%, 0.1%   | 0%, 0.1%   |             | 0%, 0.1%   | 0%, 0.1%   |
+| typescript     | 2025, 200     | 0%, 0%     | 0%, 0%     |             | 0%, 0%     | 0%, 0%     |
+| rust           | 2025, 120     | 0%, 0.1%   | 0%, 0.1%   | 0%, 0.1%    | 0%, 0.1%   | 0%, 0.1%   |
+
+No variant destabilises the plat. The 2025 windows are calm, so they prove little beyond that; react and game-ci-cli
+are the windows where folders come and go.
+
+**Corridor** (`img/towns-corridor-<repo>.webp`). A folder whose heaviest child holds at least 90% of its mass and whose
+own files hold under 10% is a corridor: the chain of such folders gathers every level's wayside items into one
+faubourg on the edge, cut off by a short gateway avenue, and the destination takes the rest of the land. Home-assistant
+(root, `homeassistant/`) and typescript (its root chain) read best: the double ring of thin edge strips becomes one corner
+quarter, boulevard share falls from 3% to 1.3% on home-assistant and lots without room from 13 to 4; rust falls from 51
+to 19 and react from 5 to 0. Long straight roads stay level (home-assistant 3 to 5, typescript 8, next.js 18).
+Verdict: adopt as an approved form; it removes a visible fault the approved forms cannot express.
+
+**Archipelago** (`img/towns-archipelago-<repo>.webp`). A folder of at least three packages (a manifest beside source)
+covering half its mass becomes islands: each package an island, the loose rest one mainland, every cut between them a
+canal with bridges. React's `packages/` reads as Venice and long straight roads fall from 6 to 2 (livediagram 9 to 5,
+next.js 18 to 13), but rust's 80 crates turn into a lattice of blue channels that reads as noise, the water blends with
+blue district tints, and lots without room rise on rust (51 to 57) and next.js (29 to 40). Deleting commits move a
+little more (game-ci-cli 4.2% to 5.5%, react 2.8% to 3%). Verdict: keep opt-in, refine: canals only at the island
+folder's top cuts, a water colour no district tint shares, and a ceiling of about a dozen islands.
+
+**Quarters** (`img/towns-quarters-<repo>.webp`). The answer to the gridiron's stripes: children small enough to
+flatten join planned quarters in age order, a quarter closing at about 24 blocks of land; quarters and the larger
+children are cut as usual, so collectors run between quarters, and inside a quarter every cut is a local street square
+to the quarter's own frame. Membership is remembered in the plat; a newcomer joins the last quarter while it has room.
+On home-assistant's `components/` the mosaic of small irregular blocks becomes named, orderly quarters of
+rectangular blocks, each square to its own frame, so the grid never runs the width of the town; long straight roads stay at 3 and
+lots without room fall from 13 to 9. React's `packages/` reads tidier but gains long roads (6 to 9). On typescript, whose
+children are not comparable, quarters lump `core`, `ls` and `checker` into one tint and the districts lose identity.
+Verdict: keep opt-in for wide, flat fan-outs (home-assistant `components/`, linux `drivers/`); refine the trigger from
+7 effective children to a few dozen before it could be adopted.
+
+**Tiers** (`img/towns-tiers-<repo>.webp`). Hamlet, village, town, city, metropolis by decade of a town's mass (30, 300,
+3,000, 30,000), moving up at a threshold times 1.25 and down at a threshold divided by 1.25. The tier sets the class of
+the town's first cut (a hamlet's is a street, a city's a boulevard); every other cut, nested folders' included, stays
+at least one class below, so a town has one road of its top class. Home-assistant loses its second boulevard (share 3%
+to 1%), typescript's nested avenues become collectors (avenue share 13.7% to 5%); takken.io and rust do not change,
+because the approved mass rule already gives small towns no boulevards. The difference is easy to miss by eye.
+Verdict: adopt as a rule rather than a form; it fixes the stated "at most one boulevard" with no cost in stability.
+
+The forms combine (`archetypes: ["corridor", "quarters", "tiers"]`); combinations were not judged here.
+
 ## Sheets
 
 - `img/area-<repo>.webp` - when judging lot size: file count, lines, bytes, shared lots; top row whole city, bottom a district
