@@ -1,4 +1,14 @@
-import { ROAD_WIDTH, UNIT, centroid, area2, type City, type Pt, type RoadClass } from "@citymap/ground-plan";
+import {
+  ROAD_WIDTH,
+  UNIT,
+  area2,
+  centroid,
+  cityRegions,
+  fnv1a,
+  type City,
+  type Pt,
+  type RoadClass,
+} from "@citymap/ground-plan";
 import { THEMES, type ThemeName } from "@citymap/themes";
 
 export type Camera = "plan" | "dimetric";
@@ -14,6 +24,8 @@ export interface RenderOptions {
   readonly highlight?: ReadonlySet<string>;
   /** Colour lots and blocks by their district form instead of by district. */
   readonly colourBy?: "district" | "form";
+  /** Fill each top-level folder's region (the land nearer its lots than any other's) beneath the blocks. */
+  readonly regions?: boolean;
 }
 
 const ORDER: readonly RoadClass[] = ["lane", "street", "collector", "avenue", "boulevard", "highway"];
@@ -56,6 +68,7 @@ export function renderCity(city: City, options: RenderOptions): string {
   const roadPath = (pts: readonly Pt[], cls: RoadClass, casing: boolean) =>
     `<path d="${line(pts)}" fill="none" stroke="${casing ? theme.casing : theme.road}" stroke-width="${sw(ROAD_WIDTH[cls] + (casing ? 16 : 0))}" stroke-linecap="butt" stroke-linejoin="round"/>`;
   const out: string[] = [`<rect width="${width}" height="${height}" fill="${theme.country}"/>`];
+  const regions = options.regions ? cityRegions(city) : [];
 
   city.towns.forEach((town, ti) => {
     const dash = town.old ? ` stroke-dasharray="${sw(80)} ${sw(48)}"` : "";
@@ -64,6 +77,10 @@ export function renderCity(city: City, options: RenderOptions): string {
       `<path d="${poly(town.outline)}" fill="${theme.ground}" stroke="${theme.outline}" stroke-width="${sw(32)}"${dash}/>`,
     );
     out.push(`<g clip-path="url(#town${ti})">`);
+    for (const region of regions[ti] ?? [])
+      out.push(
+        `<path class="region" d="${poly(region.pts)}" fill="${theme.block(fnv1a(region.path))}" stroke="${theme.outline}" stroke-width="${thin(0.6)}"/>`,
+      );
     for (const b of town.blocks) {
       if (b.kind === "reserve") {
         const [fill, stroke] = theme.reserve(b.district);
@@ -118,6 +135,10 @@ export function renderCity(city: City, options: RenderOptions): string {
         `<path d="${poly(lot.pts)}" fill="${fill}" stroke="${marked ? "#5A1A0A" : theme.ground}" stroke-width="${Math.min(0.8, 2.8 * scale).toFixed(2)}"/>`,
       );
     }
+    for (const region of regions[ti] ?? [])
+      out.push(
+        `<path class="region-edge" d="${poly(region.pts)}" fill="none" stroke="${theme.outline}" stroke-width="${thin(1.6)}" stroke-linejoin="round"/>`,
+      );
     out.push("</g>");
   });
   // Highways continue the roads they join: same class, same casing and fill, over the town edges.

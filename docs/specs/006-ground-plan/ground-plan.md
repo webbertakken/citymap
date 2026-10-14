@@ -201,8 +201,11 @@ Edges carry meaning:
 
 ## Organic layer
 
-A deterministic, topology-preserving layer bends the plan after layout: path-seeded jitter on splits, a smooth domain
-warp, Voronoi coastlines and district outlines. It never feeds back into the plat.
+A deterministic, topology-preserving layer bends the plan after layout: path-seeded jitter on splits and a smooth domain
+warp. It never feeds back into the plat.
+
+- Voronoi regions are a setting, off by default: each top-level folder of a town is drawn over the land nearer its lots
+  than any other folder's, filled beneath the blocks and outlined over them. Old towns keep their plain ground.
 
 ## Presentation
 

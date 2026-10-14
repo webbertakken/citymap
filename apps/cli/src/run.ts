@@ -102,6 +102,7 @@ export async function runLay(command: LayCommand, io: Io, lockEvery = LOCK_EVERY
         subtitle: `${target.slice(0, 12)} · ${laid.towns.length} towns · ${lots} lots · ${overflow} without room`,
         theme: command.theme,
         camera: command.camera,
+        regions: command.voronoi,
       }),
     );
   if (command.lock) saveLock(target, index);

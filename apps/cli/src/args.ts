@@ -18,6 +18,7 @@ export interface LayCommand {
   readonly jog: "off" | "top-level" | "all";
   readonly warp: boolean;
   readonly loops: boolean;
+  readonly voronoi: boolean;
   /** Workspace groups whose members each become a town. */
   readonly split: readonly string[];
 }
@@ -41,6 +42,7 @@ Folds the repository's first-parent history into its ground plan and writes the 
                       --split=apps,packages splits packages too; --split= splits none)
   --no-warp           draw the plan without its organic warp
   --no-loops          leave dead ends unjoined (default: nearby dead ends are joined by lanes)
+  --voronoi           fill each folder's region, the land nearer its lots than any other's, in the SVG
   --verbose           log every plan decision
   --help              show this help`;
 
@@ -82,6 +84,7 @@ export function parseCommandLine(argv: readonly string[]): Command {
     jog: oneOf("jog", values.jog, ["off", "top-level", "all"] as const),
     warp: !values["no-warp"],
     loops: !values["no-loops"],
+    voronoi: values.voronoi,
     split: values.split.split(",").filter((group) => group !== ""),
   };
 }
@@ -104,6 +107,7 @@ function parse(argv: readonly string[]) {
       jog: { type: "string", default: "top-level" },
       "no-warp": { type: "boolean", default: false },
       "no-loops": { type: "boolean", default: false },
+      voronoi: { type: "boolean", default: false },
       split: { type: "string", default: "apps" },
       help: { type: "boolean", default: false },
     },

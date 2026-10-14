@@ -175,6 +175,22 @@ follow the roads of each lay and move no lot.
    edge, or lying inside one) is skipped.
 4. Each kept pair becomes a lane from end to end. All tests are in integers (BigInt where squared terms pass 2^53).
 
+## Voronoi regions
+
+`cityRegions(city)` (`organic/regions.ts`), called by renderers when asked (the CLI's `--voronoi`, the SVG's `regions`):
+
+1. Per town that is not old: its root is `""` for the main town, else its key without the repository; each live lot with
+   a path below the root labels its centroid with the folder one level below the root.
+2. The town outline, densified every `U`, adds unlabelled ghost points, so every labelled cell closes inside the town.
+   Coincident points keep the first.
+3. `delaunay(points)` (`organic/delaunay.ts`): Bowyer-Watson over points in sorted order, a far super-triangle (1,000 ×
+   the span), exact BigInt orientation and in-circle tests (a cocircular point never breaks a triangle).
+4. Circumcentres are exact, rounded half up. Each Delaunay edge from a labelled point to a differently labelled one
+   gives the Voronoi edge from the far triangle's centre to the near one's, anticlockwise round the folder.
+5. A folder's edges chain into rings; its region is the largest ring (a folder split by another keeps its larger piece).
+6. The SVG fills each region beneath the blocks in the folder's block tint (`fnv1a(path)`) and strokes its edge over the
+   town's lots, both inside the town's clip.
+
 ## Organic layer
 
 When `options.warp`: `plat.diameter` is fixed at the first lay (`2 × isqrt(area2 / 2 × 113 / 355)`); the warp seed is

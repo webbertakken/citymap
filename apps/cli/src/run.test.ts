@@ -51,9 +51,13 @@ describe("runLay", () => {
   it("writes the city as JSON and SVG and logs a summary", async () => {
     const dir = repo(3);
     const { io, files, lines } = memoryIo();
-    const city = await runLay(command(dir, "--out=city.json", "--svg=map.svg", "--theme=night-atlas", "--verbose"), io);
+    const city = await runLay(
+      command(dir, "--out=city.json", "--svg=map.svg", "--theme=night-atlas", "--verbose", "--voronoi"),
+      io,
+    );
     expect(parseCity(files["city.json"]!)).toEqual(city);
     expect(files["map.svg"]).toContain("<svg ");
+    expect(files["map.svg"]).toContain(`class="region"`);
     expect(lines.at(-1)).toMatch(/^fold\/done repository=citymap-cli-\S+ commits=3 lots=36 overflow=0 ms=\d+$/);
     expect(lines.some((l) => l.startsWith("plat/grow"))).toBe(true);
   });

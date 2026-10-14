@@ -36,6 +36,20 @@ describe("renderCity", () => {
     expect(renderCity(city, { title: "demo", subtitle: "a twin" })).toBe(svg);
   });
 
+  it("fills each top-level folder's region beneath its blocks when asked, and none by default", () => {
+    const city = lay([...files("lib", 120), ...files("kit", 120, 400), ...files("misc", 60, 800)]);
+    expect(renderCity(city, { title: "t", subtitle: "s" })).not.toContain(`class="region"`);
+    const svg = renderCity(city, { title: "t", subtitle: "s", regions: true });
+    expect(svg.match(/class="region"/g)).toHaveLength(3);
+    // Regions lie beneath the blocks: the first region comes before the first block of its town.
+    expect(svg.indexOf(`class="region"`)).toBeLessThan(svg.indexOf(`stroke="${THEMES["paper-atlas"].casing}"`));
+    // Their edges are drawn over everything in the town, so a district's shape reads through its blocks and lots.
+    expect(svg.match(/class="region-edge"/g)).toHaveLength(3);
+    expect(svg.lastIndexOf(`class="region-edge"`)).toBeGreaterThan(
+      svg.lastIndexOf(`stroke="${THEMES["paper-atlas"].casing}"`),
+    );
+  });
+
   it.each(THEME_NAMES)("draws in the %s theme", (theme) => {
     const svg = renderCity(twin(), { title: "t", subtitle: "s", theme });
     expect(svg).toContain(`fill="${THEMES[theme].country}"`);

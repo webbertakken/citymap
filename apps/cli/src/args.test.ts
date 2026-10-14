@@ -18,6 +18,7 @@ describe("parseCommandLine", () => {
       jog: "top-level",
       warp: true,
       loops: true,
+      voronoi: false,
       split: ["apps"],
     });
   });
@@ -38,6 +39,7 @@ describe("parseCommandLine", () => {
       "--jog=all",
       "--no-warp",
       "--no-loops",
+      "--voronoi",
       "--split=apps,packages",
     ]);
     expect(parsed).toMatchObject({
@@ -53,6 +55,7 @@ describe("parseCommandLine", () => {
       jog: "all",
       warp: false,
       loops: false,
+      voronoi: true,
       split: ["apps", "packages"],
     });
     expect(parseCommandLine(["repo", "--split="])).toMatchObject({ split: [] });
