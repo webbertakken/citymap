@@ -200,6 +200,15 @@ Verdict: adopt as a rule rather than a form; it fixes the stated "at most one bo
 
 The forms combine (`archetypes: ["corridor", "quarters", "tiers"]`); combinations were not judged here.
 
+Owner decision: all four ship as toggles in a settings cog popover, each with this tooltip, word for word:
+
+| Toggle      | Default | Tooltip                                                                                                                                                            |
+| ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Corridor    | on      | when one folder holds nearly everything, the small folders beside it gather into one corner quarter behind a short avenue, instead of thin strips round the edge.  |
+| Archipelago | off     | a folder of packages becomes islands, one per package, with canals and bridges between them instead of roads.                                                      |
+| Quarters    | off     | many similar small folders are grouped into planned quarters, each a tidy grid of blocks square to its own outline, so you get neighbourhoods rather than stripes. |
+| Tiers       | on      | a town's size sets its widest road, and only one road per town gets that class; every other road is at least one class narrower.                                   |
+
 ## Sheets
 
 - `img/area-<repo>.webp` - when judging lot size: file count, lines, bytes, shared lots; top row whole city, bottom a district
