@@ -78,10 +78,10 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 
 ## Phase 7: viewer (`packages/scene`, `apps/web`)
 
-- [ ] Viewer blueprint (presentation, accessibility, web experience) derived from the spec's Presentation section
-- [ ] `packages/scene`: city model to Three.js geometry (instanced lots, merged roads, water, labels), framework free
-- [ ] `apps/web`: Next.js 16, React 19, react-three-fiber; dimetric and plan cameras; themes; phone layout
-- [ ] Local repository loading through the CLI's JSON (hosted import is later)
+- [x] Viewer blueprint (presentation, accessibility, web experience) derived from the spec's Presentation section
+- [x] `packages/scene`: city model to Three.js geometry (instanced lots, merged roads, water, labels), framework free
+- [x] `apps/web`: Next.js 16, React 19, react-three-fiber; dimetric and plan cameras; themes; phone layout
+- [x] Local repository loading through the CLI's JSON (hosted import is later)
 - [ ] Playwright end-to-end tests in dark mode; WCAG 2.2 AA checks; Core Web Vitals measured
 - [ ] Walkthrough on the wall; commit
 
@@ -95,9 +95,9 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 ## Phase 7b: workspaces from manifests, split groups, drill down
 
 - [x] Spec and blueprints: manifests, split groups (`apps/` by default), drill down
-- [ ] Engine: `Options.split` (default `["apps"]`), one town per member of a split group; plat setting key
-- [ ] Engine: members from `snapshot.workspaces` when present, else the path heuristic
-- [ ] History: read root workspace manifests at the commits that change them; parse every format; glob matching
-- [ ] CLI: `--split=<groups>` (default `apps`; `--split=apps,packages` splits packages too)
-- [ ] Viewer: drill down to a town and back; breadcrumb; panel action
-- [ ] Tests (unit, end to end), corpus check on livediagram and next.js, commit and push
+- [x] Engine: `Options.split` (default `["apps"]`), one town per member of a split group; plat setting key
+- [x] Engine: members from `snapshot.workspaces` when present, else the path heuristic
+- [x] History: read root workspace manifests at the commits that change them; parse every format; glob matching
+- [x] CLI: `--split=<groups>` (default `apps`; `--split=apps,packages` splits packages too)
+- [x] Viewer: drill down to a town and back; breadcrumb; panel action
+- [x] Tests (unit, end to end), corpus check on livediagram and next.js, commit and push
