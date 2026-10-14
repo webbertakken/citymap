@@ -151,9 +151,9 @@ Stability is plat mean moved per commit and on deleting commits, approved agains
 
 | Repo           | Window        | Approved   | Corridor   | Archipelago | Quarters   | Tiers      |
 | -------------- | ------------- | ---------- | ---------- | ----------- | ---------- | ---------- |
-| react          | 2017-06, 1200 | 0.2%, 2.8% | 0.2%, 2.7% | 0.2%, 3%    | 0.2%, 2.8% | 0.2%, 2.8% |
+| react          | 2017-06, 1200 | 0.2%, 2.8% | 0.2%, 2.7% | 0.2%, 3.3%  | 0.2%, 2.8% | 0.2%, 2.8% |
 | takken.io      | all, 239      | 0.7%, 4.7% | 0.7%, 4.7% |             |            | 0.7%, 4.7% |
-| game-ci-cli    | all, 612      | 0.5%, 4.2% |            | 0.6%, 5.5%  |            |            |
+| game-ci-cli    | all, 612      | 0.5%, 4.2% |            | 0.6%, 6%    |            |            |
 | livediagram    | 2025, 400     | 0%, 0%     |            | 0%, 0%      | 0%, 0%     |            |
 | next.js        | 2025, 300     | 0%, 0.1%   | 0%, 0.1%   | 0%, 0.1%    | 0%, 0.1%   | 0%, 0.1%   |
 | home-assistant | 2025, 300     | 0%, 0.1%   | 0%, 0.1%   |             | 0%, 0.1%   | 0%, 0.1%   |
@@ -172,12 +172,15 @@ to 19 and react from 5 to 0. Long straight roads stay level (home-assistant 3 to
 Verdict: adopt as an approved form; it removes a visible fault the approved forms cannot express.
 
 **Archipelago** (`img/towns-archipelago-<repo>.webp`). A folder of at least three packages (a manifest beside source)
-covering half its mass becomes islands: each package an island, the loose rest one mainland, every cut between them a
-canal with bridges. React's `packages/` reads as Venice and long straight roads fall from 6 to 2 (livediagram 9 to 5,
-next.js 18 to 13), but rust's 80 crates turn into a lattice of blue channels that reads as noise, the water blends with
-blue district tints, and lots without room rise on rust (51 to 57) and next.js (29 to 40). Deleting commits move a
-little more (game-ci-cli 4.2% to 5.5%, react 2.8% to 3%). Verdict: keep opt-in, refine: canals only at the island
-folder's top cuts, a water colour no district tint shares, and a ceiling of about a dozen islands.
+covering half its mass becomes islands, the loose rest one mainland, every cut between them a canal with bridges. More
+than a dozen packages share islands: they join in age order, an island closing at a dozenth of the packages' mass, and
+roads, not canals, run between packages on one island; the grouping is remembered in the plat. Canals are drawn a
+deeper, more saturated blue than a twin's river, so no pastel district tint matches them. React's `packages/` reads as
+Venice and long straight roads fall from 6 to 3 (livediagram 9 to 5, next.js 18 to 13); rust's 80 crates make about a
+dozen islands instead of a lattice of channels. Lots without room: rust 51 to 50, next.js 29 to 32, react 5 to 3,
+game-ci-cli 6 to 12. Deleting commits move a little more (game-ci-cli 4.2% to 6%, react 2.8% to 3.3%): a deleted
+package leaves its island smaller. Verdict: opt-in, off by default; it suits package monorepos and reads as decoration
+elsewhere.
 
 **Quarters** (`img/towns-quarters-<repo>.webp`). The answer to the gridiron's stripes: children small enough to
 flatten join planned quarters in age order, a quarter closing at about 24 blocks of land; quarters and the larger
