@@ -15,6 +15,8 @@ export interface CutRecord {
   n: Dir;
   c: number;
   cls: RoadClass;
+  /** The class whose width the cut's land was laid at: room for the class to grow without taking lots. */
+  row?: RoadClass;
   left: string[];
   right: string[];
   capLeft: number;
@@ -108,6 +110,7 @@ const townPlatSchema = v.strictObject({
       n: dirSchema,
       c: int,
       cls: v.picklist(ROAD_CLASSES),
+      row: v.exactOptional(v.picklist(ROAD_CLASSES)),
       left: strings,
       right: strings,
       capLeft: nat,

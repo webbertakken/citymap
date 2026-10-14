@@ -50,6 +50,15 @@ describe("renderCity", () => {
     );
   });
 
+  it("draws a road at its own width when its right of way narrows it", () => {
+    const city = twin();
+    const narrow = {
+      ...city,
+      towns: city.towns.map((t) => ({ ...t, roads: t.roads.map((r) => ({ ...r, width: 8 })) })),
+    };
+    expect(renderCity(narrow, { title: "t", subtitle: "s" })).not.toBe(renderCity(city, { title: "t", subtitle: "s" }));
+  });
+
   it.each(THEME_NAMES)("draws in the %s theme", (theme) => {
     const svg = renderCity(twin(), { title: "t", subtitle: "s", theme });
     expect(svg).toContain(`fill="${THEMES[theme].country}"`);

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { ROAD_WIDTH } from "../constants";
 import { emptyCtx, rect } from "../testing/fixtures";
 import type { Item } from "./context";
-import { decide } from "./cut";
+import { carriageway, decide, rightOfWay, split } from "./cut";
 
 const item = (key: string, demand: number): Item => ({
   kind: "lots",
@@ -67,5 +68,44 @@ describe("decide road classes", () => {
     const banks: [Item[], Item[]] = [[pair[0]!], [pair[1]!]];
     decide(ctx, pair, rect(1000, 1000), 1000, true, "river", undefined, banks);
     expect(decide(ctx, pair, rect(1000, 1000), 4_000_000, true, "river", undefined, banks)!.rec.cls).toBe("street");
+  });
+});
+
+describe("decide rights of way", () => {
+  const pair = [item("a", 1000), item("b", 1000)];
+
+  it("reserves the class the land reaches at the top of its band, and keeps it while the class follows the tier", () => {
+    const ctx = emptyCtx();
+    // 25,000 ‰ is a street; with room to grow by 1.35 it reaches 33,750, a collector's land.
+    const first = decide(ctx, pair, rect(1000, 1000), 25_000, true, "k")!;
+    expect([first.rec.cls, first.rec.row]).toEqual(["street", "collector"]);
+    expect(carriageway(first.rec)).toEqual({ cls: "street" });
+    // The land grows past the next tier: the class follows straight away, the reserve does not.
+    const grown = decide(ctx, pair, rect(1000, 1000), 400_000, true, "k")!;
+    expect([grown.rec.cls, grown.rec.row]).toEqual(["avenue", "collector"]);
+    expect(carriageway(grown.rec)).toEqual({ cls: "avenue", width: ROAD_WIDTH.collector });
+  });
+
+  it("lays the reserve afresh whenever the cut moves, and reads a reserve-less cut as its own class", () => {
+    const ctx = emptyCtx();
+    decide(ctx, pair, rect(1000, 1000), 25_000, true, "k");
+    decide(ctx, pair, rect(1000, 1000), 400_000, true, "k");
+    // One side outgrows its band: the cut is laid again, its reserve with it.
+    const moved = decide(ctx, [item("a", 5000), item("b", 1000)], rect(1000, 1000), 400_000, true, "k")!;
+    expect(moved.rec.row).toBe("avenue");
+    const { row: _, ...older } = moved.rec;
+    expect(rightOfWay(older)).toBe(moved.rec.cls);
+  });
+
+  it("lays a road no wider than its reserve once its class outgrows it, and keeps a river's reserve its own", () => {
+    const ctx = emptyCtx();
+    decide(ctx, pair, rect(1000, 1000), 25_000, true, "k");
+    split(ctx, pair, rect(1000, 1000), 400_000, true, "k", "d");
+    expect(ctx.roads).toContainEqual(expect.objectContaining({ cls: "avenue", width: ROAD_WIDTH.collector }));
+    const banks: [Item[], Item[]] = [[pair[0]!], [pair[1]!]];
+    decide(ctx, pair, rect(1000, 1000), 25_000, true, "river", undefined, banks);
+    const grown = [item("a", 5000), item("b", 1000)];
+    const moved = decide(ctx, grown, rect(1000, 1000), 25_000, true, "river", undefined, [[grown[0]!], [grown[1]!]])!;
+    expect(moved.rec.row).toBe(moved.rec.cls);
   });
 });

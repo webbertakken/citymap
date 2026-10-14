@@ -23,13 +23,16 @@ const grow = (demand: number) => roundDiv(demand * GROWTH_PCT, 100);
  * while the other side holds more than its share: the land around the line changed shape, not the demand.
  */
 function starved(poly: Poly, r: CutRecord, dl: number, dr: number): boolean {
-  const total = BigInt(area2(poly.p));
-  const left = BigInt(area2(clip(poly, r.n, r.c, 0).p));
+  // Each side's land as laid: its part of the land, less its half of the road's right of way.
+  const width = ROAD_WIDTH[rightOfWay(r)];
+  const left = BigInt(area2(clip(poly, r.n, r.c, width).p));
+  const right = BigInt(area2(clip(poly, negate(r.n), -r.c, width).p));
+  const total = left + right;
   const demand = BigInt(dl + dr);
   const band = BigInt(GROWTH_PCT);
   // left / total < (dl / demand) × 100 / band, and the same for the right, in integers.
   const short = (land: bigint, own: number) => land * demand * band < BigInt(own) * total * 100n;
-  return short(left, dl) || short(total - left, dr);
+  return short(left, dl) || short(right, dr);
 }
 
 /** Road classes by tier (hamlet, village, town, city): a folder's first cut, and its others one class lower. */
@@ -40,6 +43,21 @@ const OTHER_CLASS: readonly RoadClass[] = ["street", "street", "collector", "ave
 export function cutClass(massMille: number, first: boolean): RoadClass {
   const tier = TIER_MASS_MILLE.filter((threshold) => massMille >= threshold).length;
   return (first ? FIRST_CLASS : OTHER_CLASS)[tier]!;
+}
+
+/** The class a cut's land is laid at: room for the land at the top of its band, so a reclass takes no lots. */
+const reserveFor = (massMille: number, first: boolean) => cutClass(floorDiv(massMille * GROWTH_PCT, 100), first);
+
+/** The class whose width a cut's land was laid at; a cut laid before rights of way existed has its own class. */
+export const rightOfWay = (rec: { readonly cls: RoadClass; readonly row?: RoadClass }) => rec.row ?? rec.cls;
+
+/** The road a cut draws: its class, no wider than its right of way (a wider class waits for the cut to be laid again). */
+export function carriageway(rec: { readonly cls: RoadClass; readonly row?: RoadClass }): {
+  cls: RoadClass;
+  width?: number;
+} {
+  const room = ROAD_WIDTH[rightOfWay(rec)];
+  return ROAD_WIDTH[rec.cls] > room ? { cls: rec.cls, width: room } : { cls: rec.cls };
 }
 
 /** A laid road's class as its land's mass moves: a tier up past its threshold × the band, down below it ÷ the band. */
@@ -156,6 +174,7 @@ export function decide(
       n,
       c: offsetFor(poly, n, demandOf(left), total),
       cls: cutClass(massMille, first),
+      row: assign ? cutClass(massMille, first) : reserveFor(massMille, first),
       left: left.map((i) => i.key),
       right: right.map((i) => i.key),
       capLeft: grow(demandOf(left)),
@@ -189,6 +208,8 @@ export function decide(
           capRight: r.capRight,
         });
         r.c = offsetFor(poly, r.n, dl, dl + dr);
+        // Laid again: the road takes its class's width, and room for the land at the top of its new band.
+        r.row = r.river ? r.cls : reserveFor(massMille, first);
         r.capLeft = grow(dl);
         r.capRight = grow(dr);
       } else {
@@ -227,9 +248,10 @@ export function split(
     const [part, sub] = left.length > 0 ? [left, `${key}>L`] : [right, `${key}>R`];
     return split(ctx, part, poly, massOf(part), false, sub, major ? seedKey(sub) : district);
   }
-  road(ctx, chord(poly.p, r.n, r.c), r.cls);
+  const drawn = carriageway(r);
+  road(ctx, chord(poly.p, r.n, r.c), drawn.cls, drawn.width);
   if (major) wards(ctx, poly, r, left, right, key);
-  const width = ROAD_WIDTH[r.cls];
+  const width = ROAD_WIDTH[rightOfWay(r)];
   split(
     ctx,
     left,
@@ -305,9 +327,10 @@ function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, distric
   const sRight = r.c - (sigma * JOG * DIRECTION) / 2;
   const lo = Math.min(t1, t2);
   const hi = Math.max(t1, t2);
-  const wMain = ROAD_WIDTH[r.cls];
-  const wBelow = ROAD_WIDTH[below.rec.cls];
-  const wAbove = ROAD_WIDTH[above.rec.cls];
+  const wMain = ROAD_WIDTH[rightOfWay(r)];
+  const wBelow = ROAD_WIDTH[rightOfWay(below.rec)];
+  const wAbove = ROAD_WIDTH[rightOfWay(above.rec)];
+  const [main, low, high] = [carriageway(r), carriageway(below.rec), carriageway(above.rec)];
   const nm = negate(m);
   const nr = negate(r.n);
   const pieces: [Item[], Poly, string, CutRecord][] = [
@@ -320,10 +343,10 @@ function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, distric
   const sHi = Math.max(sLeft, sRight);
   const along = (c: number) => chord(poly.p, r.n, c);
   const across = (c: number) => chord(poly.p, m, c);
-  road(ctx, trim(along(sLeft), m, null, hi), r.cls);
-  road(ctx, trim(along(sRight), m, lo, null), r.cls);
-  road(ctx, trim(across(t1), r.n, null, sHi), below.rec.cls);
-  road(ctx, trim(across(t2), r.n, sLo, null), above.rec.cls);
+  road(ctx, trim(along(sLeft), m, null, hi), main.cls, main.width);
+  road(ctx, trim(along(sRight), m, lo, null), main.cls, main.width);
+  road(ctx, trim(across(t1), r.n, null, sHi), low.cls, low.width);
+  road(ctx, trim(across(t2), r.n, sLo, null), high.cls, high.width);
   const plazaLand = clip(
     clip(clip(clip(poly, m, hi, t1 > t2 ? wBelow : wAbove), nm, -lo, t1 > t2 ? wAbove : wBelow), r.n, sHi, wMain),
     nr,

@@ -1,6 +1,6 @@
 import {
-  ROAD_WIDTH,
   UNIT,
+  roadWidth,
   area2,
   centroid,
   cityRegions,
@@ -65,8 +65,8 @@ export function renderCity(city: City, options: RenderOptions): string {
   const line = (pts: readonly Pt[]) => `M${pts.map(px).join("L")}`;
   const sw = (w: number) => (w * scale * (dimetric ? 0.85 : 1)).toFixed(2);
   const thin = (w: number) => Math.max(0.5, w * scale * (UNIT / 8)).toFixed(2);
-  const roadPath = (pts: readonly Pt[], cls: RoadClass, casing: boolean) =>
-    `<path d="${line(pts)}" fill="none" stroke="${casing ? theme.casing : theme.road}" stroke-width="${sw(ROAD_WIDTH[cls] + (casing ? 16 : 0))}" stroke-linecap="butt" stroke-linejoin="round"/>`;
+  const roadPath = (pts: readonly Pt[], road: number, casing: boolean) =>
+    `<path d="${line(pts)}" fill="none" stroke="${casing ? theme.casing : theme.road}" stroke-width="${sw(road + (casing ? 16 : 0))}" stroke-linecap="butt" stroke-linejoin="round"/>`;
   const out: string[] = [`<rect width="${width}" height="${height}" fill="${theme.country}"/>`];
   const regions = options.regions ? cityRegions(city) : [];
 
@@ -103,8 +103,8 @@ export function renderCity(city: City, options: RenderOptions): string {
       out.push(`<path d="${poly(w)}" fill="${theme.water}" stroke="${theme.waterline}" stroke-width="${thin(0.6)}"/>`);
     // Roads: every casing, then every fill, smallest class first, so junctions merge.
     const roads = town.roads.toSorted((a, b) => ORDER.indexOf(a.cls) - ORDER.indexOf(b.cls));
-    for (const r of roads) out.push(roadPath(r.pts, r.cls, true));
-    for (const r of roads) out.push(roadPath(r.pts, r.cls, false));
+    for (const r of roads) out.push(roadPath(r.pts, roadWidth(r), true));
+    for (const r of roads) out.push(roadPath(r.pts, roadWidth(r), false));
     const lots = dimetric
       ? town.lots.toSorted((a, b) => {
           const ca = centroid(a.pts);
@@ -142,8 +142,8 @@ export function renderCity(city: City, options: RenderOptions): string {
     out.push("</g>");
   });
   // Highways continue the roads they join: same class, same casing and fill, over the town edges.
-  for (const h of city.highways) out.push(roadPath(h.pts, h.cls, true));
-  for (const h of city.highways) out.push(roadPath(h.pts, h.cls, false));
+  for (const h of city.highways) out.push(roadPath(h.pts, roadWidth(h), true));
+  for (const h of city.highways) out.push(roadPath(h.pts, roadWidth(h), false));
 
   // Labels: towns, then districts by mass; a label that would overlap one already placed is left out.
   const placed: [number, number, number, number][] = [];

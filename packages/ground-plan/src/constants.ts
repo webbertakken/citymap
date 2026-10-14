@@ -13,6 +13,10 @@ export const ROAD_WIDTH: Readonly<Record<RoadClass, number>> = {
   highway: 176,
 };
 
+/** A road's drawn width: its own, when its right of way caps it, else its class's. */
+export const roadWidth = (road: { readonly cls: RoadClass; readonly width?: number }) =>
+  road.width ?? ROAD_WIDTH[road.cls];
+
 /** One local street width. */
 export const U = 64;
 export const BLOCK_SHORT = 6 * U;

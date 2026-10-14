@@ -1,6 +1,6 @@
 import {
-  ROAD_WIDTH,
   UNIT,
+  roadWidth,
   type BlockKind,
   type City,
   type LandUse,
@@ -94,8 +94,8 @@ export function pickIndex(city: City): PickIndex {
       town,
       name,
     });
-  const road = (pts: readonly Pt[], cls: RoadClass, town: string | null, townKey: string | null) => {
-    const half = ROAD_WIDTH[cls] / 2;
+  const road = (pts: readonly Pt[], cls: RoadClass, width: number, town: string | null, townKey: string | null) => {
+    const half = width / 2;
     entries.push({
       layer: 2,
       pts,
@@ -127,12 +127,12 @@ export function pickIndex(city: City): PickIndex {
         district,
         block: b.kind,
       }));
-    for (const r of t.roads) road(r.pts, r.cls, t.name, t.key);
+    for (const r of t.roads) road(r.pts, r.cls, roadWidth(r), t.name, t.key);
     for (const d of t.districts.filter((x) => !x.ward))
       polygon(3, d.pts, t.name, d.name, () => ({ kind: "district", town: t.name, townKey: t.key, district: d.name }));
     polygon(4, t.outline, t.name, t.name, () => ({ kind: "town", town: t.name, townKey: t.key }));
   }
-  for (const h of city.highways) road(h.pts, h.cls, null, null);
+  for (const h of city.highways) road(h.pts, h.cls, roadWidth(h), null, null);
   const cells = new Map<string, Entry[]>();
   for (const e of entries)
     for (let cx = Math.floor(e.box[0] / CELL); cx <= Math.floor(e.box[2] / CELL); cx++)

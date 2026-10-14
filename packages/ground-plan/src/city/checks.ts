@@ -6,7 +6,11 @@ import { int, nat } from "../plat/schema";
 
 export const ptSchema = v.strictObject({ x: int, y: int });
 const ptsSchema = v.array(ptSchema);
-export const roadSchema = v.strictObject({ pts: ptsSchema, cls: v.picklist(ROAD_CLASSES) });
+export const roadSchema = v.strictObject({
+  pts: ptsSchema,
+  cls: v.picklist(ROAD_CLASSES),
+  width: v.exactOptional(nat),
+});
 
 export const townSchema = v.strictObject({
   key: v.string(),

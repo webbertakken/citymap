@@ -97,8 +97,8 @@ export interface Ctx {
 export const emit = (ctx: Ctx, code: string, detail: Record<string, string | number>) =>
   ctx.events.push({ code, detail });
 
-export const road = (ctx: Ctx, pts: readonly Pt[] | null, cls: RoadClass) => {
-  if (pts) ctx.roads.push({ pts: [...pts], cls });
+export const road = (ctx: Ctx, pts: readonly Pt[] | null, cls: RoadClass, width?: number) => {
+  if (pts) ctx.roads.push(width === undefined ? { pts: [...pts], cls } : { pts: [...pts], cls, width });
 };
 
 export const massOf = (items: readonly Item[]) => items.reduce((sum, i) => sum + i.massMille, 0);

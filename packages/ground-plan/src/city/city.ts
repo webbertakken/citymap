@@ -6,6 +6,8 @@ import type { LandUse } from "../land-use/land-use";
 export interface Road {
   readonly pts: readonly Pt[];
   readonly cls: RoadClass;
+  /** Fixed units, when the road is drawn narrower than its class: a class that outgrew its right of way. */
+  readonly width?: number;
 }
 
 export type BlockKind = "built" | "reserve" | "park" | "plaza" | "green";

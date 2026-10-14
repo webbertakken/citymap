@@ -1,6 +1,6 @@
 // Loop connectors: lanes joining street ends that stop near each other, so the grid has no needless dead ends.
 import type { Road } from "../city/city";
-import { PAVEMENT, ROAD_WIDTH, U } from "../constants";
+import { PAVEMENT, U, roadWidth } from "../constants";
 import type { Pt } from "../fixed/polygon";
 
 /** Two dead ends at most this far apart are joined: three street widths. */
@@ -79,7 +79,7 @@ export function loopConnectors(
       ? [road.pts[0]!, road.pts[road.pts.length - 1]!]
           .filter(
             (p) =>
-              !roads.some((other, o) => o !== r && nearPath(p, other.pts, ROAD_WIDTH[other.cls] / 2 + TOUCH)) &&
+              !roads.some((other, o) => o !== r && nearPath(p, other.pts, roadWidth(other) / 2 + TOUCH)) &&
               !nearPath(p, outline, EDGE, true),
           )
           .map((p) => ({ p, r }))

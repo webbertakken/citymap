@@ -105,6 +105,12 @@ describe("pick", () => {
     expect(at(7000, 6010)).toEqual({ kind: "road", town: null, townKey: null, cls: "street" });
   });
 
+  it("takes a road's own width when its right of way narrows it", () => {
+    const narrow: City = { ...city, towns: [{ ...town, roads: [{ ...town.roads[0]!, width: 30 }] }] };
+    expect(pick(pickIndex(narrow), 1000 / 64, -3210 / 64)).toMatchObject({ kind: "road" });
+    expect(pick(pickIndex(narrow), 1000 / 64, -3220 / 64)).not.toMatchObject({ kind: "road" });
+  });
+
   it("names the district, then the town, where nothing else is", () => {
     expect(at(3000, 3000)).toEqual({ kind: "district", town: "demo", townKey: "k/demo", district: "core" });
     expect(at(3000, 5000)).toEqual({ kind: "town", town: "demo", townKey: "k/demo" });

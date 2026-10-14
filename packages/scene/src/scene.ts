@@ -1,4 +1,4 @@
-import { ROAD_WIDTH, UNIT, area2, centroid, type City, type Pt } from "@citymap/ground-plan";
+import { UNIT, area2, roadWidth, centroid, type City, type Pt } from "@citymap/ground-plan";
 import type { Theme } from "@citymap/themes";
 
 /** One drawable layer: vertex positions and colours (three floats each) and triangle indices. */
@@ -194,8 +194,8 @@ export function buildScene(city: City, theme: Theme): Scene {
     labels.push({ text: town.name.toUpperCase(), x: heart.x / UNIT, z: 0 - heart.y / UNIT, size: "town" });
   }
   for (const r of roadsOf) {
-    for (const quad of roadRibbon(r.pts, ROAD_WIDTH[r.cls] + CASING)) casings.flat(quad, theme.casing, HEIGHT.casings);
-    for (const quad of roadRibbon(r.pts, ROAD_WIDTH[r.cls])) roads.flat(quad, theme.road, HEIGHT.roads);
+    for (const quad of roadRibbon(r.pts, roadWidth(r) + CASING)) casings.flat(quad, theme.casing, HEIGHT.casings);
+    for (const quad of roadRibbon(r.pts, roadWidth(r))) roads.flat(quad, theme.road, HEIGHT.roads);
   }
   // Districts as the SVG renderer labels them: the heaviest sixty, large enough to read, upper case when major.
   const districts = city.towns.flatMap((t) => t.districts).toSorted((a, b) => b.massMille - a.massMille);
