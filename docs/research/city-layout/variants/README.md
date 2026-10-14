@@ -209,6 +209,9 @@ Owner decision: all four ship as toggles in a settings cog popover, each with th
 | Quarters    | off     | many similar small folders are grouped into planned quarters, each a tidy grid of blocks square to its own outline, so you get neighbourhoods rather than stripes. |
 | Tiers       | on      | a town's size sets its widest road, and only one road per town gets that class; every other road is at least one class narrower.                                   |
 
+The cog switches between precomputed variants: the command-line tool lays every combination of the four toggles (16
+cities per repository) and the viewer loads the one the toggles name.
+
 ## Sheets
 
 - `img/area-<repo>.webp` - when judging lot size: file count, lines, bytes, shared lots; top row whole city, bottom a district
