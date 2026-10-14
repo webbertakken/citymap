@@ -120,9 +120,10 @@ therefore readable as distance from the core, and newcomers join the edges.
   which extends over it; the cut stays remembered and nothing already laid moves. A cut moves, to the split of today's
   demand, only when a side outgrows its band. This holds at every level, the top two folder levels included.
 - The plat remembers every neighbourhood: its grid origin, angle and pitch, its lot class, its park line, and the slot
-  of every lot; a park line that no longer crosses its land is laid afresh. Lots keep their slots; a newcomer takes the
-  first free slot after its folder's last lot. Cells come and go only with the neighbourhood's land; a lot whose slot is
-  gone takes a free one.
+  of every lot; a park line that no longer crosses its land is laid afresh, and so is one whose park grew over the land
+  the lots need, when they no longer fit and a fresh line seats them. Lots keep their slots; a newcomer takes the first
+  free slot after its folder's last lot. Cells come and go only with the neighbourhood's land; a lot whose slot is gone
+  takes a free one.
 - Shared lots remember their members: a new file joins a lot with room, and a lot keeps its place while any member
   lives.
 - A town keeps its outline until its land outgrows 1.35 times its land at the last growth, then grows outward about the

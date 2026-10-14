@@ -152,6 +152,32 @@ function layGrid(g: GridRecord, land: readonly Pt[]): Laid {
   return { cells, rows: [rMin, rMax], cols: [cMin, cMax], slotsFor };
 }
 
+/** A neighbourhood's land split by its park line: the line, the park strip, and the land left for lots. */
+function parkSplit(
+  raw: Poly,
+  parkDemand: number,
+  remembered: GridRecord["park"],
+): { line: GridRecord["park"]; strip: Poly | null; land: Pt[] } {
+  if (parkDemand <= 0) return { line: null, strip: null, land: [...inset(raw, PAVEMENT).p] };
+  // A strip of park along the far side, cut off by a footpath, sized to the park's demand within its cap.
+  let line = remembered;
+  if (!line) {
+    const total2 = area2(raw.p);
+    const n = perp(longestEdge(raw.p));
+    const num = Math.min(2 * parkDemand * 1000, total2 * PARK_CAP);
+    line = { n, c: -offsetFor(raw, negate(n), num, total2 * 1000) };
+  }
+  return {
+    line,
+    strip: inset(clip(raw, negate(line.n), -line.c, ROAD_WIDTH.lane), PAVEMENT),
+    land: [...inset(clip(raw, line.n, line.c, ROAD_WIDTH.lane), PAVEMENT).p],
+  };
+}
+
+function pushPark(ctx: Ctx, strip: Poly | null, district: string) {
+  if (strip && strip.p.length >= 3) ctx.blocks.push({ pts: [...strip.p], district, kind: "park" });
+}
+
 /** A neighbourhood: one block grid holding all its lots, remembered between commits. */
 export function neighbourhood(
   ctx: Ctx,
@@ -163,25 +189,12 @@ export function neighbourhood(
   form: FlatForm,
 ) {
   let grid: GridRecord | undefined = ctx.plat.grids[key];
-  let poly = raw;
-  let parkLine: GridRecord["park"] = null;
-  let parkStrip: Poly | null = null;
-  if (parkDemand > 0) {
-    // A strip of park along the far side, cut off by a footpath; its line is remembered.
-    // A remembered line that no longer crosses the land (a cut above it moved) is laid afresh.
-    parkLine = grid?.park && chord(raw.p, grid.park.n, grid.park.c) ? grid.park : null;
-    if (!parkLine) {
-      const total2 = area2(raw.p);
-      const n = perp(longestEdge(raw.p));
-      const num = Math.min(2 * parkDemand * 1000, total2 * PARK_CAP);
-      parkLine = { n, c: -offsetFor(raw, negate(n), num, total2 * 1000) };
-    }
-    parkStrip = inset(clip(raw, negate(parkLine.n), -parkLine.c, ROAD_WIDTH.lane), PAVEMENT);
-    poly = clip(raw, parkLine.n, parkLine.c, ROAD_WIDTH.lane);
-  }
-  if (parkStrip && parkStrip.p.length >= 3) ctx.blocks.push({ pts: [...parkStrip.p], district, kind: "park" });
-  const land = inset(poly, PAVEMENT).p;
+  // A remembered park line is kept while it crosses the land; one that no longer does is laid afresh.
+  const rememberedPark = grid?.park && chord(raw.p, grid.park.n, grid.park.c) ? grid.park : null;
+  let split = parkSplit(raw, parkDemand, rememberedPark);
+  let land = split.land;
   if (land.length < 3 || area2(land) < 2) {
+    pushPark(ctx, split.strip, district);
     ctx.overflow += lots.length;
     if (lots.length > 0) emit(ctx, "town/overflow", { key, count: lots.length });
     return;
@@ -190,7 +203,7 @@ export function neighbourhood(
     grid = freshGrid(land);
     ctx.plat.grids[key] = grid;
   }
-  grid.park = parkLine;
+  grid.park = split.line;
   let g = grid;
   let laid = layGrid(g, land);
   if (g.span > 1 && laid.slotsFor(g.span).length < lots.length) {
@@ -200,12 +213,27 @@ export function neighbourhood(
     emit(ctx, "plat/narrow", { key, from, to: g.span });
     g.slots = {};
   }
+  if (rememberedPark && g.span > 0 && laid.slotsFor(g.span).length < lots.length) {
+    // A park line laid on smaller land may hold most of the land it grew into: lay it afresh, with a fresh grid, when
+    // that seats more lots.
+    const fresh = parkSplit(raw, parkDemand, null);
+    const freshGridRecord = fresh.land.length >= 3 ? { ...freshGrid(fresh.land), park: fresh.line } : null;
+    if (freshGridRecord && layGrid(freshGridRecord, fresh.land).slotsFor(1).length > laid.slotsFor(g.span).length) {
+      emit(ctx, "plat/repark", { key });
+      split = fresh;
+      land = fresh.land;
+      g = freshGridRecord;
+      ctx.plat.grids[key] = g;
+      laid = layGrid(g, land);
+    }
+  }
+  pushPark(ctx, split.strip, district);
   if (g.span > 0 && laid.slotsFor(g.span).length < lots.length) {
     // The cuts around it moved its land off the grid: lay the grid afresh when a fresh one seats more lots.
     const fresh = freshGrid(land);
     if (layGrid(fresh, land).slotsFor(1).length > laid.slotsFor(g.span).length) {
       emit(ctx, "plat/regrid", { key });
-      g = { ...fresh, park: parkLine };
+      g = { ...fresh, park: split.line };
       ctx.plat.grids[key] = g;
       laid = layGrid(g, land);
     }

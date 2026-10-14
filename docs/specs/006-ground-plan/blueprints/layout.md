@@ -137,7 +137,10 @@ recurse as `path>L`, `path>R` with their own district seeds.
    one-module slots still hold every lot); `span` = modules in the blocks the lots need ÷ lots, 1 to `MAX_CLASS`,
    narrowed until every lot fits. Later lays: when the slots at `span` hold fewer than the lots, `span` narrows until
    they fit (or reaches 1), the remembered slots clear, and `plat/narrow` is logged (key, from, to). Then, when the
-   slots still hold fewer than the lots and a fresh grid on today's land holds more, the grid record is dropped and the
+   slots still hold fewer than the lots and the park line is a remembered one, a fresh park line (sized to today's park
+   demand) with a fresh grid on the land it leaves is tried: when it holds more lots, both are kept and `plat/repark` is
+   logged (key); a line laid on small land can otherwise keep most of the land it grew into. Then, when the slots still
+   hold fewer than the lots and a fresh grid on today's land holds more, the grid record is dropped and the
    neighbourhood lays afresh, logging `plat/regrid` (key). Nothing is drawn until this is settled.
 8. Street village order: slots by row distance from `high`, then serpentine index.
 9. Renewal: when remembered keys that are vacant are more than half of all remembered, log `plat/renew` and clear the

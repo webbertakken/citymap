@@ -59,19 +59,20 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
 Every decision point emits a structured event, collected in `events` and printed by the CLI with `--verbose`; the
 fingerprint is the first token:
 
-| Event                    | When                                                          |
-| ------------------------ | ------------------------------------------------------------- |
-| `plat/switch`            | a folder's form changes (path, from, to, mass)                |
-| `plat/recut`             | a remembered cut moves (key, demands, caps)                   |
-| `plat/radial-resector`   | a radial layout re-sectors (path)                             |
-| `plat/renew`             | a neighbourhood renews (key, vacant, remembered)              |
-| `plat/narrow`            | a neighbourhood narrows its lot class (key, from, to)         |
-| `plat/regrid`            | a neighbourhood lays its grid afresh (key)                    |
-| `plat/grow`              | a town's outline grows (key, from, to)                        |
-| `plat/old-town`          | an archetype switch freezes an old town (key, from, to, lots) |
-| `plat/forget`            | remembered records are dropped (key, count)                   |
-| `town/overflow`          | lots without room (key, count)                                |
-| `history/skip-submodule` | a submodule entry is skipped (path)                           |
+| Event                    | When                                                             |
+| ------------------------ | ---------------------------------------------------------------- |
+| `plat/switch`            | a folder's form changes (path, from, to, mass)                   |
+| `plat/recut`             | a remembered cut moves (key, demands, caps)                      |
+| `plat/radial-resector`   | a radial layout re-sectors (path)                                |
+| `plat/renew`             | a neighbourhood renews (key, vacant, remembered)                 |
+| `plat/narrow`            | a neighbourhood narrows its lot class (key, from, to)            |
+| `plat/regrid`            | a neighbourhood lays its grid afresh (key)                       |
+| `plat/repark`            | a neighbourhood lays its park line afresh to seat its lots (key) |
+| `plat/grow`              | a town's outline grows (key, from, to)                           |
+| `plat/old-town`          | an archetype switch freezes an old town (key, from, to, lots)    |
+| `plat/forget`            | remembered records are dropped (key, count)                      |
+| `town/overflow`          | lots without room (key, count)                                   |
+| `history/skip-submodule` | a submodule entry is skipped (path)                              |
 
 Each run ends with one summary line: `fold/done repository=… commits=… lots=… overflow=… ms=…`.
 
