@@ -9,7 +9,7 @@ const box = (x0: number, y0: number, x1: number, y1: number): Pt[] => [
   { x: x0, y: y1 },
 ];
 const town: Town = {
-  key: "demo",
+  key: "k/demo",
   name: "demo",
   form: "polycentric",
   old: false,
@@ -76,6 +76,7 @@ describe("pick", () => {
     expect(at(736, 800)).toEqual({
       kind: "lot",
       town: "demo",
+      townKey: "k/demo",
       district: "core",
       path: "src/a.ts",
       use: "source",
@@ -89,18 +90,24 @@ describe("pick", () => {
   });
 
   it("names a block by its kind when no lot is there", () => {
-    expect(at(2000, 2000)).toEqual({ kind: "block", town: "demo", district: "core", block: "built" });
-    expect(at(4000, 1000)).toEqual({ kind: "block", town: "demo", district: "src", block: "park" });
+    expect(at(2000, 2000)).toEqual({
+      kind: "block",
+      town: "demo",
+      townKey: "k/demo",
+      district: "core",
+      block: "built",
+    });
+    expect(at(4000, 1000)).toEqual({ kind: "block", town: "demo", townKey: "k/demo", district: "src", block: "park" });
   });
 
   it("names a road by its class, highways included", () => {
-    expect(at(1000, 3220)).toEqual({ kind: "road", town: "demo", cls: "avenue" });
-    expect(at(7000, 6010)).toEqual({ kind: "road", town: null, cls: "street" });
+    expect(at(1000, 3220)).toEqual({ kind: "road", town: "demo", townKey: "k/demo", cls: "avenue" });
+    expect(at(7000, 6010)).toEqual({ kind: "road", town: null, townKey: null, cls: "street" });
   });
 
   it("names the district, then the town, where nothing else is", () => {
-    expect(at(3000, 3000)).toEqual({ kind: "district", town: "demo", district: "core" });
-    expect(at(3000, 5000)).toEqual({ kind: "town", town: "demo" });
+    expect(at(3000, 3000)).toEqual({ kind: "district", town: "demo", townKey: "k/demo", district: "core" });
+    expect(at(3000, 5000)).toEqual({ kind: "town", town: "demo", townKey: "k/demo" });
   });
 
   it("finds nothing off the map", () => {
@@ -146,13 +153,19 @@ describe("pick at the edges of shapes", () => {
   const there = (x: number, y: number) => pick(index, x / 64, -y / 64);
 
   it("looks past a shape whose box holds the point but whose outline does not", () => {
-    expect(there(3600, 3600)).toEqual({ kind: "block", town: "demo", district: null, block: "plaza" });
-    expect(there(5900, 5900)).toEqual({ kind: "town", town: "demo" });
+    expect(there(3600, 3600)).toEqual({
+      kind: "block",
+      town: "demo",
+      townKey: "k/demo",
+      district: null,
+      block: "plaza",
+    });
+    expect(there(5900, 5900)).toEqual({ kind: "town", town: "demo", townKey: "k/demo" });
   });
 
   it("looks past a road whose box holds the point but whose line passes by, and reads a road of one point", () => {
-    expect(there(1900, 4100)).toEqual({ kind: "town", town: "demo" });
-    expect(there(1150, 4850)).toEqual({ kind: "road", town: "demo", cls: "street" });
-    expect(there(1005, 1005)).toEqual({ kind: "road", town: "demo", cls: "lane" });
+    expect(there(1900, 4100)).toEqual({ kind: "town", town: "demo", townKey: "k/demo" });
+    expect(there(1150, 4850)).toEqual({ kind: "road", town: "demo", townKey: "k/demo", cls: "street" });
+    expect(there(1005, 1005)).toEqual({ kind: "road", town: "demo", townKey: "k/demo", cls: "lane" });
   });
 });

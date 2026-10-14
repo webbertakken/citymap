@@ -11,6 +11,9 @@ export interface TopBarProps {
   readonly selected: string;
   readonly mode: Mode;
   readonly theme: ThemeName;
+  /** The name of the one town shown, or null for the whole city. */
+  readonly town: string | null;
+  readonly onWhole: () => void;
   readonly onCity: (file: string) => void;
   readonly onFile: (file: File) => void;
   readonly onMode: (mode: Mode) => void;
@@ -28,6 +31,18 @@ export function TopBar(props: TopBarProps) {
   return (
     <header className="bar">
       <h1>{props.title}</h1>
+      {props.town !== null && (
+        <nav aria-label="Breadcrumb" className="crumbs">
+          <ol>
+            <li>
+              <button type="button" onClick={props.onWhole}>
+                {props.title}
+              </button>
+            </li>
+            <li aria-current="page">{props.town}</li>
+          </ol>
+        </nav>
+      )}
       <p className="status" aria-live="polite">
         {props.status}
       </p>

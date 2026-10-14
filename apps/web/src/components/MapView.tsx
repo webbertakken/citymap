@@ -21,6 +21,7 @@ export interface MapViewProps {
   readonly theme: Theme;
   readonly Canvas: ComponentType<CanvasProps>;
   readonly onSelect: (hit: Hit | null) => void;
+  readonly onEscape: () => void;
   readonly onView: (view: View) => void;
   readonly onViewport: (viewport: Viewport) => void;
 }
@@ -34,7 +35,18 @@ const sizeOf = (element: HTMLElement): Viewport => ({
 /** The card's size and its gap from the pointer, in pixels, to keep it beside the pointer and on the map. */
 const CARD = { width: 260, height: 96, gap: 16 };
 
-export function MapView({ name, scene, index, view, theme, Canvas, onView, onViewport, onSelect }: MapViewProps) {
+export function MapView({
+  name,
+  scene,
+  index,
+  view,
+  theme,
+  Canvas,
+  onView,
+  onViewport,
+  onSelect,
+  onEscape,
+}: MapViewProps) {
   const [hover, setHover] = useState<{ hit: Hit; x: number; y: number } | null>(null);
   const pressed = useRef<{ x: number; y: number } | null>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -54,7 +66,7 @@ export function MapView({ name, scene, index, view, theme, Canvas, onView, onVie
   const key = useEffectEvent((event: KeyboardEvent) => {
     if (event.key === "Escape") {
       setHover(null);
-      onSelect(null);
+      onEscape();
       return;
     }
     const next = onKey(event.key, view, viewport, scene.bounds);

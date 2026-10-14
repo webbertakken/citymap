@@ -26,6 +26,22 @@ body {
   margin: 0;
   font-size: 1.25rem;
 }
+.crumbs ol {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+.crumbs li + li::before {
+  content: "›";
+  margin-right: 0.4rem;
+}
+.crumbs [aria-current="page"] {
+  font-weight: 700;
+}
 .bar .status {
   margin: 0;
   min-width: 10rem;
@@ -126,6 +142,9 @@ button[aria-pressed="true"] {
   margin: 0;
   padding-left: 1.2rem;
   font-size: 0.875rem;
+}
+.panel .drill {
+  margin: 0.25rem 0 0.4rem;
 }
 .panel .disclosure {
   display: none;

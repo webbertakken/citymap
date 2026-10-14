@@ -94,6 +94,31 @@ test("names what is under the pointer, and selects it into the panel", async ({ 
   await expect(page.getByRole("region", { name: "Selected" })).toContainText("Nothing yet");
 });
 
+test("shows one town alone, and the whole city again from the breadcrumb or Escape", async ({
+  page,
+  isMobile,
+}, info) => {
+  if (isMobile) await page.getByRole("button", { name: "Towns and districts" }).click();
+  await page.getByRole("button", { name: "Show only this town: takken.io old town" }).click();
+  const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
+  await expect(crumbs.locator("[aria-current=page]")).toHaveText("takken.io old town");
+  await expect(page.getByRole("region", { name: "Towns and districts" }).getByRole("heading")).toHaveCount(1);
+  await expect(page.locator(".label.town")).toHaveText(["TAKKEN.IO OLD TOWN"]);
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(results.violations.map((v) => v.id)).toEqual([]);
+  await page.screenshot({ path: info.outputPath("drill.png") });
+  await crumbs.getByRole("button", { name: "takken.io" }).click();
+  await expect(crumbs).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Towns and districts" }).getByRole("heading")).toHaveCount(2);
+  if (isMobile) return;
+  await page.getByRole("button", { name: "Show only this town: takken.io old town" }).click();
+  await page.getByRole("application").focus();
+  await page.keyboard.press("Escape");
+  await expect(crumbs).toHaveCount(0);
+});
+
 test("passes axe with no WCAG 2.2 AA violations", async ({ page }) => {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
