@@ -2,7 +2,7 @@ import { ROAD_WIDTH, U, type RoadClass, GROWTH_PCT } from "../constants";
 import { floorDiv, isqrt, mulDiv, roundDiv } from "../fixed/arithmetic";
 import { DIRECTION, negate, perp, rotate, type Dir } from "../fixed/direction";
 import { unitMille } from "../fixed/hash";
-import { chord, clip, extent, inset, longestEdge, offsetFor, type Poly, type Pt } from "../fixed/polygon";
+import { area2, chord, clip, extent, inset, longestEdge, offsetFor, type Poly, type Pt } from "../fixed/polygon";
 import type { CutRecord } from "../plat/plat";
 import { demandOf, emit, forget, massOf, road, seedKey, type Ctx, type Item } from "./context";
 import { neighbourhood } from "./neighbourhood";
@@ -17,6 +17,20 @@ const MIN_JOG = 2 * U;
 export const PAVEMENT_INSET = 12;
 
 const grow = (demand: number) => roundDiv(demand * GROWTH_PCT, 100);
+
+/**
+ * True when the land a remembered line leaves one side has fallen below its share of the demand, shrunk by the band,
+ * while the other side holds more than its share: the land around the line changed shape, not the demand.
+ */
+function starved(poly: Poly, r: CutRecord, dl: number, dr: number): boolean {
+  const total = BigInt(area2(poly.p));
+  const left = BigInt(area2(clip(poly, r.n, r.c, 0).p));
+  const demand = BigInt(dl + dr);
+  const band = BigInt(GROWTH_PCT);
+  // left / total < (dl / demand) × 100 / band, and the same for the right, in integers.
+  const short = (land: bigint, own: number) => land * demand * band < BigInt(own) * total * 100n;
+  return short(left, dl) || short(total - left, dr);
+}
 
 /** Road class by the tier of the land being cut: a folder's first cut is one class above its others. */
 export function cutClass(massMille: number, first: boolean): RoadClass {
@@ -146,9 +160,17 @@ export function decide(
       (r.capLeft - demandOn("L") >= r.capRight - demandOn("R") ? r.left : r.right).push(item.key);
     const dl = demandOn("L");
     const dr = demandOn("R");
-    if (dl > r.capLeft || dr > r.capRight) {
+    const outgrown = dl > r.capLeft || dr > r.capRight;
+    if (outgrown || (dl > 0 && dr > 0 && starved(poly, r, dl, dr))) {
       if (dl > 0 && dr > 0) {
-        emit(ctx, "plat/recut", { key, demandLeft: dl, demandRight: dr, capLeft: r.capLeft, capRight: r.capRight });
+        emit(ctx, "plat/recut", {
+          key,
+          reason: outgrown ? "outgrown" : "starved",
+          demandLeft: dl,
+          demandRight: dr,
+          capLeft: r.capLeft,
+          capRight: r.capRight,
+        });
         r.c = offsetFor(poly, r.n, dl, dl + dr);
         r.capLeft = grow(dl);
         r.capRight = grow(dr);

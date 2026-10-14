@@ -62,7 +62,7 @@ fingerprint is the first token:
 | Event                    | When                                                             |
 | ------------------------ | ---------------------------------------------------------------- |
 | `plat/switch`            | a folder's form changes (path, from, to, mass)                   |
-| `plat/recut`             | a remembered cut moves (key, demands, caps)                      |
+| `plat/recut`             | a remembered cut moves (key, reason, demands, caps)              |
 | `plat/radial-resector`   | a radial layout re-sectors (path)                                |
 | `plat/renew`             | a neighbourhood renews (key, vacant, remembered)                 |
 | `plat/narrow`            | a neighbourhood narrows its lot class (key, from, to)            |
