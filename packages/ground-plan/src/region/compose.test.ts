@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { centroid } from "../fixed/polygon";
 import { foldHistory, initialState } from "../fold/fold";
@@ -6,6 +8,7 @@ import { canonicalJson } from "../plat/canonical";
 import { emptyPlat } from "../plat/plat";
 import { MAX_FILES, type FileEntry, type Snapshot } from "../snapshot/snapshot";
 import { files, snapshotOf } from "../testing/fixtures";
+import { LOOP_REACH } from "../town/connectors";
 import { COORD_LIMIT, checkExtent, layCity, settingKey, translateTown, type Options } from "./compose";
 
 const OPTIONS: Options = {
@@ -276,5 +279,32 @@ describe("layCity bounds", () => {
     expect(() => checkExtent([town(COORD_LIMIT - 1), town(-(COORD_LIMIT - 1))], [])).not.toThrow();
     expect(() => checkExtent([town(COORD_LIMIT)], [])).toThrow("city/too-large");
     expect(() => checkExtent([], [{ pts: [{ x: 0, y: -COORD_LIMIT }] }])).toThrow("city/too-large");
+  });
+});
+
+describe("loop connectors", () => {
+  // The files of react's main town at a HEAD that leaves dead ends near each other (those that take land).
+  const paths = readFileSync(join(import.meta.dirname, "../testing/react-head-paths.txt"), "utf8")
+    .split("\n")
+    .filter(Boolean);
+  const snapshot = snapshotOf(
+    paths.map((path) => ({ path, identity: path, firstSeen: 0 })),
+    {},
+    "react",
+  );
+  const lanes = (loops: boolean) => {
+    const options = { ...OPTIONS, warp: false, loops };
+    return layCity(snapshot, initialState(options), options).city.towns.flatMap((t) =>
+      t.roads.filter((r) => r.cls === "lane"),
+    );
+  };
+
+  it("joins nearby dead ends with a short lane by default, and leaves them when loops are off", () => {
+    const off = lanes(false);
+    const on = lanes(true);
+    const added = on.filter((lane) => !off.some((o) => JSON.stringify(o.pts) === JSON.stringify(lane.pts)));
+    expect(added).toHaveLength(1);
+    const [a, b] = added[0]!.pts;
+    expect(Math.hypot(a!.x - b!.x, a!.y - b!.y)).toBeLessThanOrEqual(LOOP_REACH);
   });
 });

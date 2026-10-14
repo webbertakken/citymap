@@ -17,6 +17,7 @@ describe("parseCommandLine", () => {
       densityPct: 50,
       jog: "top-level",
       warp: true,
+      loops: true,
       split: ["apps"],
     });
   });
@@ -36,6 +37,7 @@ describe("parseCommandLine", () => {
       "--density=70",
       "--jog=all",
       "--no-warp",
+      "--no-loops",
       "--split=apps,packages",
     ]);
     expect(parsed).toMatchObject({
@@ -50,6 +52,7 @@ describe("parseCommandLine", () => {
       densityPct: 70,
       jog: "all",
       warp: false,
+      loops: false,
       split: ["apps", "packages"],
     });
     expect(parseCommandLine(["repo", "--split="])).toMatchObject({ split: [] });

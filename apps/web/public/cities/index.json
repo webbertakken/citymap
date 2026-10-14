@@ -22,11 +22,11 @@
   {
     "name": "livediagram",
     "file": "livediagram.json",
-    "lots": 4303
+    "lots": 4274
   },
   {
     "name": "react",
     "file": "react.json",
-    "lots": 2367
+    "lots": 2380
   }
 ]

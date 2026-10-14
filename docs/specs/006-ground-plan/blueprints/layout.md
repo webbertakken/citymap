@@ -161,6 +161,20 @@ recurse as `path>L`, `path>R` with their own district seeds.
 - Ward: for a collector-or-larger cut, each side holding two or more items records a `District` with `ward: true`, named
   after its heaviest folder.
 
+## Loop connectors
+
+`loopConnectors(roads, shapes, outline)` (`town/connectors.ts`) runs once per town after `partition` and before the
+warp, when `options.loops` is not `false` (the CLI's `--no-loops` turns it off). It never touches the plat: connectors
+follow the roads of each lay and move no lot.
+
+1. A dead end is the first or last point of a street or lane that lies farther than half another road's width plus
+   `2 × PAVEMENT` from every other road, and farther than `2 u` from the town's outline (an exit, not a dead end).
+2. Candidate pairs: two dead ends of different roads at most `LOOP_REACH` (3 u) apart, sorted by distance (a stable
+   sort, so equal distances keep the order of their ends).
+3. Closest first, each end joins at most one lane; a lane that would touch any lot or block (crossing an edge, along an
+   edge, or lying inside one) is skipped.
+4. Each kept pair becomes a lane from end to end. All tests are in integers (BigInt where squared terms pass 2^53).
+
 ## Organic layer
 
 When `options.warp`: `plat.diameter` is fixed at the first lay (`2 × isqrt(area2 / 2 × 113 / 355)`); the warp seed is

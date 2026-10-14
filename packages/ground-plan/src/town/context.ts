@@ -18,6 +18,8 @@ export interface LayoutOptions {
   readonly jog: "off" | "top-level" | "all";
   readonly warp: boolean;
   readonly densityPct: number;
+  /** Lanes joining nearby dead ends (on unless false). */
+  readonly loops?: boolean;
 }
 
 /** What a folder's land is cut between: a child folder, the folder's own lots, or its own park. */

@@ -24,6 +24,8 @@ export interface Options {
   readonly order: "centre-out" | "first-seen";
   readonly jog: "off" | "top-level" | "all";
   readonly warp: boolean;
+  /** Lanes joining nearby dead ends; on unless false. They never touch the plat. */
+  readonly loops?: boolean;
   /** Workspace groups whose members each become a town, by folder path or name; `apps` by default. */
   readonly split?: readonly string[];
 }

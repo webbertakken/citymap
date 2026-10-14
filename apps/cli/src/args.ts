@@ -17,6 +17,7 @@ export interface LayCommand {
   readonly densityPct: number;
   readonly jog: "off" | "top-level" | "all";
   readonly warp: boolean;
+  readonly loops: boolean;
   /** Workspace groups whose members each become a town. */
   readonly split: readonly string[];
 }
@@ -39,6 +40,7 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --split=<groups>    workspace groups whose members each become a town, comma-separated (default apps;
                       --split=apps,packages splits packages too; --split= splits none)
   --no-warp           draw the plan without its organic warp
+  --no-loops          leave dead ends unjoined (default: nearby dead ends are joined by lanes)
   --verbose           log every plan decision
   --help              show this help`;
 
@@ -79,6 +81,7 @@ export function parseCommandLine(argv: readonly string[]): Command {
     densityPct: density,
     jog: oneOf("jog", values.jog, ["off", "top-level", "all"] as const),
     warp: !values["no-warp"],
+    loops: !values["no-loops"],
     split: values.split.split(",").filter((group) => group !== ""),
   };
 }
@@ -100,6 +103,7 @@ function parse(argv: readonly string[]) {
       density: { type: "string", default: "50" },
       jog: { type: "string", default: "top-level" },
       "no-warp": { type: "boolean", default: false },
+      "no-loops": { type: "boolean", default: false },
       split: { type: "string", default: "apps" },
       help: { type: "boolean", default: false },
     },
