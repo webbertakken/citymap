@@ -58,6 +58,19 @@ in `BufferGeometry`.
 - Dark preference: `matchMedia("(prefers-color-scheme: dark)")` picks Night atlas at start.
 - `dpr={[1, 2]}` on the canvas; `frameloop="demand"`, so nothing renders unless the view changes.
 
+## Observability
+
+- `src/log.ts` writes one line per decision point or failure, fingerprinted by its first token: `viewer/index cities`,
+  `viewer/open name towns lots`, `viewer/town key`, `viewer/city` (to `console.info`); `viewer/index-failed reason`,
+  `viewer/open-failed name reason`, `viewer/file-rejected file reason` (to `console.error`). A reason is the engine's
+  code (`city/bad-json`) or the error's text. Every failure also reaches the person as `role="alert"` text.
+
+## Constants
+
+Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_SHARE`, `KEY_ZOOM`, `FIT_SHARE` (in
+`view/view.ts`), `CLICK_SLOP`, `WHEEL_ZOOM`, `CARD` (in `MapView.tsx`), `LOT_TOP` and `LOT_HEIGHT` (in
+`packages/scene`).
+
 ## Web experience
 
 - LCP: the status and the panel's text paint first (about 30 ms on loopback); a town label may follow (about 100 ms).

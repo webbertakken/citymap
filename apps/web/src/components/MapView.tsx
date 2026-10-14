@@ -34,6 +34,10 @@ const sizeOf = (element: HTMLElement): Viewport => ({
 /** The map: keyboard, drag, wheel and pinch drive the view; labels are HTML over the canvas. */
 /** The card's size and its gap from the pointer, in pixels, to keep it beside the pointer and on the map. */
 const CARD = { width: 260, height: 96, gap: 16 };
+/** A press that moves less than this many pixels is a click or a tap. */
+const CLICK_SLOP = 4;
+/** One wheel step zooms by this factor. */
+const WHEEL_ZOOM = 1.1;
 
 export function MapView({
   name,
@@ -104,13 +108,13 @@ export function MapView({
     // A press that barely moved is a click or a tap: it selects what is there.
     const start = pressed.current;
     pressed.current = null;
-    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 4)
+    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) < CLICK_SLOP)
       onSelect(hitAt(index, view, viewport, local(event)));
   });
   const leave = useEffectEvent(() => setHover(null));
   const wheel = useEffectEvent((event: WheelEvent) => {
     event.preventDefault();
-    onView({ ...view, zoom: view.zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1) });
+    onView({ ...view, zoom: view.zoom * (event.deltaY < 0 ? WHEEL_ZOOM : 1 / WHEEL_ZOOM) });
   });
 
   // Listeners attach once, in the commit that shows the map, so its first pointer event is never missed and its first

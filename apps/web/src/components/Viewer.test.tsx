@@ -391,3 +391,24 @@ describe("Viewer drill down", () => {
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
   });
 });
+
+describe("Viewer log", () => {
+  it("logs each opening, rejection and drill by its fingerprint", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    fireEvent.change(screen.getByLabelText("City file"), { target: { files: [new File(["{"], "bad.json")] } });
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Show only this town: alpha" }));
+    fireEvent.click(screen.getByRole("navigation", { name: "Breadcrumb" }).querySelector("button")!);
+    expect(info.mock.calls.map(([line]) => line)).toEqual([
+      "viewer/index cities=2",
+      "viewer/open name=alpha towns=1 lots=1",
+      "viewer/town key=alpha",
+      "viewer/city",
+    ]);
+    expect(error.mock.calls.map(([line]) => line)).toEqual(["viewer/file-rejected file=bad.json reason=city/bad-json"]);
+    vi.restoreAllMocks();
+  });
+});

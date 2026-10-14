@@ -1,9 +1,6 @@
 // What the pointer is over, and the words that say so.
-import { LOT_HEIGHT, pick, type Hit, type PickIndex } from "@citymap/scene";
+import { LOT_TOP, pick, type Hit, type PickIndex } from "@citymap/scene";
 import { unproject, type View, type Viewport } from "./view";
-
-/** The height of a lot's top, where lots are drawn in the dimetric view. */
-const LOT_TOP = 0.03 + LOT_HEIGHT;
 
 /** The topmost thing under a screen point: lots where their tops are drawn, the rest on the ground. */
 export function hitAt(index: PickIndex, view: View, viewport: Viewport, screen: { x: number; y: number }): Hit | null {

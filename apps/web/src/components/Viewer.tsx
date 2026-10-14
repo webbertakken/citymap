@@ -13,6 +13,7 @@ import {
   type CSSProperties,
 } from "react";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
+import { log, reasonOf } from "../log";
 import { fit, type Mode, type View, type Viewport } from "../view/view";
 import { CityPanel } from "./CityPanel";
 import { MapView, type CanvasProps } from "./MapView";
@@ -77,6 +78,8 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
   );
   const [picked, setPicked] = useState<Hit | null>(null);
   const drill = (key: string | null) => {
+    if (key === null) log.info("viewer/city");
+    else log.info("viewer/town", { key });
     setFocus(key);
     setPicked(null);
     setFitted(true);
@@ -87,9 +90,9 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
     setFocus(null);
     setPicked(null);
     setError("");
-    setStatus(
-      `${next.towns.length} towns · ${next.towns.reduce((s, t) => s + t.stats.lots, 0).toLocaleString("en-GB")} lots`,
-    );
+    const lots = next.towns.reduce((s, t) => s + t.stats.lots, 0);
+    log.info("viewer/open", { name, towns: next.towns.length, lots });
+    setStatus(`${next.towns.length} towns · ${lots.toLocaleString("en-GB")} lots`);
     setFitted(true);
     document.title = `${name} · citymap`;
   }, []);
@@ -100,6 +103,7 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
       try {
         show(await loadCity(fetcher, entry), entry.name);
       } catch (failure) {
+        log.error("viewer/open-failed", { name: entry.name, reason: reasonOf(failure) });
         setError(describeFailure(failure));
         setStatus("");
       }
@@ -111,11 +115,13 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
   useEffect(() => {
     loadIndex(fetcher).then(
       (bundled) => {
+        log.info("viewer/index", { cities: bundled.length });
         setCities(bundled);
         if (bundled[0]) first(bundled[0]);
         else setStatus("");
       },
       (failure: unknown) => {
+        log.error("viewer/index-failed", { reason: reasonOf(failure) });
         setError(describeFailure(failure));
         setStatus("");
       },
@@ -126,6 +132,7 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
       show(await readCityFile(file), file.name);
       setSelected("");
     } catch (failure) {
+      log.error("viewer/file-rejected", { file: file.name, reason: reasonOf(failure) });
       setError(describeFailure(failure));
     }
   };
