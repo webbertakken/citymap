@@ -220,3 +220,19 @@ describe("readHistory inside a git hook", () => {
     }
   });
 });
+
+describe("readHistory bounds", () => {
+  it("rejects a path longer than the engine reads, by name", async () => {
+    const dir = repo();
+    // Too long for any file system to hold, so it goes straight into the index.
+    const blob = execFileSync("git", ["-C", dir, "hash-object", "-w", "--stdin"], {
+      input: "x",
+      encoding: "utf8",
+      env: gitEnvironment(),
+    }).trim();
+    const long = `${"d".repeat(200)}/`.repeat(21) + "f.ts";
+    git(dir, "update-index", "--add", "--cacheinfo", `100644,${blob},${long}`);
+    git(dir, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "long");
+    await expect(collect(dir)).rejects.toThrow("snapshot/bad-path");
+  });
+});

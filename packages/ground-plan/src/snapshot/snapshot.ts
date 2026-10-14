@@ -22,7 +22,8 @@ export interface Snapshot {
 }
 
 export const MAX_FILES = 2_000_000;
-const MAX_PATH_BYTES = 4096;
+/** The longest path, in UTF-8 bytes; it also bounds a path's depth (2,048 folders). */
+export const MAX_PATH_BYTES = 4096;
 const COMMIT = /^([0-9a-f]{40}|[0-9a-f]{64}|worktree)$/;
 const encoder = new TextEncoder();
 

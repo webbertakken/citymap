@@ -87,8 +87,10 @@ Each run ends with one summary line: `fold/done repository=… commits=… lots=
   `bench/over` (exit code 1) or `bench/skipped` with `reason=no-repository`.
 - With `--lock`, the CLI saves the lock every `LOCK_EVERY` (1,000) laid commits as well as at the end, logging
   `lock/saved`, so a long fold cut short resumes near where it stopped.
-- Limits: 2,000,000 files per snapshot, path depth 64, 10,000 children per folder; beyond them a named rejection
-  (`snapshot/too-large`, `tree/too-deep`, `tree/too-wide`).
+- Limits: `MAX_FILES` (2,000,000) files per snapshot, checked by `layCity` (`snapshot/too-large`); `MAX_PATH_BYTES`
+  (4,096 UTF-8 bytes) per path, checked as the reader admits a path (`snapshot/bad-path`), which also bounds a path's
+  depth at 2,048 folders; `COORD_LIMIT` on the laid city (`city/too-large`). Folders are not bounded in width: real
+  repositories hold over 20,000 files in one folder (TypeScript's baselines), and the file limit bounds the work.
 - Memory: one tree state and one plat in memory; snapshots stream.
 
 ## Security and trust

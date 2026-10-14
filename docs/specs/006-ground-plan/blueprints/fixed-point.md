@@ -25,7 +25,7 @@ every coordinate the city model emits, is an integer computed by the rules below
 | `UNIT`        | 64    | Fixed units per u (one local street width). 1 fixed unit = 1/64 u.      |
 | `DIRECTION`   | 4096  | Length of a direction vector (a "unit" vector scaled to 2^12).          |
 | `TURN`        | 4096  | Angle steps per full turn; an angle is an integer index into the table. |
-| `COORD_LIMIT` | 2^21  | Largest absolute coordinate; a city that would exceed it is rejected.   |
+| `COORD_LIMIT` | 2^21  | Largest absolute coordinate; `checkExtent` rejects a city reaching it.  |
 
 - Coordinates are integers in fixed units, x east, y north. With |x|, |y| < 2^21 and direction components ≤ 2^12, every
   dot product n·p < 2^34, every doubled polygon area of up to 2^10 vertices < 2^53.

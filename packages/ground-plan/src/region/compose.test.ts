@@ -4,9 +4,9 @@ import { foldHistory, initialState } from "../fold/fold";
 import { DEFAULT_LAND_USES, landKey } from "../land-use/land-use";
 import { canonicalJson } from "../plat/canonical";
 import { emptyPlat } from "../plat/plat";
-import type { FileEntry, Snapshot } from "../snapshot/snapshot";
+import { MAX_FILES, type FileEntry, type Snapshot } from "../snapshot/snapshot";
 import { files, snapshotOf } from "../testing/fixtures";
-import { layCity, settingKey, translateTown, type Options } from "./compose";
+import { COORD_LIMIT, checkExtent, layCity, settingKey, translateTown, type Options } from "./compose";
 
 const OPTIONS: Options = {
   densityPct: 50,
@@ -259,5 +259,22 @@ describe("split groups", () => {
       "demo",
       "demo/packages",
     ]);
+  });
+});
+
+/** A town outline of one point, at x. */
+const town = (x: number) => ({ outline: [{ x, y: 0 }] });
+
+describe("layCity bounds", () => {
+  it("rejects a snapshot of more files than the engine lays", () => {
+    // A sparse array: the length is all the bound reads.
+    const huge: Snapshot = { ...at(0, []), files: Array<FileEntry>(MAX_FILES + 1) };
+    expect(() => layCity(huge, initialState(OPTIONS), OPTIONS)).toThrow("snapshot/too-large");
+  });
+
+  it("rejects a city reaching past the coordinate limit, and keeps one within it", () => {
+    expect(() => checkExtent([town(COORD_LIMIT - 1), town(-(COORD_LIMIT - 1))], [])).not.toThrow();
+    expect(() => checkExtent([town(COORD_LIMIT)], [])).toThrow("city/too-large");
+    expect(() => checkExtent([], [{ pts: [{ x: 0, y: -COORD_LIMIT }] }])).toThrow("city/too-large");
   });
 });

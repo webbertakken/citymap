@@ -9,7 +9,7 @@ import { centroid, type Pt } from "../fixed/polygon";
 import { densify, warper } from "../fixed/warp";
 import { classifyLandUse, landKey, type LandUse } from "../land-use/land-use";
 import { emptyTownPlat, type OldTown, type Plat } from "../plat/plat";
-import type { Snapshot } from "../snapshot/snapshot";
+import { MAX_FILES, type Snapshot } from "../snapshot/snapshot";
 import type { PlatEvent, TownCache } from "../town/context";
 import { layoutTown } from "../town/layout";
 import { buildTree } from "../tree/tree";
@@ -98,11 +98,32 @@ function oldTownName(name: string, count: number) {
 }
 
 /** Lays out one commit's city from the plat and returns the new state. Pure. */
+/** The largest absolute coordinate a laid city may reach, in fixed units (a warp's memory packs 22 bits a side). */
+export const COORD_LIMIT = 2 ** 21;
+
+/** Rejects a city whose towns or highways reach the coordinate limit; lots and roads lie within their towns. */
+export function checkExtent(
+  towns: readonly { readonly outline: readonly Pt[] }[],
+  highways: readonly { readonly pts: readonly Pt[] }[],
+): void {
+  const points = [...towns.flatMap((t) => t.outline), ...highways.flatMap((h) => h.pts)];
+  const far = points.find((p) => Math.abs(p.x) >= COORD_LIMIT || Math.abs(p.y) >= COORD_LIMIT);
+  if (far)
+    throw new CitymapError("city/too-large", `the city reaches ${far.x}, ${far.y}, past ${COORD_LIMIT}`, {
+      x: far.x,
+      y: far.y,
+    });
+}
+
 export function layCity(
   snapshot: Snapshot,
   state: FoldState,
   options: Options,
 ): { city: City; state: FoldState; events: PlatEvent[] } {
+  if (snapshot.files.length > MAX_FILES)
+    throw new CitymapError("snapshot/too-large", `a snapshot holds at most ${MAX_FILES} files`, {
+      files: snapshot.files.length,
+    });
   const key = settingKey(options);
   if (state.plat.setting !== key)
     throw new CitymapError("plat/setting-mismatch", `the plat is for ${state.plat.setting}, not ${key}`, {
@@ -281,13 +302,10 @@ export function layCity(
       return { x: p.x + mulDiv(q.x - p.x, weight, 1000, "round"), y: p.y + mulDiv(q.y - p.y, weight, 1000, "round") };
     });
   const finalTowns = [...towns, ...oldTowns.map((o) => o.town)].map((t2) => joined.get(t2) ?? t2);
+  const finalHighways = options.warp ? highways.map((h) => ({ ...h, pts: fade(densify(h.pts, 80, false)) })) : highways;
+  checkExtent(finalTowns, finalHighways);
   return {
-    city: {
-      repository: snapshot.repository,
-      commit: snapshot.commit,
-      towns: finalTowns,
-      highways: options.warp ? highways.map((h) => ({ ...h, pts: fade(densify(h.pts, 80, false)) })) : highways,
-    },
+    city: { repository: snapshot.repository, commit: snapshot.commit, towns: finalTowns, highways: finalHighways },
     state: state.cache ? { plat, last, cache: state.cache } : { plat, last },
     events,
   };

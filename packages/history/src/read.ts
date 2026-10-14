@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { statSync } from "node:fs";
 import { basename, resolve } from "node:path";
-import { CitymapError, compareKeys, type FileEntry, type Snapshot } from "@citymap/ground-plan";
+import { CitymapError, MAX_PATH_BYTES, compareKeys, type FileEntry, type Snapshot } from "@citymap/ground-plan";
 import { BlobReader } from "./blobs";
 import { gitEnvironment } from "./env";
 import { Workspaces, type ManifestUnavailable } from "./workspaces";
@@ -59,6 +59,7 @@ interface Live {
   firstSeen: number;
 }
 
+const encoder = new TextEncoder();
 const folderOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")));
 
 /** Applies one commit to the tree state: deletions, exact renames (equal blobs, paired in path order), additions. */
@@ -92,6 +93,12 @@ function apply(
     }
   }
   for (const entry of added.toSorted((a, b) => compareKeys(a.path, b.path))) {
+    // A path the engine cannot hold ends the read, by name: its length bounds every folder walk and the work with it.
+    if (entry.path.length * 3 > MAX_PATH_BYTES && encoder.encode(entry.path).length > MAX_PATH_BYTES)
+      throw new CitymapError("snapshot/bad-path", `a path is longer than ${MAX_PATH_BYTES} bytes`, {
+        index,
+        start: entry.path.slice(0, 80),
+      });
     const moved = deleted.get(entry.blob)?.shift();
     workspaces.add(entry.path);
     state.set(
