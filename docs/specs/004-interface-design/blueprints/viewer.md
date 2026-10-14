@@ -39,8 +39,9 @@ in `BufferGeometry`.
 - Next.js App Router, `output: "export"`, one page. Bundled cities live in `public/cities/*.json` with an index
   `public/cities/index.json` (`[{ name, file, lots }]`), produced by `scripts/bundle-cities.ts` from CLI output.
 - Components: `Viewer` (state: city, theme, view), `TopBar` (heading, city select, open-file button, view toggle, theme
-  select), `CityPanel` (towns and districts list; a disclosure button on narrow screens), `CityCanvas`
-  (react-three-fiber `Canvas` with an `OrthographicCamera`, one `mesh` per layer with vertex colours, `Html` labels).
+  select), `CityPanel` (each town with its twelve largest top-level districts, wards left out; a disclosure button on
+  narrow screens), `CityCanvas` (react-three-fiber `Canvas` with an `OrthographicCamera`, one `mesh` per layer with
+  vertex colours, `Html` labels).
 - Camera: dimetric position `(d·cos30°·sin45°, d·sin30°, d·cos30°·cos45°)` looking at the centre; plan position straight
   above with `up = (0, 0, −1)`. Zoom fits the bounds on load and on `0`.
 - Hover: `unproject(view, viewport, pointer, height)` meets the ray from the pointer with the plane at a height (the lot

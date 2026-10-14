@@ -31,6 +31,8 @@ const city = (name: string): City => ({
       districts: [
         { pts: square(0, 3200), path: "src", name: "src", depth: 1, massMille: 2000, ward: false },
         { pts: square(3200, 3200), path: "lib", name: "lib", depth: 1, massMille: 1000, ward: false },
+        // A ward around both, named after its largest member: a grouping on the map, not a district of its own.
+        { pts: square(0, 6400), path: "#ward", name: "src", depth: 1, massMille: 3000, ward: true },
       ],
       stats: { lots: 1, overflow: 0, offLand: 0, docs: 0, lotArea2: 0, landArea2: 0 },
     },

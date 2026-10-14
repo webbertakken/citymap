@@ -71,7 +71,7 @@ export function CityPanel({ city, selected, focused, onDrill }: CityPanelProps) 
               {!focused && <ShowOnly name={town.name} townKey={town.key} onDrill={onDrill} />}
               <ul>
                 {town.districts
-                  .filter((d) => d.depth === 1)
+                  .filter((d) => d.depth === 1 && !d.ward)
                   .toSorted((a, b) => b.massMille - a.massMille)
                   .slice(0, 12)
                   .map((d) => (
