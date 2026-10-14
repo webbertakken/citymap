@@ -127,6 +127,8 @@ export interface TownPlat {
   radial: Record<string, RadialRecord>;
   /** Quarters (opt-in): the members of each quarter of a folder, in age order. */
   quarters?: Record<string, string[][]>;
+  /** Archipelago (opt-in): the packages on each island of a folder, in age order, once it has more than a dozen. */
+  islands?: Record<string, string[][]>;
   /** Tiers (opt-in): the town's settlement tier, held with hysteresis. */
   tier?: Tier;
 }
@@ -199,6 +201,8 @@ export interface Town {
   /** An old town: a city kept whole when its root switched form; its lots light while their files live. */
   old: boolean;
   water: Pt[][];
+  /** Archipelago (opt-in): canals, drawn deeper than a river so no district tint matches them. */
+  canals?: Pt[][];
   outline: Pt[];
   roads: Road[];
   blocks: Block[];
@@ -373,6 +377,8 @@ function flatten(node: Node): { lots: FileRecord[]; docs: number } {
 }
 
 const FLATTEN_LIMIT = FLATTEN_BLOCKS * (BLOCK_SHORT + U) * (BLOCK_LONG + U);
+/** An archipelago (opt-in) of more packages than this shares islands among them, so canals stay few. */
+const ISLAND_CAP = 12;
 /** A quarter (opt-in) closes once its members need this many blocks of land: about five blocks across. */
 const QUARTER_BLOCKS = 24;
 const QUARTER_LAND = QUARTER_BLOCKS * (BLOCK_SHORT + U) * (BLOCK_LONG + U);
@@ -477,6 +483,7 @@ export function layoutTown(
     for (const key of Object.keys(plat.grids)) if (owned(key, path)) delete plat.grids[key];
     for (const key of Object.keys(plat.radial)) if (owned(key, path)) delete plat.radial[key];
     for (const key of Object.keys(plat.quarters ?? {})) if (owned(key, path)) delete plat.quarters![key];
+    for (const key of Object.keys(plat.islands ?? {})) if (owned(key, path)) delete plat.islands![key];
   };
 
   const place = (poly: Poly, item: Item, district: string) => {
@@ -728,9 +735,9 @@ export function layoutTown(
   };
 
   /** A band of water along a cut, its banks pavement; one bridge, or two at a third and two thirds of a long one. */
-  const waterway = (poly: Poly, r: CutRecord, seg: [Pt, Pt], width: number) => {
+  const waterway = (poly: Poly, r: CutRecord, seg: [Pt, Pt], width: number, canal = false) => {
     const water = clip(clip(poly, r.nx, r.ny, r.c + width / 2, 0), -r.nx, -r.ny, -(r.c - width / 2), 0);
-    if (water.p.length >= 3) town.water.push(water.p);
+    if (water.p.length >= 3) (canal ? (town.canals ??= []) : town.water).push(water.p);
     const length = Math.hypot(seg[1].x - seg[0].x, seg[1].y - seg[0].y);
     for (const f of length > 12 * U ? [1 / 3, 2 / 3] : [1 / 2]) {
       const m = { x: seg[0].x + (seg[1].x - seg[0].x) * f, y: seg[0].y + (seg[1].y - seg[0].y) * f };
@@ -763,7 +770,7 @@ export function layoutTown(
     const major = r.cls !== "street" && r.cls !== "lane";
     const width = canals ? (top ? RIVER : CANAL) : ROAD_WIDTH[r.cls];
     if (seg && left.length > 0 && right.length > 0) {
-      if (canals) waterway(poly, r, seg, width);
+      if (canals) waterway(poly, r, seg, width, true);
       else town.roads.push({ pts: seg, cls: r.cls });
     }
     if (major) wards(poly, r, left, right, key);
@@ -1134,9 +1141,10 @@ export function layoutTown(
    * a canal with one bridge, or two on a canal longer than 12 u. The mainland is cut by streets as usual.
    */
   function archipelago(node: Node, items: Item[], poly: Poly, district: string): boolean {
-    const islands = items.filter((i) => i.kind === "folder" && isIsland(i.node));
-    if (islands.length < 2) return false;
-    const rest = items.filter((i) => !islands.includes(i));
+    const packages = items.filter((i) => i.kind === "folder" && isIsland(i.node));
+    if (packages.length < 2) return false;
+    const islands = packages.length > ISLAND_CAP ? islandGroups(node, packages) : packages;
+    const rest = items.filter((i) => !packages.includes(i));
     const mainland: Item[] =
       rest.length <= 1
         ? rest
@@ -1161,6 +1169,57 @@ export function layoutTown(
       true,
     );
     return true;
+  }
+
+  /**
+   * More packages than a dozen share islands: packages join islands in age order, an island closing at a dozenth of
+   * the packages' mass, so there are about a dozen canals however many packages there are. Roads, not canals, run
+   * between the packages of one island. Membership is remembered; a newcomer joins the last island while it is under a
+   * dozenth, else founds the next.
+   */
+  function islandGroups(node: Node, packages: Item[]): Item[] {
+    const byKey = new Map(packages.map((i) => [i.key, i]));
+    const share = massOf(packages) / ISLAND_CAP;
+    const weight = (keys: string[]) => keys.reduce((sum, k) => sum + (byKey.get(k)?.mass ?? 0), 0);
+    const records = (plat.islands ??= {});
+    let groups = records[node.path];
+    if (!groups) {
+      groups = [];
+      let current: string[] = [];
+      for (const item of packages) {
+        current.push(item.key);
+        if (weight(current) >= share) {
+          groups.push(current);
+          current = [];
+        }
+      }
+      if (current.length > 0) groups.push(current);
+    } else {
+      groups = groups.map((g) => g.filter((k) => byKey.has(k)));
+      const known = new Set(groups.flat());
+      for (const item of packages) {
+        if (known.has(item.key)) continue;
+        const last = groups[groups.length - 1];
+        if (last && weight(last) < share) last.push(item.key);
+        else groups.push([item.key]);
+      }
+    }
+    records[node.path] = groups;
+    return groups.flatMap((keys, g) => {
+      const members = keys.map((k) => byKey.get(k)!);
+      if (members.length === 0) return [];
+      if (members.length === 1) return members;
+      return [
+        {
+          kind: "group" as const,
+          items: members,
+          gross: demandOf(members),
+          mass: massOf(members),
+          firstSeen: Math.min(...members.map((m) => m.firstSeen)),
+          key: `${node.path}#island${g}`,
+        },
+      ];
+    });
   }
 
   /**
@@ -1544,6 +1603,7 @@ export function layoutTown(
     town.lots = town.lots.map((l) => ({ ...l, pts: l.pts.map(warp) }));
     town.districts = town.districts.map((d) => ({ ...d, pts: bend(d.pts, true, 10) }));
     town.water = town.water.map((w) => bend(w, true, 8));
+    if (town.canals) town.canals = town.canals.map((w) => bend(w, true, 8));
   }
   return town;
 }

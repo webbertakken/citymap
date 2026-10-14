@@ -17,6 +17,8 @@ interface Theme {
   plaza: string;
   water: string;
   waterline: string;
+  canal: string;
+  canalline: string;
   /** Fills by district form, for the archetype sheets. */
   form: (form: string, lot: boolean) => string;
   casing: string;
@@ -74,6 +76,8 @@ const THEMES: Record<ThemeName, Theme> = {
     plaza: "#E9DFCB",
     water: "#A9CCE3",
     waterline: "#7FAFD0",
+    canal: oklch(0.66, 0.1, 235),
+    canalline: oklch(0.52, 0.1, 235),
     form: (f, lot) => oklch(lot ? 0.82 : 0.92, lot ? 0.08 : 0.03, FORM_HUE[f] ?? 0),
     casing: "#C3BBAC",
     road: "#FFFFFF",
@@ -94,6 +98,8 @@ const THEMES: Record<ThemeName, Theme> = {
     plaza: mix(DRACULA.background, DRACULA.foreground, 0.16),
     water: mix(DRACULA.background, "#8BE9FD", 0.3),
     waterline: mix(DRACULA.background, "#8BE9FD", 0.6),
+    canal: mix(DRACULA.background, "#8BE9FD", 0.5),
+    canalline: mix(DRACULA.background, "#8BE9FD", 0.8),
     form: (f, lot) => mix(DRACULA.background, FORM_ACCENT[f] ?? DRACULA.comment, lot ? 0.5 : 0.12),
     casing: "#191A21",
     road: DRACULA.line,
@@ -186,6 +192,10 @@ export function renderRegion(
     for (const w of town.water)
       out.push(
         `<path d="${poly(w)}" fill="${theme.water}" stroke="${theme.waterline}" stroke-width="${Math.max(0.6, 0.6 * scale).toFixed(2)}"/>`,
+      );
+    for (const w of town.canals ?? [])
+      out.push(
+        `<path d="${poly(w)}" fill="${theme.canal}" stroke="${theme.canalline}" stroke-width="${Math.max(0.6, 0.6 * scale).toFixed(2)}"/>`,
       );
     // Roads: all casings, then all fills, smallest class first, so junctions merge.
     const roads = [...town.roads].sort((a, b) => ORDER.indexOf(a.cls) - ORDER.indexOf(b.cls));
