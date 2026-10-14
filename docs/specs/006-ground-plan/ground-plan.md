@@ -58,7 +58,8 @@ Each concept has one name; the names in brackets are not used.
 ## Land use and mass
 
 - Land use follows Linguist-style path rules, earliest rule first: vendored, generated, fixtures, tests, examples, docs,
-  CI and tools, assets, config, source. `.gitattributes` overrides apply.
+  CI and tools, assets, config, source. `.gitattributes` overrides (Linguist's vendored, generated and documentation
+  marks) come later: the fold reads no contents but the root workspace manifests.
 - Weights: source 1; config, assets, CI and tools, docs 0.5; tests and examples 0.3; fixtures, generated and vendored
   0.05.
 - Mass is the weighted count of a subtree's files that take lots; docs and files without land add none. Mass drives the
@@ -134,8 +135,8 @@ therefore readable as distance from the core, and newcomers join the edges.
 - Each folder has a form (hamlet, street village, archipelago, radial, twin, polycentric) and a tier by decade of mass
   (hamlet under 30, village under 300, town under 3,000, city under 30,000, metropolis above).
 - Features are continuous; the choice uses a Schmitt trigger: a challenger enters at margin 0 or more, the incumbent
-  stays down to -0.15, and a switch needs +0.1. Tiers move up at the threshold times 1.25 and down at the threshold
-  divided by 1.25.
+  stays down to -0.15, and a switch needs +0.1. A cut keeps the road class it was laid with, so a tier crossing never
+  re-classes a laid road; a radial's ring and spokes take the class of today's tier.
 - A twin is a folder with two dominant cores (lib and test, src and docs): two town halves facing each other across a
   river.
 - A flattened folder takes a neighbourhood form: a hamlet (mass under 25) gathers round a green, the full block nearest
@@ -192,7 +193,8 @@ Edges carry meaning:
 
 - Roads form a graph: junctions as nodes, edges with class, width and length; blocks are its faces; loop connectors join
   nearby street ends.
-- Every lot has an address. An address never changes once issued; when a lot splits, the new lots take suffixes.
+- Every lot has an address, issued at its first placement and never changed. Lots never split: a shared lot only loses
+  members, and a newcomer that finds no room founds a lot of its own.
 - Dependencies never shape roads; they are overlays.
 
 ## Organic layer

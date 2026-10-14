@@ -30,8 +30,8 @@ interface FileEntry {
 
 - `classifyLandUse(path)`: the prototype's rules in `land-use.ts`, earliest first (vendored, generated, fixtures, tests,
   examples, docs, ci, assets, config, source), with **binary detection by extension only** (assets), so the fold never
-  reads contents. `.gitattributes` overrides (`linguist-vendored`, `linguist-generated`, `linguist-documentation`) apply
-  when the snapshot carries them (`Snapshot.attributes`, later).
+  reads no file contents to classify. `.gitattributes` overrides (`linguist-vendored`, `linguist-generated`,
+  `linguist-documentation`) apply when the snapshot carries them (`Snapshot.attributes`, later).
 - `WEIGHT_MILLE`: source 1000; config, assets, ci, docs 500; tests, examples 300; fixtures, generated, vendored 50.
 - `lotCapacity(use) = max(1, roundDiv(1000, WEIGHT_MILLE[use]))`: source 1, config 2, tests 3, fixtures 20.
 - `Options.landUses`: the land uses that take land; default all but `tests` and `fixtures` (spec: land dimension). The
