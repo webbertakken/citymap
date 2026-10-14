@@ -99,6 +99,8 @@ describe("layCity", () => {
       OPTIONS,
     );
     expect(third.city.towns.filter((t) => t.old).map((t) => t.name)).toEqual(["demo old town", "demo old town 2"]);
+    // Every town has a key of its own, an old town's made as its name is.
+    expect(third.city.towns.map((t) => t.key)).toEqual(["demo", "demo old town", "demo old town 2"]);
   });
 
   it("moves between neighbourhood forms in place, without an old town", () => {

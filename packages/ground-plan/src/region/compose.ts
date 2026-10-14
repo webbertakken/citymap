@@ -173,11 +173,12 @@ export function layCity(
       const list = [...(plat.old[part.key] ?? [])];
       plat.old[part.key] = list;
       const name = oldTownName(part.name, list.length + 1);
+      const oldKey = oldTownName(part.key, list.length + 1);
       events.push({
         code: "plat/old-town",
         detail: { key: part.key, from: previous, to: rootForm, lots: before.lots.length },
       });
-      list.push({ town: { ...before, name, old: true }, members });
+      list.push({ town: { ...before, key: oldKey, name, old: true }, members });
       plat.towns[part.key] = emptyTownPlat();
       built = treeFor();
     }
