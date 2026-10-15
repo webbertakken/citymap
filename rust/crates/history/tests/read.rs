@@ -357,3 +357,170 @@ fn parses_raw_log_tokens() {
         ErrorCode::HistoryParse
     );
 }
+
+fn members(s: &Snapshot) -> Option<Vec<String>> {
+    s.workspaces.as_ref().map(|w| w.to_vec())
+}
+
+#[expect(clippy::unnecessary_wraps, reason = "compared with the members a snapshot carries")]
+fn list(items: &[&str]) -> Option<Vec<String>> {
+    Some(items.iter().map(|s| (*s).to_owned()).collect())
+}
+
+#[test]
+fn lists_the_folders_a_root_package_json_declares_following_it_as_it_changes_and_goes() {
+    let repo = Repo::new();
+    repo.write("src/index.ts", "x");
+    repo.commit("no manifest");
+    repo.write("package.json", r#"{"workspaces":["packages/*","!packages/skip"]}"#);
+    repo.write("packages/a/index.ts", "a");
+    repo.write("packages/skip/index.ts", "s");
+    repo.write("tools/t/index.ts", "t");
+    repo.commit("workspaces");
+    repo.write("packages/b/deep/index.ts", "b");
+    repo.commit("a new member");
+    repo.write("packages/b/deep/index.ts", "b2");
+    repo.commit("an edit, no folder changes");
+    repo.write(
+        "package.json",
+        r#"{"workspaces":{"packages":["packages/*","tools/*"]}}"#,
+    );
+    repo.commit("more patterns");
+    std::fs::remove_file(repo.path().join("packages/a/index.ts")).expect("removed");
+    repo.commit("a member goes");
+    std::fs::remove_file(repo.path().join("package.json")).expect("removed");
+    repo.commit("manifest goes");
+    let (snaps, _) = collect(repo.path(), 0);
+    assert_eq!(
+        snaps.iter().map(members).collect::<Vec<_>>(),
+        [
+            None,
+            list(&["packages/a"]),
+            list(&["packages/a", "packages/b"]),
+            list(&["packages/a", "packages/b"]),
+            list(&["packages/a", "packages/b", "packages/skip", "tools/t"]),
+            list(&["packages/b", "packages/skip", "tools/t"]),
+            None,
+        ]
+    );
+    // While neither the manifests nor the folders change, a commit hands over the same members.
+    assert!(std::sync::Arc::ptr_eq(
+        snaps[2].workspaces.as_ref().expect("members"),
+        snaps[3].workspaces.as_ref().expect("members")
+    ));
+}
+
+#[test]
+fn joins_the_members_of_every_root_manifest_and_ignores_manifests_below_the_root() {
+    let repo = Repo::new();
+    repo.write("Cargo.toml", "[workspace]\nmembers = [\"crates/*\"]\n");
+    repo.write("go.work", "go 1.22\nuse ./cmd/tool\n");
+    repo.write("crates/x/src/lib.rs", "x");
+    repo.write("cmd/tool/main.go", "m");
+    repo.write("nested/package.json", r#"{"workspaces":["nested/*"]}"#);
+    repo.write("nested/n/index.ts", "n");
+    repo.commit("polyglot");
+    let (snaps, _) = collect(repo.path(), 0);
+    assert_eq!(members(&snaps[0]), list(&["cmd/tool", "crates/x"]));
+}
+
+#[test]
+fn leaves_workspaces_out_while_the_root_manifest_declares_none() {
+    let repo = Repo::new();
+    repo.write("package.json", r#"{"name":"solo"}"#);
+    repo.write("packages/a/package.json", "{}");
+    repo.commit("one package");
+    let (snaps, _) = collect(repo.path(), 0);
+    assert_eq!(members(&snaps[0]), None);
+}
+
+#[test]
+fn reads_the_manifest_as_it_stands_at_the_first_commit_yielded() {
+    let repo = Repo::new();
+    repo.write("package.json", r#"{"workspaces":["apps/*"]}"#);
+    repo.write("apps/web/index.ts", "w");
+    repo.commit("apps");
+    repo.write("README.md", "r");
+    repo.commit("readme");
+    let (snaps, _) = collect(repo.path(), 1);
+    assert_eq!(
+        snaps.iter().map(|s| (s.index, members(s))).collect::<Vec<_>>(),
+        [(1, list(&["apps/web"]))]
+    );
+}
+
+#[test]
+fn logs_a_manifest_it_cannot_read_and_keeps_what_it_knew() {
+    let source = Repo::new();
+    source.write("package.json", r#"{"workspaces":["apps/*"]}"#);
+    source.write("apps/web/index.ts", "w");
+    source.commit("apps");
+    source.write("package.json", r#"{"workspaces":["apps/*","packages/*"]}"#);
+    source.write("packages/p/index.ts", "p");
+    source.commit("packages");
+    source.git(&["config", "uploadpack.allowFilter", "true"]);
+    // A blob-less clone with no checkout holds no blobs at all, and never fetches one.
+    let clone = Repo::new();
+    std::fs::remove_dir_all(clone.path()).expect("an empty place");
+    let url = format!("file://{}", source.path().display());
+    let cloned = Command::new("git")
+        .args(["clone", "-q", "--filter=blob:none", "--no-checkout", &url])
+        .arg(clone.path())
+        .output()
+        .expect("git runs");
+    assert!(cloned.status.success(), "{}", String::from_utf8_lossy(&cloned.stderr));
+    // Only the first manifest is put back.
+    clone.write("first.json", r#"{"workspaces":["apps/*"]}"#);
+    clone.git(&["hash-object", "-w", "first.json"]);
+    let (snaps, events) = collect(clone.path(), 0);
+    assert_eq!(
+        snaps.iter().map(members).collect::<Vec<_>>(),
+        [list(&["apps/web"]), list(&["apps/web"])]
+    );
+    assert_eq!(
+        events,
+        [HistoryEvent::ManifestUnavailable {
+            path: "package.json".into(),
+            index: 1
+        }]
+    );
+    // A single state of the same clone logs the same, at index 0.
+    let mut seen = Vec::new();
+    let head = clone.git(&["rev-parse", "HEAD"]);
+    let tree = read_tree(clone.path(), &head, None, &mut |e| seen.push(e)).expect("a tree");
+    assert_eq!(members(&tree), None);
+    assert_eq!(
+        seen,
+        [HistoryEvent::ManifestUnavailable {
+            path: "package.json".into(),
+            index: 0
+        }]
+    );
+}
+
+#[test]
+fn tells_whether_one_commit_is_in_another_s_history_and_resolves_refs() {
+    let repo = Repo::new();
+    repo.write("a", "a");
+    repo.commit("a");
+    let first = repo.git(&["rev-parse", "HEAD"]);
+    repo.write("b", "b");
+    repo.commit("b");
+    let second = repo.git(&["rev-parse", "HEAD"]);
+    repo.git(&["checkout", "-q", "-b", "side", &first]);
+    repo.write("c", "c");
+    repo.commit("c");
+    let side = repo.git(&["rev-parse", "HEAD"]);
+    assert_eq!(citymap_history::is_ancestor(repo.path(), &first, &second), Ok(true));
+    assert_eq!(citymap_history::is_ancestor(repo.path(), &side, &second), Ok(false));
+    let unknown = citymap_history::is_ancestor(repo.path(), &"0".repeat(40), &second).unwrap_err();
+    assert_eq!(unknown.code, ErrorCode::HistoryGitFailed);
+    assert_eq!(citymap_history::resolve_commit(repo.path(), "main"), Ok(second));
+    let missing = citymap_history::resolve_commit(repo.path(), "no-such-ref").unwrap_err();
+    assert!(
+        missing
+            .to_string()
+            .starts_with("history/git-failed: git rev-parse exited with 1"),
+        "{missing}"
+    );
+}
