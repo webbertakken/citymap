@@ -75,9 +75,14 @@ Branch `feat/rust-engine` in the worktree `../citymap-rust`.
 - [x] `scripts/parity.ts` and `bun run parity`
 - [x] `--no-history` on every parity repository: identical
 - [x] Full folds on every parity repository: identical
-- [ ] next.js full fold: identical
-- [ ] Timings side by side; profile and speed up where the fold is slow
-- [ ] Commit
+- [x] next.js full fold: identical
+- [x] Timings side by side; profile and speed up where the fold is slow (tree and grid reuse, deferred drawing, linear
+      sharing)
+- [x] Port the remaining TypeScript unit tests: cut, compose, layout, branches, connectors, context, highway, outline,
+      Delaunay, regions, tree, warp, themes, SVG, reader, blobs, single state
+- [x] Lockfile check: a Rust fold of TypeScript's repository writes the lock the TypeScript engine wrote
+- [x] Lockfile checks on the largest folds the cache holds TypeScript locks for (rust, home-assistant, linux)
+- [x] Commit
 
 ## Phase 8: gate
 
@@ -88,5 +93,5 @@ Branch `feat/rust-engine` in the worktree `../citymap-rust`.
 
 ## Phase 9: fold-back and pull request
 
-- [ ] Fold-back: specs, blueprint, defaults and indexes match what shipped; every symbol and path verified
+- [x] Fold-back: specs, blueprint, defaults and indexes match what shipped; every symbol and path verified
 - [ ] Private-name check, push, pull request with parity results and timings; not merged

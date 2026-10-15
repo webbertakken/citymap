@@ -197,9 +197,13 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
 - `bun run parity` (`scripts/parity.ts`) builds the Rust CLI in release mode, then for each repository under
   `~/.cache/citymap/repos` (or `$CITYMAP_REPOS`) in `PARITY` (takken.io, redux, studio-worker, game-ci-cli, livediagram,
   react; next.js with `--long`) runs both CLIs with `--no-history` and with a full fold, each writing `--out`, `--svg`
-  and `--lock` (the fold) into its own temporary folder, and compares the files with `cmp`.
-- One line per run: `parity/same repo=… mode=… ts-ms=… rs-ms=…` or `parity/differs repo=… mode=… file=…` (exit 1); a
-  missing repository is `parity/skipped reason=no-repository`.
+  and `--lock` (the fold) into its own temporary folder, and compares the files with `cmp`: city, SVG, lockfile, and the
+  log with the summary's `ms=` blanked (`withoutTimings`).
+- One line per run: `parity/same repo=… mode=… ts-ms=… rs-ms=…` or `parity/differs repo=… mode=… files=… …` (exit 1),
+  the second followed by `parity/kept … dir=…` where both runs' outputs stay; a missing repository is
+  `parity/skipped reason=no-repository`. The run ends with a Markdown table of outputs and timings.
+- A lockfile the TypeScript engine wrote checks a long fold without running TypeScript again: the Rust CLI folds a
+  shared clone to the lock's commit with `--lock`, and its lockfile must be the same bytes.
 - The CLIs read and write `citymap.lock.json` at the repository root, so each run gets its own
   `git clone --shared --no-checkout` of the clone, under the repository's own name in a temporary folder: no lock is
   ever written into the shared clones, and neither CLI resumes from the other's lock.
