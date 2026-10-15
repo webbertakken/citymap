@@ -72,8 +72,8 @@ Branch `feat/rust-engine` in the worktree `../citymap-rust`.
 
 ## Phase 7: parity
 
-- [ ] `scripts/parity.ts` and `bun run parity`
-- [ ] `--no-history` on every parity repository: identical
+- [x] `scripts/parity.ts` and `bun run parity`
+- [x] `--no-history` on every parity repository: identical
 - [ ] Full folds on every parity repository: identical
 - [ ] next.js full fold: identical
 - [ ] Timings side by side; profile and speed up where the fold is slow
