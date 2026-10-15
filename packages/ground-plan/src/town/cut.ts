@@ -1,12 +1,15 @@
-import { GROWTH_PCT, ROAD_WIDTH, TIER_BAND_PCT, TIER_MASS_MILLE, U, type RoadClass } from "../constants";
+import { GROWTH_PCT, ROAD_WIDTH, U, type RoadClass } from "../constants";
 import { floorDiv, isqrt, mulDiv, roundDiv } from "../fixed/arithmetic";
 import { DIRECTION, negate, perp, rotate, type Dir } from "../fixed/direction";
 import { unitMille } from "../fixed/hash";
 import { area2, chord, clip, extent, inset, longestEdge, offsetFor, type Poly, type Pt } from "../fixed/polygon";
 import type { CutRecord } from "../plat/plat";
+import { cutClass, reclass, reserveFor } from "../roads";
 import { demandOf, emit, forget, massOf, road, seedKey, type Ctx, type Item } from "./context";
 import { neighbourhood } from "./neighbourhood";
 import { partition } from "./partition";
+
+export { cutClass, reclass } from "../roads";
 
 /** The largest tilt of a fresh cut, in angle steps (0.175 rad). */
 const TILT = 114;
@@ -35,19 +38,6 @@ function starved(poly: Poly, r: CutRecord, dl: number, dr: number): boolean {
   return short(left, dl) || short(right, dr);
 }
 
-/** Road classes by tier (hamlet, village, town, city): a folder's first cut, and its others one class lower. */
-const FIRST_CLASS: readonly RoadClass[] = ["street", "collector", "avenue", "boulevard"];
-const OTHER_CLASS: readonly RoadClass[] = ["street", "street", "collector", "avenue"];
-
-/** Road class by the tier of the land being cut: a folder's first cut is one class above its others. */
-export function cutClass(massMille: number, first: boolean): RoadClass {
-  const tier = TIER_MASS_MILLE.filter((threshold) => massMille >= threshold).length;
-  return (first ? FIRST_CLASS : OTHER_CLASS)[tier]!;
-}
-
-/** The class a cut's land is laid at: room for the land at the top of its band, so a reclass takes no lots. */
-const reserveFor = (massMille: number, first: boolean) => cutClass(floorDiv(massMille * GROWTH_PCT, 100), first);
-
 /** The class whose width a cut's land was laid at; a cut laid before rights of way existed has its own class. */
 export const rightOfWay = (rec: { readonly cls: RoadClass; readonly row?: RoadClass }) => rec.row ?? rec.cls;
 
@@ -58,15 +48,6 @@ export function carriageway(rec: { readonly cls: RoadClass; readonly row?: RoadC
 } {
   const room = ROAD_WIDTH[rightOfWay(rec)];
   return ROAD_WIDTH[rec.cls] > room ? { cls: rec.cls, width: room } : { cls: rec.cls };
-}
-
-/** A laid road's class as its land's mass moves: a tier up past its threshold × the band, down below it ÷ the band. */
-export function reclass(cls: RoadClass, massMille: number, first: boolean): RoadClass {
-  const classes = first ? FIRST_CLASS : OTHER_CLASS;
-  let tier = classes.indexOf(cls);
-  while (tier < TIER_MASS_MILLE.length && massMille * 100 >= TIER_MASS_MILLE[tier]! * TIER_BAND_PCT) tier++;
-  while (tier > 0 && massMille * TIER_BAND_PCT < TIER_MASS_MILLE[tier - 1]! * 100) tier--;
-  return classes[tier]!;
 }
 
 const isMajor = (cls: RoadClass) => cls !== "street" && cls !== "lane";

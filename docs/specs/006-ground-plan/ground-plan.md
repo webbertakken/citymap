@@ -99,7 +99,8 @@ Each concept has one name; the names in brackets are not used.
 - When its grid cannot seat its lots even at class 1, because the cuts around it moved its land, and a fresh grid on the
   same land can, the neighbourhood lays its grid afresh; no file is left without a lot that its land could hold.
 - Density is a setting (a slider), 50% by default: a folder's land is its lot area over density, plus a road margin. Low
-  density gives suburban plots, high density narrow plots in a dense core.
+  density gives suburban plots, high density narrow plots in a dense core. A folder whose own roads are wider than a
+  street (the class its first cut can reach) asks for their land too, so wider roads never take it from lots.
 
 ## Order
 

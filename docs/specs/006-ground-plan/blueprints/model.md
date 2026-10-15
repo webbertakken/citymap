@@ -77,7 +77,10 @@ interface LotSeed {
 - **Chain collapse**: below the root, a node without own lots or docs and with one child merges into it, the name joined
   with `/`, the depth kept, firstSeen the minimum.
 - **Land**: `landFor(lotArea) = (isqrt(lotArea × 100 / densityPct) + 2 × MARGIN)²`, 0 when `lotArea = 0`;
-  `demand = landFor(lots × LOT_AREA) + landFor(docs × LOT_AREA / 2) + Σ children`.
+  `items = landFor(lots × LOT_AREA) + landFor(docs × LOT_AREA / 2) + Σ children`; with two or more items (children, own
+  lots, docs) the folder's own roads need land beyond a street:
+  `excess = ROAD_WIDTH[reserveFor(mass, first)] − ROAD_WIDTH.street` (`roadExcess` in `roads.ts`) and
+  `demand = (isqrt(items) + excess)²`; otherwise `demand = items`.
 
 ## Plat
 

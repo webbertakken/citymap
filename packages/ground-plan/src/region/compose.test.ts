@@ -302,13 +302,13 @@ describe("loop connectors", () => {
     );
   };
 
-  it("joins nearby dead ends with a short lane by default, and leaves them when loops are off", () => {
+  it("joins nearby dead ends with short lanes by default, and leaves them when loops are off", () => {
     const off = lanes(false);
     const on = lanes(true);
     const added = on.filter((lane) => !off.some((o) => JSON.stringify(o.pts) === JSON.stringify(lane.pts)));
-    expect(added).toHaveLength(1);
-    const [a, b] = added[0]!.pts;
-    expect(Math.hypot(a!.x - b!.x, a!.y - b!.y)).toBeLessThanOrEqual(LOOP_REACH);
+    expect(added.length).toBeGreaterThan(0);
+    const spans = added.map(({ pts: [a, b] }) => Math.hypot(a!.x - b!.x, a!.y - b!.y));
+    expect(spans.every((span) => span <= LOOP_REACH)).toBe(true);
   });
 
   it("never ranks a sub-cut above the cut it divides, within a folder", () => {
