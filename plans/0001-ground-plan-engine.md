@@ -72,12 +72,15 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 
 ## Phase 6: corpus verification
 
-- [ ] HEAD sheets for the public reference repositories next to the prototype's; differences explained or fixed
+- [x] HEAD sheets for the public reference repositories next to the prototype's; differences explained or fixed: the
+      product folds history (old towns stand where a form switched; every app is a town), and late folders of very large
+      towns lie in long strips on the rim, as newcomers join the edges of land grown outward (Webber to judge)
 - [x] Stability runs (react, takken.io, next.js, home-assistant, redux) within the prototype's numbers
       (`bun scripts/stability.ts`; every move lands on a commit with a plan decision; takken.io's 0.2 points over the
       prototype is one renewal)
-- [ ] Linux HEAD timing and a cached full fold
-- [ ] Post the sheets to the wall; commit
+- [x] Linux HEAD timing and a cached full fold: HEAD in about 1 s (bench), the full fold of 77,277 commits in 5 h 20 min
+      under shared load, its lock cached; 3,122 files without a lot against 540 for a fresh lay (a lead for later work)
+- [x] Post the sheets to the wall; commit
 
 ## Phase 7: viewer (`packages/scene`, `apps/web`)
 
@@ -93,7 +96,7 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 - [x] Reconcile the specs with what shipped, re-derive the blueprints, update DEFAULTS and COMPLETENESS
 - [x] Traceability table: every spec rule to its tests
 - [x] Verify every symbol, file and reference in the docs; indexes current
-- [ ] PR with images, merged after the local gate
+- [x] PR with images, merged after the local gate (#12)
 
 ## Phase 7b: workspaces from manifests, split groups, drill down
 
@@ -171,7 +174,9 @@ about 13,300 (292 neighbourhoods, 1 to 21 short each) where a fresh HEAD lay lea
       neighbourhood had less land than a fresh lay gives it: allocation, not packing)
 - [x] Decide the fix with Webber: investigate now. A fair-share recut against the town was tried and dropped (react 13 →
       123 files without a lot); budgeting road land in demand was kept
-- [ ] Build it test-first; measure on home-assistant, next.js, react and livediagram (several seeds)
+- [x] Build it test-first; measure on home-assistant, next.js, react and livediagram: a side short of its folder's share
+      of land recuts, and a park line that leaves the lots no land re-lays. Full home-assistant fold 1,543 → 274 files
+      without a lot (a fresh lay: 14); the fold ratchet 53 → 35; stability unchanged
 - [x] Add fold divergence to the bench ratchet: `bun run bench --folds` folds the fast reference repositories in full
       against fresh lays, with its own baseline
 
