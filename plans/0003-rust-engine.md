@@ -48,10 +48,10 @@ Branch `feat/rust-engine` in the worktree `../citymap-rust`.
 
 ## Phase 4: region and fold
 
-- [ ] Outline, highways, placement, old towns, `lay_city`, `check_extent`
-- [ ] `fold_history`, `initial_state`
-- [ ] Organic regions: Delaunay and Voronoi
-- [ ] Commit
+- [x] Outline, highways, placement, old towns, `lay_city`, `check_extent`
+- [x] `fold_history`, `initial_state`
+- [x] Organic regions: Delaunay and Voronoi
+- [x] Commit
 
 ## Phase 5: history
 
