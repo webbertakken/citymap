@@ -136,3 +136,30 @@ for (const theme of ["paper-atlas", "night-atlas", "beck", "nolli", "dracula"]) 
     await expect(page.locator("main")).toHaveAttribute("data-theme", theme);
   });
 }
+
+test("lays a GitHub repository in a worker, from the field and from the address", async ({ page }) => {
+  // GitHub, answered from fixtures: a repository of three folders.
+  const tree = ["lib", "src", "docs"].flatMap((folder) =>
+    Array.from({ length: 40 }, (_, i) => ({
+      path: `${folder}/f${i}.${folder === "docs" ? "md" : "ts"}`,
+      type: "blob",
+      sha: `${folder}${i}`,
+    })),
+  );
+  await page.route("https://api.github.com/repos/acme/widgets/commits/HEAD", (route) =>
+    route.fulfill({
+      json: { sha: "c9", commit: { tree: { sha: "t9" } } },
+      headers: { "access-control-allow-origin": "*" },
+    }),
+  );
+  await page.route("https://api.github.com/repos/acme/widgets/git/trees/t9?recursive=1", (route) =>
+    route.fulfill({ json: { truncated: false, tree }, headers: { "access-control-allow-origin": "*" } }),
+  );
+  await page.getByLabel("GitHub repository").fill("acme/widgets");
+  await page.getByRole("button", { name: "Lay" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("widgets");
+  await expect(page.locator(".status")).toHaveText(/towns · 80 lots · single state, not folded$/);
+  await expect(page).toHaveURL(/\?repo=acme\/widgets$/);
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("widgets");
+});

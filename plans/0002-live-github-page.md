@@ -20,9 +20,9 @@ is read folder by folder.
 
 ## Phase 3: the viewer
 
-- [ ] The repository field, status lines, errors, `?repo=` in and out
-- [ ] Laying in a Web Worker, injectable for tests
-- [ ] Component tests; Playwright end to end with GitHub's API routed to fixtures; axe and vitals still pass
+- [x] The repository field, status lines, errors, `?repo=` in and out
+- [x] Laying in a Web Worker, injectable for tests
+- [x] Component tests; Playwright end to end with GitHub's API routed to fixtures; axe and vitals still pass
 
 ## Phase 4: hosting
 
