@@ -25,15 +25,15 @@ Branch `feat/rust-engine` in the worktree `../citymap-rust`.
 - [x] Noise, warp, `densify`, memoised warp
 - [x] Commit
 
-: model
+## Phase 2: model
 
-- [ ] Constants, road classes, `cut_class`, `reclass`, `reserve_for`, `road_excess`
-- [ ] Land use, weights, lot capacity, land key; parity fixture of classified paths
-- [ ] Snapshot, `parse_snapshot` limits; workspace members and groups
-- [ ] `build_tree`: sharing, chain collapse, mass, demand, digest
-- [ ] Archetype: features, district and flat forms, `classify_node`, `flatten`
-- [ ] Canonical JSON; plat, lock and city types, serialisation and parsing
-- [ ] Commit
+- [x] Constants, road classes, `cut_class`, `reclass`, `reserve_for`, `road_excess`
+- [x] Land use, weights, lot capacity, land key; parity fixture of classified paths
+- [x] Snapshot, `parse_snapshot` limits; workspace members and groups
+- [x] `build_tree`: sharing, chain collapse, mass, demand, digest
+- [x] Archetype: features, district and flat forms, `classify_node`, `flatten`
+- [x] Canonical JSON; plat, lock and city types, serialisation and parsing
+- [x] Commit
 
 ## Phase 3: town layout
 
