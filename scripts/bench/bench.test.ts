@@ -1,12 +1,13 @@
 import type { Snapshot } from "@citymap/ground-plan";
+import { stateSnapshot } from "@citymap/ground-plan";
 import { describe, expect, it } from "vitest";
-import { BUDGETS, bench, headSnapshot, type Ports } from "./bench.ts";
+import { BUDGETS, bench, type Ports } from "./bench.ts";
 
 const files = (n: number) => Array.from({ length: n }, (_, i) => `src/m${i % 7}/f${i}.ts`);
 
 /** A history of `n` commits, each adding a file. */
 async function* history(n: number): AsyncGenerator<Snapshot> {
-  for (let i = 0; i < n; i++) yield { ...headSnapshot("demo", files(i + 1)), index: i, commit: `c${i}` };
+  for (let i = 0; i < n; i++) yield { ...stateSnapshot("demo", "HEAD", files(i + 1)), index: i, commit: `c${i}` };
 }
 
 function ports(over: Partial<Ports> = {}): Ports & { lines: string[] } {
@@ -22,21 +23,6 @@ function ports(over: Partial<Ports> = {}): Ports & { lines: string[] } {
     ...over,
   };
 }
-
-describe("headSnapshot", () => {
-  it("makes every file born at the first commit, and every folder with it", () => {
-    const snap = headSnapshot("demo", ["b/c/x.ts", "a.ts"]);
-    expect(snap.files.map((f) => [f.path, f.identity, f.firstSeen])).toEqual([
-      ["a.ts", "a.ts@0", 0],
-      ["b/c/x.ts", "b/c/x.ts@0", 0],
-    ]);
-    expect([...snap.folderFirstSeen]).toEqual([
-      ["", 0],
-      ["b", 0],
-      ["b/c", 0],
-    ]);
-  });
-});
 
 describe("bench", () => {
   it("times each budget, logs it, and passes when every one is within", async () => {

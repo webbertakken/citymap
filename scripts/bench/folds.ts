@@ -1,7 +1,7 @@
 // Fold divergence: each repository folded over its whole history against a fresh lay of the same tree, and a ratchet
 // on the files the folds leave without a lot. Run on demand (`bun run bench --folds`): folds take minutes.
-import { initialState, layCity, type City, type Snapshot } from "@citymap/ground-plan";
-import { OPTIONS, headSnapshot } from "./bench.ts";
+import { initialState, layCity, stateSnapshot, type City, type Snapshot } from "@citymap/ground-plan";
+import { OPTIONS } from "./bench.ts";
 
 /** Reference repositories small enough to fold in full in about a minute together. */
 export const FOLDS = ["takken.io", "redux", "studio-worker", "game-ci-cli", "livediagram"];
@@ -35,7 +35,7 @@ export async function folds(repos: readonly string[], ports: FoldPorts, rebase: 
     if (last === null) return sum;
     // The same tree laid once, every file born together: what the fold would leave without its history.
     const paths = last.snapshot.files.map((f) => f.path);
-    const fresh = layCity(headSnapshot(repo, paths), initialState(OPTIONS), OPTIONS);
+    const fresh = layCity(stateSnapshot(repo, "HEAD", paths), initialState(OPTIONS), OPTIONS);
     const folded = overflowOf(last.city);
     ports.log(
       `bench/fold repo=${repo} commits=${last.snapshot.index + 1} overflow=${folded} fresh=${overflowOf(fresh.city)}`,

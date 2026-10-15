@@ -1,7 +1,7 @@
 // The corpus pass of the bench: each repository's HEAD laid once, every live town measured, and a ratchet that fails
 // when files without a lot, hierarchy inversions or towns outside their bands rise above the committed baseline.
-import { initialState, layCity } from "@citymap/ground-plan";
-import { OPTIONS, headSnapshot } from "./bench.ts";
+import { initialState, layCity, stateSnapshot } from "@citymap/ground-plan";
+import { OPTIONS } from "./bench.ts";
 import { judgeTown } from "./morphometrics.ts";
 
 /** The public repositories the corpus pass lays at HEAD. */
@@ -74,7 +74,7 @@ export async function corpus(repos: readonly string[], ports: CorpusPorts, rebas
       ports.log(`bench/skipped name=corpus reason=no-repository repo=${repo}`);
       return names;
     }
-    const { city } = layCity(headSnapshot(repo, paths), initialState(OPTIONS), OPTIONS);
+    const { city } = layCity(stateSnapshot(repo, "HEAD", paths), initialState(OPTIONS), OPTIONS);
     for (const town of city.towns.filter((t) => !t.old)) {
       const j = judgeTown(town);
       totals.overflow += town.stats.overflow;

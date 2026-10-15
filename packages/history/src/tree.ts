@@ -2,7 +2,7 @@
 import { execFile } from "node:child_process";
 import { basename, resolve } from "node:path";
 import { promisify } from "node:util";
-import { CitymapError, MAX_PATH_BYTES, compareKeys, type Snapshot } from "@citymap/ground-plan";
+import { CitymapError, MAX_PATH_BYTES, compareKeys, stateSnapshot, type Snapshot } from "@citymap/ground-plan";
 import { BlobReader } from "./blobs";
 import { gitEnvironment } from "./env";
 import { isManifest, patternsOf, resolveWorkspaces, type Patterns } from "./manifests";
@@ -58,20 +58,13 @@ export async function readTree(repoDir: string, commit: string, options: TreeOpt
       if (declared) patterns.push(declared);
     }
   }
-  const sortedFolders = [...folders].toSorted(compareKeys);
-  return {
-    repository: options.repository ?? basename(dir),
-    commit,
-    index: 0,
-    files: files.map(({ path }) => ({ path, identity: `${path}@0`, firstSeen: 0 })),
-    folderFirstSeen: new Map(sortedFolders.map((f) => [f, 0])),
-    ...(patterns.length > 0
-      ? {
-          workspaces: resolveWorkspaces(
-            patterns,
-            sortedFolders.filter((f) => f !== ""),
-          ),
-        }
-      : {}),
-  };
+  const paths = files.map(({ path }) => path);
+  const members =
+    patterns.length > 0
+      ? resolveWorkspaces(
+          patterns,
+          [...folders].filter((f) => f !== ""),
+        )
+      : undefined;
+  return stateSnapshot(options.repository ?? basename(dir), commit, paths, members);
 }

@@ -58,6 +58,37 @@ in `BufferGeometry`.
 - Dark preference: `matchMedia("(prefers-color-scheme: dark)")` picks Night atlas at start.
 - `dpr={[1, 2]}` on the canvas; `frameloop="demand"`, so nothing renders unless the view changes.
 
+## A GitHub repository, live (`apps/web/src/github`)
+
+- `parseRepository(input)`: `owner/name`, or a `https://github.com/owner/name[/…]` URL (an optional `.git` dropped),
+  into `{ owner, name }`; owner `[A-Za-z0-9-]{1,39}`, name `[A-Za-z0-9._-]{1,100}`; anything else is `github/bad-name`.
+- `readRepository(fetcher, repo, onRequest)`, every call through the injected fetcher (tests stub it), JSON from
+  `https://api.github.com` with `Accept: application/vnd.github+json`:
+  1. `GET /repos/{owner}/{name}/commits/HEAD`: the commit `sha` and its `commit.tree.sha` (the default branch).
+  2. `GET /repos/{owner}/{name}/git/trees/{tree}?recursive=1`. When `truncated`, the tree is read folder by folder
+     instead: a folder's tree without `recursive` lists its entries; each subtree is then read with `recursive=1`, and
+     any still truncated is split the same way. At most four requests are in flight.
+  3. Entries: `blob` is a file (path joined from its folder), `commit` a submodule (skipped), `tree` a folder.
+  4. Root workspace manifests (`isManifest`) are read from
+     `https://raw.githubusercontent.com/{owner}/{name}/{sha}/{path}` (not counted against the API limit), parsed with
+     `patternsOf` and resolved with `resolveWorkspaces`.
+  5. The snapshot is `stateSnapshot(name, sha, paths, workspaces)` from `@citymap/ground-plan`, the same builder the
+     CLI's `--no-history` and the bench use, so the browser lays exactly what `citymap --no-history` lays.
+- Rejections (`CitymapError`): 404 `github/not-found`; 403 or 429 with `x-ratelimit-remaining: 0` `github/rate-limited`
+  (detail `reset`, the epoch second from `x-ratelimit-reset`); any other failure status `github/failed` (detail
+  `status`); a fetch that throws `github/offline`.
+- Laying: `lay.worker.ts` (a module Web Worker) receives the snapshot (its map as entries) and returns
+  `layCity(snapshot, initialState(OPTIONS), OPTIONS).city` with the CLI's default options; `Viewer` takes a `lay`
+  function (the worker by default, a direct call in tests).
+- The bar's repository field is a `<form role="search">` with a labelled input ("GitHub repository") and a "Lay" button.
+  The status reads "{name}: reading the tree… ({n} requests)", then "{name}: laying out…", then "{towns} towns · {lots}
+  lots · single state, not folded". On success the address becomes `?repo=owner/name` (`history.replaceState`); on load,
+  a `repo` parameter is laid instead of the first bundled city.
+- Hosting: `next.config` takes `basePath` from `CITYMAP_BASE_PATH` (`/citymap` on GitHub Pages, empty locally); every
+  fetch of bundled files is prefixed with it. `.github/workflows/pages.yml` builds the export on every push to main and
+  deploys it with `actions/upload-pages-artifact` and `actions/deploy-pages`.
+- Logs: `viewer/github-read repo requests files ms` and `viewer/github-failed repo reason`.
+
 ## Observability
 
 - `src/log.ts` writes one line per decision point or failure, fingerprinted by its first token: `viewer/index cities`,
@@ -76,7 +107,7 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
 - LCP: the status and the panel's text paint first (about 30 ms on loopback); a town label may follow (about 100 ms).
   Budget: the last largest paint under 2.5 s.
 - CLS 0: the bar is two blocks, the place (heading and breadcrumb over the status, `flex-direction: column`) on the left
-  and the controls on the right (`margin-left: auto`); the city select has a fixed width (15rem), so a longer name,
+  and the controls on the right (`margin-left: auto`); the city select has a fixed width (18rem), so a longer name,
   status or option never moves a control. The town list's empty state has a town heading's margins. Shifts after input
   (a breadcrumb appearing) are the person's own and do not count.
 - INP under 200 ms on a phone: the view while fitted is derived from the scene (`fit(scene.bounds, mode, viewport)`),

@@ -16,6 +16,11 @@ export interface TopBarProps {
   readonly onWhole: () => void;
   readonly onCity: (file: string) => void;
   readonly onFile: (file: File) => void;
+  readonly onRepository: (input: string) => void;
+  /** What is shown when it is not a bundled city: "owner/name (GitHub)" or "name.json (file)"; null otherwise. */
+  readonly elsewhere: string | null;
+  /** The GitHub repository last laid, shown in its field. */
+  readonly repository: string;
   readonly onMode: (mode: Mode) => void;
   readonly onTheme: (theme: ThemeName) => void;
 }
@@ -23,6 +28,7 @@ export interface TopBarProps {
 /** The slim bar: the city's name and every control, native and labelled. */
 export function TopBar(props: TopBarProps) {
   const input = useRef<HTMLInputElement>(null);
+  const repository = useRef<HTMLInputElement>(null);
   const picked = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) props.onFile(file);
@@ -55,6 +61,11 @@ export function TopBar(props: TopBarProps) {
         <span className="field">
           <label htmlFor="city">City</label>
           <select id="city" value={props.selected} onChange={(e) => props.onCity(e.target.value)}>
+            {props.selected === "" && props.elsewhere !== null && (
+              <option value="" disabled>
+                {props.elsewhere}
+              </option>
+            )}
             {props.cities.map((c) => (
               <option key={c.file} value={c.file}>
                 {c.name} ({c.lots.toLocaleString("en-GB")} lots)
@@ -62,6 +73,27 @@ export function TopBar(props: TopBarProps) {
             ))}
           </select>
         </span>
+        <search className="field">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              props.onRepository(repository.current!.value);
+            }}
+          >
+            <label htmlFor="repository">GitHub repository</label>
+            <input
+              key={props.repository}
+              defaultValue={props.repository}
+              ref={repository}
+              id="repository"
+              name="repository"
+              placeholder="owner/name"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button type="submit">Lay</button>
+          </form>
+        </search>
         <button type="button" onClick={() => input.current?.click()}>
           Open a city file…
         </button>

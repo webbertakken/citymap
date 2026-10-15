@@ -13,6 +13,10 @@ import {
   type CSSProperties,
 } from "react";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
+import { readRepository, type Fetcher } from "../github/read";
+import { parseRepository } from "../github/repository";
+import { layInWorker } from "../lay/browser";
+import type { Lay } from "../lay/lay";
 import { log, reasonOf } from "../log";
 import { fit, type Mode, type View, type Viewport } from "../view/view";
 import { CityPanel } from "./CityPanel";
@@ -21,10 +25,14 @@ import { TopBar } from "./TopBar";
 
 export interface ViewerProps {
   readonly Canvas: ComponentType<CanvasProps>;
-  readonly fetcher?: (url: string) => ReturnType<typeof fetch>;
+  readonly fetcher?: Fetcher;
+  /** How a snapshot becomes a city: in a Web Worker in the browser, on the calling thread in tests. */
+  readonly lay?: Lay;
+  /** The site's path under its host, before every bundled file: "/citymap" on GitHub Pages. */
+  readonly basePath?: string;
 }
 
-const browserFetch = (url: string) => fetch(url);
+const browserFetch: Fetcher = (url, init) => fetch(url, init);
 
 // The system's colour preference, as an external store: read on the client, light while prerendering.
 const DARK = "(prefers-color-scheme: dark)";
@@ -45,7 +53,7 @@ export const focusOn = (city: City, key: string): City => ({
   highways: [],
 });
 
-export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
+export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "" }: ViewerProps) {
   const [cities, setCities] = useState<readonly CityEntry[]>([]);
   const [selected, setSelected] = useState("");
   const [city, setCity] = useState<City | null>(null);
@@ -77,6 +85,9 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
     [fitted, scene, mode, viewport, moved],
   );
   const [picked, setPicked] = useState<Hit | null>(null);
+  // A city that is not bundled: where it came from, for the picker; and the GitHub repository last laid.
+  const [elsewhere, setElsewhere] = useState<string | null>(null);
+  const [laidRepository, setLaidRepository] = useState("");
   const drill = (key: string | null) => {
     if (key === null) log.info("viewer/city");
     else log.info("viewer/town", { key });
@@ -99,25 +110,64 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
   const open = useCallback(
     async (entry: CityEntry) => {
       setSelected(entry.file);
+      setElsewhere(null);
       setStatus(`${entry.name}: laying out…`);
       try {
-        show(await loadCity(fetcher, entry), entry.name);
+        show(await loadCity(fetcher, entry, basePath), entry.name);
       } catch (failure) {
         log.error("viewer/open-failed", { name: entry.name, reason: reasonOf(failure) });
         setError(describeFailure(failure));
         setStatus("");
       }
     },
-    [fetcher, show],
+    [basePath, fetcher, show],
   );
-  // The index loads once, on mount; opening its first city uses the settings of the moment.
+  // A public GitHub repository's single state, read and laid in the browser.
+  const openRepository = useCallback(
+    async (input: string) => {
+      const started = performance.now();
+      try {
+        const repo = parseRepository(input);
+        const name = `${repo.owner}/${repo.name}`;
+        let requests = 0;
+        setStatus(`${name}: reading the tree…`);
+        const snapshot = await readRepository(fetcher, repo, (n) => {
+          requests = n;
+          setStatus(`${name}: reading the tree… (${n} requests)`);
+        });
+        setStatus(`${name}: laying out…`);
+        const next = await lay(snapshot);
+        show(next, name);
+        setStatus((done) => `${done} · single state, not folded`);
+        setSelected("");
+        setElsewhere(`${name} (GitHub)`);
+        setLaidRepository(name);
+        log.info("viewer/github-read", {
+          repo: name,
+          requests,
+          files: snapshot.files.length,
+          ms: Math.round(performance.now() - started),
+        });
+        window.history.replaceState(null, "", `?repo=${name}`);
+      } catch (failure) {
+        log.error("viewer/github-failed", { repo: input.trim(), reason: reasonOf(failure) });
+        setError(describeFailure(failure));
+        setStatus("");
+      }
+    },
+    [fetcher, lay, show],
+  );
+  // The index loads once, on mount; a repository in the address is laid, else the first bundled city opens.
   const first = useEffectEvent((entry: CityEntry) => void open(entry));
+  const wanted = useEffectEvent((repo: string) => void openRepository(repo));
   useEffect(() => {
-    loadIndex(fetcher).then(
+    loadIndex(fetcher, basePath).then(
       (bundled) => {
         log.info("viewer/index", { cities: bundled.length });
         setCities(bundled);
-        if (bundled[0]) first(bundled[0]);
+        const repo = new URLSearchParams(window.location.search).get("repo");
+        if (repo) wanted(repo);
+        else if (bundled[0]) first(bundled[0]);
         else setStatus("");
       },
       (failure: unknown) => {
@@ -126,11 +176,12 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
         setStatus("");
       },
     );
-  }, [fetcher]);
+  }, [basePath, fetcher]);
   const openFile = async (file: File) => {
     try {
       show(await readCityFile(file), file.name);
       setSelected("");
+      setElsewhere(`${file.name} (file)`);
     } catch (failure) {
       log.error("viewer/file-rejected", { file: file.name, reason: reasonOf(failure) });
       setError(describeFailure(failure));
@@ -177,6 +228,9 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
           if (entry) void open(entry);
         }}
         onFile={(file) => void openFile(file)}
+        onRepository={(input) => void openRepository(input)}
+        elsewhere={elsewhere}
+        repository={laidRepository}
         onMode={(next) => {
           setMode(next);
           setMoved({ ...moved, mode: next });
