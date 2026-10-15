@@ -15,7 +15,8 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 - [x] Architecture spec (003)
 - [x] Blueprints, defaults ledger, completeness
 - [x] Merge `build/ci` (oxfmt, oxlint, vitest projects, hooks, CI); every package joins the root references
-- [ ] Webber answers ambiguities 5 to 7 (loop connectors, Voronoi outlines, morphometric targets)
+- [x] Webber answers ambiguities 5 to 7: loop connectors on by default, Voronoi regions opt-in (off), road share targets
+      per tier from real settlements
 
 ## Phase 1: fixed-point core (`packages/ground-plan/src/fixed`)
 
@@ -166,7 +167,21 @@ neighbourhoods of 3 to 8 blocks) have no implementation and so no tests.
 Long histories leave far more files without a lot than a fresh lay of the same tree: home-assistant's fold leaves 913 of
 about 13,300 (292 neighbourhoods, 1 to 21 short each) where a fresh HEAD lay leaves 14; next.js 99 against 42.
 
-- [ ] Find where the land goes: per neighbourhood, land given against demand, fold against fresh lay
-- [ ] Decide the fix (allocation compounding through nested cuts, or packing as neighbourhoods age) with Webber
+- [x] Find where the land goes: per neighbourhood, land given against demand, fold against fresh lay (every short
+      neighbourhood had less land than a fresh lay gives it: allocation, not packing)
+- [x] Decide the fix with Webber: investigate now. A fair-share recut against the town was tried and dropped (react 13 →
+      123 files without a lot); budgeting road land in demand was kept
 - [ ] Build it test-first; measure on home-assistant, next.js, react and livediagram (several seeds)
-- [ ] Add fold divergence to the bench ratchet (a pinned commit range per repository, run on demand)
+- [x] Add fold divergence to the bench ratchet: `bun run bench --folds` folds the fast reference repositories in full
+      against fresh lays, with its own baseline
+
+## Phase 10: incremental lays
+
+A commit should cost what it changes. Webber chose this before any Rust port.
+
+- [x] Profile a fold: tree building, digests, path classification, loop connectors and plat copies grow with the tree
+- [x] Hand over the same file list while a commit only edits files; keep what `layCity` derives per list, and built
+      trees per list, options and shares; keep shares by reference in layout
+- [x] Remember path classifications; hash ASCII without encoding; index loop connectors by a grid
+- [x] Prove exactness: livediagram, react and next.js fold byte-identical to the engine before; react 404 → 200 s,
+      next.js 95 → 40 min, the bench's 1,200-commit react fold 2.6 → 1.9 s
