@@ -11,7 +11,7 @@ import {
   type FoldState,
   type Options,
 } from "@citymap/ground-plan";
-import { isAncestor, readHistory, resolveCommit } from "@citymap/history";
+import { isAncestor, readHistory, readTree, resolveCommit } from "@citymap/history";
 import { renderCity } from "@citymap/svg";
 import type { LayCommand } from "./args";
 
@@ -69,7 +69,7 @@ export async function runLay(command: LayCommand, io: Io, lockEvery = LOCK_EVERY
     split: command.split,
   };
   const target = await resolveCommit(repo, command.to);
-  const lock = await readLock(repo, target, options, io);
+  const lock = command.history ? await readLock(repo, target, options, io) : null;
   let state = lock?.state ?? initialState(options);
   let city: City | null = null;
   let commits = 0;
@@ -80,7 +80,13 @@ export async function runLay(command: LayCommand, io: Io, lockEvery = LOCK_EVERY
     io.writeFile(join(repo, LOCKFILE), serialiseLock({ commit, index: at, plat: state.plat }));
     io.log(`lock/saved commit=${commit} index=${at}`);
   };
-  for await (const snapshot of readHistory(repo, { to: target, from: lock?.index ?? 0, onEvent })) {
+  // One state, every file at once; or the history, folded from the lock or the first commit.
+  const snapshots = command.history
+    ? readHistory(repo, { to: target, from: lock?.index ?? 0, onEvent })
+    : (async function* () {
+        yield await readTree(repo, target, { onEvent });
+      })();
+  for await (const snapshot of snapshots) {
     const laid = layCity(snapshot, state, options);
     state = laid.state;
     city = laid.city;

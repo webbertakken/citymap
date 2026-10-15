@@ -19,6 +19,7 @@ describe("parseCommandLine", () => {
       warp: true,
       loops: true,
       voronoi: false,
+      history: true,
       split: ["apps"],
     });
   });
@@ -59,6 +60,7 @@ describe("parseCommandLine", () => {
       split: ["apps", "packages"],
     });
     expect(parseCommandLine(["repo", "--split="])).toMatchObject({ split: [] });
+    expect(parseCommandLine(["repo", "--no-history"])).toMatchObject({ history: false });
   });
 
   it("answers help with the usage", () => {
@@ -75,6 +77,7 @@ describe("parseCommandLine", () => {
     [["a", "--density=x"], "cli/usage: --density"],
     [["a", "--jog=some"], "cli/usage: --jog"],
     [["a", "--bogus"], "cli/usage:"],
+    [["a", "--no-history", "--lock"], "cli/usage: --lock folds history"],
   ])("rejects %j", (argv, message) => {
     expect(() => parseCommandLine(argv)).toThrow(message);
   });

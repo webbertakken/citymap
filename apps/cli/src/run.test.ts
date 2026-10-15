@@ -116,6 +116,21 @@ describe("runLay", () => {
     expect(off.lines.some((l) => l.startsWith("lock/ignored reason=not-an-ancestor"))).toBe(true);
   });
 
+  it("lays one state without its history, every file at once", async () => {
+    const dir = repo(3);
+    const { io, files, lines } = memoryIo();
+    const city = await runLay(command(dir, "--no-history", "--out=city.json"), io);
+    expect(lines.at(-1)).toMatch(/^fold\/done repository=citymap-cli-\S+ commits=1 lots=36 overflow=0 ms=\d+$/);
+    expect(parseCity(files["city.json"]!)).toEqual(city);
+    // The state of an earlier commit, and a lockfile left alone.
+    const earlier = await runLay(
+      command(dir, "--no-history", `--to=${git(dir, "rev-list", "--reverse", "HEAD").split("\n")[0]}`),
+      memoryIo().io,
+    );
+    expect(earlier.towns.reduce((s, t) => s + t.stats.lots, 0)).toBe(12);
+    expect(files[join(dir, LOCKFILE)]).toBeUndefined();
+  });
+
   it("rejects a broken lockfile by name", async () => {
     const dir = repo(1);
     await expect(runLay(command(dir), memoryIo({ [join(dir, LOCKFILE)]: "{" }).io)).rejects.toThrow("lock/");

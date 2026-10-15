@@ -48,6 +48,9 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
   missing blob costs git seconds, the blobs it holds are listed once (`--batch-all-objects`) and only those are asked
   for. A batch process that exits mid-answer (git before 2.44 on a failed fetch) marks that blob unavailable and the
   rest go to a fresh one.
+- A single state: `readTree(dir, commit)` reads one commit's tree (`git ls-tree -r`) as a snapshot at index 0, every
+  file and folder born at 0 (`identity = path@0`), submodules skipped, members from its root manifests. The CLI's
+  `--no-history` lays it once instead of folding (no lock): the scale corpus is shown this way.
 - `GIT_NO_LAZY_FETCH=1` is set, and blob reads allow no protocol (`GIT_ALLOW_PROTOCOL=none`, which every git honours),
   so a blob-less clone never fetches.
 - Every git call clears the variables a git hook sets (`GIT_DIR`, `GIT_INDEX_FILE` and the like), so a fold run from a
