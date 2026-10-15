@@ -16,6 +16,7 @@ export interface TopBarProps {
   readonly onWhole: () => void;
   readonly onCity: (file: string) => void;
   readonly onFile: (file: File) => void;
+  readonly onRepository: (input: string) => void;
   readonly onMode: (mode: Mode) => void;
   readonly onTheme: (theme: ThemeName) => void;
 }
@@ -23,6 +24,7 @@ export interface TopBarProps {
 /** The slim bar: the city's name and every control, native and labelled. */
 export function TopBar(props: TopBarProps) {
   const input = useRef<HTMLInputElement>(null);
+  const repository = useRef<HTMLInputElement>(null);
   const picked = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) props.onFile(file);
@@ -62,6 +64,25 @@ export function TopBar(props: TopBarProps) {
             ))}
           </select>
         </span>
+        <search className="field">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              props.onRepository(repository.current!.value);
+            }}
+          >
+            <label htmlFor="repository">GitHub repository</label>
+            <input
+              ref={repository}
+              id="repository"
+              name="repository"
+              placeholder="owner/name"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button type="submit">Lay</button>
+          </form>
+        </search>
         <button type="button" onClick={() => input.current?.click()}>
           Open a city file…
         </button>

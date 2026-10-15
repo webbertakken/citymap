@@ -43,6 +43,23 @@ body {
   align-items: center;
   margin-left: auto;
 }
+.bar search form {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+/* Fixed widths, so what a person types never moves what follows. */
+#repository {
+  width: 12rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: #10141a;
+  background: #ffffff;
+  border: 1px solid #50565f;
+  border-radius: 0.35rem;
+}
 /* A fixed width, so the options a city list brings never move what follows. */
 #city {
   width: 15rem;

@@ -1,6 +1,8 @@
 import { serialiseCity, type City } from "@citymap/ground-plan";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Fetcher } from "../github/read";
+import { layHere } from "../lay/lay";
 import { project, type View } from "../view/view";
 import type { CanvasProps } from "./MapView";
 import { Viewer } from "./Viewer";
@@ -409,6 +411,77 @@ describe("Viewer log", () => {
       "viewer/city",
     ]);
     expect(error.mock.calls.map(([line]) => line)).toEqual(["viewer/file-rejected file=bad.json reason=city/bad-json"]);
+    vi.restoreAllMocks();
+  });
+});
+
+describe("Viewer and a GitHub repository", () => {
+  const API = "https://api.github.com/repos/acme/widgets";
+  const github = (extra: Record<string, () => Response> = {}): Fetcher => {
+    const routes: Record<string, () => Response> = {
+      [`${API}/commits/HEAD`]: () => new Response(JSON.stringify({ sha: "c9", commit: { tree: { sha: "t9" } } })),
+      [`${API}/git/trees/t9?recursive=1`]: () =>
+        new Response(
+          JSON.stringify({
+            tree: Array.from({ length: 12 }, (_, i) => ({ path: `src/f${i}.ts`, type: "blob", sha: `s${i}` })),
+          }),
+        ),
+      ...extra,
+    };
+    return async (url) =>
+      (routes[url] ?? (() => new Response(files[url] ?? "", { status: url in files ? 200 : 404 })))();
+  };
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("lays a named repository's single state, says so, and puts it in the address", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    render(<Viewer Canvas={StubCanvas} fetcher={github()} lay={layHere} />);
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    fireEvent.change(screen.getByLabelText("GitHub repository"), {
+      target: { value: "https://github.com/acme/widgets" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lay" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
+    expect(await screen.findByText(/^1 towns · 12 lots · single state, not folded$/)).toBeTruthy();
+    expect(window.location.search).toBe("?repo=acme/widgets");
+    expect(info.mock.calls.map(([line]) => String(line)).find((l) => l.startsWith("viewer/github-read"))).toMatch(
+      /^viewer\/github-read repo=acme\/widgets requests=2 files=12 ms=\d+$/,
+    );
+    vi.restoreAllMocks();
+  });
+
+  it("lays the repository an address names, instead of the first bundled city", async () => {
+    window.history.replaceState(null, "", "/?repo=acme/widgets");
+    render(<Viewer Canvas={StubCanvas} fetcher={github()} lay={layHere} />);
+    expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
+  });
+
+  it("says in one sentence why a repository cannot be laid, and keeps the last city", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const limited = github({
+      [`${API}/commits/HEAD`]: () =>
+        new Response("{}", {
+          status: 403,
+          headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1700000000" },
+        }),
+    });
+    render(<Viewer Canvas={StubCanvas} fetcher={limited} lay={layHere} />);
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    const field = screen.getByLabelText("GitHub repository");
+    fireEvent.change(field, { target: { value: "not a repository" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lay" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      '"not a repository" is not a GitHub repository: use owner/name.',
+    );
+    fireEvent.change(field, { target: { value: "acme/widgets" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lay" }));
+    expect(
+      await screen.findByText(/^GitHub's hourly limit for this browser is reached; it resets at \d\d:\d\d\.$/),
+    ).toBeTruthy();
+    fireEvent.change(field, { target: { value: "acme/missing" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lay" }));
+    expect(await screen.findByText("acme/missing does not exist or is private.")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
     vi.restoreAllMocks();
   });
 });

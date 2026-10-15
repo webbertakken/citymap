@@ -43,8 +43,15 @@ export async function readCityFile(file: Blob): Promise<City> {
   return parseCity(await file.text());
 }
 
-/** The sentence to show for a failure: the engine's own message for a bad city, else the error's. */
-export const describeFailure = (error: unknown): string =>
-  error instanceof CitymapError
-    ? `That file is not a city: ${error.message}`
-    : `The city could not load: ${String(error)}`;
+/** The sentence to show for a failure: GitHub's in plain words, the engine's own message for a bad city, else the error's. */
+export function describeFailure(error: unknown): string {
+  if (!(error instanceof CitymapError)) return `The city could not load: ${String(error)}`;
+  if (!error.code.startsWith("github/")) return `That file is not a city: ${error.message}`;
+  const said = error.message.slice(error.code.length + 2);
+  if (error.code !== "github/rate-limited") return `${said}.`;
+  const reset = new Date(Number(error.detail.reset) * 1000).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${said}; it resets at ${reset}.`;
+}
