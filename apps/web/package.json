@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@citymap/ground-plan": "workspace:*",
+    "@citymap/history": "workspace:*",
     "@citymap/scene": "workspace:*",
     "@citymap/themes": "workspace:*",
     "@react-three/drei": "10.7.9",

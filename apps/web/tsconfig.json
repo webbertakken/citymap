@@ -13,6 +13,7 @@
   "exclude": ["node_modules", ".next", "out"],
   "references": [
     { "path": "../../packages/ground-plan" },
+    { "path": "../../packages/history" },
     { "path": "../../packages/scene" },
     { "path": "../../packages/themes" }
   ]

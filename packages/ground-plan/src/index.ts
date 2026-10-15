@@ -27,3 +27,4 @@ export type { PlatEvent } from "./town/context";
 export { canonicalJson } from "./plat/canonical";
 export { parseLock, serialiseLock, type Lockfile } from "./plat/lock";
 export { cityRegions, type Region } from "./organic/regions";
+export { stateSnapshot } from "./snapshot/state";

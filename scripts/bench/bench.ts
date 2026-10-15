@@ -2,9 +2,9 @@
 import {
   DEFAULT_LAND_USES,
   DEFAULT_SPLIT,
-  compareKeys,
   initialState,
   layCity,
+  stateSnapshot,
   type Options,
   type Snapshot,
 } from "@citymap/ground-plan";
@@ -46,23 +46,6 @@ export const OPTIONS: Options = {
   split: DEFAULT_SPLIT,
 };
 
-const folderOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")));
-
-/** A snapshot of a tree as if every file were born at the first commit: what a HEAD lay sees, without history. */
-export function headSnapshot(repository: string, paths: readonly string[]): Snapshot {
-  const folders = new Map<string, number>([["", 0]]);
-  for (const path of paths)
-    for (let folder = folderOf(path); folder !== "" && !folders.has(folder); folder = folderOf(folder))
-      folders.set(folder, 0);
-  return {
-    repository,
-    commit: "HEAD",
-    index: 0,
-    files: paths.toSorted(compareKeys).map((path) => ({ path, identity: `${path}@0`, firstSeen: 0 })),
-    folderFirstSeen: new Map([...folders].toSorted(([a], [b]) => compareKeys(a, b))),
-  };
-}
-
 /** Lays the first `commits` commits of a history in order (the fold's own work, reading included); how many it laid. */
 async function fold(history: AsyncIterable<Snapshot>, commits: number): Promise<number> {
   let state = initialState(OPTIONS);
@@ -97,7 +80,7 @@ async function time(budget: Budget, ports: Ports): Promise<boolean | null> {
   let ms: number;
   let size = `files=${paths.length}`;
   // The snapshot is built before the clock starts: the budget is the lay's.
-  if (budget.kind === "head") ms = medianLay(headSnapshot(budget.repo, paths), ports.now);
+  if (budget.kind === "head") ms = medianLay(stateSnapshot(budget.repo, "HEAD", paths), ports.now);
   else {
     const started = ports.now();
     const laid = await fold(ports.history(budget.repo), budget.commits);

@@ -9,8 +9,8 @@ is read folder by folder.
 
 ## Phase 1: shared pieces
 
-- [ ] `stateSnapshot` in `@citymap/ground-plan`, used by `readTree`, the bench and the browser
-- [ ] The manifest parsers importable in the browser (`@citymap/history/manifests`)
+- [x] `stateSnapshot` in `@citymap/ground-plan`, used by `readTree`, the bench and the browser
+- [x] The manifest parsers importable in the browser (`@citymap/history/manifests`)
 
 ## Phase 2: reading GitHub
 
