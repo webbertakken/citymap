@@ -9,3 +9,6 @@ pub mod partition;
 
 #[cfg(test)]
 mod golden;
+
+#[cfg(test)]
+mod branches;
