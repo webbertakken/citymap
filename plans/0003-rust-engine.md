@@ -94,4 +94,5 @@ Branch `feat/rust-engine` in the worktree `../citymap-rust`.
 ## Phase 9: fold-back and pull request
 
 - [x] Fold-back: specs, blueprint, defaults and indexes match what shipped; every symbol and path verified
-- [ ] Private-name check, push, pull request with parity results and timings; not merged
+- [x] Private-name check, push, pull request with parity results and timings; not merged
+      ([#22](https://github.com/webbertakken/citymap/pull/22))
