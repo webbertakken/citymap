@@ -9,20 +9,35 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
 1. A person opens the viewer and sees a city at once: the first one of the bundled cities, laid by the CLI.
 2. They switch between bundled cities, or open a city file of their own (a JSON file the CLI wrote), by picking it or
    dropping it on the page.
-3. They look around: pan, zoom, and switch between the 2:1 dimetric view and the plan view.
-4. They change the theme; the viewer starts in Paper atlas, or in Night atlas when the system prefers dark.
-5. They read the city: town and district names on the map, and the same names as a list beside it.
+3. Or they name any public GitHub repository (`owner/name`, or its URL) and see its city at its default branch, laid in
+   their browser in seconds; a link carries the repository, so it can be shared.
+4. They look around: pan, zoom, and switch between the 2:1 dimetric view and the plan view.
+5. They change the theme; the viewer starts in Paper atlas, or in Night atlas when the system prefers dark.
+6. They read the city: town and district names on the map, and the same names as a list beside it.
 
 ## Layout
 
-- The map fills the page. A slim bar runs along the top: the city's name, the city picker, the open-file button, the
-  view switch and the theme picker.
+- The map fills the page. A slim bar runs along the top: the city's name, the city picker, the repository field, the
+  open-file button, the view switch and the theme picker.
 - A panel lists the towns and their largest districts, with lot counts; on a phone it folds behind a button.
 - Empty state: no city loaded shows a short line on how to make one (`citymap <repository> --out=city.json`) and the
   open-file button.
 - Loading state: the bar shows the city's name with "laying out…" until the scene is drawn.
 - Error state: a file that is not a city says so in one sentence with the reason (the parser's message), and the last
   good city stays on screen.
+
+## A GitHub repository, live
+
+- The repository field takes `owner/name` or a GitHub URL; pressing Enter or "Lay" lays it. The page address gains
+  `?repo=owner/name`, and opening such an address lays that repository at once.
+- The city is the repository's single state at its default branch: its tree, every file laid at once, workspace members
+  from its root manifests. It is not folded over history, so it is not stable from one commit to the next; the status
+  line says so ("single state, not folded").
+- Everything runs in the browser, from GitHub's public API, without signing in. A tree too large for one answer is read
+  folder by folder until complete; the status line counts the requests as they go.
+- Errors are one sentence each, and the last city stays: a repository that does not exist or is private, GitHub's hourly
+  limit reached (with the time it resets), or no network.
+- Laying runs off the main thread, so the page stays responsive while a large repository is laid.
 
 ## Map
 

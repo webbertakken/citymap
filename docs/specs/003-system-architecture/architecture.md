@@ -7,14 +7,14 @@ What the ground plan is lives in [ground plan](../006-ground-plan/ground-plan.md
 
 One Bun workspace in this repository. Domain packages hold the logic; apps only wire them to a surface.
 
-| Workspace              | Role                                                                                       |
-| ---------------------- | ------------------------------------------------------------------------------------------ |
-| `packages/ground-plan` | The engine: tree snapshots in, plat and city model out. Pure, deterministic, integer core. |
-| `packages/history`     | Reads a git repository into tree snapshots (first-parent history, trees, exact renames).   |
-| `packages/svg`         | Draws a city model as SVG, per theme.                                                      |
-| `packages/scene`       | Turns a city model into Three.js geometry (instanced lots, merged roads), framework free.  |
-| `apps/cli`             | `citymap`: a repository in, a city (JSON, SVG) and a lockfile out.                         |
-| `apps/web`             | The viewer: Next.js with React and react-three-fiber, drawing `packages/scene` output.     |
+| Workspace              | Role                                                                                                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/ground-plan` | The engine: tree snapshots in, plat and city model out. Pure, deterministic, integer core.                                                                                                        |
+| `packages/history`     | Reads a git repository into tree snapshots (first-parent history, trees, exact renames).                                                                                                          |
+| `packages/svg`         | Draws a city model as SVG, per theme.                                                                                                                                                             |
+| `packages/scene`       | Turns a city model into Three.js geometry (instanced lots, merged roads), framework free.                                                                                                         |
+| `apps/cli`             | `citymap`: a repository in, a city (JSON, SVG) and a lockfile out.                                                                                                                                |
+| `apps/web`             | The viewer: Next.js with React and react-three-fiber, drawing `packages/scene` output; a static export on GitHub Pages that also lays any public GitHub repository's single state in the browser. |
 
 - Dependencies point one way: apps depend on packages; `svg` and `scene` depend on `ground-plan`'s model types only;
   `history` and `ground-plan` do not know each other, and the apps join them.
