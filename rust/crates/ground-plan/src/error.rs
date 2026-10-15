@@ -29,12 +29,53 @@ pub enum ErrorCode {
     CliUsage,
     LockBadJson,
     LockBadShape,
+    GithubBadName,
+    GithubNotFound,
+    GithubRateLimited,
+    GithubFailed,
+    GithubOffline,
     EngineInvariant,
     /// A failure outside the engine (an I/O error the CLI meets).
     EngineUnexpected,
 }
 
 impl ErrorCode {
+    /// Every code, in the order the TypeScript union lists them, then the CLI's own.
+    pub const ALL: [Self; 32] = [
+        Self::FixedBadDivisor,
+        Self::FixedOverflow,
+        Self::FixedNegativeSqrt,
+        Self::FixedZeroDirection,
+        Self::FixedWarpFolds,
+        Self::SnapshotBadShape,
+        Self::SnapshotNotSorted,
+        Self::SnapshotDuplicatePath,
+        Self::SnapshotBadPath,
+        Self::SnapshotTooLarge,
+        Self::SnapshotBadIndex,
+        Self::PlatBadJson,
+        Self::PlatBadVersion,
+        Self::PlatTooNew,
+        Self::PlatBadShape,
+        Self::CityBadJson,
+        Self::CityBadShape,
+        Self::CityTooLarge,
+        Self::PlatSettingMismatch,
+        Self::HistoryNotARepo,
+        Self::HistoryGitFailed,
+        Self::HistoryParse,
+        Self::CliUsage,
+        Self::LockBadJson,
+        Self::LockBadShape,
+        Self::GithubBadName,
+        Self::GithubNotFound,
+        Self::GithubRateLimited,
+        Self::GithubFailed,
+        Self::GithubOffline,
+        Self::EngineInvariant,
+        Self::EngineUnexpected,
+    ];
+
     /// The code as written in logs: `fixed/bad-divisor` and so on.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -64,6 +105,11 @@ impl ErrorCode {
             Self::CliUsage => "cli/usage",
             Self::LockBadJson => "lock/bad-json",
             Self::LockBadShape => "lock/bad-shape",
+            Self::GithubBadName => "github/bad-name",
+            Self::GithubNotFound => "github/not-found",
+            Self::GithubRateLimited => "github/rate-limited",
+            Self::GithubFailed => "github/failed",
+            Self::GithubOffline => "github/offline",
             Self::EngineInvariant => "engine/invariant",
             Self::EngineUnexpected => "engine/unexpected",
         }
@@ -115,6 +161,20 @@ pub type Result<T, E = CitymapError> = std::result::Result<T, E>;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn names_every_code_the_typescript_engine_names() {
+        let source = include_str!("../../../../packages/ground-plan/src/errors.ts");
+        let union = &source[source.find("export type ErrorCode").expect("the union")..];
+        let union = &union[..union.find(';').expect("its end")];
+        let typescript: Vec<&str> = union.split('"').skip(1).step_by(2).collect();
+        let rust: Vec<&str> = ErrorCode::ALL
+            .iter()
+            .map(|c| c.as_str())
+            .filter(|c| *c != "engine/unexpected")
+            .collect();
+        assert_eq!(rust, typescript);
+    }
 
     #[test]
     fn displays_the_code_and_message_as_typescript_does() {
