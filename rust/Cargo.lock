@@ -122,6 +122,7 @@ version = "0.0.0"
 dependencies = [
  "citymap-ground-plan",
  "citymap-themes",
+ "serde_json",
 ]
 
 [[package]]

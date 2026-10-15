@@ -3,7 +3,21 @@
 // Usage: bun scripts/parity-fixtures.ts
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { classifyLandUse } from "@citymap/ground-plan";
+import {
+  DEFAULT_LAND_USES,
+  canonicalJson,
+  classifyLandUse,
+  fnv1a,
+  initialState,
+  layCity,
+  parseCity,
+  type FileEntry,
+  type Options,
+  type Snapshot,
+} from "@citymap/ground-plan";
+import { renderCity } from "@citymap/svg";
+import { THEMES, THEME_NAMES } from "@citymap/themes";
+import { USAGE } from "../apps/cli/src/args";
 
 const root = join(import.meta.dirname, "..");
 const out = (name: string) => join(root, "rust/fixtures", name);
@@ -96,15 +110,6 @@ console.log(`[parity-fixtures] land-use.tsv: ${landUse.length} paths`);
 
 // A synthetic history, folded: workspace groups, split apps, edits, deletions, a rename, docs, and a root switch that
 // freezes an old town. Rust replays the snapshots and must log the same events and write the same city and plat.
-import {
-  canonicalJson,
-  initialState,
-  layCity,
-  DEFAULT_LAND_USES,
-  type FileEntry,
-  type Options,
-  type Snapshot,
-} from "@citymap/ground-plan";
 
 const born = (path: string, at: number): FileEntry => ({ path, identity: `${path}@${at}`, firstSeen: at });
 const many = (folder: string, n: number, at: number, ext = "ts") =>
@@ -204,3 +209,63 @@ await Bun.write(out("fold.json"), `${JSON.stringify(fold)}\n`);
 console.log(
   `[parity-fixtures] fold.json: ${snapshots.length} snapshots, ${events.flat().length} events, old towns ${Object.keys(state.plat.old).length}`,
 );
+
+// Every colour a theme can give: its fixed colours, and per district class (every hue, every accent) and form.
+
+const districts = [...Array.from({ length: 290 }, (_, d) => d), fnv1a("")];
+const colours: string[] = [];
+for (const name of THEME_NAMES) {
+  const theme = THEMES[name];
+  const fixed = [
+    "country",
+    "ground",
+    "outline",
+    "park",
+    "plaza",
+    "water",
+    "waterline",
+    "casing",
+    "road",
+    "text",
+    "halo",
+    "header",
+    "headerText",
+    "subText",
+  ] as const;
+  for (const key of fixed) colours.push(`${name}\t${key}\t\t${theme[key]}`);
+  for (const d of districts) {
+    colours.push(`${name}\tblock\t${d}\t${theme.block(d)}`);
+    colours.push(`${name}\tlot-source\t${d}\t${theme.lot(d, true)}`);
+    colours.push(`${name}\tlot\t${d}\t${theme.lot(d, false)}`);
+    colours.push(`${name}\tplinth\t${d}\t${theme.plinth(d)}`);
+    colours.push(`${name}\treserve\t${d}\t${theme.reserve(d).join(" ")}`);
+  }
+  for (const form of ["radial", "twin", "polycentric"] as const) {
+    colours.push(`${name}\tform-block\t${form}\t${theme.form(form, false)}`);
+    colours.push(`${name}\tform-lot\t${form}\t${theme.form(form, true)}`);
+  }
+}
+await Bun.write(out("colours.tsv"), `${colours.join("\n")}\n`);
+console.log(`[parity-fixtures] colours.tsv: ${colours.length} colours`);
+
+// The folded synthetic city drawn in every theme, camera and region setting: one document whole, the rest as digests.
+const digest = (text: string) =>
+  fnv1a(text).toString(16).padStart(8, "0") + fnv1a(`\u0000${text}`).toString(16).padStart(8, "0");
+const city = parseCity(fold.city);
+const drawings: string[] = [];
+let whole = "";
+for (const theme of THEME_NAMES)
+  for (const camera of ["plan", "dimetric"] as const)
+    for (const regions of [false, true]) {
+      const svg = renderCity(city, { title: "synthetic <&>", subtitle: "0000 · 2 towns", theme, camera, regions });
+      drawings.push(`${theme}\t${camera}\t${regions}\t${svg.length}\t${digest(svg)}`);
+      if (theme === "paper-atlas" && camera === "plan" && regions) whole = svg;
+    }
+await Bun.write(out("city.svg"), whole);
+await Bun.write(out("svg.tsv"), `${drawings.join("\n")}\n`);
+console.log(`[parity-fixtures] svg.tsv: ${drawings.length} drawings`);
+
+// The CLI's usage, word for word.
+
+await Bun.write(out("usage.txt"), USAGE);
+console.log("[parity-fixtures] usage.txt");

@@ -64,11 +64,11 @@ Branch `feat/rust-engine` in the worktree `../citymap-rust`.
 
 ## Phase 6: themes, SVG and CLI
 
-- [ ] Colours and themes; parity fixture of every hue
-- [ ] `to_fixed` and the SVG renderer; parity fixture of SVG documents
-- [ ] Arguments, `run_lay` with lock resume and periodic saves, `main` with exit codes
-- [ ] Ported CLI tests
-- [ ] Commit
+- [x] Colours and themes; parity fixture of every hue
+- [x] `to_fixed` and the SVG renderer; parity fixture of SVG documents
+- [x] Arguments, `run_lay` with lock resume and periodic saves, `main` with exit codes
+- [x] Ported CLI tests
+- [x] Commit
 
 ## Phase 7: parity
 
