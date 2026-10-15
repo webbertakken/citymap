@@ -17,6 +17,10 @@ export interface TopBarProps {
   readonly onCity: (file: string) => void;
   readonly onFile: (file: File) => void;
   readonly onRepository: (input: string) => void;
+  /** What is shown when it is not a bundled city: "owner/name (GitHub)" or "name.json (file)"; null otherwise. */
+  readonly elsewhere: string | null;
+  /** The GitHub repository last laid, shown in its field. */
+  readonly repository: string;
   readonly onMode: (mode: Mode) => void;
   readonly onTheme: (theme: ThemeName) => void;
 }
@@ -57,6 +61,11 @@ export function TopBar(props: TopBarProps) {
         <span className="field">
           <label htmlFor="city">City</label>
           <select id="city" value={props.selected} onChange={(e) => props.onCity(e.target.value)}>
+            {props.selected === "" && props.elsewhere !== null && (
+              <option value="" disabled>
+                {props.elsewhere}
+              </option>
+            )}
             {props.cities.map((c) => (
               <option key={c.file} value={c.file}>
                 {c.name} ({c.lots.toLocaleString("en-GB")} lots)
@@ -73,6 +82,8 @@ export function TopBar(props: TopBarProps) {
           >
             <label htmlFor="repository">GitHub repository</label>
             <input
+              key={props.repository}
+              defaultValue={props.repository}
               ref={repository}
               id="repository"
               name="repository"

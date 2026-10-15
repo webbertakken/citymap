@@ -85,6 +85,9 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     [fitted, scene, mode, viewport, moved],
   );
   const [picked, setPicked] = useState<Hit | null>(null);
+  // A city that is not bundled: where it came from, for the picker; and the GitHub repository last laid.
+  const [elsewhere, setElsewhere] = useState<string | null>(null);
+  const [laidRepository, setLaidRepository] = useState("");
   const drill = (key: string | null) => {
     if (key === null) log.info("viewer/city");
     else log.info("viewer/town", { key });
@@ -107,6 +110,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const open = useCallback(
     async (entry: CityEntry) => {
       setSelected(entry.file);
+      setElsewhere(null);
       setStatus(`${entry.name}: laying out…`);
       try {
         show(await loadCity(fetcher, entry, basePath), entry.name);
@@ -136,6 +140,8 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         show(next, name);
         setStatus((done) => `${done} · single state, not folded`);
         setSelected("");
+        setElsewhere(`${name} (GitHub)`);
+        setLaidRepository(name);
         log.info("viewer/github-read", {
           repo: name,
           requests,
@@ -175,6 +181,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     try {
       show(await readCityFile(file), file.name);
       setSelected("");
+      setElsewhere(`${file.name} (file)`);
     } catch (failure) {
       log.error("viewer/file-rejected", { file: file.name, reason: reasonOf(failure) });
       setError(describeFailure(failure));
@@ -222,6 +229,8 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         }}
         onFile={(file) => void openFile(file)}
         onRepository={(input) => void openRepository(input)}
+        elsewhere={elsewhere}
+        repository={laidRepository}
         onMode={(next) => {
           setMode(next);
           setMoved({ ...moved, mode: next });

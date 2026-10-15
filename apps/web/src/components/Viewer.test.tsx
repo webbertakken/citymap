@@ -115,6 +115,9 @@ describe("Viewer", () => {
     const input = screen.getByLabelText("City file");
     fireEvent.change(input, { target: { files: [new File([serialiseCity(city("gamma"))], "gamma.json")] } });
     expect(await screen.findByRole("heading", { level: 1, name: "gamma" })).toBeTruthy();
+    expect(screen.getByRole<HTMLSelectElement>("combobox", { name: "City" }).selectedOptions[0]?.textContent).toBe(
+      "gamma.json (file)",
+    );
     fireEvent.change(input, { target: { files: [new File(["{"], "bad.json")] } });
     expect((await screen.findByRole("alert")).textContent).toMatch(/^That file is not a city: city\/bad-json/);
     expect(screen.getByRole("heading", { level: 1, name: "gamma" })).toBeTruthy();
@@ -455,6 +458,10 @@ describe("Viewer and a GitHub repository", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
     expect(await screen.findByText(/^1 towns · 12 lots · single state, not folded$/)).toBeTruthy();
     expect(window.location.search).toBe("?repo=acme/widgets");
+    // The picker and the field both name what is shown.
+    const picker = screen.getByRole<HTMLSelectElement>("combobox", { name: "City" });
+    expect(picker.selectedOptions[0]?.textContent).toBe("acme/widgets (GitHub)");
+    expect(screen.getByLabelText("GitHub repository")).toHaveProperty("value", "acme/widgets");
     expect(info.mock.calls.map(([line]) => String(line)).find((l) => l.startsWith("viewer/github-read"))).toMatch(
       /^viewer\/github-read repo=acme\/widgets requests=2 files=12 ms=\d+$/,
     );
