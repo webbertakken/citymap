@@ -7,16 +7,18 @@ in the [ground plan blueprints](../../006-ground-plan/blueprints/README.md); not
 ## Workspace
 
 `rust/` is one Cargo workspace (resolver 3, edition 2024), toolchain pinned in `rust/rust-toolchain.toml` and
-`mise.toml`. Every crate sets `#![forbid(unsafe_code)]`; the workspace denies `clippy::all` and `clippy::pedantic`
-(`[workspace.lints]`), allowing only the pedantic casts the fixed-point core makes on purpose, each at its site.
+`mise.toml`. The workspace forbids `unsafe_code` and denies `clippy::all` and `clippy::pedantic` (`[workspace.lints]`).
+It allows, workspace-wide, the lints the code mirrors the reference by: `many_single_char_names` and `similar_names`
+(the formulas' names), `too_many_lines` (functions that match the TypeScript ones), `missing_panics_doc` and
+`missing_errors_doc`, `module_name_repetitions`. Casts the fixed-point core makes on purpose are allowed at their site.
 
-| Crate                 | Implements                   | Depends on                                     |
-| --------------------- | ---------------------------- | ---------------------------------------------- |
-| `citymap-ground-plan` | `packages/ground-plan`       | `indexmap`, `serde`, `serde_json`, `ethnum`    |
-| `citymap-history`     | `packages/history`           | `citymap-ground-plan`, `regress`, `serde_json` |
-| `citymap-themes`      | `packages/themes`            | `citymap-ground-plan`                          |
-| `citymap-svg`         | `packages/svg`               | `citymap-ground-plan`, `citymap-themes`        |
-| `citymap-cli`         | `apps/cli`, binary `citymap` | all of the above                               |
+| Crate                 | Implements                   | Depends on                                                |
+| --------------------- | ---------------------------- | --------------------------------------------------------- |
+| `citymap-ground-plan` | `packages/ground-plan`       | `indexmap`, `serde`, `serde_json`, `ethnum`, `rustc-hash` |
+| `citymap-history`     | `packages/history`           | `citymap-ground-plan`, `regress`, `serde_json`            |
+| `citymap-themes`      | `packages/themes`            | `citymap-ground-plan`                                     |
+| `citymap-svg`         | `packages/svg`               | `citymap-ground-plan`, `citymap-themes`                   |
+| `citymap-cli`         | `apps/cli`, binary `citymap` | all of the above                                          |
 
 Dependencies point the same way as the TypeScript workspaces. Each dependency is the latest stable release when it is
 added, declared once in `[workspace.dependencies]`; `Cargo.lock` is committed and pins the build.
@@ -56,7 +58,9 @@ same names; `packages/themes/src/{themes,colour}.ts` to `citymap-themes`; `packa
   (`FlatForm`, `DistrictForm` as predicates), `BlockKind`, `Jog`, `Order`, `Camera`, `ThemeName`.
 - `Pt { x: i64, y: i64 }`; `Dir` is `[i64; 2]`, serialised as a two-element array.
 - Optional fields (`row`, `river`, `green`, `high`, `width`, `form`) are `Option`s, left out of JSON when `None`.
-- Strings held many times over a fold (paths, identities) are `Arc<str>`.
+- Strings held many times over a fold (paths, identities, lot keys, share members) are `Arc<str>`.
+- What a fold shares between commits is behind an `Arc`: a snapshot's file list and folder map, a built tree and its
+  shares (`Built`), a town plat's shares, and a city's towns (`City.towns` is `Vec<Arc<Town>>`).
 
 ## Numbers
 
@@ -115,11 +119,12 @@ town's `shares` (an old town's member map). A plat parsed from JSON inserts keys
 ## JSON
 
 - Canonical JSON (`canonical_json`): object keys sorted by byte order at every level, no whitespace, a trailing newline,
-  `None` fields left out, integers only (a value outside the safe range is `engine/invariant`). Strings are escaped as
+  `None` fields left out, integers only (`i64`s, which the engine's limits keep within 2^53). Strings are escaped as
   `JSON.stringify` escapes them: `"` and `\\`, `\b \f \n \r \t`, other controls below U+0020 as `\u00xx` (lowercase
   hex), nothing else.
-- The plat, the lockfile and the city are serialised through `serde::Serialize` into `serde_json::Value`
-  (`preserve_order` off, so maps are sorted) and printed by `canonical_json`.
+- The plat, the lockfile and the city are serialised by `serde_json` straight from their types: struct fields are
+  declared in byte order of their JSON names, `Record`s are `BTreeMap`s, and insertion-ordered maps (`Slots`, `Shares`)
+  serialise through `json::sorted`. A test reads every serialised object back and checks its keys are sorted.
 - `parse_plat`, `parse_lock`, `parse_city` deserialise with `deny_unknown_fields` (valibot's `strictObject`) and map the
   failures to the TypeScript codes: `plat/bad-json`, `plat/too-new`, `plat/bad-version`, `plat/bad-shape`,
   `lock/bad-json`, `lock/bad-shape`, `city/bad-json`, `city/bad-shape` (a repeated town key at `/towns`).
@@ -132,14 +137,30 @@ town's `shares` (an old town's member map). A plat parsed from JSON inserts keys
   `engine/invariant`). The CLI adds `engine/unexpected` for an I/O failure outside the engine.
 - Fallible functions return `Result<T, CitymapError>`; nothing else crosses a crate boundary.
 
-## Caches
+## Caches and the drawn city
 
-Caches never change output; the Rust engine keeps the ones that matter for its speed:
+Nothing here changes output: each cache holds the result of a pure function of what it is keyed by, and the drawing a
+fold defers is pure. Folding with and without the caches gives the same bytes (tested on the fold fixture).
 
-- The locality cache (`TownCache`) exactly as the [fold blueprint](../../006-ground-plan/blueprints/fold.md) defines it,
-  with the same key text and the same check that the folder's own record is present.
-- `classify_land_use` per path, the derived workspace groups, members and live identities per file list (`Arc` identity
-  in place of `WeakMap`), and the memoised warp per town and diameter.
+- The locality cache (`TownCache.entries`) as the [fold blueprint](../../006-ground-plan/blueprints/fold.md) defines it,
+  compared field by field (digest, name, depth, district, land and its widths) rather than as one key text, with the
+  same check that the folder's own record is present.
+- A part's tree (`KeptTree`): kept while the part's files, its tree options and the shares it made last time are the
+  same. Building again from the same files and the shares it made gives the same tree and the same shares (sharing
+  places every member it already holds), and a part's folders and their first commits follow from its files. A part's
+  files are the range of the sorted list under its root (`under`), less its old towns' files; the range is compared by
+  pointer first, then entry by entry. The whole tree an old town's part is judged by is kept the same way.
+- A neighbourhood's grid (`KeptGrid`): the cells and slots of a grid laid on some land, kept while the grid's direction,
+  origin and pitches and the land are the same.
+- Land use per path, for a million paths (`USE_MEMORY`); the derived workspace groups and members per file list (`Arc`
+  identity in place of `WeakMap`); the memoised warp per town and diameter.
+- Drawing waits: `lay` makes every plan decision and updates the plat, and keeps each town as a `TownDraft`
+  (`LastTown`). `current_city` draws the city of the last lay: loop connectors, the warp, tints and labels, old towns
+  lit by the last snapshot's files, the highways, and the extent check. `lay_city` is `lay` then `current_city`, as
+  TypeScript's `layCity`. An archetype switch draws the town it freezes from its draft. The CLI draws once, after the
+  fold.
+- Every `lay` checks the drawn outlines of its towns and old towns against `COORD_LIMIT` (`check_outlines`); the
+  highways are checked when the city is drawn.
 
 ## History
 
@@ -149,8 +170,10 @@ Caches never change output; the Rust engine keeps the ones that matter for its s
   snapshots over a bounded channel (`SNAPSHOT_QUEUE` = 64); the fold lays them in order on the calling thread. A
   snapshot shares its file list and folder map (`Arc`) with the previous one while a commit only edits files.
 - The tree state is a `BTreeMap` by path, so the sorted file list is its iteration.
-- Manifest blobs are read through one `git cat-file --batch` per reader, pipelined per chunk of commits, the partial
-  clone's held blobs listed once, a process that exits mid-answer replaced as in TypeScript.
+- Manifest blobs are read through one `git cat-file --batch` per reader, one blob at a time as each commit asks for them
+  (the blobs `Workspaces::wanted` names before the commit applies), the partial clone's held blobs listed once, a
+  process that ends mid-answer replaced for the next blob, as in TypeScript. Commits that change no root manifest read
+  nothing.
 
 ## Security and observability
 
@@ -187,7 +210,23 @@ Caches never change output; the Rust engine keeps the ones that matter for its s
   named after it, beside the code (`#[cfg(test)]`) or in `tests/`.
 - Golden towns: the Rust test reads `packages/ground-plan/src/town/__golden__/*.json` and compares bytes; the TypeScript
   test writes them.
-- Parity fixtures under `rust/fixtures/` are written by `scripts/parity-fixtures.ts` from the TypeScript engine: land
-  use of every path in `react-head-paths.txt` and a list of edge cases, theme colours for every hue and district class,
-  and SVG documents of the golden towns in every theme and camera.
+- Parity fixtures under `rust/fixtures/` are written by `scripts/parity-fixtures.ts` from the TypeScript engine:
+  `land-use.tsv` (every path in `react-head-paths.txt` and a list of edge cases), `fold.json` (a synthetic history of
+  groups, split apps, edits, deletions, a rename and a root switch, its events per commit, its city and its plat),
+  `colours.tsv` (every colour of every theme for every district class and form), `svg.tsv` and `city.svg` (the folded
+  city drawn in every theme, camera and region setting, as lengths and digests, one whole) and `usage.txt`.
 - `cargo test` runs in under ten seconds on the development machine; the parity script is local, not in CI.
+
+## Known differences
+
+Only on input the TypeScript CLI would also reject, or never meets:
+
+- A lockfile with a grid pitch of 0 is `plat/bad-shape` in Rust and `fixed/bad-divisor` at lay time in TypeScript.
+- JSON numbers written with a fraction or an exponent (`1.0`, `1e3`) are rejected where valibot accepts an integer.
+- `--density` accepts what `Number` accepts for integers, hexadecimal, octal and binary prefixes included; other
+  `Number` forms (a lone sign, Unicode spaces) may differ, and both reject what is not an integer from 20 to 80.
+- Usage and parse error messages from serde and the hand-written parser word their reasons differently; codes, exit
+  codes and the usage text are the same.
+- A city whose highways (not its outlines) cross `COORD_LIMIT` at a commit before the last fails in TypeScript and is
+  only checked at the last commit in Rust.
+- `parseSnapshot` (untrusted snapshot JSON) has no Rust counterpart: Rust snapshots come only from its own reader.

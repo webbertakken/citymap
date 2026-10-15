@@ -75,3 +75,47 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod order {
+    use super::*;
+
+    fn assert_sorted(value: &serde_json::Value, at: &str) {
+        match value {
+            serde_json::Value::Object(map) => {
+                let keys: Vec<&String> = map.keys().collect();
+                assert!(
+                    keys.windows(2).all(|w| compare_keys(w[0], w[1]).is_lt()),
+                    "{at}: {keys:?}"
+                );
+                for (k, v) in map {
+                    assert_sorted(v, &format!("{at}/{k}"));
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for (i, v) in items.iter().enumerate() {
+                    assert_sorted(v, &format!("{at}/{i}"));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Every object the engine writes has its keys in byte order: the folded city and plat of the fold fixture, which
+    /// hold every type the engine serialises (old towns included), read back in their own order.
+    #[test]
+    fn writes_every_object_with_sorted_keys() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../../fixtures/fold.json")).expect("fixture");
+        for name in ["city", "plat"] {
+            let text = fixture[name].as_str().expect("a document");
+            let city: serde_json::Value = serde_json::from_str(text).expect("JSON");
+            assert_sorted(&city, name);
+            let typed = match name {
+                "city" => canonical_json(&crate::city::parse_city(text).expect("a city")).expect("json"),
+                _ => canonical_json(&crate::plat::parse_plat(text).expect("a plat")).expect("json"),
+            };
+            assert_eq!(typed, text);
+        }
+    }
+}
