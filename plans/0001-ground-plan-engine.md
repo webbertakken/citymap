@@ -171,7 +171,9 @@ about 13,300 (292 neighbourhoods, 1 to 21 short each) where a fresh HEAD lay lea
       neighbourhood had less land than a fresh lay gives it: allocation, not packing)
 - [x] Decide the fix with Webber: investigate now. A fair-share recut against the town was tried and dropped (react 13 →
       123 files without a lot); budgeting road land in demand was kept
-- [ ] Build it test-first; measure on home-assistant, next.js, react and livediagram (several seeds)
+- [x] Build it test-first; measure on home-assistant, next.js, react and livediagram: a side short of its folder's share
+      of land recuts, and a park line that leaves the lots no land re-lays. Full home-assistant fold 1,543 → 274 files
+      without a lot (a fresh lay: 14); the fold ratchet 53 → 35; stability unchanged
 - [x] Add fold divergence to the bench ratchet: `bun run bench --folds` folds the fast reference repositories in full
       against fresh lays, with its own baseline
 
