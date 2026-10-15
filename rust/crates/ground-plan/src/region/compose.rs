@@ -385,12 +385,35 @@ impl LastTown {
     }
 }
 
-/// The city of the last lay, before it is drawn: its towns by part key, and its old towns as they stand.
+/// The city of the last lay, before it is drawn: its towns by part key, and the files that light its old towns.
 struct Current {
     repository: String,
     commit: String,
     towns: Vec<String>,
-    old: Vec<(String, Town)>,
+    files: Arc<Vec<FileEntry>>,
+}
+
+/// Old towns stay where they stood; their lots stay lit while any of their files lives. With their successors.
+fn old_towns(plat: &Plat, files: &[FileEntry]) -> Vec<(String, Town)> {
+    let live: HashSet<&str> = if plat.old.is_empty() {
+        HashSet::new()
+    } else {
+        files.iter().map(|f| &*f.identity).collect()
+    };
+    let mut old = Vec::new();
+    for (successor, list) in &plat.old {
+        for o in list {
+            let mut town = o.town.clone();
+            for lot in &mut town.lots {
+                lot.vacant = !o
+                    .members
+                    .get(&lot.key)
+                    .is_some_and(|m| m.iter().any(|m| live.contains(m.as_str())));
+            }
+            old.push((successor.clone(), town));
+        }
+    }
+    old
 }
 
 /// The cache of one town, when the fold keeps caches.
@@ -414,10 +437,11 @@ pub fn current_city(state: &mut FoldState, options: &Options) -> Result<City> {
         all.push(state.last[key].town(town_cache(&mut state.cache, key)));
     }
     let main_count = all.len();
-    all.extend(current.old.iter().map(|(_, t)| Arc::new(t.clone())));
+    let old = old_towns(&state.plat, &current.files);
+    all.extend(old.iter().map(|(_, t)| Arc::new(t.clone())));
     // Highways join each group town to the main town, and each old town to the town that replaced it.
     let mut pairs: Vec<(usize, usize)> = (1..main_count).map(|t| (0, t)).collect();
-    for (o, (successor, _)) in current.old.iter().enumerate() {
+    for (o, (successor, _)) in old.iter().enumerate() {
         let found = all[..main_count].iter().position(|t| t.key == *successor);
         if let Some(s) = found.or((main_count > 0).then_some(0)) {
             pairs.push((s, main_count + o));
@@ -640,29 +664,11 @@ pub fn lay(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -> Res
         }
     }
 
-    // Old towns stay where they stood; their lots stay lit while any of their files lives.
-    let live: HashSet<&str> = if plat.old.is_empty() {
-        HashSet::new()
-    } else {
-        snapshot.files.iter().map(|f| &*f.identity).collect()
-    };
-    let mut old_towns: Vec<(String, Town)> = Vec::new();
-    for (successor, list) in &plat.old {
-        for o in list {
-            let mut town = o.town.clone();
-            for lot in &mut town.lots {
-                lot.vacant = !o
-                    .members
-                    .get(&lot.key)
-                    .is_some_and(|m| m.iter().any(|m| live.contains(m.as_str())));
-            }
-            old_towns.push((successor.clone(), town));
-        }
-    }
-    let blockers: Vec<(Pt, i64)> = old_towns.iter().map(|(_, t)| footprint(t)).collect();
+    // Old towns stand where they stood: no town is placed on them.
+    let blockers: Vec<(Pt, i64)> = plat.old.values().flatten().map(|o| footprint(&o.town)).collect();
     let mut placed: Vec<(Pt, i64)> = Vec::new();
     let mut towns: Vec<String> = Vec::new();
-    let mut outlines: Vec<Vec<Pt>> = old_towns.iter().map(|(_, t)| t.outline.clone()).collect();
+    let mut outlines: Vec<Vec<Pt>> = plat.old.values().flatten().map(|o| o.town.outline.clone()).collect();
     let count = laid_parts.len();
     let origin = Pt::new(0, 0);
     for (i, LaidPart { part, root_form, built }) in laid_parts.into_iter().enumerate() {
@@ -767,7 +773,7 @@ pub fn lay(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -> Res
         repository: repository.clone(),
         commit: snapshot.commit.clone(),
         towns,
-        old: old_towns,
+        files: snapshot.files.clone(),
     });
     Ok(events)
 }

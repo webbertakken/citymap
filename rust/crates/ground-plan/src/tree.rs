@@ -1,6 +1,6 @@
 //! The town's folder tree: lots shared, chains collapsed, mass and demand summed.
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::sync::Arc;
 
@@ -93,19 +93,22 @@ fn by_age(a: (i64, &str), b: (i64, &str)) -> Ordering {
 struct Raw<'a> {
     files: Vec<(&'a FileEntry, LandUse)>,
     docs: i64,
-    kids: HashSet<&'a str>,
+    kids: FxHashSet<&'a str>,
 }
 
 /// Shares a folder's files into lots, remembering members; returns the lot seeds and records the new share records.
 fn share_lots(folder: &str, files: &[(&FileEntry, LandUse)], shares: &Shares, out: &mut Shares) -> Vec<LotSeed> {
     let mut seeds = Vec::new();
-    for land_use in LandUse::ALL {
-        let list: Vec<&FileEntry> = files.iter().filter(|(_, u)| *u == land_use).map(|(f, _)| *f).collect();
+    let mut buckets: [Vec<&FileEntry>; LandUse::ALL.len()] = Default::default();
+    for &(file, land_use) in files {
+        buckets[land_use as usize].push(file);
+    }
+    for (land_use, list) in LandUse::ALL.into_iter().zip(buckets) {
         if list.is_empty() {
             continue;
         }
         let capacity = land_use.lot_capacity();
-        let live: HashMap<&str, &FileEntry> = list.iter().map(|f| (&*f.identity, *f)).collect();
+        let live: FxHashMap<&str, &FileEntry> = list.iter().map(|f| (&*f.identity, *f)).collect();
         let key = format!("{folder}|{land_use}");
         let mut lots: Vec<ShareRecord> = shares
             .get(&key)
@@ -122,13 +125,18 @@ fn share_lots(folder: &str, files: &[(&FileEntry, LandUse)], shares: &Shares, ou
             })
             .filter(|lot| !lot.members.is_empty())
             .collect();
-        let placed: HashSet<Arc<str>> = lots.iter().flat_map(|lot| lot.members.iter().cloned()).collect();
+        let placed: FxHashSet<Arc<str>> = lots.iter().flat_map(|lot| lot.members.iter().cloned()).collect();
+        // Lots only gain members here, so the first lot with room never moves back: the search resumes where it was.
+        let mut open = 0;
         for entry in &list {
             if placed.contains(&*entry.identity) {
                 continue;
             }
-            if let Some(open) = lots.iter_mut().find(|lot| lot.members.len() < capacity) {
-                open.members.push(entry.identity.clone());
+            while open < lots.len() && lots[open].members.len() >= capacity {
+                open += 1;
+            }
+            if open < lots.len() {
+                lots[open].members.push(entry.identity.clone());
             } else {
                 lots.push(ShareRecord {
                     key: entry.identity.clone(),
@@ -214,7 +222,7 @@ struct Builder<'a, 's> {
     snapshot: &'a Snapshot,
     root: &'a str,
     density_pct: i64,
-    raw: HashMap<&'a str, Raw<'a>>,
+    raw: FxHashMap<&'a str, Raw<'a>>,
     shares: &'s Shares,
     next: Shares,
 }
@@ -295,7 +303,7 @@ pub fn build_tree(
     } else {
         format!("{root}/")
     };
-    let mut raw: HashMap<&str, Raw> = HashMap::new();
+    let mut raw: FxHashMap<&str, Raw> = FxHashMap::default();
     raw.entry(root).or_default();
     let (mut off_land, mut docs) = (0, 0);
     for (i, entry) in files.iter().enumerate() {
@@ -321,9 +329,12 @@ pub fn build_tree(
             raw.entry(folder).or_default().files.push((entry, land_use));
         }
         let mut f = folder;
+        // Each folder links into its parent once; a link already made means every folder above is linked too.
         while f != root {
             let parent = parent_of(f);
-            raw.entry(parent).or_default().kids.insert(f);
+            if !raw.entry(parent).or_default().kids.insert(f) {
+                break;
+            }
             f = parent;
         }
     }
