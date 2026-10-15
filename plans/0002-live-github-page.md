@@ -28,8 +28,9 @@ is read folder by folder.
 
 - [x] `basePath` from `CITYMAP_BASE_PATH`; bundled files fetched under it
 - [x] `.github/workflows/pages.yml`; Pages enabled for workflow builds
-- [ ] Deployed and checked live on several public repositories, a large one included
+- [x] Deployed and checked live on several public repositories, a large one included (takken.io, react, kubernetes,
+      next.js on https://webbertakken.github.io/citymap/; linux locally: 27 requests, 14 s)
 
 ## Phase 5: fold-back
 
-- [ ] Specs, blueprint, defaults and indexes match what shipped; README points at the live page; PR with images
+- [x] Specs, blueprint, defaults and indexes match what shipped; README points at the live page; PR with images (#20)
