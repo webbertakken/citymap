@@ -26,8 +26,8 @@ is read folder by folder.
 
 ## Phase 4: hosting
 
-- [ ] `basePath` from `CITYMAP_BASE_PATH`; bundled files fetched under it
-- [ ] `.github/workflows/pages.yml`; Pages enabled for workflow builds
+- [x] `basePath` from `CITYMAP_BASE_PATH`; bundled files fetched under it
+- [x] `.github/workflows/pages.yml`; Pages enabled for workflow builds
 - [ ] Deployed and checked live on several public repositories, a large one included
 
 ## Phase 5: fold-back

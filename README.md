@@ -7,6 +7,16 @@ stable as the code grows, so the place you knew yesterday is still there today.
 
 ![kubernetes at HEAD, in the Paper atlas theme](docs/img/hero-kubernetes.png)
 
+## Try it live
+
+Open **[webbertakken.github.io/citymap](https://webbertakken.github.io/citymap/)** and type any public GitHub repository
+(`owner/name`) into the bar. Its current state is read from GitHub and laid in your browser, in a second or two for most
+repositories (linux: 96,000 files in about 14 seconds). A link such as
+[?repo=facebook/react](https://webbertakken.github.io/citymap/?repo=facebook/react) opens one directly.
+
+The live page shows a single state; folding the whole history, which keeps the map stable over time, runs with the CLI.
+GitHub allows about 60 requests an hour without signing in: most repositories take two, linux about thirty.
+
 ## What it does
 
 - **Stable by design.** citymap folds a repository's whole first-parent history, commit by commit. Every cut, grid and
