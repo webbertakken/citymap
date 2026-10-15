@@ -1,4 +1,4 @@
-// `bun run bench [--rebase]`: times the fold blueprint's budgets, then lays the corpus at HEAD and holds its ratchet on the repositories under ~/.cache/citymap/repos (or $CITYMAP_REPOS).
+// `bun run bench [--folds] [--rebase]`: times the fold blueprint's budgets, then lays the corpus at HEAD and holds its ratchet on the repositories under ~/.cache/citymap/repos (or $CITYMAP_REPOS).
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { gitEnvironment, readHistory } from "@citymap/history";
 import { BUDGETS, bench, type Ports } from "./bench/bench.ts";
 import { CORPUS, corpus, parseTotals } from "./bench/corpus.ts";
+import { FOLDS, folds } from "./bench/folds.ts";
 
 const root = process.env.CITYMAP_REPOS ?? join(homedir(), ".cache/citymap/repos");
 const run = promisify(execFile);
@@ -41,4 +42,18 @@ const ratchet = await corpus(
   },
   process.argv.includes("--rebase"),
 );
-process.exitCode = Math.max(timed, ratchet);
+// `--folds`: the fast reference repositories folded in full, against their own baseline (minutes, so on demand).
+const foldFile = join(import.meta.dirname, "bench/fold-baseline.json");
+const folded = process.argv.includes("--folds")
+  ? await folds(
+      FOLDS,
+      {
+        history: (repo) => (existsSync(join(root, repo)) ? readHistory(join(root, repo)) : null),
+        readBaseline: () => (existsSync(foldFile) ? Number(readFileSync(foldFile, "utf8")) : null),
+        writeBaseline: (overflow) => writeFileSync(foldFile, `${overflow}\n`),
+        log: ports.log,
+      },
+      process.argv.includes("--rebase"),
+    )
+  : 0;
+process.exitCode = Math.max(timed, ratchet, folded);

@@ -106,6 +106,9 @@ Each run ends with one summary line: `fold/done repository=… commits=… lots=
 - The ratchet sums files without a lot, inversions and towns outside their bands over the corpus and compares them with
   `scripts/bench/baseline.json`: any rise fails the bench (`bench/ratchet worse=…`); `bun run bench --rebase` records
   the run's totals as the new baseline, deliberately, in the commit that earns it.
+- `bun run bench --folds` also folds the fast reference repositories (`FOLDS`: takken.io, redux, studio-worker,
+  game-ci-cli, livediagram) in full, logging each fold's files without a lot beside a fresh lay of the same tree
+  (`bench/fold repo commits overflow fresh`), and ratchets the folded total against `scripts/bench/fold-baseline.json`.
 - With `--lock`, the CLI saves the lock every `LOCK_EVERY` (1,000) laid commits as well as at the end, logging
   `lock/saved`, so a long fold cut short resumes near where it stopped.
 - Limits: `MAX_FILES` (2,000,000) files per snapshot, checked by `layCity` (`snapshot/too-large`); `MAX_PATH_BYTES`
