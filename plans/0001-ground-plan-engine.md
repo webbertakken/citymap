@@ -160,3 +160,13 @@ Every rule of the ground plan spec (`006`) and the viewer spec (`004`), and the 
 
 Open, by Webber's choice (Phase 0): loop connectors, Voronoi outlines and morphometric targets (road length shares,
 neighbourhoods of 3 to 8 blocks) have no implementation and so no tests.
+
+## Phase 9: fold divergence
+
+Long histories leave far more files without a lot than a fresh lay of the same tree: home-assistant's fold leaves 913 of
+about 13,300 (292 neighbourhoods, 1 to 21 short each) where a fresh HEAD lay leaves 14; next.js 99 against 42.
+
+- [ ] Find where the land goes: per neighbourhood, land given against demand, fold against fresh lay
+- [ ] Decide the fix (allocation compounding through nested cuts, or packing as neighbourhoods age) with Webber
+- [ ] Build it test-first; measure on home-assistant, next.js, react and livediagram (several seeds)
+- [ ] Add fold divergence to the bench ratchet (a pinned commit range per repository, run on demand)
