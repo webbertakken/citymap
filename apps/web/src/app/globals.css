@@ -62,7 +62,7 @@ body {
 }
 /* A fixed width, so the options a city list brings never move what follows. */
 #city {
-  width: 15rem;
+  width: 18rem;
 }
 .crumbs ol {
   display: flex;

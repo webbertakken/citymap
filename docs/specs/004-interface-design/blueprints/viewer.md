@@ -107,7 +107,7 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
 - LCP: the status and the panel's text paint first (about 30 ms on loopback); a town label may follow (about 100 ms).
   Budget: the last largest paint under 2.5 s.
 - CLS 0: the bar is two blocks, the place (heading and breadcrumb over the status, `flex-direction: column`) on the left
-  and the controls on the right (`margin-left: auto`); the city select has a fixed width (15rem), so a longer name,
+  and the controls on the right (`margin-left: auto`); the city select has a fixed width (18rem), so a longer name,
   status or option never moves a control. The town list's empty state has a town heading's margins. Shifts after input
   (a breadcrumb appearing) are the person's own and do not count.
 - INP under 200 ms on a phone: the view while fitted is derived from the scene (`fit(scene.bounds, mode, viewport)`),

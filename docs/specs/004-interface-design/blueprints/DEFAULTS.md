@@ -13,7 +13,7 @@ One row per value the viewer spec leaves silent or qualitative.
 | Lot top for picking       | `LOT_TOP` = lot base 0.03 + `LOT_HEIGHT` 0.12                                            | the scene's plinth heights                  | follows the scene |
 | Dimetric camera           | 30° elevation, 45° yaw                                                                   | spec                                        | fixed             |
 | Device pixel ratio        | at most 2                                                                                | spec (phones)                               | 1 to 2            |
-| City select width         | 15rem                                                                                    | the longest bundled name and its lot count  | 12 to 20rem       |
+| City select width         | 18rem                                                                                    | a long repository name with "(GitHub)"      | 15 to 22rem       |
 | Start theme               | Night atlas when the system prefers dark, else Paper atlas                               | spec                                        | fixed             |
 | Panel's districts         | the twelve largest top-level, wards left out                                             | readable without scrolling on a laptop      | 8 to 20           |
 | GitHub requests in flight | `IN_FLIGHT` 4, when a tree is read folder by folder                                      | gentle on GitHub; linux reads in about 14 s | 2 to 8            |
