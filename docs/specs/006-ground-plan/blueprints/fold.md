@@ -86,6 +86,12 @@ Each run ends with one summary line: `fold/done repository=… commits=… lots=
   HEAD snapshot of next.js (~30 k files) under 400 ms; home-assistant under 600 ms; a 1,200-commit react fold under 20 s
   with the locality cache; linux HEAD under 5 s and its full fold cached incrementally on disk; the rest of the scale
   corpus at HEAD, vscode (~20 k files) under 800 ms and godot (~14 k files) under 400 ms.
+- Incremental lays: the history reader hands over the same `files` array and `folderFirstSeen` map while a commit only
+  edits files (snapshots are immutable). `layCity` keeps, per file list (a `WeakMap`), its land uses, workspace groups
+  and members, and live identities, and per file list, tree options, input shares and folder map, its built tree; layout
+  keeps a town's shares by reference (it never changes them). `classifyLandUse` remembers a million paths
+  (`remembering`). Loop connectors find nearby roads, dead ends and shapes through a uniform grid (`town/grid.ts`). All
+  of it is exact: folded cities are byte-identical to the engine without it.
 - `bun run bench` (`scripts/bench`) reads the repositories under `~/.cache/citymap/repos` (or `$CITYMAP_REPOS`). A HEAD
   lay is timed on a snapshot of `git ls-tree -r HEAD` (files only, every one born at commit 0), built before the clock
   starts; the figure is the median of five lays from an empty plat, so it says what a lay costs rather than what

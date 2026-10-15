@@ -26,6 +26,8 @@ export interface RenderOptions {
   readonly colourBy?: "district" | "form";
   /** Fill each top-level folder's region (the land nearer its lots than any other's) beneath the blocks. */
   readonly regions?: boolean;
+  /** A world box the sheet shows instead of the city's own extent: maps of one place at one scale and origin. */
+  readonly frame?: { readonly min: Pt; readonly max: Pt };
 }
 
 const ORDER: readonly RoadClass[] = ["lane", "street", "collector", "avenue", "boulevard", "highway"];
@@ -43,7 +45,10 @@ export function renderCity(city: City, options: RenderOptions): string {
   const byForm = options.colourBy === "form";
   const project = (p: Pt) =>
     dimetric ? { x: (p.x - p.y) * Math.SQRT1_2, y: -(p.x + p.y) * Math.SQRT1_2 * 0.5 } : { x: p.x, y: -p.y };
-  const extent = city.towns.flatMap((t) => t.outline.map(project));
+  const frame = options.frame;
+  const extent = frame
+    ? [frame.min, frame.max, { x: frame.min.x, y: frame.max.y }, { x: frame.max.x, y: frame.min.y }].map(project)
+    : city.towns.flatMap((t) => t.outline.map(project));
   const xs = extent.map((p) => p.x);
   const ys = extent.map((p) => p.y);
   const minX = (xs.length ? Math.min(...xs) : 0) - PAD;

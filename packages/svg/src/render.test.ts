@@ -26,6 +26,9 @@ const lay = (entries: Snapshot["files"], repository?: string): City =>
   layCity(snapshot(entries, repository), initialState(options), options).city;
 const twin = () => lay([...files("lib", 300), ...files("kit", 250, 400), ...files("misc", 50, 800)]);
 
+/** A sheet's width and height. */
+const size = (svg: string) => svg.match(/width="([\d.]+)" height="([\d.]+)"/)!.slice(1);
+
 describe("renderCity", () => {
   it("draws a whole city as one SVG document, the same every time", () => {
     const city = twin();
@@ -57,6 +60,15 @@ describe("renderCity", () => {
       towns: city.towns.map((t) => ({ ...t, roads: t.roads.map((r) => ({ ...r, width: 8 })) })),
     };
     expect(renderCity(narrow, { title: "t", subtitle: "s" })).not.toBe(renderCity(city, { title: "t", subtitle: "s" }));
+  });
+
+  it("draws within a given frame, so maps of one place share a scale and an origin", () => {
+    const small = lay(files("lib", 50));
+    const large = twin();
+    const frame = { min: { x: -20_000, y: -20_000 }, max: { x: 20_000, y: 20_000 } };
+    const [a, b] = [small, large].map((c) => renderCity(c, { title: "t", subtitle: "s", frame }));
+    expect(size(a!)).toEqual(size(b!));
+    expect(size(a!)).not.toEqual(size(renderCity(small, { title: "t", subtitle: "s" })));
   });
 
   it.each(THEME_NAMES)("draws in the %s theme", (theme) => {
