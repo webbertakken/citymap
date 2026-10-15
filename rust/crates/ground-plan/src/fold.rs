@@ -1,21 +1,15 @@
 //! The fold: a history of snapshots, oldest first, laid one by one into the plat.
-use std::collections::HashMap;
-
 use crate::city::City;
 use crate::error::Result;
 use crate::plat::Plat;
-use crate::region::compose::{FoldCache, FoldState, Options, lay_city, setting_key};
+use crate::region::compose::{FoldState, Options, current_city, lay, setting_key};
 use crate::snapshot::Snapshot;
 use crate::town::context::PlatEvent;
 
 /// A fold's first state: an empty plat for the options' setting, or a lockfile's plat; with a locality cache.
 #[must_use]
 pub fn initial_state(options: &Options, plat: Option<Plat>, cache: bool) -> FoldState {
-    FoldState {
-        plat: plat.unwrap_or_else(|| Plat::empty(&setting_key(options))),
-        last: HashMap::new(),
-        cache: cache.then(FoldCache::default),
-    }
+    FoldState::new(plat.unwrap_or_else(|| Plat::empty(&setting_key(options))), cache)
 }
 
 /// Folds a history of snapshots, oldest first, into the last city; events go to the listener.
@@ -25,13 +19,17 @@ pub fn fold_history(
     state: &mut FoldState,
     mut listen: impl FnMut(&Snapshot, &[PlatEvent]),
 ) -> Result<Option<City>> {
-    let mut city = None;
+    let mut laid = false;
     for snapshot in snapshots {
-        let (laid, events) = lay_city(&snapshot, state, options)?;
+        let events = lay(&snapshot, state, options)?;
         listen(&snapshot, &events);
-        city = Some(laid);
+        laid = true;
     }
-    Ok(city)
+    if laid {
+        current_city(state, options).map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]

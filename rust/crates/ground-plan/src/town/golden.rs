@@ -38,7 +38,7 @@ fn lay(tree: &TreeNode, room: i64) -> String {
     );
     canonical_json(&Golden {
         plat: &laid.plat,
-        town: &laid.town,
+        town: &laid.draft.town(None),
     })
     .expect("a town serialises")
 }

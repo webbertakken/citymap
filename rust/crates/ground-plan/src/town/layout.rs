@@ -1,19 +1,39 @@
-//! A town laid out on its outline: partition, loop connectors, the organic warp, and the town's district labels.
+//! A town laid out on its outline: partition decides everything the plat remembers; drawing the town (loop
+//! connectors, the organic warp and the district labels) is pure, so it waits until the town is asked for.
 use crate::archetype::Form;
 use crate::city::{Block, District, Lot, Road, Town, TownStats};
 use crate::fixed::{MemoWarp, Pt, Rounding, Warp, area2, densify, fnv1a, mul_div};
 use crate::plat::TownPlat;
 use crate::town::connectors::loop_connectors;
-use crate::town::context::{Ctx, LayoutOptions, PlatEvent, TownCache, to_poly};
+use crate::town::context::{Ctx, DraftBlock, DraftLot, LayoutOptions, PlatEvent, TownCache, to_poly};
 use crate::town::cut::diameter_of;
 use crate::town::partition::partition;
 use crate::tree::TreeNode;
 
 /// A laid town, its new plat, and the decisions made.
 pub struct LaidTown {
-    pub town: Town,
+    pub draft: TownDraft,
     pub plat: TownPlat,
     pub events: Vec<PlatEvent>,
+}
+
+/// A town as partition laid it, before it is drawn.
+#[derive(Clone, Debug)]
+pub struct TownDraft {
+    name: String,
+    key: String,
+    outline: Vec<Pt>,
+    form: Form,
+    roads: Vec<Road>,
+    blocks: Vec<DraftBlock>,
+    lots: Vec<DraftLot>,
+    districts: Vec<District>,
+    water: Vec<Vec<Pt>>,
+    root_mass: i64,
+    stats: TownStats,
+    /// The warp's diameter, when the plan is warped.
+    warp: Option<i64>,
+    loops: bool,
 }
 
 /// A district is labelled when it holds at least this share (‰) of its town's mass.
@@ -38,62 +58,107 @@ fn warp_for(key: &str, diameter: i64) -> Warp {
     )
 }
 
-/// What a town is drawn from, before or after the warp.
-struct Shapes {
-    outline: Vec<Pt>,
-    roads: Vec<Road>,
-    blocks: Vec<Block>,
-    lots: Vec<Lot>,
-    districts: Vec<District>,
-    water: Vec<Vec<Pt>>,
+/// The town's memoised warp: kept in its cache while the diameter stands.
+fn with_warp<T>(key: &str, diameter: i64, cache: Option<&mut TownCache>, f: impl FnOnce(&mut MemoWarp) -> T) -> T {
+    match cache {
+        Some(cache) => {
+            if cache.warp.as_ref().is_none_or(|(d, _)| *d != diameter) {
+                cache.warp = Some((diameter, MemoWarp::new(warp_for(key, diameter), WARP_POINTS)));
+            }
+            let (_, warp) = cache.warp.as_mut().expect("set above");
+            f(warp)
+        }
+        None => f(&mut MemoWarp::new(warp_for(key, diameter), WARP_POINTS)),
+    }
 }
 
-/// The organic layer: one smooth warp per town, scaled by its remembered diameter; it never feeds back.
-fn warp_town(shapes: Shapes, warp: &mut MemoWarp) -> Shapes {
-    let mut bend = |pts: &[Pt], closed: bool, step: i64| -> Vec<Pt> {
-        densify(pts, step, closed).into_iter().map(|q| warp.apply(q)).collect()
-    };
-    let outline = bend(&shapes.outline, true, 80);
-    let roads = shapes
-        .roads
-        .into_iter()
-        .map(|r| Road {
-            pts: bend(&r.pts, false, 48),
-            ..r
-        })
-        .collect();
-    let blocks = shapes
-        .blocks
-        .into_iter()
-        .map(|b| Block {
-            pts: bend(&b.pts, true, 64),
-            ..b
-        })
-        .collect();
-    let lots: Vec<Lot> = shapes.lots;
-    let districts = shapes
-        .districts
-        .into_iter()
-        .map(|d| District {
-            pts: bend(&d.pts, true, 80),
-            ..d
-        })
-        .collect();
-    let water = shapes.water.iter().map(|w| bend(w, true, 64)).collect();
-    let lots = lots
-        .into_iter()
-        .map(|l| Lot {
-            pts: l.pts.iter().map(|&q| warp.apply(q)).collect(),
-            ..l
-        })
-        .collect();
-    Shapes {
-        outline,
-        roads,
-        blocks,
-        lots,
-        districts,
-        water,
+fn bend(warp: &mut MemoWarp, pts: &[Pt], closed: bool, step: i64) -> Vec<Pt> {
+    densify(pts, step, closed).into_iter().map(|q| warp.apply(q)).collect()
+}
+
+impl TownDraft {
+    /// The outline as drawn: warped, when the plan is.
+    #[must_use]
+    pub fn outline(&self, cache: Option<&mut TownCache>) -> Vec<Pt> {
+        match self.warp {
+            Some(diameter) => with_warp(&self.key, diameter, cache, |warp| bend(warp, &self.outline, true, 80)),
+            None => self.outline.clone(),
+        }
+    }
+
+    /// The town drawn: loop connectors joining nearby dead ends, the organic warp, tints and labels. Pure.
+    #[must_use]
+    pub fn town(&self, cache: Option<&mut TownCache>) -> Town {
+        let mut roads = self.roads.clone();
+        // Dead ends near each other are joined by lanes through open ground only.
+        if self.loops {
+            let shapes: Vec<&[Pt]> = self
+                .lots
+                .iter()
+                .map(|l| l.pts.as_slice())
+                .chain(self.blocks.iter().map(|b| b.pts.as_slice()))
+                .collect();
+            roads.extend(loop_connectors(&roads, &shapes, &self.outline));
+        }
+        let blocks = self.blocks.iter().map(|b| Block {
+            district: b.district,
+            form: b.form,
+            kind: b.kind,
+            pts: b.pts.clone(),
+        });
+        let lots = self.lots.iter().map(|l| Lot {
+            address: l.address.clone(),
+            district: l.district,
+            form: l.form,
+            key: l.key.to_string(),
+            path: l.path.to_string(),
+            pts: l.pts.clone(),
+            land_use: l.land_use,
+            vacant: l.vacant,
+        });
+        let mut town = Town {
+            key: self.key.clone(),
+            name: self.name.clone(),
+            form: self.form,
+            old: false,
+            outline: self.outline.clone(),
+            water: self.water.clone(),
+            roads,
+            blocks: blocks.collect(),
+            lots: lots.collect(),
+            // A folder is labelled when it is top-level or holds at least 15 ‰ of the town's mass; wards always.
+            districts: self
+                .districts
+                .iter()
+                .filter(|d| d.ward || d.depth == 1 || d.mass_mille * 1000 >= LABEL_MILLE * self.root_mass)
+                .cloned()
+                .collect(),
+            stats: self.stats,
+        };
+        if let Some(diameter) = self.warp {
+            // The organic layer: one smooth warp per town, scaled by its remembered diameter; it never feeds back.
+            with_warp(&self.key, diameter, cache, |warp| {
+                town.outline = bend(warp, &town.outline, true, 80);
+                for road in &mut town.roads {
+                    road.pts = bend(warp, &road.pts, false, 48);
+                }
+                for block in &mut town.blocks {
+                    block.pts = bend(warp, &block.pts, true, 64);
+                }
+                for lot in &mut town.lots {
+                    for p in &mut lot.pts {
+                        *p = warp.apply(*p);
+                    }
+                }
+                for district in &mut town.districts {
+                    district.pts = bend(warp, &district.pts, true, 80);
+                }
+                for water in &mut town.water {
+                    *water = bend(warp, water, true, 64);
+                }
+            });
+        }
+        town
     }
 }
 
@@ -129,92 +194,37 @@ pub fn layout_town(
     ctx.root_form = root_form;
     ctx.cache = cache;
     partition(&mut ctx, root, &to_poly(outline, 0), "");
-    // Dead ends near each other are joined by lanes through open ground only.
-    if options.loops {
-        let shapes: Vec<&[Pt]> = ctx
-            .lots
-            .iter()
-            .map(|l| l.pts.as_slice())
-            .chain(ctx.blocks.iter().map(|b| b.pts.as_slice()))
-            .collect();
-        let lanes = loop_connectors(&ctx.roads, &shapes, outline);
-        ctx.roads.extend(lanes);
-    }
-    let lots_live = ctx.lots.iter().filter(|l| !l.vacant).count();
-    let shapes = Shapes {
-        outline: outline.to_vec(),
-        roads: std::mem::take(&mut ctx.roads),
-        blocks: std::mem::take(&mut ctx.blocks)
-            .into_iter()
-            .map(|b| Block {
-                district: b.district,
-                form: b.form,
-                kind: b.kind,
-                pts: b.pts,
-            })
-            .collect(),
-        lots: std::mem::take(&mut ctx.lots)
-            .into_iter()
-            .map(|l| Lot {
-                address: l.address,
-                district: l.district,
-                form: l.form,
-                key: l.key.to_string(),
-                path: l.path.to_string(),
-                pts: l.pts,
-                land_use: l.land_use,
-                vacant: l.vacant,
-            })
-            .collect(),
-        districts: std::mem::take(&mut ctx.districts),
-        water: std::mem::take(&mut ctx.water),
-    };
-    let laid = if options.warp {
+    let warp = options.warp.then(|| {
         if ctx.plat.diameter == 0 {
             ctx.plat.diameter = diameter_of(ctx.land_area2);
         }
-        let diameter = ctx.plat.diameter;
-        match ctx.cache.as_deref_mut() {
-            Some(cache) => {
-                if cache.warp.as_ref().is_none_or(|(d, _)| *d != diameter) {
-                    cache.warp = Some((diameter, MemoWarp::new(warp_for(key, diameter), WARP_POINTS)));
-                }
-                let (_, warp) = cache.warp.as_mut().expect("set above");
-                warp_town(shapes, warp)
-            }
-            None => warp_town(shapes, &mut MemoWarp::new(warp_for(key, diameter), WARP_POINTS)),
-        }
-    } else {
-        shapes
+        ctx.plat.diameter
+    });
+    let stats = TownStats {
+        lots: i64::try_from(ctx.lots.iter().filter(|l| !l.vacant).count()).expect("small"),
+        overflow: ctx.overflow,
+        off_land: 0,
+        docs: 0,
+        lot_area2: ctx.lot_area2,
+        land_area2: ctx.land_area2,
     };
-    let root_mass = root.mass_mille;
-    let town = Town {
-        key: key.to_owned(),
+    let draft = TownDraft {
         name: name.to_owned(),
+        key: key.to_owned(),
+        outline: outline.to_vec(),
         form: ctx.form,
-        old: false,
-        outline: laid.outline,
-        water: laid.water,
-        roads: laid.roads,
-        blocks: laid.blocks,
-        lots: laid.lots,
-        // A folder is labelled when it is top-level or holds at least 15 ‰ of the town's mass; wards always.
-        districts: laid
-            .districts
-            .into_iter()
-            .filter(|d| d.ward || d.depth == 1 || d.mass_mille * 1000 >= LABEL_MILLE * root_mass)
-            .collect(),
-        stats: TownStats {
-            lots: i64::try_from(lots_live).expect("small"),
-            overflow: ctx.overflow,
-            off_land: 0,
-            docs: 0,
-            lot_area2: ctx.lot_area2,
-            land_area2: ctx.land_area2,
-        },
+        roads: std::mem::take(&mut ctx.roads),
+        blocks: std::mem::take(&mut ctx.blocks),
+        lots: std::mem::take(&mut ctx.lots),
+        districts: std::mem::take(&mut ctx.districts),
+        water: std::mem::take(&mut ctx.water),
+        root_mass: root.mass_mille,
+        stats,
+        warp,
+        loops: options.loops,
     };
     LaidTown {
-        town,
+        draft,
         plat: ctx.plat,
         events: ctx.events,
     }
