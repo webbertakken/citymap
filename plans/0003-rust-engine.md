@@ -16,16 +16,16 @@ Branch `feat/rust-engine` in the worktree `../citymap-rust`.
 
 ## Phase 1: workspace and fixed-point core
 
-- [ ] Toolchain pinned (latest stable), Cargo workspace, lints, rustfmt, crates scaffolded, versions confirmed
-- [ ] `ErrorCode` and `CitymapError`
-- [ ] Arithmetic: `floor_div`, `round_div`, `mul_div`, `isqrt`, with the ported tests
-- [ ] Directions: the table, `dir`, `normalise`, `perp`, `negate`, `rotate`, checksum test
-- [ ] Hashes: `fnv1a`, `seed_of`, `unit_mille`, `compare_keys`
-- [ ] Polygons: `area2`, `centroid`, `side`, `clip`, `inset`, `chord`, `extent`, `longest_edge`, `offset_for`, `reach`
-- [ ] Noise, warp, `densify`, memoised warp
-- [ ] Commit
+- [x] Toolchain pinned (latest stable), Cargo workspace, lints, rustfmt, crates scaffolded, versions confirmed
+- [x] `ErrorCode` and `CitymapError`
+- [x] Arithmetic: `floor_div`, `round_div`, `mul_div`, `isqrt`, with the ported tests
+- [x] Directions: the table, `dir`, `normalise`, `perp`, `negate`, `rotate`, checksum test
+- [x] Hashes: `fnv1a`, `seed_of`, `unit_mille`, `compare_keys`
+- [x] Polygons: `area2`, `centroid`, `side`, `clip`, `inset`, `chord`, `extent`, `longest_edge`, `offset_for`, `reach`
+- [x] Noise, warp, `densify`, memoised warp
+- [x] Commit
 
-## Phase 2: model
+: model
 
 - [ ] Constants, road classes, `cut_class`, `reclass`, `reserve_for`, `road_excess`
 - [ ] Land use, weights, lot capacity, land key; parity fixture of classified paths
