@@ -72,12 +72,14 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 
 ## Phase 6: corpus verification
 
-- [ ] HEAD sheets for the public reference repositories next to the prototype's; differences explained or fixed
+- [x] HEAD sheets for the public reference repositories next to the prototype's; differences explained or fixed: the
+      product folds history (old towns stand where a form switched; every app is a town), and late folders of very large
+      towns lie in long strips on the rim, as newcomers join the edges of land grown outward (Webber to judge)
 - [x] Stability runs (react, takken.io, next.js, home-assistant, redux) within the prototype's numbers
       (`bun scripts/stability.ts`; every move lands on a commit with a plan decision; takken.io's 0.2 points over the
       prototype is one renewal)
 - [ ] Linux HEAD timing and a cached full fold
-- [ ] Post the sheets to the wall; commit
+- [x] Post the sheets to the wall; commit
 
 ## Phase 7: viewer (`packages/scene`, `apps/web`)
 
