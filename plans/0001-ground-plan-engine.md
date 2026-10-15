@@ -78,7 +78,8 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 - [x] Stability runs (react, takken.io, next.js, home-assistant, redux) within the prototype's numbers
       (`bun scripts/stability.ts`; every move lands on a commit with a plan decision; takken.io's 0.2 points over the
       prototype is one renewal)
-- [ ] Linux HEAD timing and a cached full fold
+- [x] Linux HEAD timing and a cached full fold: HEAD in about 1 s (bench), the full fold of 77,277 commits in 5 h 20 min
+      under shared load, its lock cached; 3,122 files without a lot against 540 for a fresh lay (a lead for later work)
 - [x] Post the sheets to the wall; commit
 
 ## Phase 7: viewer (`packages/scene`, `apps/web`)
