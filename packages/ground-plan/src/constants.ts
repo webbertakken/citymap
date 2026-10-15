@@ -13,6 +13,10 @@ export const ROAD_WIDTH: Readonly<Record<RoadClass, number>> = {
   highway: 176,
 };
 
+/** A road's drawn width: its own, when its right of way caps it, else its class's. */
+export const roadWidth = (road: { readonly cls: RoadClass; readonly width?: number }) =>
+  road.width ?? ROAD_WIDTH[road.cls];
+
 /** One local street width. */
 export const U = 64;
 export const BLOCK_SHORT = 6 * U;
@@ -27,3 +31,11 @@ export const MARGIN = U / 2 + PAVEMENT;
 /** A folder under this many blocks of land flattens into one neighbourhood. */
 export const FLATTEN_BLOCKS = 9;
 export const FLATTEN_LIMIT = FLATTEN_BLOCKS * (BLOCK_SHORT + U) * (BLOCK_LONG + U);
+/** A flat folder stays flat up to this share of the limit, and a district flattens below its inverse, in per cent. */
+export const FLATTEN_HYSTERESIS_PCT = 150;
+/** A new cut, partition or town gives each side this share of its demand as room to grow, in per cent. */
+export const GROWTH_PCT = 135;
+/** Mass (‰ of a file) at which land enters the village, town and city tiers; each tier lifts its roads one class. */
+export const TIER_MASS_MILLE = [30_000, 300_000, 3_000_000] as const;
+/** A laid road moves up a tier at its threshold × this, and down below its threshold ÷ this, in per cent. */
+export const TIER_BAND_PCT = 125;

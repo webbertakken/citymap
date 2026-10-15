@@ -8,35 +8,43 @@ restates it in the fixed-point core. Module: `packages/ground-plan/src/town/`.
 
 All lengths in fixed units (`UNIT` = 64 per u). Provenance and ranges in [DEFAULTS](DEFAULTS.md).
 
-| Name                   | Value                         | Name                 | Value              |
-| ---------------------- | ----------------------------- | -------------------- | ------------------ |
-| `ROAD_WIDTH.lane`      | 40                            | `BLOCK_SHORT`        | 384 (6 u)          |
-| `ROAD_WIDTH.street`    | 64                            | `BLOCK_LONG`         | 768 (12 u)         |
-| `ROAD_WIDTH.collector` | 96                            | `MODULE`             | 32 (0.5 u)         |
-| `ROAD_WIDTH.avenue`    | 144                           | `PAVEMENT`           | 12                 |
-| `ROAD_WIDTH.boulevard` | 208                           | `LOT_AREA`           | MODULE × 192       |
-| `ROAD_WIDTH.highway`   | 176                           | `MARGIN`             | 32 + PAVEMENT      |
-| `FLATTEN_BLOCKS`       | 9                             | `MAX_CLASS`          | 4                  |
-| `GROWTH_ROOM`          | 135 / 100                     | `FLATTEN_HYSTERESIS` | 150 / 100          |
-| `RENEWAL`              | vacant × 2 > remembered       | `LONG_CUT`           | 300 ‰ of diameter  |
-| `JOG`                  | 192 (3 u)                     | `MIN_JOG`            | 128 (2 u)          |
-| `RIVER`                | 160 (2.5 u)                   | `RADIAL_MAX_SCALE`   | 950 ‰              |
-| `TILT`                 | ±114 angle steps (±0.175 rad) | `MAX_SPAN`           | 1946 steps (0.95π) |
+| Name                   | Value                         | Name                     | Value              |
+| ---------------------- | ----------------------------- | ------------------------ | ------------------ |
+| `ROAD_WIDTH.lane`      | 40                            | `BLOCK_SHORT`            | 384 (6 u)          |
+| `ROAD_WIDTH.street`    | 64                            | `BLOCK_LONG`             | 768 (12 u)         |
+| `ROAD_WIDTH.collector` | 96                            | `MODULE`                 | 32 (0.5 u)         |
+| `ROAD_WIDTH.avenue`    | 144                           | `PAVEMENT`               | 12                 |
+| `ROAD_WIDTH.boulevard` | 208                           | `LOT_AREA`               | MODULE × 192       |
+| `ROAD_WIDTH.highway`   | 176                           | `MARGIN`                 | 32 + PAVEMENT      |
+| `FLATTEN_BLOCKS`       | 9                             | `MAX_CLASS`              | 4                  |
+| `GROWTH_PCT`           | 135 %                         | `FLATTEN_HYSTERESIS_PCT` | 150 %              |
+| `RENEWAL`              | vacant × 2 > remembered       | `LONG_CUT`               | 300 ‰ of diameter  |
+| `JOG`                  | 192 (3 u)                     | `MIN_JOG`                | 128 (2 u)          |
+| `RIVER`                | 160 (2.5 u)                   | `RADIAL_MAX_SCALE`       | 950 ‰              |
+| `TILT`                 | ±114 angle steps (±0.175 rad) | `MAX_SPAN`               | 1946 steps (0.95π) |
 
 `FLATTEN_LIMIT = FLATTEN_BLOCKS × (BLOCK_SHORT + 64) × (BLOCK_LONG + 64)`.
 
 ## Road class by tier
 
 `cutClass(massMille, first)`: mass ≥ 3,000,000 ‰ boulevard then avenue; ≥ 300,000 avenue then collector; ≥ 30,000
-collector then street; else street. `first` is the first cut of a folder's own land (its `top` cut).
+collector then street; else street. `first` is the first cut of a folder's own land (its `top` cut). Thresholds are
+`TIER_MASS_MILLE` (30,000, 300,000, 3,000,000). A remembered cut is reclassed at every lay by
+`reclass(cls, massMille, first)`: up a tier while mass × 100 ≥ threshold × `TIER_BAND_PCT` (125), down while mass × 125
+< the lower threshold × 100, logging `plat/reclass` (key, from, to); a river is never reclassed. `CutRecord.row` is the
+right-of-way class, set whenever the cut is laid (fresh or recut) to `cutClass(mass × GROWTH_PCT / 100, first)` (a
+river's is its own class); a record without one reads as its class. Land is clipped at `ROAD_WIDTH[row]`; the road is
+drawn at its class's width, or at the right of way's when the class is wider (`carriageway`, which then sets
+`Road.width`). `starved()` measures each side after its half of the right of way. A radial's ring and spokes are classed
+afresh at each lay.
 
 ## Classify
 
 `classifyNode(node, previous)`:
 
 1. `flat` = no children, or `demand ≤ FLATTEN_LIMIT`; if `previous` is flat (and children exist) the bound is
-   `FLATTEN_LIMIT × 1.5`; if `previous` is a district form the node is flat only without children or under
-   `FLATTEN_LIMIT / 1.5`.
+   `FLATTEN_LIMIT × FLATTEN_HYSTERESIS_PCT / 100`; if `previous` is a district form the node is flat only without
+   children or under `FLATTEN_LIMIT × 100 / FLATTEN_HYSTERESIS_PCT`.
 2. Features (integers): `s1`, `s2` (‰ of mass in the heaviest two children), `f0` (‰ in own files), `lots` (flattened
    lot count when flat). Shares are `floorDiv(m × 1000, mass)`; mass 0 gives 0.
 3. Flat: hamlet when `mass < 25,000` (`< 31,250` if previous is hamlet); else street village when `lots ≥ 40` and
@@ -63,16 +71,23 @@ collector then street; else street. `first` is the first cut of a folder's own l
 
 ## Decide and split
 
-`decide(items, poly, mass, top, key, forcedNormal?, assign?)` returns the remembered decision:
+`decide(ctx, items, poly, massMille, first, key, forced?, assign?)` returns the remembered decision (`first`: the
+top-level cut, the only one that jogs by default; `forced`: a normal replacing the fresh rule; `assign`: fixed sides):
 
 - A remembered cut whose line no longer crosses `poly`, or none of whose items remain, is forgotten.
 - **Fresh cut** (one item and nothing remembered: none): split index `k` minimising `|Σ demand[0..k) − total/2|`
   (doubled to stay integral, ties to the lower `k`). Normal: the forced one, or the longest edge's direction or its
   perpendicular (whichever has the larger extent across it), rotated by `TILT × (unitMille(seed#tilt) − 500) / 500`
-  angle steps. `c = offsetFor(poly, n, demandLeft / total)`. `capX = demandX × 1.35` (`roundDiv`).
+  angle steps. `c = offsetFor(poly, n, demandLeft / total)`. each side's cap is its demand × `GROWTH_PCT` / 100
+  (`roundDiv`).
 - **Remembered cut**: newcomers, in item order, join the side with more spare cap (ties left). When a side's demand
-  exceeds its cap and both sides hold demand, log `plat/recut` and move `c` to today's split with new caps; when one
-  side is empty, raise the caps only.
+  exceeds its cap and both sides hold demand, log `plat/recut` (`reason=outgrown`) and move `c` to today's split with
+  new caps; when one side is empty, raise the caps only. When both sides hold demand and the land the line leaves one
+  side has fallen below its share of the demand shrunk by the band (`land × demand × GROWTH_PCT < own × total × 100`, in
+  BigInt), the land around the line changed shape: log `plat/recut` (`reason=starved`) and move `c` the same way. The
+  same holds against the folder: `split` carries the folder's `Share` (its top cut's land, doubled, and demand) down its
+  cut tree and through pinwheels; a side whose land after its half of the right of way × share.demand × `GROWTH_PCT` <
+  its demand × share.land2 × 100 is short of its share, and the cut recuts when today's split would move its line.
 
 `split(items, poly, mass, top, key, district)`: decide; one item places it (folder: partition, own lots: neighbourhood,
 park: park). Otherwise try the pinwheel; else emit the chord as a road of the cut's class (when both sides hold items),
@@ -119,7 +134,8 @@ recurse as `path>L`, `path>R` with their own district seeds.
 
 1. Park strip: when `parkDemand > 0`, a remembered line along the longest edge's normal leaves
    `min(600 ‰, parkDemand / area)` of the land as park beyond a lane. A remembered line that no longer crosses the land
-   is laid afresh.
+   is laid afresh, and so is one that still crosses it but leaves the lots no land at all (`plat/repark`), when a fresh
+   line leaves them some.
 2. Land = `inset(poly, PAVEMENT)`; empty land counts every lot as overflow (`town/overflow`).
 3. Grid (remembered `GridRecord`): direction of the land's longest edge; origin and pitch fit the land:
    `rows = max(1, roundDiv(across + 64, BLOCK_SHORT + 64))`, `cols` likewise with `BLOCK_LONG`; pitches are
@@ -133,7 +149,10 @@ recurse as `path>L`, `path>R` with their own district seeds.
    one-module slots still hold every lot); `span` = modules in the blocks the lots need ÷ lots, 1 to `MAX_CLASS`,
    narrowed until every lot fits. Later lays: when the slots at `span` hold fewer than the lots, `span` narrows until
    they fit (or reaches 1), the remembered slots clear, and `plat/narrow` is logged (key, from, to). Then, when the
-   slots still hold fewer than the lots and a fresh grid on today's land holds more, the grid record is dropped and the
+   slots still hold fewer than the lots and the park line is a remembered one, a fresh park line (sized to today's park
+   demand) with a fresh grid on the land it leaves is tried: when it holds more lots, both are kept and `plat/repark` is
+   logged (key); a line laid on small land can otherwise keep most of the land it grew into. Then, when the slots still
+   hold fewer than the lots and a fresh grid on today's land holds more, the grid record is dropped and the
    neighbourhood lays afresh, logging `plat/regrid` (key). Nothing is drawn until this is settled.
 8. Street village order: slots by row distance from `high`, then serpentine index.
 9. Renewal: when remembered keys that are vacant are more than half of all remembered, log `plat/renew` and clear the
@@ -149,6 +168,36 @@ recurse as `path>L`, `path>R` with their own district seeds.
 - Park and reserve: the polygon inset by pavement, when non-empty.
 - Ward: for a collector-or-larger cut, each side holding two or more items records a `District` with `ward: true`, named
   after its heaviest folder.
+
+## Loop connectors
+
+`loopConnectors(roads, shapes, outline)` (`town/connectors.ts`) runs once per town after `partition` and before the
+warp, when `options.loops` is not `false` (the CLI's `--no-loops` turns it off). It never touches the plat: connectors
+follow the roads of each lay and move no lot.
+
+1. A dead end is the first or last point of a street or lane that lies farther than half another road's width plus
+   `2 × PAVEMENT` from every other road, and farther than `2 u` from the town's outline (an exit, not a dead end).
+2. Candidate pairs: two dead ends of different roads at most `LOOP_REACH` (3 u) apart, sorted by distance (a stable
+   sort, so equal distances keep the order of their ends).
+3. Closest first, each end joins at most one lane; a lane that would touch any lot or block (crossing an edge, along an
+   edge, or lying inside one) is skipped.
+4. Each kept pair becomes a lane from end to end. All tests are in integers (BigInt where squared terms pass 2^53).
+
+## Voronoi regions
+
+`cityRegions(city)` (`organic/regions.ts`), called by renderers when asked (the CLI's `--voronoi`, the SVG's `regions`):
+
+1. Per town that is not old: its root is `""` for the main town, else its key without the repository; each live lot with
+   a path below the root labels its centroid with the folder one level below the root.
+2. The town outline, densified every `U`, adds unlabelled ghost points, so every labelled cell closes inside the town.
+   Coincident points keep the first.
+3. `delaunay(points)` (`organic/delaunay.ts`): Bowyer-Watson over points in sorted order, a far super-triangle (1,000 ×
+   the span), exact BigInt orientation and in-circle tests (a cocircular point never breaks a triangle).
+4. Circumcentres are exact, rounded half up. Each Delaunay edge from a labelled point to a differently labelled one
+   gives the Voronoi edge from the far triangle's centre to the near one's, anticlockwise round the folder.
+5. A folder's edges chain into rings; its region is the largest ring (a folder split by another keeps its larger piece).
+6. The SVG fills each region beneath the blocks in the folder's block tint (`fnv1a(path)`) and strokes its edge over the
+   town's lots, both inside the town's clip.
 
 ## Organic layer
 

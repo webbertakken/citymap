@@ -22,13 +22,50 @@ body {
   min-height: 3.5rem;
   padding: 0.5rem 1rem;
 }
+.bar .place {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.bar .title {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
 .bar h1 {
   margin: 0;
   font-size: 1.25rem;
 }
+.bar .controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  margin-left: auto;
+}
+/* A fixed width, so the options a city list brings never move what follows. */
+#city {
+  width: 15rem;
+}
+.crumbs ol {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+.crumbs li + li::before {
+  content: "›";
+  margin-right: 0.4rem;
+}
+.crumbs [aria-current="page"] {
+  font-weight: 700;
+}
 .bar .status {
   margin: 0;
-  min-width: 10rem;
+  min-height: 1.25rem;
   font-size: 0.875rem;
 }
 .bar .field {
@@ -122,10 +159,17 @@ button[aria-pressed="true"] {
   font-weight: 400;
   font-size: 0.875rem;
 }
+/* The empty state starts where a town's heading does. */
+.panel #towns > p {
+  margin: 0.75rem 0 0.25rem;
+}
 .panel ul {
   margin: 0;
   padding-left: 1.2rem;
   font-size: 0.875rem;
+}
+.panel .drill {
+  margin: 0.25rem 0 0.4rem;
 }
 .panel .disclosure {
   display: none;
@@ -156,8 +200,6 @@ button[aria-pressed="true"] {
   flex-direction: column;
   gap: 0.15rem;
   width: 260px;
-  max-height: 96px;
-  overflow: hidden;
   padding: 0.4rem 0.6rem;
   font-size: 0.8rem;
   color: #10141a;
@@ -165,6 +207,10 @@ button[aria-pressed="true"] {
   border: 1px solid #50565f;
   border-radius: 0.35rem;
   pointer-events: none;
+}
+.card > * {
+  flex-shrink: 0;
+  overflow-wrap: anywhere;
 }
 .card strong {
   overflow: hidden;

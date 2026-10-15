@@ -2,6 +2,7 @@ import { LOT_AREA, MARGIN } from "../constants";
 import { floorDiv, isqrt } from "../fixed/arithmetic";
 import { compareKeys, fnv1a } from "../fixed/hash";
 import { LAND_USES, WEIGHT_MILLE, classifyLandUse, lotCapacity, type LandUse } from "../land-use/land-use";
+import { roadExcess } from "../roads";
 import type { FileEntry, Snapshot } from "../snapshot/snapshot";
 
 /** The file a lot stands for: its oldest live member, keyed by the lot. */
@@ -154,10 +155,14 @@ export function buildTree(
     const children = [...entry.kids].toSorted(compareKeys).map((kid) => make(kid, depth + 1));
     const ownMass = entry.files.reduce((sum, f) => sum + WEIGHT_MILLE[f.use], 0);
     const massMille = ownMass + children.reduce((sum, c) => sum + c.massMille, 0);
-    const demand =
+    const items =
       landFor(lots.length * LOT_AREA, densityPct) +
       landFor((entry.docs * LOT_AREA) / 2, densityPct) +
       children.reduce((sum, c) => sum + c.demand, 0);
+    // The folder's own roads, where wider than a street, take land of their own: its side grows by their excess width.
+    const count = children.length + (lots.length > 0 ? 1 : 0) + (entry.docs > 0 ? 1 : 0);
+    const excess = roadExcess(massMille, count);
+    const demand = excess === 0 ? items : (isqrt(items) + excess) ** 2;
     // Everything layout reads of a folder: a file joining a shared lot changes its mass but not its lots.
     const content = [
       path,

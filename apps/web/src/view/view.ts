@@ -70,7 +70,9 @@ export function fit(bounds: Scene["bounds"], mode: Mode, viewport: Viewport): Vi
       tall = Math.max(tall, 2 * Math.abs(dot(d, b.screenUp)));
     }
   const zoom =
-    wide === 0 && tall === 0 ? 1 : 0.9 * Math.min(viewport.width / (wide || tall), viewport.height / (tall || wide));
+    wide === 0 && tall === 0
+      ? 1
+      : FIT_SHARE * Math.min(viewport.width / (wide || tall), viewport.height / (tall || wide));
   return { mode, centre, zoom };
 }
 
@@ -91,22 +93,29 @@ export function pan(view: View, dx: number, dy: number): View {
   };
 }
 
-/** The view after a key: arrows pan a tenth of the view, + and - zoom by 1.25, 0 fits; null for any other key. */
+/** An arrow pans this share of the view. */
+export const PAN_SHARE = 0.1;
+/** + and - zoom by this factor. */
+export const KEY_ZOOM = 1.25;
+/** A fitted city fills this share of the map, leaving a margin round it. */
+export const FIT_SHARE = 0.9;
+
+/** The view after a key: arrows pan by `PAN_SHARE`, + and - zoom by `KEY_ZOOM`, 0 fits; null for any other key. */
 export function onKey(key: string, view: View, viewport: Viewport, bounds: Scene["bounds"]): View | null {
   switch (key) {
     case "ArrowRight":
-      return pan(view, viewport.width / 10, 0);
+      return pan(view, viewport.width * PAN_SHARE, 0);
     case "ArrowLeft":
-      return pan(view, -viewport.width / 10, 0);
+      return pan(view, -viewport.width * PAN_SHARE, 0);
     case "ArrowUp":
-      return pan(view, 0, viewport.height / 10);
+      return pan(view, 0, viewport.height * PAN_SHARE);
     case "ArrowDown":
-      return pan(view, 0, -viewport.height / 10);
+      return pan(view, 0, -viewport.height * PAN_SHARE);
     case "+":
     case "=":
-      return { ...view, zoom: view.zoom * 1.25 };
+      return { ...view, zoom: view.zoom * KEY_ZOOM };
     case "-":
-      return { ...view, zoom: view.zoom / 1.25 };
+      return { ...view, zoom: view.zoom / KEY_ZOOM };
     case "0":
       return fit(bounds, view.mode, viewport);
     default:

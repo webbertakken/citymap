@@ -1,4 +1,4 @@
-import { ROAD_WIDTH, UNIT, area2, centroid, type City, type Pt } from "@citymap/ground-plan";
+import { UNIT, area2, roadWidth, centroid, type City, type Pt } from "@citymap/ground-plan";
 import type { Theme } from "@citymap/themes";
 
 /** One drawable layer: vertex positions and colours (three floats each) and triangle indices. */
@@ -25,6 +25,8 @@ export interface Scene {
 /** The height of a lot's plinth, in street widths. */
 export const LOT_HEIGHT = 0.12;
 const HEIGHT = { ground: 0, blocks: 0.01, water: 0.015, casings: 0.02, roads: 0.025, lots: 0.03 } as const;
+/** The height of a lot's top in the dimetric view, where picking meets it. */
+export const LOT_TOP = HEIGHT.lots + LOT_HEIGHT;
 /** A road's casing is this much wider than its fill, in fixed units. */
 const CASING = 16;
 
@@ -192,8 +194,8 @@ export function buildScene(city: City, theme: Theme): Scene {
     labels.push({ text: town.name.toUpperCase(), x: heart.x / UNIT, z: 0 - heart.y / UNIT, size: "town" });
   }
   for (const r of roadsOf) {
-    for (const quad of roadRibbon(r.pts, ROAD_WIDTH[r.cls] + CASING)) casings.flat(quad, theme.casing, HEIGHT.casings);
-    for (const quad of roadRibbon(r.pts, ROAD_WIDTH[r.cls])) roads.flat(quad, theme.road, HEIGHT.roads);
+    for (const quad of roadRibbon(r.pts, roadWidth(r) + CASING)) casings.flat(quad, theme.casing, HEIGHT.casings);
+    for (const quad of roadRibbon(r.pts, roadWidth(r))) roads.flat(quad, theme.road, HEIGHT.roads);
   }
   // Districts as the SVG renderer labels them: the heaviest sixty, large enough to read, upper case when major.
   const districts = city.towns.flatMap((t) => t.districts).toSorted((a, b) => b.massMille - a.massMille);

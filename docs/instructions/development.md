@@ -37,6 +37,15 @@ How to set up citymap, keep the gate green, and what the hooks and CI run. The t
    only when it needs its own environment (the web app's DOM).
 4. Keep Playwright specs out of Vitest: exclude them (`e2e/**/*.spec.ts`) in that workspace's `vitest.config.ts`.
 
+## Performance
+
+- `bun run bench` times the fold blueprint's budgets on the repositories under `~/.cache/citymap/repos`; a missing one
+  is skipped by name. Run it under PM2: the linux HEAD and react fold take a few minutes together.
+- The bench then lays the corpus at HEAD and holds its ratchet against `scripts/bench/baseline.json`. A change that
+  earns better totals records them with `bun run bench --rebase` in the same commit; a rise fails the bench.
+- `bun run bench --folds` adds full folds of the fast reference repositories (about a minute) and their own ratchet; run
+  it for any change to the plat or the layout.
+
 ## Hooks
 
 - **pre-commit**: lint-staged formats (oxfmt) and lints (oxlint) the staged files, shellchecks scripts and hooks, and

@@ -1,0 +1,8 @@
+# The default rules, everywhere but the bundled cities: generated maps of public repositories, whose town and lot keys
+# are folder and file paths that the generic API-key rule mistakes for secrets.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Bundled cities: paths of public repositories"
+paths = ['''^apps/web/public/cities/[^/]+\.json$''']

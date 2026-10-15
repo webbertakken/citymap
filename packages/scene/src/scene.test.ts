@@ -100,6 +100,10 @@ describe("plinths", () => {
   });
 });
 
+/** The road layer's vertex positions. */
+const roadPositions = (c: City) =>
+  buildScene(c, THEMES["paper-atlas"]).layers.find((l) => l.name === "roads")!.positions;
+
 describe("buildScene", () => {
   const options = {
     densityPct: 50,
@@ -131,6 +135,15 @@ describe("buildScene", () => {
     }
     expect(scene.labels[0]).toMatchObject({ text: "DEMO", size: "town" });
     expect(scene.bounds.max.x).toBeGreaterThan(scene.bounds.min.x);
+  });
+
+  it("draws a road at its own width when its right of way narrows it", () => {
+    const town = city.towns[0]!;
+    const narrow: City = {
+      ...city,
+      towns: [{ ...town, roads: town.roads.map((r) => Object.assign({}, r, { width: 8 })) }],
+    };
+    expect(roadPositions(narrow)).not.toEqual(roadPositions(city));
   });
 
   it("draws vacant lots flat in the reserve colour, and an empty city as nothing", () => {

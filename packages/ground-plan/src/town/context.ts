@@ -18,6 +18,8 @@ export interface LayoutOptions {
   readonly jog: "off" | "top-level" | "all";
   readonly warp: boolean;
   readonly densityPct: number;
+  /** Lanes joining nearby dead ends (on unless false). */
+  readonly loops?: boolean;
 }
 
 /** What a folder's land is cut between: a child folder, the folder's own lots, or its own park. */
@@ -95,8 +97,8 @@ export interface Ctx {
 export const emit = (ctx: Ctx, code: string, detail: Record<string, string | number>) =>
   ctx.events.push({ code, detail });
 
-export const road = (ctx: Ctx, pts: readonly Pt[] | null, cls: RoadClass) => {
-  if (pts) ctx.roads.push({ pts: [...pts], cls });
+export const road = (ctx: Ctx, pts: readonly Pt[] | null, cls: RoadClass, width?: number) => {
+  if (pts) ctx.roads.push(width === undefined ? { pts: [...pts], cls } : { pts: [...pts], cls, width });
 };
 
 export const massOf = (items: readonly Item[]) => items.reduce((sum, i) => sum + i.massMille, 0);

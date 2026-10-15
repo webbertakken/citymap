@@ -13,6 +13,7 @@ import {
   type CSSProperties,
 } from "react";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
+import { log, reasonOf } from "../log";
 import { fit, type Mode, type View, type Viewport } from "../view/view";
 import { CityPanel } from "./CityPanel";
 import { MapView, type CanvasProps } from "./MapView";
@@ -37,6 +38,13 @@ const darkNow = () => media()?.matches ?? false;
 const darkOnServer = () => false;
 
 /** The viewer: one city at a time, its theme and its view. */
+/** The city with only the town of that key, and no highways. */
+export const focusOn = (city: City, key: string): City => ({
+  ...city,
+  towns: city.towns.filter((t) => t.key === key),
+  highways: [],
+});
+
 export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
   const [cities, setCities] = useState<readonly CityEntry[]>([]);
   const [selected, setSelected] = useState("");
@@ -49,27 +57,45 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
   const theme: ThemeName = chosen ?? (dark ? "night-atlas" : "paper-atlas");
   const [mode, setMode] = useState<Mode>("dimetric");
   const [viewport, setViewport] = useState<Viewport>({ width: 800, height: 600 });
-  const [view, setView] = useState<View>({ mode: "dimetric", centre: { x: 0, z: 0 }, zoom: 1 });
-  // A newly opened city stays fitted to the map, whatever size the map turns out to be, until the person moves it.
+  // The view the person moved to; while `fitted`, the view is derived instead, fitting what is shown to the map.
+  const [moved, setMoved] = useState<View>({ mode: "dimetric", centre: { x: 0, z: 0 }, zoom: 1 });
+  // A newly opened city or town stays fitted to the map, whatever size the map turns out to be, until the person moves it.
   const [fitted, setFitted] = useState(true);
-  const scene = useMemo(() => (city ? buildScene(city, THEMES[theme]) : null), [city, theme]);
-  const index = useMemo(() => (city ? pickIndex(city) : null), [city]);
-  const [picked, setPicked] = useState<Hit | null>(null);
-
-  const show = useCallback(
-    (next: City, name: string) => {
-      setCity(next);
-      setPicked(null);
-      setError("");
-      setStatus(
-        `${next.towns.length} towns · ${next.towns.reduce((s, t) => s + t.stats.lots, 0).toLocaleString("en-GB")} lots`,
-      );
-      setView(fit(buildScene(next, THEMES[theme]).bounds, mode, viewport));
-      setFitted(true);
-      document.title = `${name} · citymap`;
-    },
-    [mode, theme, viewport],
+  // Drill down: the key of the one town shown, or null for the whole city.
+  const [focus, setFocus] = useState<string | null>(null);
+  // The whole city's scene and index stay built while a town is shown, so going back costs nothing.
+  const wholeScene = useMemo(() => (city ? buildScene(city, THEMES[theme]) : null), [city, theme]);
+  const wholeIndex = useMemo(() => (city ? pickIndex(city) : null), [city]);
+  const town = useMemo(() => (city && focus !== null ? focusOn(city, focus) : null), [city, focus]);
+  const townScene = useMemo(() => (town ? buildScene(town, THEMES[theme]) : null), [town, theme]);
+  const townIndex = useMemo(() => (town ? pickIndex(town) : null), [town]);
+  const shown = town ?? city;
+  const scene = townScene ?? wholeScene;
+  const index = townIndex ?? wholeIndex;
+  const view = useMemo(
+    () => (fitted && scene ? fit(scene.bounds, mode, viewport) : moved),
+    [fitted, scene, mode, viewport, moved],
   );
+  const [picked, setPicked] = useState<Hit | null>(null);
+  const drill = (key: string | null) => {
+    if (key === null) log.info("viewer/city");
+    else log.info("viewer/town", { key });
+    setFocus(key);
+    setPicked(null);
+    setFitted(true);
+  };
+
+  const show = useCallback((next: City, name: string) => {
+    setCity(next);
+    setFocus(null);
+    setPicked(null);
+    setError("");
+    const lots = next.towns.reduce((s, t) => s + t.stats.lots, 0);
+    log.info("viewer/open", { name, towns: next.towns.length, lots });
+    setStatus(`${next.towns.length} towns · ${lots.toLocaleString("en-GB")} lots`);
+    setFitted(true);
+    document.title = `${name} · citymap`;
+  }, []);
   const open = useCallback(
     async (entry: CityEntry) => {
       setSelected(entry.file);
@@ -77,6 +103,7 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
       try {
         show(await loadCity(fetcher, entry), entry.name);
       } catch (failure) {
+        log.error("viewer/open-failed", { name: entry.name, reason: reasonOf(failure) });
         setError(describeFailure(failure));
         setStatus("");
       }
@@ -88,11 +115,13 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
   useEffect(() => {
     loadIndex(fetcher).then(
       (bundled) => {
+        log.info("viewer/index", { cities: bundled.length });
         setCities(bundled);
         if (bundled[0]) first(bundled[0]);
         else setStatus("");
       },
       (failure: unknown) => {
+        log.error("viewer/index-failed", { reason: reasonOf(failure) });
         setError(describeFailure(failure));
         setStatus("");
       },
@@ -103,6 +132,7 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
       show(await readCityFile(file), file.name);
       setSelected("");
     } catch (failure) {
+      log.error("viewer/file-rejected", { file: file.name, reason: reasonOf(failure) });
       setError(describeFailure(failure));
     }
   };
@@ -140,6 +170,8 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
         selected={selected}
         mode={mode}
         theme={theme}
+        town={town?.towns[0]!.name ?? null}
+        onWhole={() => drill(null)}
         onCity={(file) => {
           const entry = cities.find((c) => c.file === file);
           if (entry) void open(entry);
@@ -147,7 +179,7 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
         onFile={(file) => void openFile(file)}
         onMode={(next) => {
           setMode(next);
-          setView({ ...view, mode: next });
+          setMoved({ ...moved, mode: next });
         }}
         onTheme={setTheme}
       />
@@ -163,22 +195,24 @@ export function Viewer({ Canvas, fetcher = browserFetch }: ViewerProps) {
             scene={scene}
             index={index}
             onSelect={setPicked}
+            onEscape={() => {
+              // Escape clears the selection, else leaves the town for the whole city.
+              if (picked) setPicked(null);
+              else if (focus !== null) drill(null);
+            }}
             view={view}
             theme={colours}
             Canvas={Canvas}
             onView={(next) => {
               setFitted(false);
-              setView(next);
+              setMoved(next);
             }}
-            onViewport={(size) => {
-              setViewport(size);
-              if (fitted) setView(fit(scene.bounds, view.mode, size));
-            }}
+            onViewport={setViewport}
           />
         ) : (
           <div className="map empty" />
         )}
-        <CityPanel city={city} selected={picked} />
+        <CityPanel city={shown} selected={picked} focused={focus !== null} onDrill={drill} />
       </div>
     </main>
   );

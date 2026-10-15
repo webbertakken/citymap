@@ -2,17 +2,17 @@
   {
     "name": "takken.io",
     "file": "takken.io.json",
-    "lots": 286
+    "lots": 288
   },
   {
     "name": "redux",
     "file": "redux.json",
-    "lots": 190
+    "lots": 180
   },
   {
     "name": "game-ci-cli",
     "file": "game-ci-cli.json",
-    "lots": 835
+    "lots": 839
   },
   {
     "name": "studio-worker",
@@ -22,6 +22,11 @@
   {
     "name": "livediagram",
     "file": "livediagram.json",
-    "lots": 4259
+    "lots": 4274
+  },
+  {
+    "name": "react",
+    "file": "react.json",
+    "lots": 2239
   }
 ]

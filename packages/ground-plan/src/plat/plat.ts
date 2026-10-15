@@ -15,6 +15,8 @@ export interface CutRecord {
   n: Dir;
   c: number;
   cls: RoadClass;
+  /** The class whose width the cut's land was laid at: room for the class to grow without taking lots. */
+  row?: RoadClass;
   left: string[];
   right: string[];
   capLeft: number;
@@ -72,7 +74,8 @@ export const PLAT_VERSION = 1;
 /** The persistent state of a city. */
 export interface Plat {
   version: 1;
-  landKey: string;
+  /** The land and split setting this plat was laid for: each setting has its own plat. */
+  setting: string;
   towns: Record<string, TownPlat>;
   old: Record<string, OldTown[]>;
   rootForms: Record<string, Form>;
@@ -91,7 +94,7 @@ export const emptyTownPlat = (): TownPlat => ({
   addresses: {},
 });
 
-export const emptyPlat = (landKey: string): Plat => ({ version: 1, landKey, towns: {}, old: {}, rootForms: {} });
+export const emptyPlat = (setting: string): Plat => ({ version: 1, setting, towns: {}, old: {}, rootForms: {} });
 
 const dirSchema = v.strictTuple([int, int]);
 const strings = v.array(v.string());
@@ -107,6 +110,7 @@ const townPlatSchema = v.strictObject({
       n: dirSchema,
       c: int,
       cls: v.picklist(ROAD_CLASSES),
+      row: v.exactOptional(v.picklist(ROAD_CLASSES)),
       left: strings,
       right: strings,
       capLeft: nat,
@@ -147,7 +151,7 @@ const townPlatSchema = v.strictObject({
 
 const platSchema = v.strictObject({
   version: v.literal(PLAT_VERSION),
-  landKey: v.string(),
+  setting: v.string(),
   towns: v.record(v.string(), townPlatSchema),
   old: v.record(v.string(), v.array(v.strictObject({ town: townSchema, members: v.record(v.string(), strings) }))),
   rootForms: v.record(v.string(), v.picklist(FORMS)),

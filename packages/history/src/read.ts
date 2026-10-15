@@ -2,8 +2,10 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { statSync } from "node:fs";
 import { basename, resolve } from "node:path";
-import { CitymapError, compareKeys, type FileEntry, type Snapshot } from "@citymap/ground-plan";
+import { CitymapError, MAX_PATH_BYTES, compareKeys, type FileEntry, type Snapshot } from "@citymap/ground-plan";
+import { BlobReader } from "./blobs";
 import { gitEnvironment } from "./env";
+import { Workspaces, type ManifestUnavailable } from "./workspaces";
 
 /** One changed path of a commit, from git's raw diff against the first parent. */
 interface RawEntry {
@@ -19,10 +21,9 @@ export interface RawCommit {
   readonly entries: readonly RawEntry[];
 }
 
-export interface HistoryEvent {
-  readonly code: "history/skip-submodule";
-  readonly detail: { readonly path: string; readonly index: number };
-}
+export type HistoryEvent =
+  | { readonly code: "history/skip-submodule"; readonly detail: { readonly path: string; readonly index: number } }
+  | ManifestUnavailable;
 
 const SUBMODULE = "160000";
 
@@ -58,23 +59,30 @@ interface Live {
   firstSeen: number;
 }
 
+const encoder = new TextEncoder();
 const folderOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")));
 
-/** Applies one commit to the tree state: deletions, exact renames (equal blobs, paired in path order), additions. */
+/**
+ * Applies one commit to the tree state: deletions, exact renames (equal blobs, paired in path order), additions. True
+ * when the set of files changed; a commit that only edits files leaves it as it was.
+ */
 function apply(
   state: Map<string, Live>,
   folders: Map<string, number>,
+  workspaces: Workspaces,
   commit: RawCommit,
   index: number,
   onEvent: (event: HistoryEvent) => void,
-) {
+): boolean {
   const deleted = new Map<string, Live[]>();
   const added: RawEntry[] = [];
   for (const entry of commit.entries) {
+    workspaces.touch(entry.path, entry.status === "D" ? null : entry.blob);
     if (entry.status === "D") {
       const live = state.get(entry.path);
       if (!live) continue;
       state.delete(entry.path);
+      workspaces.remove(entry.path);
       const list = deleted.get(live.blob) ?? [];
       list.push(live);
       deleted.set(live.blob, list);
@@ -88,7 +96,14 @@ function apply(
     }
   }
   for (const entry of added.toSorted((a, b) => compareKeys(a.path, b.path))) {
+    // A path the engine cannot hold ends the read, by name: its length bounds every folder walk and the work with it.
+    if (entry.path.length * 3 > MAX_PATH_BYTES && encoder.encode(entry.path).length > MAX_PATH_BYTES)
+      throw new CitymapError("snapshot/bad-path", `a path is longer than ${MAX_PATH_BYTES} bytes`, {
+        index,
+        start: entry.path.slice(0, 80),
+      });
     const moved = deleted.get(entry.blob)?.shift();
+    workspaces.add(entry.path);
     state.set(
       entry.path,
       moved
@@ -100,19 +115,31 @@ function apply(
       if (folder === "") break;
     }
   }
+  return deleted.size > 0 || added.length > 0;
 }
+
+/** The files of the tree state, sorted, as the snapshot holds them. */
+const filesOf = (state: Map<string, Live>): FileEntry[] =>
+  [...state]
+    .toSorted(([a], [b]) => compareKeys(a, b))
+    .map(([path, live]) => ({ path, identity: live.identity, firstSeen: live.firstSeen }));
 
 function snapshotOf(
   repository: string,
   sha: string,
   index: number,
-  state: Map<string, Live>,
-  folders: Map<string, number>,
+  files: readonly FileEntry[],
+  folders: ReadonlyMap<string, number>,
+  workspaces: readonly string[] | undefined,
 ): Snapshot {
-  const files: FileEntry[] = [...state]
-    .toSorted(([a], [b]) => compareKeys(a, b))
-    .map(([path, live]) => ({ path, identity: live.identity, firstSeen: live.firstSeen }));
-  return { repository, commit: sha, index, files, folderFirstSeen: new Map(folders) };
+  return {
+    repository,
+    commit: sha,
+    index,
+    files,
+    folderFirstSeen: folders,
+    ...(workspaces === undefined ? {} : { workspaces }),
+  };
 }
 
 export interface ReadOptions {
@@ -170,36 +197,53 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
   const closed = once(child, "close");
   const state = new Map<string, Live>();
   const folders = new Map<string, number>();
+  const workspaces = new Workspaces();
+  const blobs = new BlobReader(dir);
   let index = 0;
+  // The files and folders as last handed over: a commit that leaves the file set as it was hands over the same ones, so
+  // what the layout derives from them can be kept (snapshots are immutable; nothing mutates these).
+  let files: readonly FileEntry[] | null = null;
+  let folderMap: ReadonlyMap<string, number> | null = null;
   const decoder = new TextDecoder();
   let rest = "";
   // Commits are complete once the next header arrives; buffer tokens and hand over each finished commit.
   let pending: string[] = [];
-  const flush = function* (final: boolean): Generator<Snapshot> {
+  const flush = async function* (final: boolean): AsyncGenerator<Snapshot> {
     const cut = final ? pending.length : pending.findLastIndex((t) => t.replace(/^\n/, "").startsWith("\u0001"));
     if (cut <= 0) return;
-    for (const commit of parseRawLog(pending.slice(0, cut))) {
-      apply(state, folders, commit, index, onEvent);
-      if (index >= from) yield snapshotOf(repository, commit.sha, index, state, folders);
+    const commits = [...parseRawLog(pending.slice(0, cut))];
+    // The manifests these commits need, read in one pass before their snapshots are built.
+    const texts = await blobs.readAll(workspaces.wanted(commits, index, from));
+    for (const commit of commits) {
+      if (apply(state, folders, workspaces, commit, index, onEvent)) [files, folderMap] = [null, null];
+      if (index >= from) {
+        files ??= filesOf(state);
+        folderMap ??= new Map(folders);
+        yield snapshotOf(repository, commit.sha, index, files, folderMap, workspaces.resolve(texts, index, onEvent));
+      }
       index++;
     }
     pending = pending.slice(cut);
   };
-  for await (const chunk of child.stdout as AsyncIterable<Uint8Array>) {
-    const text = rest + decoder.decode(chunk, { stream: true });
-    const parts = text.split("\u0000");
-    rest = parts.pop()!;
-    pending.push(...parts);
-    yield* flush(false);
+  try {
+    for await (const chunk of child.stdout as AsyncIterable<Uint8Array>) {
+      const text = rest + decoder.decode(chunk, { stream: true });
+      const parts = text.split("\u0000");
+      rest = parts.pop()!;
+      pending.push(...parts);
+      yield* flush(false);
+    }
+    pending.push(rest);
+    const [code]: unknown[] = await closed;
+    if (code !== 0) {
+      const first = stderr.split("\n", 1)[0]!;
+      throw new CitymapError("history/git-failed", `git log exited with ${String(code)}: ${first}`, {
+        code: String(code),
+        stderr: first,
+      });
+    }
+    yield* flush(true);
+  } finally {
+    await blobs.close();
   }
-  pending.push(rest);
-  const [code]: unknown[] = await closed;
-  if (code !== 0) {
-    const first = stderr.split("\n", 1)[0]!;
-    throw new CitymapError("history/git-failed", `git log exited with ${String(code)}: ${first}`, {
-      code: String(code),
-      stderr: first,
-    });
-  }
-  yield* flush(true);
 }

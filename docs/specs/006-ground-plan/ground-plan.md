@@ -50,14 +50,16 @@ Each concept has one name; the names in brackets are not used.
 - The plat is the fold of the layout over first-parent history, oldest commit first. The same repository at the same
   commit always yields the same plat and the same city.
 - A committed lockfile overrides the fold. A folder without git keeps its plat as local state.
-- The fold reads commits and trees only; it never needs file contents.
+- The fold reads commits and trees, and the contents of the repository's root workspace manifests only, at the commits
+  that change them; it never needs any other file's contents.
 - A file's identity follows exact renames: the fold carries it through every commit that moves a file unchanged (equal
   blob ids, no contents needed). A folder's identity is its path.
 
 ## Land use and mass
 
 - Land use follows Linguist-style path rules, earliest rule first: vendored, generated, fixtures, tests, examples, docs,
-  CI and tools, assets, config, source. `.gitattributes` overrides apply.
+  CI and tools, assets, config, source. `.gitattributes` overrides (Linguist's vendored, generated and documentation
+  marks) come later: the fold reads no contents but the root workspace manifests.
 - Weights: source 1; config, assets, CI and tools, docs 0.5; tests and examples 0.3; fixtures, generated and vendored
   0.05.
 - Mass is the weighted count of a subtree's files that take lots; docs and files without land add none. Mass drives the
@@ -75,10 +77,20 @@ Each concept has one name; the names in brackets are not used.
 | Element          | Rule                                                                                                        |
 | ---------------- | ----------------------------------------------------------------------------------------------------------- |
 | Road widths      | lane 0.625 u, street 1 u, collector 1.5 u, avenue 2.25 u, boulevard 3.25 u, highway 2.75 u                  |
-| Length shares    | local 65 to 75%, collector 10 to 15%, arterial and above 10 to 20%                                          |
 | Block short side | 6 u short and 12 u long at the default density, plus streets between; long side 1 to 4 times the short side |
 | Lot              | frontage one module times its lot class; depth half the block depth (1:2 to 1:6)                            |
 | Neighbourhood    | 3 to 8 blocks across between collectors                                                                     |
+
+- Road length shares follow the town's tier, as in real settlements of the matching size (one lot stands for a plot of
+  about 2.3 people). They are an outcome the corpus is checked against, never an input to the layout:
+
+  | Tier       | Local   | Collector | Arterial and up |
+  | ---------- | ------- | --------- | --------------- |
+  | hamlet     | 85-100% | 0-15%     | 0%              |
+  | village    | 55-80%  | 20-45%    | 0%              |
+  | town       | 65-80%  | 20-35%    | 0-10%           |
+  | city       | 65-80%  | 10-25%    | 5-15%           |
+  | metropolis | 60-75%  | 10-20%    | 10-20%          |
 
 - A neighbourhood sets its lot class once, at its first lay: its lots widen to fill the blocks they need, up to lot
   class 4. Frontage left in the last block stays garden and spare blocks stay reserve plots; both are room to grow.
@@ -87,7 +99,8 @@ Each concept has one name; the names in brackets are not used.
 - When its grid cannot seat its lots even at class 1, because the cuts around it moved its land, and a fresh grid on the
   same land can, the neighbourhood lays its grid afresh; no file is left without a lot that its land could hold.
 - Density is a setting (a slider), 50% by default: a folder's land is its lot area over density, plus a road margin. Low
-  density gives suburban plots, high density narrow plots in a dense core.
+  density gives suburban plots, high density narrow plots in a dense core. A folder whose own roads are wider than a
+  street (the class its first cut can reach) asks for their land too, so wider roads never take it from lots.
 
 ## Order
 
@@ -116,11 +129,15 @@ therefore readable as distance from the core, and newcomers join the edges.
 - The plat remembers every cut: its line, its class, the items on each side, and each side's band (1.35 times its demand
   at the last cut). A newcomer joins the side with more spare band. A side left empty lends its land to the other side,
   which extends over it; the cut stays remembered and nothing already laid moves. A cut moves, to the split of today's
-  demand, only when a side outgrows its band. This holds at every level, the top two folder levels included.
+  demand, only when a side outgrows its band, or when the land around it changed shape so far that one side's land falls
+  below its share of the demand by more than the band, measured against its sibling and against its folder's land as a
+  whole (so small shortfalls at every level of a folder of many children cannot add up). This holds at every level, the
+  top two folder levels included.
 - The plat remembers every neighbourhood: its grid origin, angle and pitch, its lot class, its park line, and the slot
-  of every lot; a park line that no longer crosses its land is laid afresh. Lots keep their slots; a newcomer takes the
-  first free slot after its folder's last lot. Cells come and go only with the neighbourhood's land; a lot whose slot is
-  gone takes a free one.
+  of every lot; a park line that no longer crosses its land is laid afresh, and so is one whose park grew over the land
+  the lots need, when they no longer fit and a fresh line seats them. Lots keep their slots; a newcomer takes the first
+  free slot after its folder's last lot. Cells come and go only with the neighbourhood's land; a lot whose slot is gone
+  takes a free one.
 - Shared lots remember their members: a new file joins a lot with room, and a lot keeps its place while any member
   lives.
 - A town keeps its outline until its land outgrows 1.35 times its land at the last growth, then grows outward about the
@@ -133,8 +150,11 @@ therefore readable as distance from the core, and newcomers join the edges.
 - Each folder has a form (hamlet, street village, archipelago, radial, twin, polycentric) and a tier by decade of mass
   (hamlet under 30, village under 300, town under 3,000, city under 30,000, metropolis above).
 - Features are continuous; the choice uses a Schmitt trigger: a challenger enters at margin 0 or more, the incumbent
-  stays down to -0.15, and a switch needs +0.1. Tiers move up at the threshold times 1.25 and down at the threshold
-  divided by 1.25.
+  stays down to -0.15, and a switch needs +0.1. Roads follow their land's tier as it grows and shrinks: a laid road
+  moves up a class at the tier's threshold times 1.25 and down below the threshold divided by 1.25. A road's class and
+  its land are separate: each cut reserves, when it is laid, the width of the class its land reaches at the top of its
+  band (its right of way), so a reclass widens the road within it and takes no lots; a class beyond the right of way
+  keeps its width until the cut is laid again.
 - A twin is a folder with two dominant cores (lib and test, src and docs): two town halves facing each other across a
   river.
 - A flattened folder takes a neighbourhood form: a hamlet (mass under 25) gathers round a green, the full block nearest
@@ -156,12 +176,19 @@ therefore readable as distance from the core, and newcomers join the edges.
 
 Edges carry meaning:
 
-- A workspace member is a folder, other than the root, that directly holds a package manifest; members are read from
-  paths alone.
-- A repository is one cohesive town. Each workspace group becomes its own town, sized by its land, its members as
-  districts, joined to the main town by a highway across open country. A highway continues a road: it joins, in both
-  towns, the end of a road of the highest class both offer at their edges, takes that class, and is drawn exactly like
-  it. A town without roads gets an approach street from its nearest edge to its centre.
+- Workspace members come from the repository's root workspace manifests: `package.json` workspaces,
+  `pnpm-workspace.yaml`, `lerna.json`, Cargo's `[workspace]` members, `go.work`, uv's `[tool.uv.workspace]` and
+  `deno.json` workspaces, their globs matched against the tree. Without such a manifest (or when one cannot be read), a
+  member is a folder, other than the root, that directly holds a package manifest, read from paths alone.
+- A workspace group is a folder holding two or more members whose land is mostly source.
+- A repository is one cohesive city. Each workspace group becomes its own town, sized by its land, its members as
+  districts, joined to the main town by a highway across open country.
+- Split groups give each member its own town instead, each joined to the main town by its own highway. `apps/` is split
+  by default; any other group (`packages/` and the like) may be split as a setting, off by default. Each setting has its
+  own plat, as the land dimension does.
+- A highway continues a road: it joins, in both towns, the end of a road of the highest class both offer at their edges,
+  takes that class, and is drawn exactly like it. A town without roads gets an approach street from its nearest edge to
+  its centre.
 - **Parks** hold docs.
 - **Reserve plots** hold room for growth inside neighbourhoods.
 
@@ -184,13 +211,17 @@ Edges carry meaning:
 
 - Roads form a graph: junctions as nodes, edges with class, width and length; blocks are its faces; loop connectors join
   nearby street ends.
-- Every lot has an address. An address never changes once issued; when a lot splits, the new lots take suffixes.
+- Every lot has an address, issued at its first placement and never changed. Lots never split: a shared lot only loses
+  members, and a newcomer that finds no room founds a lot of its own.
 - Dependencies never shape roads; they are overlays.
 
 ## Organic layer
 
-A deterministic, topology-preserving layer bends the plan after layout: path-seeded jitter on splits, a smooth domain
-warp, Voronoi coastlines and district outlines. It never feeds back into the plat.
+A deterministic, topology-preserving layer bends the plan after layout: path-seeded jitter on splits and a smooth domain
+warp. It never feeds back into the plat.
+
+- Voronoi regions are a setting, off by default: each top-level folder of a town is drawn over the land nearer its lots
+  than any other folder's, filled beneath the blocks and outlined over them. Old towns keep their plain ground.
 
 ## Presentation
 

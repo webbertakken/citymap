@@ -17,6 +17,10 @@ describe("parseCommandLine", () => {
       densityPct: 50,
       jog: "top-level",
       warp: true,
+      loops: true,
+      voronoi: false,
+      history: true,
+      split: ["apps"],
     });
   });
 
@@ -35,6 +39,9 @@ describe("parseCommandLine", () => {
       "--density=70",
       "--jog=all",
       "--no-warp",
+      "--no-loops",
+      "--voronoi",
+      "--split=apps,packages",
     ]);
     expect(parsed).toMatchObject({
       to: "main",
@@ -48,7 +55,12 @@ describe("parseCommandLine", () => {
       densityPct: 70,
       jog: "all",
       warp: false,
+      loops: false,
+      voronoi: true,
+      split: ["apps", "packages"],
     });
+    expect(parseCommandLine(["repo", "--split="])).toMatchObject({ split: [] });
+    expect(parseCommandLine(["repo", "--no-history"])).toMatchObject({ history: false });
   });
 
   it("answers help with the usage", () => {
@@ -65,6 +77,7 @@ describe("parseCommandLine", () => {
     [["a", "--density=x"], "cli/usage: --density"],
     [["a", "--jog=some"], "cli/usage: --jog"],
     [["a", "--bogus"], "cli/usage:"],
+    [["a", "--no-history", "--lock"], "cli/usage: --lock folds history"],
   ])("rejects %j", (argv, message) => {
     expect(() => parseCommandLine(argv)).toThrow(message);
   });

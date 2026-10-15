@@ -17,6 +17,7 @@
     "typecheck": "bun scripts/check-references.ts && tsc --build",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
+    "bench": "bun scripts/bench.ts",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run coverage"
   },
   "lint-staged": {
@@ -39,6 +40,7 @@
     "vitest": "5.0.3"
   },
   "dependencies": {
-    "@citymap/ground-plan": "workspace:*"
+    "@citymap/ground-plan": "workspace:*",
+    "@citymap/history": "workspace:*"
   }
 }

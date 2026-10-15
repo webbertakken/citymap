@@ -1,5 +1,5 @@
 import { serialiseCity, type City } from "@citymap/ground-plan";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { project, type View } from "../view/view";
 import type { CanvasProps } from "./MapView";
@@ -31,6 +31,8 @@ const city = (name: string): City => ({
       districts: [
         { pts: square(0, 3200), path: "src", name: "src", depth: 1, massMille: 2000, ward: false },
         { pts: square(3200, 3200), path: "lib", name: "lib", depth: 1, massMille: 1000, ward: false },
+        // A ward around both, named after its largest member: a grouping on the map, not a district of its own.
+        { pts: square(0, 6400), path: "#ward", name: "src", depth: 1, massMille: 3000, ward: true },
       ],
       stats: { lots: 1, overflow: 0, offLand: 0, docs: 0, lotArea2: 0, landArea2: 0 },
     },
@@ -284,5 +286,129 @@ describe("Viewer hover and select", () => {
     expect(card.style.top).toBe(`${590 - 16 - 96}px`);
     fireEvent.pointerMove(map, { pointerId: 1, clientX: 10, clientY: 10 });
     expect(screen.getByRole("tooltip").style.left).toBe("26px");
+  });
+});
+
+/** The towns the panel lists, by name. */
+const towns = () =>
+  Array.from(screen.getByRole("region", { name: "Towns and districts" }).querySelectorAll("h2"), (h) =>
+    h.firstChild?.textContent?.trim(),
+  );
+
+describe("Viewer drill down", () => {
+  const viewport = { width: 800, height: 600 };
+  // The city of alpha with a second town, apps/web, east of it across a highway.
+  const base = city("alpha");
+  const web = {
+    ...base.towns[0]!,
+    key: "alpha/apps/web",
+    name: "apps/web",
+    outline: square(12800, 6400),
+    lots: [{ ...base.towns[0]!.lots[0]!, pts: square(12864, 64), path: "apps/web/page.tsx" }],
+    districts: [
+      { pts: square(12800, 3200), path: "apps/web/src", name: "src", depth: 1, massMille: 1000, ward: false },
+    ],
+  };
+  const twin: City = {
+    ...base,
+    towns: [base.towns[0]!, web],
+    highways: [
+      {
+        pts: [
+          { x: 6400, y: 3200 },
+          { x: 12800, y: 3200 },
+        ],
+        cls: "highway",
+      },
+    ],
+  };
+  const twinFiles: Record<string, string> = {
+    "/cities/index.json": JSON.stringify([{ name: "alpha", file: "alpha.json", lots: 2 }]),
+    "/cities/alpha.json": serialiseCity(twin),
+  };
+  const twinFetcher = async (url: string) =>
+    new Response(twinFiles[url] ?? "", { status: url in twinFiles ? 200 : 404 });
+
+  it("shows one town from the panel, fitted, and the whole city again from the breadcrumb", async () => {
+    render(<Viewer Canvas={StubCanvas} fetcher={twinFetcher} />);
+    await screen.findByRole("application");
+    expect(towns()).toEqual(["alpha", "apps/web"]);
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+    const whole = read();
+    fireEvent.click(screen.getByRole("button", { name: "Show only this town: apps/web" }));
+    expect(towns()).toEqual(["apps/web"]);
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(crumbs.textContent).toBe("alphaapps/web");
+    expect(crumbs.querySelector("[aria-current=page]")?.textContent).toBe("apps/web");
+    expect(screen.queryByRole("button", { name: /^Show only this town/ })).toBeNull();
+    expect(currentView().centre.x).toBeGreaterThan(200);
+    expect(read()).not.toBe(whole);
+    fireEvent.click(screen.getByRole("button", { name: "alpha" }));
+    expect(towns()).toEqual(["alpha", "apps/web"]);
+    expect(read()).toBe(whole);
+  });
+
+  it("shows the town of a selection, and steps back out with Escape once nothing is selected", async () => {
+    render(<Viewer Canvas={StubCanvas} fetcher={twinFetcher} />);
+    const map = await screen.findByRole("application");
+    const lot = project(currentView(), viewport, { x: 12896 / 64, y: 0.15, z: -32 / 64 });
+    fireEvent.pointerDown(map, { pointerId: 1, clientX: lot.x, clientY: lot.y });
+    fireEvent.pointerUp(map, { pointerId: 1, clientX: lot.x, clientY: lot.y });
+    const selected = screen.getByRole("region", { name: "Selected" });
+    expect(selected.textContent).toContain("apps/web/page.tsx");
+    fireEvent.click(within(selected).getByRole("button", { name: "Show only this town: apps/web" }));
+    expect(towns()).toEqual(["apps/web"]);
+    expect(selected.textContent).toContain("Nothing yet");
+    // Select again in the town alone: Escape clears the selection first, then leaves the town.
+    const again = project(currentView(), viewport, { x: 12896 / 64, y: 0.15, z: -32 / 64 });
+    fireEvent.pointerDown(map, { pointerId: 1, clientX: again.x, clientY: again.y });
+    fireEvent.pointerUp(map, { pointerId: 1, clientX: again.x, clientY: again.y });
+    expect(selected.textContent).toContain("apps/web/page.tsx");
+    expect(screen.queryByRole("button", { name: /^Show only this town/ })).toBeNull();
+    fireEvent.keyDown(map, { key: "Escape" });
+    expect(selected.textContent).toContain("Nothing yet");
+    expect(towns()).toEqual(["apps/web"]);
+    fireEvent.keyDown(map, { key: "Escape" });
+    expect(towns()).toEqual(["alpha", "apps/web"]);
+    fireEvent.keyDown(map, { key: "Escape" });
+    expect(towns()).toEqual(["alpha", "apps/web"]);
+  });
+
+  it("offers no town for a highway, and leaves the town when another city opens", async () => {
+    render(<Viewer Canvas={StubCanvas} fetcher={twinFetcher} />);
+    const map = await screen.findByRole("application");
+    const road = project(currentView(), viewport, { x: 9600 / 64, y: 0, z: -3200 / 64 });
+    fireEvent.pointerDown(map, { pointerId: 1, clientX: road.x, clientY: road.y });
+    fireEvent.pointerUp(map, { pointerId: 1, clientX: road.x, clientY: road.y });
+    const selected = screen.getByRole("region", { name: "Selected" });
+    expect(selected.textContent).toContain("Highway");
+    expect(within(selected).queryByRole("button")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show only this town: apps/web" }));
+    const file = new File([serialiseCity(city("beta"))], "beta.json", { type: "application/json" });
+    fireEvent.change(screen.getByLabelText("City file"), { target: { files: [file] } });
+    await screen.findByRole("heading", { level: 1, name: "beta" });
+    expect(towns()).toEqual(["beta"]);
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+  });
+});
+
+describe("Viewer log", () => {
+  it("logs each opening, rejection and drill by its fingerprint", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    fireEvent.change(screen.getByLabelText("City file"), { target: { files: [new File(["{"], "bad.json")] } });
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Show only this town: alpha" }));
+    fireEvent.click(screen.getByRole("navigation", { name: "Breadcrumb" }).querySelector("button")!);
+    expect(info.mock.calls.map(([line]) => line)).toEqual([
+      "viewer/index cities=2",
+      "viewer/open name=alpha towns=1 lots=1",
+      "viewer/town key=alpha",
+      "viewer/city",
+    ]);
+    expect(error.mock.calls.map(([line]) => line)).toEqual(["viewer/file-rejected file=bad.json reason=city/bad-json"]);
+    vi.restoreAllMocks();
   });
 });

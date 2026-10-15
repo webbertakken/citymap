@@ -338,6 +338,65 @@ describe("neighbourhood edge cases", () => {
     expect(moved.lots).toHaveLength(20);
   });
 
+  it("lays its park line afresh when its land grew on the park's side and the lots no longer fit", () => {
+    const first = emptyCtx();
+    neighbourhood(first, box(0, 0, 1200, 900), seeds(10), 3000, "k", "d", "neighbourhood");
+    const { n } = first.plat.grids.k!.park!;
+    // The land grows only on the park's side of the remembered line, which still crosses it.
+    const grown =
+      Math.abs(n[0]) > Math.abs(n[1])
+        ? box(n[0] > 0 ? 0 : -6000, 0, 7200, 900)
+        : box(0, n[1] > 0 ? 0 : -6000, 1200, 6900);
+    const moved = { ...emptyCtx(), plat: first.plat };
+    neighbourhood(moved, grown, seeds(200), 3000, "k", "d", "neighbourhood");
+    expect(moved.events.map((e) => e.code)).toContain("plat/repark");
+    expect(moved.overflow).toBe(0);
+    expect(moved.lots).toHaveLength(200);
+  });
+
+  it("keeps its park line when a fresh one would seat no more lots, or leave no land", () => {
+    const first = emptyCtx();
+    neighbourhood(first, box(0, 0, 1200, 900), seeds(10), 3000, "k", "d", "neighbourhood");
+    // The same land with far more lots than any grid on it can seat: a fresh line is the remembered one.
+    const crowded = { ...emptyCtx(), plat: first.plat };
+    neighbourhood(crowded, box(0, 0, 1200, 900), seeds(400), 3000, "k", "d", "neighbourhood");
+    expect(crowded.events.map((e) => e.code)).not.toContain("plat/repark");
+    // A thin strip whose park demand grew: a fresh park would take all the land the lots have.
+    const thin = emptyCtx();
+    neighbourhood(thin, box(0, 0, 2000, 90), seeds(1), 10, "t", "d", "neighbourhood");
+    const grown = { ...emptyCtx(), plat: thin.plat };
+    neighbourhood(grown, box(0, 0, 2000, 90), seeds(500), 1_000_000_000, "t", "d", "neighbourhood");
+    expect(grown.events.map((e) => e.code)).not.toContain("plat/repark");
+  });
+
+  it("lays its park line afresh when the remembered one leaves the lots no land at all", () => {
+    const first = emptyCtx();
+    neighbourhood(first, box(0, 0, 1200, 900), seeds(10), 3000, "k", "d", "neighbourhood");
+    const { n, c } = first.plat.grids.k!.park!;
+    // Lots lie where n·p ≤ c. Move the land so only a sliver thinner than the pavement is on that side.
+    expect(n).toEqual([0, 4096]);
+    const edge = Math.floor(c / 4096);
+    const moved = { ...emptyCtx(), plat: first.plat };
+    neighbourhood(moved, box(0, edge - 6, 1200, 2000), seeds(10), 3000, "k", "d", "neighbourhood");
+    expect(moved.events.map((e) => e.code)).toContain("plat/repark");
+    expect(moved.overflow).toBe(0);
+    expect(moved.lots).toHaveLength(10);
+    // A sliver no park line can leave land on: nothing to lay afresh, every lot without room.
+    const sliver = { ...emptyCtx(), plat: first.plat };
+    neighbourhood(sliver, box(0, edge - 6, 1200, 12), seeds(10), 3000, "k", "d", "neighbourhood");
+    expect(sliver.events.map((e) => e.code)).toEqual(["town/overflow"]);
+  });
+
+  it("keeps a remembered park line while the lots fit", () => {
+    const first = emptyCtx();
+    neighbourhood(first, box(0, 0, 1200, 900), seeds(10), 3000, "k", "d", "neighbourhood");
+    const line = first.plat.grids.k!.park;
+    const again = { ...emptyCtx(), plat: first.plat };
+    neighbourhood(again, box(0, 0, 1200, 900), seeds(11), 3000, "k", "d", "neighbourhood");
+    expect(again.events.map((e) => e.code)).not.toContain("plat/repark");
+    expect(again.plat.grids.k!.park).toEqual(line);
+  });
+
   it("lays its grid afresh when the cuts around it moved its land off the grid", () => {
     const first = emptyCtx();
     neighbourhood(first, box(0, 0, 600, 400), seeds(6), 0, "k", "d", "neighbourhood");

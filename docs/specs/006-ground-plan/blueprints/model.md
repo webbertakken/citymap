@@ -12,6 +12,7 @@ interface Snapshot {
   readonly index: number; // first-parent position, 0 = oldest
   readonly files: readonly FileEntry[]; // sorted by compareKeys(path)
   readonly folderFirstSeen: ReadonlyMap<string, number>; // folder path -> first commit index holding it
+  readonly workspaces?: readonly string[]; // member folders declared by the root workspace manifests, when read
 }
 interface FileEntry {
   readonly path: string; // repo-relative, "/" separated, no leading "./"
@@ -29,18 +30,19 @@ interface FileEntry {
 
 - `classifyLandUse(path)`: the prototype's rules in `land-use.ts`, earliest first (vendored, generated, fixtures, tests,
   examples, docs, ci, assets, config, source), with **binary detection by extension only** (assets), so the fold never
-  reads contents. `.gitattributes` overrides (`linguist-vendored`, `linguist-generated`, `linguist-documentation`) apply
-  when the snapshot carries them (`Snapshot.attributes`, later).
+  reads no file contents to classify. `.gitattributes` overrides (`linguist-vendored`, `linguist-generated`,
+  `linguist-documentation`) apply when the snapshot carries them (`Snapshot.attributes`, later).
 - `WEIGHT_MILLE`: source 1000; config, assets, ci, docs 500; tests, examples 300; fixtures, generated, vendored 50.
-- `LotCapacity(use) = max(1, roundDiv(1000, weightMille))`: source 1, config 2, tests 3, fixtures 20.
+- `lotCapacity(use) = max(1, roundDiv(1000, WEIGHT_MILLE[use]))`: source 1, config 2, tests 3, fixtures 20.
 - `Options.landUses`: the land uses that take land; default all but `tests` and `fixtures` (spec: land dimension). The
   plat is keyed by the sorted set (`landKey`), so each setting is its own plat.
 
 ## Workspace members
 
-- A **workspace member** is a folder other than the root that directly holds a manifest: `package.json`, `Cargo.toml`,
-  `pyproject.toml`, `go.mod`, `composer.json`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `mix.exs`, `*.csproj`,
-  `*.gemspec`. Read from paths only.
+- When the snapshot carries `workspaces` (members declared by the root manifests, resolved by the history reader), those
+  are the members. Otherwise a **workspace member** is a folder other than the root that directly holds a manifest:
+  `package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`, `composer.json`, `pom.xml`, `build.gradle`,
+  `build.gradle.kts`, `mix.exs`, `*.csproj`, `*.gemspec`. Read from paths only.
 - Members nested inside another member are dropped. A **workspace group** is a folder holding at least two direct member
   children whose land files are at least half source (`2 × source ≥ land`, land excluding tests, fixtures, docs). Groups
   nested in groups are dropped. Sorted by `compareKeys`.
@@ -75,14 +77,17 @@ interface LotSeed {
 - **Chain collapse**: below the root, a node without own lots or docs and with one child merges into it, the name joined
   with `/`, the depth kept, firstSeen the minimum.
 - **Land**: `landFor(lotArea) = (isqrt(lotArea × 100 / densityPct) + 2 × MARGIN)²`, 0 when `lotArea = 0`;
-  `demand = landFor(lots × LOT_AREA) + landFor(docs × LOT_AREA / 2) + Σ children`.
+  `items = landFor(lots × LOT_AREA) + landFor(docs × LOT_AREA / 2) + Σ children`; with two or more items (children, own
+  lots, docs) the folder's own roads need land beyond a street:
+  `excess = ROAD_WIDTH[reserveFor(mass, first)] − ROAD_WIDTH.street` (`roadExcess` in `roads.ts`) and
+  `demand = (isqrt(items) + excess)²`; otherwise `demand = items`.
 
 ## Plat
 
 ```ts
 interface Plat {
   readonly version: 1;
-  readonly landKey: string;
+  readonly setting: string; // landKey(uses) + "|split:" + the split groups, sorted and comma-joined
   towns: Record<string, TownPlat>; // key: repository name, or `${name}/${group}`
   old: Record<string, OldTown[]>;
   rootForms: Record<string, Form>;
@@ -145,9 +150,10 @@ interface OldTown {
   trailing newline. `parsePlat` validates the shape and `version`; rejections `plat/bad-json`, `plat/bad-version`,
   `plat/bad-shape` (with the JSON pointer). Round-trip is the identity (property test).
 - **Migration**: a newer `version` is rejected with `plat/too-new`; an older one is migrated by a chain of pure
-  `migrateN` functions, each tested on a stored fixture. Version 1 has none.
+  `migrate<N>` functions (each from version N to N + 1), each tested on a stored fixture. Version 1 has none.
 - **Lockfile**: `citymap.lock.json` at the repository root holds `{ commit, plat }`; when present and its commit is an
-  ancestor-or-equal of the laid commit, the fold starts from it instead of commit 0.
+  ancestor-or-equal of the laid commit, the fold starts from it instead of commit 0. It is written at the end of a fold
+  and every 1,000 laid commits along the way.
 
 ## City model (output)
 
@@ -157,7 +163,6 @@ interface City {
   commit: string;
   towns: Town[];
   highways: Road[];
-  stats: CityStats;
 }
 interface Town {
   key: string;
@@ -170,11 +175,12 @@ interface Town {
   blocks: Block[];
   lots: Lot[];
   districts: District[];
-  stats: TownStats;
+  stats: TownStats; // lots, overflow, offLand, docs, lotArea2, landArea2 (doubled areas, fixed units²)
 }
 interface Road {
   pts: Pt[];
   cls: RoadClass;
+  width?: number; // fixed units, when its right of way draws it narrower than its class
 }
 interface Block {
   pts: Pt[];

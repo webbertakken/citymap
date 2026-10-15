@@ -6,7 +6,9 @@ Reference: `docs/research/city-layout/variants/region.ts`. Module: `packages/gro
 ## Towns
 
 1. Parts: the main town (key = repository name, root `""`, excluding every workspace group), then one town per workspace
-   group (key `${name}/${group}`), groups by `(folderFirstSeen, compareKeys)`.
+   group (key `${name}/${group}`), groups by `(folderFirstSeen, compareKeys)`. A group named in `Options.split` (default
+   `["apps"]`) gives one town per member instead (key `${name}/${member}`, named by the member's path), members by
+   `(folderFirstSeen, compareKeys)`; the group's own files outside its members stay in the main town.
 2. Files held by a part's old towns are excluded from its tree.
 3. Root form: classified over the whole part (old towns' files included) with `plat.rootForms[key]` as previous. A
    change that is not between two neighbourhood forms is an **archetype switch** (below).
@@ -46,13 +48,15 @@ Reference: `docs/research/city-layout/variants/region.ts`. Module: `packages/gro
 ## Archetype switch and old towns
 
 - On a switch, the part's last laid town (`plat.last[key]`, the warped geometry) is frozen as an old town where it
-  stood: name `"${name} old town"` (then `old town 2`, …), `old: true`. Its member map holds, per lot key, the lot's
-  share members (or the key itself).
+  stood: name `"${name} old town"` (then `old town 2`, …), key made the same way from the part's key, `old: true`. Its
+  member map holds, per lot key, the lot's share members (or the key itself).
+- Every town in a city has a key of its own; `parseCity` rejects a repeated key (`city/bad-shape` at `/towns`).
 - The part's `TownPlat` is reset to empty; its tree is rebuilt without the old towns' files.
 - Each frame, an old town's lot is vacant unless one of its members is alive.
 - `plat.last` is runtime state: it is not serialised. The lockfile stores old towns whole.
 
 ## Stats
 
-`CityStats`: towns, lots, overflow, offLand, docs, lot coverage (‰ of land), road length share per class (‰), long
-straight roads (roads whose straight run is at least 45 % of their town's diameter).
+Each town carries `TownStats`: `lots`, `overflow` (files without room), `offLand` (files of land uses that take none),
+`docs`, and doubled areas `lotArea2` and `landArea2` (fixed units²). The city has no stats of its own; the CLI's summary
+line sums the towns. Movement between commits is measured outside the engine (`scripts/stability`).

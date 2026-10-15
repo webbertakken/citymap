@@ -1,6 +1,6 @@
 import { classifyNode, flatten } from "../archetype/classify";
 import { isFlat } from "../archetype/forms";
-import { LOT_AREA, PAVEMENT, ROAD_WIDTH, U } from "../constants";
+import { LOT_AREA, PAVEMENT, ROAD_WIDTH, U, GROWTH_PCT } from "../constants";
 import { floorDiv, isqrt, mulDiv, roundDiv } from "../fixed/arithmetic";
 import { DIRECTION, TURN, dir, negate, normalise } from "../fixed/direction";
 import { compareKeys, unitMille } from "../fixed/hash";
@@ -12,7 +12,6 @@ import { demandOf, emit, forget, road, seedKey, toPoly, type Ctx, type Item } fr
 import { cutClass, decide, place, reserve, split } from "./cut";
 import { neighbourhood } from "./neighbourhood";
 
-const GROWTH_PCT = 135;
 /** A sector spans at most this many angle steps (0.95π). */
 const MAX_SPAN = 1946;
 /** A radial core reaches at most this share (‰) of the way to the edge, so the ring keeps room. */

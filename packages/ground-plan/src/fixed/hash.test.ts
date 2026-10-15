@@ -15,6 +15,13 @@ describe("fnv1a", () => {
     for (const byte of [0xc3, 0xa9]) h = Math.imul(h ^ byte, 0x01000193) >>> 0;
     expect(fnv1a("é")).toBe(h);
   });
+
+  it("agrees with hashing the UTF-8 bytes one by one, ASCII and not, mixed anywhere", () => {
+    const encoder = new TextEncoder();
+    const reference = (key: string) =>
+      [...encoder.encode(key)].reduce((h, byte) => Math.imul(h ^ byte, 0x01000193) >>> 0, 0x811c9dc5);
+    fc.assert(fc.property(fc.string({ unit: "binary" }), (key) => fnv1a(key) === reference(key)));
+  });
 });
 
 describe("seedOf", () => {

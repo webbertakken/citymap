@@ -5,7 +5,29 @@ import { useState } from "react";
 import { describeHit } from "../view/hover";
 
 /** The text alternative to the map: each town with its lot count and its largest districts. */
-export function CityPanel({ city, selected }: { readonly city: City | null; readonly selected: Hit | null }) {
+export interface CityPanelProps {
+  readonly city: City | null;
+  readonly selected: Hit | null;
+  /** True while one town is shown alone. */
+  readonly focused: boolean;
+  readonly onDrill: (key: string) => void;
+}
+
+/** The button that shows one town alone; its accessible name starts with its visible text. */
+function ShowOnly({ name, townKey, onDrill }: { name: string; townKey: string; onDrill: (key: string) => void }) {
+  return (
+    <button
+      type="button"
+      className="drill"
+      aria-label={`Show only this town: ${name}`}
+      onClick={() => onDrill(townKey)}
+    >
+      Show only this town
+    </button>
+  );
+}
+
+export function CityPanel({ city, selected, focused, onDrill }: CityPanelProps) {
   const [open, setOpen] = useState(false);
   const details = selected ? describeHit(selected) : null;
   return (
@@ -27,6 +49,9 @@ export function CityPanel({ city, selected }: { readonly city: City | null; read
             {details.lines.map((line) => (
               <p key={line}>{line}</p>
             ))}
+            {!focused && selected?.townKey != null && (
+              <ShowOnly name={selected.town!} townKey={selected.townKey} onDrill={onDrill} />
+            )}
           </>
         ) : (
           <p>Nothing yet. Click the map to select what is there; Escape clears it.</p>
@@ -43,9 +68,10 @@ export function CityPanel({ city, selected }: { readonly city: City | null; read
               <h2>
                 {town.name} <span className="count">{town.stats.lots.toLocaleString("en-GB")} lots</span>
               </h2>
+              {!focused && <ShowOnly name={town.name} townKey={town.key} onDrill={onDrill} />}
               <ul>
                 {town.districts
-                  .filter((d) => d.depth === 1)
+                  .filter((d) => d.depth === 1 && !d.ward)
                   .toSorted((a, b) => b.massMille - a.massMille)
                   .slice(0, 12)
                   .map((d) => (

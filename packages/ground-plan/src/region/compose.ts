@@ -1,6 +1,7 @@
 import { classifyNode } from "../archetype/classify";
 import { isFlat, type Form } from "../archetype/forms";
 import type { City, Road, Town } from "../city/city";
+import { GROWTH_PCT } from "../constants";
 import { CitymapError } from "../errors";
 import { floorDiv, isqrt, mulDiv } from "../fixed/arithmetic";
 import { DIRECTION, TURN, dir, normalise, type Dir } from "../fixed/direction";
@@ -9,11 +10,11 @@ import { centroid, type Pt } from "../fixed/polygon";
 import { densify, warper } from "../fixed/warp";
 import { classifyLandUse, landKey, type LandUse } from "../land-use/land-use";
 import { emptyTownPlat, type OldTown, type Plat } from "../plat/plat";
-import type { Snapshot } from "../snapshot/snapshot";
+import { MAX_FILES, type FileEntry, type Snapshot } from "../snapshot/snapshot";
 import type { PlatEvent, TownCache } from "../town/context";
 import { layoutTown } from "../town/layout";
-import { buildTree } from "../tree/tree";
-import { workspaceGroups } from "../workspace/workspace";
+import { buildTree, type Shares, type TreeOptions } from "../tree/tree";
+import { workspaceGroups, workspaceMembers } from "../workspace/workspace";
 import { highwayBetween, withApproach } from "./highway";
 import { outlineFor } from "./outline";
 
@@ -23,7 +24,18 @@ export interface Options {
   readonly order: "centre-out" | "first-seen";
   readonly jog: "off" | "top-level" | "all";
   readonly warp: boolean;
+  /** Lanes joining nearby dead ends; on unless false. They never touch the plat. */
+  readonly loops?: boolean;
+  /** Workspace groups whose members each become a town, by folder path or name; `apps` by default. */
+  readonly split?: readonly string[];
 }
+
+/** Each app of an `apps/` group is its own town by default; other groups stay one town each. */
+export const DEFAULT_SPLIT: readonly string[] = ["apps"];
+
+/** The setting a plat is laid for: its land uses and its split groups. Each setting has its own plat. */
+export const settingKey = (options: Options) =>
+  `${landKey(options.landUses)}|split:${(options.split ?? DEFAULT_SPLIT).toSorted(compareKeys).join(",")}`;
 
 /** The locality caches of a fold, per town, and how often they spared a folder its layout. */
 export interface FoldCache {
@@ -41,7 +53,6 @@ export interface FoldState {
   readonly cache?: FoldCache;
 }
 
-const GROWTH_PCT = 135;
 /** Open country between towns. */
 const GAP = 720;
 
@@ -89,15 +100,98 @@ function oldTownName(name: string, count: number) {
 }
 
 /** Lays out one commit's city from the plat and returns the new state. Pure. */
+/** The largest absolute coordinate a laid city may reach, in fixed units (a warp's memory packs 22 bits a side). */
+export const COORD_LIMIT = 2 ** 21;
+
+/** Rejects a city whose towns or highways reach the coordinate limit; lots and roads lie within their towns. */
+export function checkExtent(
+  towns: readonly { readonly outline: readonly Pt[] }[],
+  highways: readonly { readonly pts: readonly Pt[] }[],
+): void {
+  const points = [...towns.flatMap((t) => t.outline), ...highways.flatMap((h) => h.pts)];
+  const far = points.find((p) => Math.abs(p.x) >= COORD_LIMIT || Math.abs(p.y) >= COORD_LIMIT);
+  if (far)
+    throw new CitymapError("city/too-large", `the city reaches ${far.x}, ${far.y}, past ${COORD_LIMIT}`, {
+      x: far.x,
+      y: far.y,
+    });
+}
+
+/** Built trees, kept per file list: a commit that leaves the files and the shares as they were builds the same tree. */
+const trees = new WeakMap<readonly FileEntry[], Map<string, { shares: Shares; folders: unknown; built: Built }>>();
+const NO_SHARES: Shares = {};
+type Built = ReturnType<typeof buildTree>;
+
+function treeOf(
+  snapshot: Snapshot,
+  files: readonly FileEntry[],
+  options: TreeOptions,
+  shares: Shares,
+  useOf: (path: string) => LandUse,
+): Built {
+  const key = `${options.root}|${options.exclude.join(",")}|${options.landUses.join(",")}|${options.densityPct}`;
+  const byKey = trees.get(files) ?? new Map();
+  trees.set(files, byKey);
+  const kept = byKey.get(key);
+  if (kept && kept.shares === shares && kept.folders === snapshot.folderFirstSeen) return kept.built;
+  const built = buildTree({ ...snapshot, files }, options, shares, useOf);
+  byKey.set(key, { shares, folders: snapshot.folderFirstSeen, built });
+  return built;
+}
+
+/** The files no old town holds, kept per old-town list so the same list comes back while nothing changed. */
+const outside = new WeakMap<readonly OldTown[], { files: readonly FileEntry[]; kept: readonly FileEntry[] }>();
+function filesOutside(files: readonly FileEntry[], old: readonly OldTown[] | undefined): readonly FileEntry[] {
+  if (!old) return files;
+  const known = outside.get(old);
+  if (known && known.files === files) return known.kept;
+  const held = new Set(old.flatMap((o) => Object.values(o.members).flat()));
+  const kept = files.filter((f) => !held.has(f.identity));
+  outside.set(old, { files, kept });
+  return kept;
+}
+
+interface Derived {
+  readonly workspaces: readonly string[] | undefined;
+  readonly useOf: (path: string) => LandUse;
+  readonly groups: readonly string[];
+  readonly memberFolders: readonly string[];
+  readonly live: ReadonlySet<string>;
+}
+/** What a file list says on its own, kept per list: a commit that only edits files hands over the same list. */
+const derived = new WeakMap<readonly FileEntry[], Derived>();
+
+function derive(snapshot: Snapshot): Derived {
+  const kept = derived.get(snapshot.files);
+  if (kept && kept.workspaces === snapshot.workspaces) return kept;
+  // Each path's land use, classified once for every tree a lay builds.
+  const uses = new Map(snapshot.files.map((f) => [f.path, classifyLandUse(f.path)]));
+  const useOf = (path: string) => uses.get(path)!;
+  const paths = snapshot.files.map((f) => f.path);
+  const fresh: Derived = {
+    workspaces: snapshot.workspaces,
+    useOf,
+    groups: workspaceGroups(paths, useOf, snapshot.workspaces),
+    memberFolders: workspaceMembers(paths, snapshot.workspaces),
+    live: new Set(snapshot.files.map((f) => f.identity)),
+  };
+  derived.set(snapshot.files, fresh);
+  return fresh;
+}
+
 export function layCity(
   snapshot: Snapshot,
   state: FoldState,
   options: Options,
 ): { city: City; state: FoldState; events: PlatEvent[] } {
-  const key = landKey(options.landUses);
-  if (state.plat.landKey !== key)
-    throw new CitymapError("plat/land-mismatch", `the plat is for land ${state.plat.landKey}, not ${key}`, {
-      plat: state.plat.landKey,
+  if (snapshot.files.length > MAX_FILES)
+    throw new CitymapError("snapshot/too-large", `a snapshot holds at most ${MAX_FILES} files`, {
+      files: snapshot.files.length,
+    });
+  const key = settingKey(options);
+  if (state.plat.setting !== key)
+    throw new CitymapError("plat/setting-mismatch", `the plat is for ${state.plat.setting}, not ${key}`, {
+      plat: state.plat.setting,
       options: key,
     });
   // Shallow copies of the records this lay changes; each town's own plat is copied where it is laid.
@@ -107,28 +201,20 @@ export function layCity(
     old: { ...state.plat.old },
     rootForms: { ...state.plat.rootForms },
   };
-  // Each path's land use, classified once for every tree this lay builds.
-  const uses = new Map(snapshot.files.map((f) => [f.path, classifyLandUse(f.path)]));
-  const useOf = (path: string) => uses.get(path)!;
+  const { useOf, groups, memberFolders, live } = derive(snapshot);
   const last: Record<string, Town> = { ...state.last };
   const events: PlatEvent[] = [];
-  const groups = workspaceGroups(
-    snapshot.files.map((f) => f.path),
-    useOf,
-  );
+  const split = options.split ?? DEFAULT_SPLIT;
+  const isSplit = (group: string) => split.includes(group) || split.includes(group.slice(group.lastIndexOf("/") + 1));
+  const firstSeen = (folder: string) => snapshot.folderFirstSeen.get(folder) ?? 0;
+  // A split group lends each member a town of its own; its other files stay in the main town.
+  const townRoots = groups.flatMap((g) => (isSplit(g) ? memberFolders.filter((m) => m.startsWith(`${g}/`)) : [g]));
   const parts: Part[] = [
-    { name: snapshot.repository, key: snapshot.repository, root: "", exclude: groups, firstSeen: 0 },
-    ...groups
-      .map((g) => ({
-        name: g,
-        key: `${snapshot.repository}/${g}`,
-        root: g,
-        exclude: [],
-        firstSeen: snapshot.folderFirstSeen.get(g) ?? 0,
-      }))
+    { name: snapshot.repository, key: snapshot.repository, root: "", exclude: townRoots, firstSeen: 0 },
+    ...townRoots
+      .map((t) => ({ name: t, key: `${snapshot.repository}/${t}`, root: t, exclude: [], firstSeen: firstSeen(t) }))
       .toSorted((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.name, b.name)),
   ];
-  const live = new Set(snapshot.files.map((f) => f.identity));
   const treeOptions = (part: Part) => ({
     root: part.root,
     exclude: part.exclude,
@@ -138,20 +224,19 @@ export function layCity(
 
   // Each part's tree, without the files its old towns hold; a root switch first freezes the town as it stood.
   const laidParts = parts.flatMap((part) => {
-    const heldBy = (p: string) => new Set((plat.old[p] ?? []).flatMap((o) => Object.values(o.members).flat()));
-    const treeFor = () => {
-      const held = heldBy(part.key);
-      const files = held.size > 0 ? snapshot.files.filter((f) => !held.has(f.identity)) : snapshot.files;
-      return buildTree(
-        { ...snapshot, files },
+    const treeFor = () =>
+      treeOf(
+        snapshot,
+        filesOutside(snapshot.files, plat.old[part.key]),
         treeOptions(part),
         (plat.towns[part.key] ?? emptyTownPlat()).shares,
         useOf,
       );
-    };
     let built = treeFor();
     // The root's form is judged over the whole part, old towns' files included; without old towns that is this tree.
-    const whole = plat.old[part.key] ? buildTree(snapshot, treeOptions(part), {}, useOf).tree : built.tree;
+    const whole = plat.old[part.key]
+      ? treeOf(snapshot, snapshot.files, treeOptions(part), NO_SHARES, useOf).tree
+      : built.tree;
     const previous = plat.rootForms[part.key];
     const rootForm: Form = classifyNode(whole, previous);
     plat.rootForms[part.key] = rootForm;
@@ -166,11 +251,12 @@ export function layCity(
       const list = [...(plat.old[part.key] ?? [])];
       plat.old[part.key] = list;
       const name = oldTownName(part.name, list.length + 1);
+      const oldKey = oldTownName(part.key, list.length + 1);
       events.push({
         code: "plat/old-town",
         detail: { key: part.key, from: previous, to: rootForm, lots: before.lots.length },
       });
-      list.push({ town: { ...before, name, old: true }, members });
+      list.push({ town: { ...before, key: oldKey, name, old: true }, members });
       plat.towns[part.key] = emptyTownPlat();
       built = treeFor();
     }
@@ -273,13 +359,10 @@ export function layCity(
       return { x: p.x + mulDiv(q.x - p.x, weight, 1000, "round"), y: p.y + mulDiv(q.y - p.y, weight, 1000, "round") };
     });
   const finalTowns = [...towns, ...oldTowns.map((o) => o.town)].map((t2) => joined.get(t2) ?? t2);
+  const finalHighways = options.warp ? highways.map((h) => ({ ...h, pts: fade(densify(h.pts, 80, false)) })) : highways;
+  checkExtent(finalTowns, finalHighways);
   return {
-    city: {
-      repository: snapshot.repository,
-      commit: snapshot.commit,
-      towns: finalTowns,
-      highways: options.warp ? highways.map((h) => ({ ...h, pts: fade(densify(h.pts, 80, false)) })) : highways,
-    },
+    city: { repository: snapshot.repository, commit: snapshot.commit, towns: finalTowns, highways: finalHighways },
     state: state.cache ? { plat, last, cache: state.cache } : { plat, last },
     events,
   };

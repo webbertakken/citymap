@@ -1,14 +1,16 @@
-import { ROAD_WIDTH, U, type RoadClass } from "../constants";
+import { GROWTH_PCT, ROAD_WIDTH, U, type RoadClass } from "../constants";
 import { floorDiv, isqrt, mulDiv, roundDiv } from "../fixed/arithmetic";
 import { DIRECTION, negate, perp, rotate, type Dir } from "../fixed/direction";
 import { unitMille } from "../fixed/hash";
-import { chord, clip, extent, inset, longestEdge, offsetFor, type Poly, type Pt } from "../fixed/polygon";
+import { area2, chord, clip, extent, inset, longestEdge, offsetFor, type Poly, type Pt } from "../fixed/polygon";
 import type { CutRecord } from "../plat/plat";
+import { cutClass, reclass, reserveFor } from "../roads";
 import { demandOf, emit, forget, massOf, road, seedKey, type Ctx, type Item } from "./context";
 import { neighbourhood } from "./neighbourhood";
 import { partition } from "./partition";
 
-const GROWTH_PCT = 135;
+export { cutClass, reclass } from "../roads";
+
 /** The largest tilt of a fresh cut, in angle steps (0.175 rad). */
 const TILT = 114;
 /** A cut at least this share (‰) of its town's diameter long is a long cut, and jogs when it can. */
@@ -19,12 +21,53 @@ export const PAVEMENT_INSET = 12;
 
 const grow = (demand: number) => roundDiv(demand * GROWTH_PCT, 100);
 
-/** Road class by the tier of the land being cut: a folder's first cut is one class above its others. */
-export function cutClass(massMille: number, first: boolean): RoadClass {
-  if (massMille >= 3_000_000) return first ? "boulevard" : "avenue";
-  if (massMille >= 300_000) return first ? "avenue" : "collector";
-  if (massMille >= 30_000) return first ? "collector" : "street";
-  return "street";
+/**
+ * True when the land a remembered line leaves one side has fallen below its share of the demand, shrunk by the band,
+ * while the other side holds more than its share: the land around the line changed shape, not the demand.
+ */
+function starved(poly: Poly, r: CutRecord, dl: number, dr: number): boolean {
+  // Each side's land as laid: its part of the land, less its half of the road's right of way.
+  const width = ROAD_WIDTH[rightOfWay(r)];
+  const left = BigInt(area2(clip(poly, r.n, r.c, width).p));
+  const right = BigInt(area2(clip(poly, negate(r.n), -r.c, width).p));
+  const total = left + right;
+  const demand = BigInt(dl + dr);
+  const band = BigInt(GROWTH_PCT);
+  // left / total < (dl / demand) × 100 / band, and the same for the right, in integers.
+  const short = (land: bigint, own: number) => land * demand * band < BigInt(own) * total * 100n;
+  return short(left, dl) || short(right, dr);
+}
+
+/** A folder's land (doubled) and demand, as its top cut found them: what every cut below is measured against. */
+export interface Share {
+  readonly land2: number;
+  readonly demand: number;
+}
+
+/**
+ * True when a side's land, after its half of the right of way, is short of its share of the folder's land by more than
+ * the band. Shortfalls within the band at every level of a folder's cut tree would otherwise compound (a folder of many
+ * children is cut a dozen levels deep).
+ */
+function belowShare(poly: Poly, r: CutRecord, dl: number, dr: number, share: Share): boolean {
+  const width = ROAD_WIDTH[rightOfWay(r)];
+  const left = BigInt(area2(clip(poly, r.n, r.c, width).p));
+  const right = BigInt(area2(clip(poly, negate(r.n), -r.c, width).p));
+  const [land, demand, band] = [BigInt(share.land2), BigInt(share.demand), BigInt(GROWTH_PCT)];
+  const short = (side: bigint, own: number) => side * demand * band < BigInt(own) * land * 100n;
+  return short(left, dl) || short(right, dr);
+}
+
+/** The class whose width a cut's land was laid at; a cut laid before rights of way existed has its own class. */
+export const rightOfWay = (rec: { readonly cls: RoadClass; readonly row?: RoadClass }) => rec.row ?? rec.cls;
+
+/** The road a cut draws: its class, no wider than its right of way (a wider class waits for the cut to be laid again). */
+export function carriageway(rec: { readonly cls: RoadClass; readonly row?: RoadClass }): {
+  cls: RoadClass;
+  width?: number;
+} {
+  const room = ROAD_WIDTH[rightOfWay(rec)];
+  return ROAD_WIDTH[rec.cls] > room ? { cls: rec.cls, width: room } : { cls: rec.cls };
 }
 
 const isMajor = (cls: RoadClass) => cls !== "street" && cls !== "lane";
@@ -99,6 +142,7 @@ export function decide(
   key: string,
   forced?: Dir,
   assign?: [Item[], Item[]],
+  share?: Share,
 ): Decision | null {
   let rec = ctx.plat.cuts[key];
   if (rec) {
@@ -132,6 +176,7 @@ export function decide(
       n,
       c: offsetFor(poly, n, demandOf(left), total),
       cls: cutClass(massMille, first),
+      row: assign ? cutClass(massMille, first) : reserveFor(massMille, first),
       left: left.map((i) => i.key),
       right: right.map((i) => i.key),
       capLeft: grow(demandOf(left)),
@@ -141,16 +186,36 @@ export function decide(
     ctx.plat.cuts[key] = rec;
   } else {
     const r = rec;
+    // A road follows its land's tier, within the band; a river stays a river.
+    const cls = r.river ? r.cls : reclass(r.cls, massMille, first);
+    if (cls !== r.cls) {
+      emit(ctx, "plat/reclass", { key, from: r.cls, to: cls });
+      r.cls = cls;
+    }
     const sideOf = (i: Item) => (r.left.includes(i.key) ? "L" : r.right.includes(i.key) ? "R" : null);
     const demandOn = (s: "L" | "R") => demandOf(items.filter((i) => sideOf(i) === s));
     for (const item of items.filter((i) => sideOf(i) === null))
       (r.capLeft - demandOn("L") >= r.capRight - demandOn("R") ? r.left : r.right).push(item.key);
     const dl = demandOn("L");
     const dr = demandOn("R");
-    if (dl > r.capLeft || dr > r.capRight) {
+    const outgrown = dl > r.capLeft || dr > r.capRight;
+    const both = dl > 0 && dr > 0;
+    // Short of its share of the folder's land, a side recuts where today's split would move the line.
+    const short =
+      both && share !== undefined && belowShare(poly, r, dl, dr, share) && offsetFor(poly, r.n, dl, dl + dr) !== r.c;
+    if (outgrown || (both && (starved(poly, r, dl, dr) || short))) {
       if (dl > 0 && dr > 0) {
-        emit(ctx, "plat/recut", { key, demandLeft: dl, demandRight: dr, capLeft: r.capLeft, capRight: r.capRight });
+        emit(ctx, "plat/recut", {
+          key,
+          reason: outgrown ? "outgrown" : "starved",
+          demandLeft: dl,
+          demandRight: dr,
+          capLeft: r.capLeft,
+          capRight: r.capRight,
+        });
         r.c = offsetFor(poly, r.n, dl, dl + dr);
+        // Laid again: the road takes its class's width, and room for the land at the top of its new band.
+        r.row = r.river ? r.cls : reserveFor(massMille, first);
         r.capLeft = grow(dl);
         r.capRight = grow(dr);
       } else {
@@ -177,21 +242,25 @@ export function split(
   first: boolean,
   key: string,
   district: string,
+  fair?: Share,
 ) {
-  const decision = decide(ctx, items, poly, massMille, first, key);
+  // A folder's top cut sets the share every cut below it is measured against.
+  const share = first || !fair ? { land2: area2(poly.p), demand: demandOf(items) } : fair;
+  const decision = decide(ctx, items, poly, massMille, first, key, undefined, undefined, share);
   if (!decision) return place(ctx, poly, items[0]!, district);
-  if (pinwheel(ctx, decision, poly, key, district)) return;
+  if (pinwheel(ctx, decision, poly, key, district, share)) return;
   const { rec: r, left, right } = decision;
   const major = isMajor(r.cls);
   if (left.length === 0 || right.length === 0) {
     // A side left empty lends its land: the other side extends over the whole of it under its own key. Cuts and
     // grids are absolute, so nothing already laid moves; the vacated land becomes room to grow.
     const [part, sub] = left.length > 0 ? [left, `${key}>L`] : [right, `${key}>R`];
-    return split(ctx, part, poly, massOf(part), false, sub, major ? seedKey(sub) : district);
+    return split(ctx, part, poly, massOf(part), false, sub, major ? seedKey(sub) : district, share);
   }
-  road(ctx, chord(poly.p, r.n, r.c), r.cls);
+  const drawn = carriageway(r);
+  road(ctx, chord(poly.p, r.n, r.c), drawn.cls, drawn.width);
   if (major) wards(ctx, poly, r, left, right, key);
-  const width = ROAD_WIDTH[r.cls];
+  const width = ROAD_WIDTH[rightOfWay(r)];
   split(
     ctx,
     left,
@@ -200,6 +269,7 @@ export function split(
     false,
     `${key}>L`,
     major ? seedKey(`${key}>L`) : district,
+    share,
   );
   split(
     ctx,
@@ -209,6 +279,7 @@ export function split(
     false,
     `${key}>R`,
     major ? seedKey(`${key}>R`) : district,
+    share,
   );
 }
 
@@ -242,7 +313,7 @@ export const diameterOf = (landArea2: number) => 2 * isqrt(floorDiv(landArea2 * 
  * A long cut whose sides each split again becomes a pinwheel: both cross cuts square to it, the cut stepping sideways
  * between them, four roads ending in T-junctions round a plaza. Every piece is the land within two half-planes.
  */
-function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, district: string): boolean {
+function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, district: string, share: Share): boolean {
   const { rec: r, left, right } = decision;
   const rootPath = ctx.root.path;
   if (ctx.options.jog === "off" || left.length < 2 || right.length < 2) return false;
@@ -253,8 +324,18 @@ function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, distric
   if (length * 1000 < LONG_CUT_MILLE * diameterOf(ctx.landArea2)) return false;
   const m = perp(r.n);
   // Both sides hold two or more items, so both decide a cut.
-  const below = decide(ctx, left, clip(poly, r.n, r.c, 0), massOf(left), false, `${key}>L`, m)!;
-  const above = decide(ctx, right, clip(poly, negate(r.n), -r.c, 0), massOf(right), false, `${key}>R`, m)!;
+  const below = decide(ctx, left, clip(poly, r.n, r.c, 0), massOf(left), false, `${key}>L`, m, undefined, share)!;
+  const above = decide(
+    ctx,
+    right,
+    clip(poly, negate(r.n), -r.c, 0),
+    massOf(right),
+    false,
+    `${key}>R`,
+    m,
+    undefined,
+    share,
+  )!;
   // Square to the main cut: parallel to m within 0.01 % (compared with |m|², as table directions are not exactly DIRECTION long).
   const square = (rec: CutRecord) => (rec.n[0] * m[0] + rec.n[1] * m[1]) * 10_000 >= (m[0] * m[0] + m[1] * m[1]) * 9999;
   if (!square(below.rec) || !square(above.rec)) return false;
@@ -267,9 +348,10 @@ function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, distric
   const sRight = r.c - (sigma * JOG * DIRECTION) / 2;
   const lo = Math.min(t1, t2);
   const hi = Math.max(t1, t2);
-  const wMain = ROAD_WIDTH[r.cls];
-  const wBelow = ROAD_WIDTH[below.rec.cls];
-  const wAbove = ROAD_WIDTH[above.rec.cls];
+  const wMain = ROAD_WIDTH[rightOfWay(r)];
+  const wBelow = ROAD_WIDTH[rightOfWay(below.rec)];
+  const wAbove = ROAD_WIDTH[rightOfWay(above.rec)];
+  const [main, low, high] = [carriageway(r), carriageway(below.rec), carriageway(above.rec)];
   const nm = negate(m);
   const nr = negate(r.n);
   const pieces: [Item[], Poly, string, CutRecord][] = [
@@ -282,10 +364,10 @@ function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, distric
   const sHi = Math.max(sLeft, sRight);
   const along = (c: number) => chord(poly.p, r.n, c);
   const across = (c: number) => chord(poly.p, m, c);
-  road(ctx, trim(along(sLeft), m, null, hi), r.cls);
-  road(ctx, trim(along(sRight), m, lo, null), r.cls);
-  road(ctx, trim(across(t1), r.n, null, sHi), below.rec.cls);
-  road(ctx, trim(across(t2), r.n, sLo, null), above.rec.cls);
+  road(ctx, trim(along(sLeft), m, null, hi), main.cls, main.width);
+  road(ctx, trim(along(sRight), m, lo, null), main.cls, main.width);
+  road(ctx, trim(across(t1), r.n, null, sHi), low.cls, low.width);
+  road(ctx, trim(across(t2), r.n, sLo, null), high.cls, high.width);
   const plazaLand = clip(
     clip(clip(clip(poly, m, hi, t1 > t2 ? wBelow : wAbove), nm, -lo, t1 > t2 ? wAbove : wBelow), r.n, sHi, wMain),
     nr,
@@ -299,7 +381,7 @@ function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, distric
   const sideDistrict = (side: string) => (major ? seedKey(side) : district);
   for (const [part, piece, sub, rec] of pieces) {
     const side = sub.slice(0, -2);
-    split(ctx, part, piece, massOf(part), false, sub, isMajor(rec.cls) ? seedKey(sub) : sideDistrict(side));
+    split(ctx, part, piece, massOf(part), false, sub, isMajor(rec.cls) ? seedKey(sub) : sideDistrict(side), share);
   }
   return true;
 }

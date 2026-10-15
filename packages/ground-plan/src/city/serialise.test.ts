@@ -34,4 +34,9 @@ describe("serialiseCity and parseCity", () => {
       "city/bad-shape: /towns/0/key",
     );
   });
+
+  it("rejects a city whose towns share a key", () => {
+    const twice = { ...city, towns: [city.towns[0]!, { ...city.towns[0]!, name: "demo old town", old: true }] };
+    expect(() => parseCity(serialiseCity(twice))).toThrow("city/bad-shape: /towns");
+  });
 });

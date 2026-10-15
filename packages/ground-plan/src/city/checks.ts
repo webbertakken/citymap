@@ -6,7 +6,11 @@ import { int, nat } from "../plat/schema";
 
 export const ptSchema = v.strictObject({ x: int, y: int });
 const ptsSchema = v.array(ptSchema);
-export const roadSchema = v.strictObject({ pts: ptsSchema, cls: v.picklist(ROAD_CLASSES) });
+export const roadSchema = v.strictObject({
+  pts: ptsSchema,
+  cls: v.picklist(ROAD_CLASSES),
+  width: v.exactOptional(nat),
+});
 
 export const townSchema = v.strictObject({
   key: v.string(),
@@ -53,6 +57,9 @@ export const townSchema = v.strictObject({
 export const citySchema = v.strictObject({
   repository: v.string(),
   commit: v.string(),
-  towns: v.array(townSchema),
+  towns: v.pipe(
+    v.array(townSchema),
+    v.check((towns) => new Set(towns.map((t) => t.key)).size === towns.length, "every town has a key of its own"),
+  ),
   highways: v.array(roadSchema),
 });

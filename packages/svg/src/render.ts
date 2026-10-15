@@ -1,4 +1,14 @@
-import { ROAD_WIDTH, UNIT, centroid, area2, type City, type Pt, type RoadClass } from "@citymap/ground-plan";
+import {
+  UNIT,
+  roadWidth,
+  area2,
+  centroid,
+  cityRegions,
+  fnv1a,
+  type City,
+  type Pt,
+  type RoadClass,
+} from "@citymap/ground-plan";
 import { THEMES, type ThemeName } from "@citymap/themes";
 
 export type Camera = "plan" | "dimetric";
@@ -14,6 +24,10 @@ export interface RenderOptions {
   readonly highlight?: ReadonlySet<string>;
   /** Colour lots and blocks by their district form instead of by district. */
   readonly colourBy?: "district" | "form";
+  /** Fill each top-level folder's region (the land nearer its lots than any other's) beneath the blocks. */
+  readonly regions?: boolean;
+  /** A world box the sheet shows instead of the city's own extent: maps of one place at one scale and origin. */
+  readonly frame?: { readonly min: Pt; readonly max: Pt };
 }
 
 const ORDER: readonly RoadClass[] = ["lane", "street", "collector", "avenue", "boulevard", "highway"];
@@ -31,7 +45,10 @@ export function renderCity(city: City, options: RenderOptions): string {
   const byForm = options.colourBy === "form";
   const project = (p: Pt) =>
     dimetric ? { x: (p.x - p.y) * Math.SQRT1_2, y: -(p.x + p.y) * Math.SQRT1_2 * 0.5 } : { x: p.x, y: -p.y };
-  const extent = city.towns.flatMap((t) => t.outline.map(project));
+  const frame = options.frame;
+  const extent = frame
+    ? [frame.min, frame.max, { x: frame.min.x, y: frame.max.y }, { x: frame.max.x, y: frame.min.y }].map(project)
+    : city.towns.flatMap((t) => t.outline.map(project));
   const xs = extent.map((p) => p.x);
   const ys = extent.map((p) => p.y);
   const minX = (xs.length ? Math.min(...xs) : 0) - PAD;
@@ -53,9 +70,10 @@ export function renderCity(city: City, options: RenderOptions): string {
   const line = (pts: readonly Pt[]) => `M${pts.map(px).join("L")}`;
   const sw = (w: number) => (w * scale * (dimetric ? 0.85 : 1)).toFixed(2);
   const thin = (w: number) => Math.max(0.5, w * scale * (UNIT / 8)).toFixed(2);
-  const roadPath = (pts: readonly Pt[], cls: RoadClass, casing: boolean) =>
-    `<path d="${line(pts)}" fill="none" stroke="${casing ? theme.casing : theme.road}" stroke-width="${sw(ROAD_WIDTH[cls] + (casing ? 16 : 0))}" stroke-linecap="butt" stroke-linejoin="round"/>`;
+  const roadPath = (pts: readonly Pt[], road: number, casing: boolean) =>
+    `<path d="${line(pts)}" fill="none" stroke="${casing ? theme.casing : theme.road}" stroke-width="${sw(road + (casing ? 16 : 0))}" stroke-linecap="butt" stroke-linejoin="round"/>`;
   const out: string[] = [`<rect width="${width}" height="${height}" fill="${theme.country}"/>`];
+  const regions = options.regions ? cityRegions(city) : [];
 
   city.towns.forEach((town, ti) => {
     const dash = town.old ? ` stroke-dasharray="${sw(80)} ${sw(48)}"` : "";
@@ -64,6 +82,10 @@ export function renderCity(city: City, options: RenderOptions): string {
       `<path d="${poly(town.outline)}" fill="${theme.ground}" stroke="${theme.outline}" stroke-width="${sw(32)}"${dash}/>`,
     );
     out.push(`<g clip-path="url(#town${ti})">`);
+    for (const region of regions[ti] ?? [])
+      out.push(
+        `<path class="region" d="${poly(region.pts)}" fill="${theme.block(fnv1a(region.path))}" stroke="${theme.outline}" stroke-width="${thin(0.6)}"/>`,
+      );
     for (const b of town.blocks) {
       if (b.kind === "reserve") {
         const [fill, stroke] = theme.reserve(b.district);
@@ -86,8 +108,8 @@ export function renderCity(city: City, options: RenderOptions): string {
       out.push(`<path d="${poly(w)}" fill="${theme.water}" stroke="${theme.waterline}" stroke-width="${thin(0.6)}"/>`);
     // Roads: every casing, then every fill, smallest class first, so junctions merge.
     const roads = town.roads.toSorted((a, b) => ORDER.indexOf(a.cls) - ORDER.indexOf(b.cls));
-    for (const r of roads) out.push(roadPath(r.pts, r.cls, true));
-    for (const r of roads) out.push(roadPath(r.pts, r.cls, false));
+    for (const r of roads) out.push(roadPath(r.pts, roadWidth(r), true));
+    for (const r of roads) out.push(roadPath(r.pts, roadWidth(r), false));
     const lots = dimetric
       ? town.lots.toSorted((a, b) => {
           const ca = centroid(a.pts);
@@ -118,11 +140,15 @@ export function renderCity(city: City, options: RenderOptions): string {
         `<path d="${poly(lot.pts)}" fill="${fill}" stroke="${marked ? "#5A1A0A" : theme.ground}" stroke-width="${Math.min(0.8, 2.8 * scale).toFixed(2)}"/>`,
       );
     }
+    for (const region of regions[ti] ?? [])
+      out.push(
+        `<path class="region-edge" d="${poly(region.pts)}" fill="none" stroke="${theme.outline}" stroke-width="${thin(1.6)}" stroke-linejoin="round"/>`,
+      );
     out.push("</g>");
   });
   // Highways continue the roads they join: same class, same casing and fill, over the town edges.
-  for (const h of city.highways) out.push(roadPath(h.pts, h.cls, true));
-  for (const h of city.highways) out.push(roadPath(h.pts, h.cls, false));
+  for (const h of city.highways) out.push(roadPath(h.pts, roadWidth(h), true));
+  for (const h of city.highways) out.push(roadPath(h.pts, roadWidth(h), false));
 
   // Labels: towns, then districts by mass; a label that would overlap one already placed is left out.
   const placed: [number, number, number, number][] = [];

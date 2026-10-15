@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LOT_AREA } from "../constants";
+import { LOT_AREA, ROAD_WIDTH } from "../constants";
+import { isqrt } from "../fixed/arithmetic";
 import { DEFAULT_LAND_USES } from "../land-use/land-use";
 import type { FileEntry, Snapshot } from "../snapshot/snapshot";
 import { buildTree, landFor, type TreeNode } from "./tree";
@@ -106,6 +107,19 @@ describe("buildTree", () => {
     expect(a?.demand).toBe(landFor(2 * LOT_AREA, 50));
     expect(b?.demand).toBe(landFor(LOT_AREA, 50) + landFor(LOT_AREA / 2, 50));
     expect(tree.demand).toBe((a?.demand ?? 0) + (b?.demand ?? 0));
+  });
+
+  it("budgets the land for a folder's own roads above a street, by the class its first cut can reach", () => {
+    // Twenty-four folders of 1,000 files: 24,000,000 ‰, a boulevard's land once grown by 1.35 (3,000,000 and up).
+    const big = Array.from({ length: 24 }, (_, f) =>
+      Array.from({ length: 1000 }, (__, i) => at(`f${f}/x${i}.ts`)),
+    ).flat();
+    const { tree } = buildTree(snapshot(big), options, {});
+    const sum = tree.children.reduce((s, c) => s + c.demand, 0);
+    expect(tree.demand).toBe((isqrt(sum) + ROAD_WIDTH.boulevard - ROAD_WIDTH.street) ** 2);
+    // A folder of one item has no cut of its own: its land is its item's.
+    const leaf = tree.children[0]!;
+    expect(leaf.demand).toBe(landFor(1000 * LOT_AREA, 50));
   });
 
   it("orders own lots by first appearance, then path", () => {

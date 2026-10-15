@@ -1,4 +1,4 @@
-import { FLATTEN_LIMIT } from "../constants";
+import { FLATTEN_HYSTERESIS_PCT, FLATTEN_LIMIT } from "../constants";
 import { compareKeys } from "../fixed/hash";
 import type { LotSeed, TreeNode } from "../tree/tree";
 import { isFlat, type DistrictForm, type FlatForm, type Form } from "./forms";
@@ -82,8 +82,10 @@ export function flatten(node: TreeNode): { lots: LotSeed[]; docs: number } {
 export function classifyNode(node: TreeNode, previous: Form | undefined): Form {
   const leaf = node.children.length === 0;
   let flat = leaf || node.demand <= FLATTEN_LIMIT;
-  if (previous !== undefined && isFlat(previous) && !leaf) flat = node.demand * 2 <= FLATTEN_LIMIT * 3;
-  if (previous !== undefined && !isFlat(previous)) flat = leaf || node.demand * 3 <= FLATTEN_LIMIT * 2;
+  if (previous !== undefined && isFlat(previous) && !leaf)
+    flat = node.demand * 100 <= FLATTEN_LIMIT * FLATTEN_HYSTERESIS_PCT;
+  if (previous !== undefined && !isFlat(previous))
+    flat = leaf || node.demand * FLATTEN_HYSTERESIS_PCT <= FLATTEN_LIMIT * 100;
   const lots = flat ? flatten(node).lots.length : 0;
   const f = features(
     node.massMille,

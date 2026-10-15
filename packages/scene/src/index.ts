@@ -1,5 +1,6 @@
 export {
   LOT_HEIGHT,
+  LOT_TOP,
   buildScene,
   flatLayer,
   plinths,

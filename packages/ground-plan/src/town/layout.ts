@@ -6,6 +6,7 @@ import { area2, type Pt } from "../fixed/polygon";
 import { densify, memoised, warper } from "../fixed/warp";
 import type { TownPlat } from "../plat/plat";
 import type { TreeNode } from "../tree/tree";
+import { loopConnectors } from "./connectors";
 import { tint, toPoly, type Ctx, type LayoutOptions, type PlatEvent, type TownCache } from "./context";
 import { diameterOf } from "./cut";
 import { partition } from "./partition";
@@ -74,7 +75,8 @@ export function layoutTown(
   }
   const ctx: Ctx = {
     options,
-    plat: structuredClone(plat),
+    // Layout never changes a town's shares (its tree made them): they are kept, and the rest copied.
+    plat: { ...structuredClone({ ...plat, shares: {} }), shares: plat.shares },
     root,
     rootForm,
     events: [],
@@ -90,6 +92,11 @@ export function layoutTown(
     lotArea2: 0,
   };
   partition(ctx, root, toPoly(outline), "");
+  // Dead ends near each other are joined by lanes through open ground only.
+  if (options.loops ?? true)
+    ctx.roads.push(
+      ...loopConnectors(ctx.roads, [...ctx.lots.map((l) => l.pts), ...ctx.blocks.map((b) => b.pts)], outline),
+    );
   const laid = options.warp
     ? warpTown(ctx, key, outline)
     : {

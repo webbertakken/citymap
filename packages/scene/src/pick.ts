@@ -1,6 +1,6 @@
 import {
-  ROAD_WIDTH,
   UNIT,
+  roadWidth,
   type BlockKind,
   type City,
   type LandUse,
@@ -8,21 +8,28 @@ import {
   type RoadClass,
 } from "@citymap/ground-plan";
 
-/** What lies under a point of the map: the topmost thing there. */
+/** What lies under a point of the map: the topmost thing there, with its town's name and key. */
 export type Hit =
   | {
       readonly kind: "lot";
       readonly town: string;
+      readonly townKey: string;
       readonly district: string | null;
       readonly path: string;
       readonly use: LandUse;
       readonly address: string;
       readonly vacant: boolean;
     }
-  | { readonly kind: "block"; readonly town: string; readonly district: string | null; readonly block: BlockKind }
-  | { readonly kind: "road"; readonly town: string | null; readonly cls: RoadClass }
-  | { readonly kind: "district"; readonly town: string; readonly district: string }
-  | { readonly kind: "town"; readonly town: string };
+  | {
+      readonly kind: "block";
+      readonly town: string;
+      readonly townKey: string;
+      readonly district: string | null;
+      readonly block: BlockKind;
+    }
+  | { readonly kind: "road"; readonly town: string | null; readonly townKey: string | null; readonly cls: RoadClass }
+  | { readonly kind: "district"; readonly town: string; readonly townKey: string; readonly district: string }
+  | { readonly kind: "town"; readonly town: string; readonly townKey: string };
 
 interface Entry {
   readonly layer: 0 | 1 | 2 | 3 | 4;
@@ -87,14 +94,14 @@ export function pickIndex(city: City): PickIndex {
       town,
       name,
     });
-  const road = (pts: readonly Pt[], cls: RoadClass, town: string | null) => {
-    const half = ROAD_WIDTH[cls] / 2;
+  const road = (pts: readonly Pt[], cls: RoadClass, width: number, town: string | null, townKey: string | null) => {
+    const half = width / 2;
     entries.push({
       layer: 2,
       pts,
       box: boxOf(pts, half),
       hit: (p) =>
-        pts.some((a, i) => i > 0 && distance(p, pts[i - 1]!, a) <= half) ? { kind: "road", town, cls } : null,
+        pts.some((a, i) => i > 0 && distance(p, pts[i - 1]!, a) <= half) ? { kind: "road", town, townKey, cls } : null,
       area: 0,
       town,
       name: cls,
@@ -105,6 +112,7 @@ export function pickIndex(city: City): PickIndex {
       polygon(0, lot.pts, t.name, lot.path, (_, district) => ({
         kind: "lot",
         town: t.name,
+        townKey: t.key,
         district,
         path: lot.path,
         use: lot.use,
@@ -112,13 +120,19 @@ export function pickIndex(city: City): PickIndex {
         vacant: lot.vacant,
       }));
     for (const b of t.blocks)
-      polygon(1, b.pts, t.name, b.kind, (_, district) => ({ kind: "block", town: t.name, district, block: b.kind }));
-    for (const r of t.roads) road(r.pts, r.cls, t.name);
+      polygon(1, b.pts, t.name, b.kind, (_, district) => ({
+        kind: "block",
+        town: t.name,
+        townKey: t.key,
+        district,
+        block: b.kind,
+      }));
+    for (const r of t.roads) road(r.pts, r.cls, roadWidth(r), t.name, t.key);
     for (const d of t.districts.filter((x) => !x.ward))
-      polygon(3, d.pts, t.name, d.name, () => ({ kind: "district", town: t.name, district: d.name }));
-    polygon(4, t.outline, t.name, t.name, () => ({ kind: "town", town: t.name }));
+      polygon(3, d.pts, t.name, d.name, () => ({ kind: "district", town: t.name, townKey: t.key, district: d.name }));
+    polygon(4, t.outline, t.name, t.name, () => ({ kind: "town", town: t.name, townKey: t.key }));
   }
-  for (const h of city.highways) road(h.pts, h.cls, null);
+  for (const h of city.highways) road(h.pts, h.cls, roadWidth(h), null, null);
   const cells = new Map<string, Entry[]>();
   for (const e of entries)
     for (let cx = Math.floor(e.box[0] / CELL); cx <= Math.floor(e.box[2] / CELL); cx++)

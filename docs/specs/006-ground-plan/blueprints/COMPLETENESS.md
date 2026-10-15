@@ -11,7 +11,4 @@
 - [x] Testing
 - [x] Constants and configuration
 - [x] Defaults ledger
-- [ ] Presentation and UX
-- [ ] Accessibility
-- [ ] Web Experience
-- [ ] Assets and external resources
+- [x] Assets and external resources

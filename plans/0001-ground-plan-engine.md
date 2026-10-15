@@ -15,7 +15,8 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 - [x] Architecture spec (003)
 - [x] Blueprints, defaults ledger, completeness
 - [x] Merge `build/ci` (oxfmt, oxlint, vitest projects, hooks, CI); every package joins the root references
-- [ ] Webber answers ambiguities 5 to 7 (loop connectors, Voronoi outlines, morphometric targets)
+- [x] Webber answers ambiguities 5 to 7: loop connectors on by default, Voronoi regions opt-in (off), road share targets
+      per tier from real settlements
 
 ## Phase 1: fixed-point core (`packages/ground-plan/src/fixed`)
 
@@ -72,22 +73,115 @@ Branch `build/ground-plan`; tooling and CI arrive from the delegate's `build/ci`
 ## Phase 6: corpus verification
 
 - [ ] HEAD sheets for the public reference repositories next to the prototype's; differences explained or fixed
-- [ ] Stability runs (react, takken.io, next.js, home-assistant, redux) within the prototype's numbers
+- [x] Stability runs (react, takken.io, next.js, home-assistant, redux) within the prototype's numbers
+      (`bun scripts/stability.ts`; every move lands on a commit with a plan decision; takken.io's 0.2 points over the
+      prototype is one renewal)
 - [ ] Linux HEAD timing and a cached full fold
 - [ ] Post the sheets to the wall; commit
 
 ## Phase 7: viewer (`packages/scene`, `apps/web`)
 
-- [ ] Viewer blueprint (presentation, accessibility, web experience) derived from the spec's Presentation section
-- [ ] `packages/scene`: city model to Three.js geometry (instanced lots, merged roads, water, labels), framework free
-- [ ] `apps/web`: Next.js 16, React 19, react-three-fiber; dimetric and plan cameras; themes; phone layout
-- [ ] Local repository loading through the CLI's JSON (hosted import is later)
-- [ ] Playwright end-to-end tests in dark mode; WCAG 2.2 AA checks; Core Web Vitals measured
-- [ ] Walkthrough on the wall; commit
+- [x] Viewer blueprint (presentation, accessibility, web experience) derived from the spec's Presentation section
+- [x] `packages/scene`: city model to Three.js geometry (instanced lots, merged roads, water, labels), framework free
+- [x] `apps/web`: Next.js 16, React 19, react-three-fiber; dimetric and plan cameras; themes; phone layout
+- [x] Local repository loading through the CLI's JSON (hosted import is later)
+- [x] Playwright end-to-end tests in dark mode; WCAG 2.2 AA checks; Core Web Vitals measured
+- [x] Shots on the wall (walkthroughs are retired there; the steps go in the reply); commit
 
 ## Phase 8: fold-back
 
-- [ ] Reconcile the specs with what shipped, re-derive the blueprints, update DEFAULTS and COMPLETENESS
-- [ ] Traceability table: every spec rule to its tests
-- [ ] Verify every symbol, file and reference in the docs; indexes current
+- [x] Reconcile the specs with what shipped, re-derive the blueprints, update DEFAULTS and COMPLETENESS
+- [x] Traceability table: every spec rule to its tests
+- [x] Verify every symbol, file and reference in the docs; indexes current
 - [ ] PR with images, merged after the local gate
+
+## Phase 7b: workspaces from manifests, split groups, drill down
+
+- [x] Spec and blueprints: manifests, split groups (`apps/` by default), drill down
+- [x] Engine: `Options.split` (default `["apps"]`), one town per member of a split group; plat setting key
+- [x] Engine: members from `snapshot.workspaces` when present, else the path heuristic
+- [x] History: read root workspace manifests at the commits that change them; parse every format; glob matching
+- [x] CLI: `--split=<groups>` (default `apps`; `--split=apps,packages` splits packages too)
+- [x] Viewer: drill down to a town and back; breadcrumb; panel action
+- [x] Tests (unit, end to end), corpus check on livediagram and next.js, commit and push
+
+## Traceability
+
+Every rule of the ground plan spec (`006`) and the viewer spec (`004`), and the tests that prove it. Paths are under
+`packages/` unless they start with `apps/` or `scripts/`; `›` separates the `describe` from the `it`.
+
+| Spec rule                                                                                               | Tests                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Input: first-parent history, oldest first; same commit, same city                                       | `history/read` › yields one snapshot per first-parent commit…; follows only the first parent of a merge; `ground-plan/region/compose` › is pure and deterministic, warp included                                                                      |
+| Input: a committed lockfile overrides the fold                                                          | `apps/cli/run` › writes a lockfile and resumes from it…; saves the lock along the way…; ignores a lockfile for another land setting or off the history                                                                                                |
+| Input: reads commits, trees and root manifests only                                                     | `history/read-manifests` › every test; `history/blobs` › BlobReader; `history/env` › gitEnvironment                                                                                                                                                   |
+| Input: identity follows exact renames                                                                   | `history/read` › carries identity through an exact rename…; pairs identical files moved together in path order                                                                                                                                        |
+| Land use: path rules, earliest first                                                                    | `ground-plan/land-use` › classifies %s as %s; applies the earliest rule first; matches folder names case-insensitively                                                                                                                                |
+| Land use: weights and `round(1 / weight)` files per lot                                                 | `ground-plan/land-use` › weighs every land use; shares a lot among round(1 / weight) files; `ground-plan/tree` › shares lots among files of one use…                                                                                                  |
+| Mass: weighted count of files that take lots                                                            | `ground-plan/tree` › sums mass and demand up the tree; keeps tests off the land and docs as parks, outside the mass                                                                                                                                   |
+| Land dimension: tests and fixtures take none by default; each setting its own plat                      | `ground-plan/tree` › gives tests land when the land dimension includes them; `ground-plan/land-use` › landKey; `ground-plan/region/compose` › rejects a plat laid for another land setting                                                            |
+| Docs are parks                                                                                          | `ground-plan/town/layout` › lays docs as a park strip; cuts a folder's own lots and its docs park beside its child folders                                                                                                                            |
+| Dimensions: road widths, blocks, lots                                                                   | `ground-plan/town/golden` › lays a hamlet / a twin / a radial town (fixtures hold every width)                                                                                                                                                        |
+| Neighbourhood lot class: widen, narrow, re-grid                                                         | `ground-plan/town/branches` › narrows its lot class and re-lays when its lots outgrow their slots; lays its grid afresh when the cuts around it moved its land off the grid; keeps its grid when a fresh one would seat no more lots                  |
+| Density setting                                                                                         | `ground-plan/tree` › landFor is the square of the lots' land over density plus a road margin                                                                                                                                                          |
+| Order: first appearance, path, centre-out                                                               | `ground-plan/town/layout` › centreOut puts the oldest in the middle…; orders children by first appearance when asked; `ground-plan/tree` › orders own lots by first appearance, then path                                                             |
+| Structure: octagon outline, recursive cuts, cuts are streets by tier                                    | `ground-plan/region/outline` › lays an octagon…; `ground-plan/town/layout` › cutClass ranks roads by the tier…; gives every file of a polycentric town a lot                                                                                          |
+| Structure: flatten under nine blocks; serpentine fill; chains collapse                                  | `ground-plan/archetype/classify` › flattens a folder without children, or under the flatten limit; `ground-plan/tree` › collapses chains of empty single-child folders                                                                                |
+| Structure: long top-level cuts jog round a plaza                                                        | `ground-plan/town/layout` › jogs a long top-level cut round a plaza, unless jogging is off; `ground-plan/town/branches` › pinwheel guards (nine tests)                                                                                                |
+| Structure: remembered cuts, bands, lent land, recuts                                                    | `ground-plan/town/layout` › lends an emptied side's land to its sibling…; moves a remembered cut when one side outgrows its band; lets the growing side take an emptied side's land without moving the cut                                            |
+| Structure: remembered neighbourhoods, slots, park lines                                                 | `ground-plan/town/branches` › keeps a remembered park line and warp scale; lays a park line afresh when it no longer crosses its land; `ground-plan/town/layout` › keeps an address once issued                                                       |
+| Structure: shared lots remember members                                                                 | `ground-plan/tree` › keeps a shared lot while a member lives and fills it with a newcomer                                                                                                                                                             |
+| Structure: towns grow at 1.35 about their centre                                                        | `ground-plan/region/compose` › grows a town outward about its centre without moving its lots                                                                                                                                                          |
+| Structure: roads follow the tier within a 1.25 band                                                     | `ground-plan/town/cut` › decide road classes (two tests)                                                                                                                                                                                              |
+| Structure: a starved side recuts; a crowding park line re-lays                                          | `ground-plan/town/cut` › moves a remembered cut when its land shifted…; `ground-plan/town/branches` › lays its park line afresh…                                                                                                                      |
+| Structure: flatten hysteresis 1.5                                                                       | `ground-plan/archetype/classify` › keeps a flat folder flat up to 1.5 times the limit; keeps a cut folder cut down to the limit over 1.5                                                                                                              |
+| Archetypes: Schmitt trigger                                                                             | `ground-plan/archetype/classify` › districtForm (four tests); flatForm (two tests)                                                                                                                                                                    |
+| Archetypes: twin across a river, bridges                                                                | `ground-plan/town/layout` › lays a twin town across a river with a bridge; `ground-plan/town/branches` › bridges a short river once; balances a twin's extra folders…                                                                                 |
+| Archetypes: hamlet green, street village                                                                | `ground-plan/town/layout` › gathers a hamlet round a green…; runs a street village along a collector high street                                                                                                                                      |
+| Archetypes: radial, its guards and re-sectoring                                                         | `ground-plan/town/layout` › lays a radial town with a ring road, and re-sectors for a newcomer; falls back to cuts when a radial ring has fewer than three items; `ground-plan/town/branches` › declines a ring item that needs more than 171 degrees |
+| Edges: members from manifests, else paths                                                               | `history/manifests` › every test; `ground-plan/region/compose` › takes members from the manifests when the snapshot carries them; `ground-plan/workspace` › workspaceMembers                                                                          |
+| Edges: groups, split groups (`apps` by default), each setting its own plat                              | `ground-plan/workspace` › workspaceGroups (three tests); `ground-plan/region/compose` › split groups (five tests)                                                                                                                                     |
+| Edges: highways continue roads; approach streets                                                        | `ground-plan/region/highway` › every test; `ground-plan/region/compose` › gives a town without roads an approach street…                                                                                                                              |
+| Deletion: vacant lots, renewal                                                                          | `ground-plan/town/layout` › keeps every surviving lot in place when files are deleted…; renews a neighbourhood whose remembered lots are mostly vacant                                                                                                |
+| Archetype switch: old towns, lit by their members, unique keys                                          | `ground-plan/region/compose` › freezes the town as an old town…; freezes vacant lots too…; moves between neighbourhood forms in place…; `ground-plan/city/serialise` › rejects a city whose towns share a key                                         |
+| Addresses never change; lots never split                                                                | `ground-plan/town/layout` › keeps an address once issued; `ground-plan/tree` › keeps a shared lot while a member lives…                                                                                                                               |
+| Organic layer: deterministic warp that never feeds the plat                                             | `ground-plan/fixed/warp` › every test; `ground-plan/town/layout` › warp memory; is deterministic, warp included, and leaves its input plat untouched                                                                                                  |
+| Organic layer: Voronoi regions, off by default                                                          | `ground-plan/organic/delaunay` › every test; `ground-plan/organic/regions` › every test; `svg/render` › fills each top-level folder's region…; `apps/cli/run` › writes the city as JSON and SVG…                                                      |
+| Road graph: loop connectors join nearby dead ends                                                       | `ground-plan/town/connectors` › every test; `ground-plan/region/compose` › loop connectors                                                                                                                                                            |
+| Presentation: themes, Paper atlas lead, Night atlas twin                                                | `themes` › every test (WCAG contrast); `svg/render` › draws in the %s theme; `apps/web/components/Viewer` › starts in Night atlas when the system prefers dark                                                                                        |
+| Presentation: dimetric default, plan one switch away                                                    | `apps/web/view/view` › basis and fit tests; `apps/web/components/Viewer` › switches city, view and theme from the bar                                                                                                                                 |
+| Invariant: determinism and integer core                                                                 | `ground-plan/fixed/*` › bigint references; `ground-plan/plat/canonical` › every test; `svg/render` › draws a whole city as one SVG document, the same every time                                                                                      |
+| Invariant: locality                                                                                     | `ground-plan/fold/fold` › moves nothing outside the folders a commit touches, when no plan decision fires; the locality cache…                                                                                                                        |
+| Dimensions: road length shares per tier, judged where fine-grained; hierarchy never inverts in a folder | `scripts/bench/morphometrics` › every test; `scripts/bench/corpus` › every test; `ground-plan/region/compose` › never ranks a sub-cut above the cut it divides                                                                                        |
+| Viewer: drill down, breadcrumb, Escape                                                                  | `apps/web/components/Viewer` › Viewer drill down (three tests); `apps/web/e2e/viewer` › shows one town alone…                                                                                                                                         |
+| Viewer: hover and select                                                                                | `apps/web/components/Viewer` › Viewer hover and select (three tests); `scene/pick` › every test; `apps/web/e2e/viewer` › names what is under the pointer…                                                                                             |
+| Viewer: accessibility (WCAG 2.2 AA)                                                                     | `apps/web/e2e/viewer` › passes axe with no WCAG 2.2 AA violations; reaches every control and the map by keyboard…                                                                                                                                     |
+| Viewer: web experience (LCP, CLS 0, INP)                                                                | `apps/web/e2e/vitals` › both tests                                                                                                                                                                                                                    |
+| Viewer: observability                                                                                   | `apps/web/log` › every test; `apps/web/components/Viewer` › Viewer log                                                                                                                                                                                |
+
+Open, by Webber's choice (Phase 0): loop connectors, Voronoi outlines and morphometric targets (road length shares,
+neighbourhoods of 3 to 8 blocks) have no implementation and so no tests.
+
+## Phase 9: fold divergence
+
+Long histories leave far more files without a lot than a fresh lay of the same tree: home-assistant's fold leaves 913 of
+about 13,300 (292 neighbourhoods, 1 to 21 short each) where a fresh HEAD lay leaves 14; next.js 99 against 42.
+
+- [x] Find where the land goes: per neighbourhood, land given against demand, fold against fresh lay (every short
+      neighbourhood had less land than a fresh lay gives it: allocation, not packing)
+- [x] Decide the fix with Webber: investigate now. A fair-share recut against the town was tried and dropped (react 13 →
+      123 files without a lot); budgeting road land in demand was kept
+- [ ] Build it test-first; measure on home-assistant, next.js, react and livediagram (several seeds)
+- [x] Add fold divergence to the bench ratchet: `bun run bench --folds` folds the fast reference repositories in full
+      against fresh lays, with its own baseline
+
+## Phase 10: incremental lays
+
+A commit should cost what it changes. Webber chose this before any Rust port.
+
+- [x] Profile a fold: tree building, digests, path classification, loop connectors and plat copies grow with the tree
+- [x] Hand over the same file list while a commit only edits files; keep what `layCity` derives per list, and built
+      trees per list, options and shares; keep shares by reference in layout
+- [x] Remember path classifications; hash ASCII without encoding; index loop connectors by a grid
+- [x] Prove exactness: livediagram, react and next.js fold byte-identical to the engine before; react 404 → 200 s,
+      next.js 95 → 40 min, the bench's 1,200-commit react fold 2.6 → 1.9 s

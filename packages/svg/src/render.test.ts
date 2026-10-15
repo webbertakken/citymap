@@ -26,6 +26,9 @@ const lay = (entries: Snapshot["files"], repository?: string): City =>
   layCity(snapshot(entries, repository), initialState(options), options).city;
 const twin = () => lay([...files("lib", 300), ...files("kit", 250, 400), ...files("misc", 50, 800)]);
 
+/** A sheet's width and height. */
+const size = (svg: string) => svg.match(/width="([\d.]+)" height="([\d.]+)"/)!.slice(1);
+
 describe("renderCity", () => {
   it("draws a whole city as one SVG document, the same every time", () => {
     const city = twin();
@@ -34,6 +37,38 @@ describe("renderCity", () => {
     expect(svg.endsWith("</svg>")).toBe(true);
     expect(svg).toContain(THEMES["paper-atlas"].water);
     expect(renderCity(city, { title: "demo", subtitle: "a twin" })).toBe(svg);
+  });
+
+  it("fills each top-level folder's region beneath its blocks when asked, and none by default", () => {
+    const city = lay([...files("lib", 120), ...files("kit", 120, 400), ...files("misc", 60, 800)]);
+    expect(renderCity(city, { title: "t", subtitle: "s" })).not.toContain(`class="region"`);
+    const svg = renderCity(city, { title: "t", subtitle: "s", regions: true });
+    expect(svg.match(/class="region"/g)).toHaveLength(3);
+    // Regions lie beneath the blocks: the first region comes before the first block of its town.
+    expect(svg.indexOf(`class="region"`)).toBeLessThan(svg.indexOf(`stroke="${THEMES["paper-atlas"].casing}"`));
+    // Their edges are drawn over everything in the town, so a district's shape reads through its blocks and lots.
+    expect(svg.match(/class="region-edge"/g)).toHaveLength(3);
+    expect(svg.lastIndexOf(`class="region-edge"`)).toBeGreaterThan(
+      svg.lastIndexOf(`stroke="${THEMES["paper-atlas"].casing}"`),
+    );
+  });
+
+  it("draws a road at its own width when its right of way narrows it", () => {
+    const city = twin();
+    const narrow = {
+      ...city,
+      towns: city.towns.map((t) => ({ ...t, roads: t.roads.map((r) => ({ ...r, width: 8 })) })),
+    };
+    expect(renderCity(narrow, { title: "t", subtitle: "s" })).not.toBe(renderCity(city, { title: "t", subtitle: "s" }));
+  });
+
+  it("draws within a given frame, so maps of one place share a scale and an origin", () => {
+    const small = lay(files("lib", 50));
+    const large = twin();
+    const frame = { min: { x: -20_000, y: -20_000 }, max: { x: 20_000, y: 20_000 } };
+    const [a, b] = [small, large].map((c) => renderCity(c, { title: "t", subtitle: "s", frame }));
+    expect(size(a!)).toEqual(size(b!));
+    expect(size(a!)).not.toEqual(size(renderCity(small, { title: "t", subtitle: "s" })));
   });
 
   it.each(THEME_NAMES)("draws in the %s theme", (theme) => {
