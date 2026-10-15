@@ -524,3 +524,81 @@ fn tells_whether_one_commit_is_in_another_s_history_and_resolves_refs() {
         "{missing}"
     );
 }
+
+#[test]
+fn reads_blobs_empty_ones_included_an_absent_one_as_none_and_again_after() {
+    use citymap_history::blobs::BlobReader;
+    let repo = Repo::new();
+    repo.write("a", "first\nline\n");
+    repo.write("b", "");
+    let (a, b) = (
+        repo.git(&["hash-object", "-w", "a"]),
+        repo.git(&["hash-object", "-w", "b"]),
+    );
+    let absent = "0".repeat(40);
+    let mut reader = BlobReader::new(repo.path());
+    let texts = reader.read_all(&[a.clone(), absent.clone(), b.clone()]).expect("texts");
+    assert_eq!(texts[&a].as_deref(), Some("first\nline\n"));
+    assert_eq!(texts[&absent], None);
+    assert_eq!(texts[&b].as_deref(), Some(""));
+    assert_eq!(reader.read_all(&[]).expect("nothing").len(), 0);
+    assert_eq!(
+        reader.read_all(std::slice::from_ref(&b)).expect("again")[&b].as_deref(),
+        Some("")
+    );
+    // Outside a repository git cat-file exits at once: every blob is unavailable, each after a fresh start.
+    let nowhere = std::env::temp_dir().join(format!("citymap-blobs-none-{}", std::process::id()));
+    std::fs::create_dir_all(&nowhere).expect("a folder");
+    let mut lost = BlobReader::new(&nowhere);
+    let texts = lost.read_all(&["1".repeat(40), "2".repeat(40)]).expect("texts");
+    assert!(texts.values().all(Option::is_none));
+    let _ = std::fs::remove_dir_all(&nowhere);
+}
+
+#[test]
+fn reads_one_commit_s_files_as_born_together_with_every_folder_and_its_members() {
+    let repo = Repo::new();
+    repo.write("package.json", r#"{"workspaces":["apps/*"]}"#);
+    repo.write("apps/web/src/index.ts", "w");
+    repo.write("lib/a.ts", "a");
+    repo.commit("first");
+    let first = repo.git(&["rev-parse", "HEAD"]);
+    repo.write("later.ts", "l");
+    repo.commit("second");
+    let tree = read_tree(repo.path(), &first, Some("named"), &mut |_| {}).expect("a tree");
+    assert_eq!(
+        (tree.repository.as_str(), tree.commit.as_str(), tree.index),
+        ("named", first.as_str(), 0)
+    );
+    assert_eq!(
+        files(&tree),
+        [
+            ("apps/web/src/index.ts".into(), "apps/web/src/index.ts@0".into(), 0),
+            ("lib/a.ts".into(), "lib/a.ts@0".into(), 0),
+            ("package.json".into(), "package.json@0".into(), 0)
+        ]
+    );
+    let mut folders: Vec<&str> = tree.folder_first_seen.keys().map(String::as_str).collect();
+    folders.sort_unstable();
+    assert_eq!(folders, ["", "apps", "apps/web", "apps/web/src", "lib"]);
+    assert_eq!(members(&tree), list(&["apps/web"]));
+    let base = repo.git(&["rev-parse", "HEAD"]);
+    repo.git(&[
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        &format!("160000,{base},vendor/lib"),
+    ]);
+    repo.git(&["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "sub"]);
+    let sub = repo.git(&["rev-parse", "HEAD"]);
+    let mut events = Vec::new();
+    let tree = read_tree(repo.path(), &sub, None, &mut |e| events.push(e)).expect("a tree");
+    assert!(tree.repository.starts_with("citymap-history-"));
+    assert_eq!(
+        events,
+        [HistoryEvent::SkipSubmodule {
+            path: "vendor/lib".into(),
+            index: 0
+        }]
+    );
+}

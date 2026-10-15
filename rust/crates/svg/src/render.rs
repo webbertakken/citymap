@@ -450,3 +450,119 @@ mod parity {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+    use citymap_ground_plan::fixed::compare_keys;
+    use citymap_ground_plan::fold::initial_state;
+    use citymap_ground_plan::land_use::default_land_uses;
+    use citymap_ground_plan::region::compose::{Options, lay_city};
+    use citymap_ground_plan::snapshot::{FileEntry, Snapshot};
+    use citymap_ground_plan::town::context::{Jog, Order};
+
+    fn files(folder: &str, n: i64, born: i64) -> Vec<FileEntry> {
+        (0..n)
+            .map(|i| {
+                let path = format!("{folder}/f{i:03}.ts");
+                FileEntry::new(&path, &format!("{path}@{}", born + i), born + i)
+            })
+            .collect()
+    }
+
+    fn lay(mut entries: Vec<FileEntry>, repository: &str) -> City {
+        entries.sort_by(|a, b| compare_keys(&a.path, &b.path));
+        let snapshot = Snapshot {
+            repository: repository.into(),
+            commit: "worktree".into(),
+            index: 0,
+            files: Arc::new(entries),
+            folder_first_seen: Arc::new(std::collections::HashMap::new()),
+            workspaces: None,
+        };
+        let options = Options {
+            density_pct: 50,
+            land_uses: default_land_uses(),
+            order: Order::CentreOut,
+            jog: Jog::TopLevel,
+            warp: true,
+            loops: true,
+            split: vec!["apps".into()],
+        };
+        lay_city(&snapshot, &mut initial_state(&options, None, false), &options)
+            .expect("a city")
+            .0
+    }
+
+    fn twin() -> City {
+        let mut all = files("lib", 300, 0);
+        all.extend(files("kit", 250, 400));
+        all.extend(files("misc", 50, 800));
+        lay(all, "demo")
+    }
+
+    fn render(city: &City, title: &str, subtitle: &str, camera: Camera, regions: bool) -> String {
+        let options = RenderOptions {
+            title: title.into(),
+            subtitle: subtitle.into(),
+            theme: ThemeName::PaperAtlas,
+            camera,
+            width: 1600.0,
+            regions,
+        };
+        render_city(city, &options)
+    }
+
+    #[test]
+    fn draws_a_whole_city_as_one_svg_document_the_same_every_time() {
+        let city = twin();
+        let svg = render(&city, "demo", "a twin", Camera::Plan, false);
+        assert!(svg.starts_with("<svg ") && svg.ends_with("</svg>"));
+        assert!(svg.contains(&Theme::of(ThemeName::PaperAtlas).water));
+        assert_eq!(render(&city, "demo", "a twin", Camera::Plan, false), svg);
+        assert!(!svg.contains(r#"class="region""#));
+        assert!(render(&city, "demo", "a twin", Camera::Plan, true).contains(r#"class="region""#));
+    }
+
+    #[test]
+    fn lifts_lots_on_plinths_in_the_dimetric_view() {
+        let city = twin();
+        assert!(render(&city, "t", "s", Camera::Dimetric, false).contains("translate(0 "));
+        assert!(!render(&city, "t", "s", Camera::Plan, false).contains("translate(0 "));
+    }
+
+    #[test]
+    fn escapes_every_text_it_draws() {
+        let svg = render(
+            &lay(files("<script>&", 30, 0), "a<b>&c"),
+            "<t>",
+            "&s",
+            Camera::Plan,
+            false,
+        );
+        assert!(!svg.contains("<script>"));
+        assert!(svg.contains("&lt;t&gt;") && svg.contains("&amp;s") && svg.contains("A&lt;B&gt;&amp;C"));
+    }
+
+    #[test]
+    fn dashes_old_towns_and_vacant_lots_and_draws_an_empty_city_as_a_sheet_with_its_header() {
+        let mut city = twin();
+        let mut old = (*city.towns[0]).clone();
+        old.key = "old".into();
+        old.old = true;
+        for (i, lot) in old.lots.iter_mut().enumerate() {
+            lot.vacant = i % 2 == 0;
+        }
+        city.towns.push(Arc::new(old));
+        assert!(render(&city, "t", "s", Camera::Plan, false).contains("stroke-dasharray"));
+        let empty = City {
+            repository: "x".into(),
+            commit: "worktree".into(),
+            towns: vec![],
+            highways: vec![],
+        };
+        assert!(render(&empty, "empty", "", Camera::Plan, false).contains(">empty</text>"));
+    }
+}
