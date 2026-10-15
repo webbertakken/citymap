@@ -200,8 +200,6 @@ button[aria-pressed="true"] {
   flex-direction: column;
   gap: 0.15rem;
   width: 260px;
-  max-height: 96px;
-  overflow: hidden;
   padding: 0.4rem 0.6rem;
   font-size: 0.8rem;
   color: #10141a;
@@ -209,6 +207,10 @@ button[aria-pressed="true"] {
   border: 1px solid #50565f;
   border-radius: 0.35rem;
   pointer-events: none;
+}
+.card > * {
+  flex-shrink: 0;
+  overflow-wrap: anywhere;
 }
 .card strong {
   overflow: hidden;

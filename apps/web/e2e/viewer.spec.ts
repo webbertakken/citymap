@@ -85,6 +85,8 @@ test("names what is under the pointer, and selects it into the panel", async ({ 
   const box = (await page.locator(".label.town").first().boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await expect(page.getByRole("tooltip")).toBeVisible();
+  // The card's title is drawn, not squeezed away by the lines below it.
+  await expect(page.getByRole("tooltip").locator("strong")).toBeVisible();
   const named = await page.getByRole("tooltip").locator("strong").textContent();
   await page.screenshot({ path: info.outputPath("hover.png") });
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);

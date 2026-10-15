@@ -2,7 +2,7 @@
   {
     "name": "takken.io",
     "file": "takken.io.json",
-    "lots": 285
+    "lots": 288
   },
   {
     "name": "redux",
@@ -22,11 +22,11 @@
   {
     "name": "livediagram",
     "file": "livediagram.json",
-    "lots": 4259
+    "lots": 4274
   },
   {
     "name": "react",
     "file": "react.json",
-    "lots": 2219
+    "lots": 2239
   }
 ]
