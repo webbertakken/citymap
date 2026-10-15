@@ -29,7 +29,7 @@ fn rank_of(cls: RoadClass) -> i64 {
 }
 
 /// A town ready to be joined: one without roads gains an approach street from its edge nearest `toward` to its heart.
-pub fn with_approach(town: &mut Town, toward: Pt) {
+pub fn with_approach(town: &mut std::sync::Arc<Town>, toward: Pt) {
     if !town.roads.is_empty() {
         return;
     }
@@ -42,7 +42,7 @@ pub fn with_approach(town: &mut Town, toward: Pt) {
         }
     });
     let door = door.expect("a town has an outline");
-    town.roads.push(Road {
+    std::sync::Arc::make_mut(town).roads.push(Road {
         cls: RoadClass::Street,
         pts: vec![door, c],
         width: None,

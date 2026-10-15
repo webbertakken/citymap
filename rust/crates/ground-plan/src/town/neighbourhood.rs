@@ -23,6 +23,7 @@ const PARK_CAP: i64 = 600;
 /// Blocks at least this deep (row pitch less a street) hold lots back to back.
 const HALF_DEPTH: i64 = 224;
 
+#[derive(Debug)]
 struct Cell {
     pts: Vec<Pt>,
     r: i64,
@@ -38,6 +39,7 @@ impl Cell {
     }
 }
 
+#[derive(Debug)]
 struct Slot {
     id: String,
     pts: Vec<Pt>,
@@ -103,7 +105,8 @@ fn fresh_grid(land: &[Pt]) -> GridRecord {
 /// Slots remembered per lot class and green cell.
 type SlotMemo = RefCell<HashMap<(i64, Option<String>), Rc<Vec<Slot>>>>;
 
-struct Laid {
+#[derive(Debug)]
+pub struct Laid {
     a: Dir,
     b: Dir,
     lines: Vec<(Dir, i64)>,
@@ -228,6 +231,31 @@ impl Laid {
     }
 }
 
+/// A neighbourhood's last grid and the land it was laid on: laying the same grid on the same land gives the same cells and
+/// slots, so they are kept between commits.
+#[derive(Debug)]
+pub struct KeptGrid {
+    geometry: (Dir, i64, i64, i64, i64),
+    land: Vec<Pt>,
+    laid: Laid,
+}
+
+fn geometry(g: &GridRecord) -> (Dir, i64, i64, i64, i64) {
+    (g.dir, g.a0, g.b0, g.row_pitch, g.col_pitch)
+}
+
+/// The grid laid on the land, as kept from the last commit when neither changed.
+fn kept_or_new(ctx: &mut Ctx, key: &str, g: &GridRecord, land: &[Pt]) -> Laid {
+    if let Some(cache) = ctx.cache.as_deref_mut()
+        && let Some(kept) = cache.grids.remove(key)
+        && kept.geometry == geometry(g)
+        && kept.land == land
+    {
+        return kept.laid;
+    }
+    Laid::new(g, land)
+}
+
 /// True for land too small to lay anything on.
 fn empty(pts: &[Pt]) -> bool {
     pts.len() < 3 || area2(pts) < 2
@@ -322,7 +350,7 @@ pub fn neighbourhood(
     }
     let mut g = remembered_grid.unwrap_or_else(|| fresh_grid(&land));
     g.park = split.line;
-    let mut laid = Laid::new(&g, &land);
+    let mut laid = kept_or_new(ctx, key, &g, &land);
     if g.span > 1 && laid.count(g.span, g.green.as_deref()) < lot_count {
         // The lots outgrew their slots at this class: narrow it until they fit, and re-lay them in order.
         let from = g.span;
@@ -544,6 +572,16 @@ pub fn neighbourhood(
         let overflow = count_of(lot_count - placed);
         ctx.overflow += overflow;
         ctx.emit("town/overflow", vec![("key", key.into()), ("count", overflow.into())]);
+    }
+    if let Some(cache) = ctx.cache.as_deref_mut() {
+        cache.grids.insert(
+            key.to_owned(),
+            KeptGrid {
+                geometry: geometry(&g),
+                land,
+                laid,
+            },
+        );
     }
     ctx.plat.grids.insert(key.to_owned(), g);
 }

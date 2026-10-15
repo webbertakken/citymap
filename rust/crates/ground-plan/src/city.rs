@@ -1,4 +1,6 @@
 //! The city model: plain data in integer coordinates, which every consumer reads.
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
 use crate::archetype::Form;
@@ -111,7 +113,7 @@ pub struct City {
     pub commit: String,
     pub highways: Vec<Road>,
     pub repository: String,
-    pub towns: Vec<Town>,
+    pub towns: Vec<Arc<Town>>,
 }
 
 /// The city as canonical JSON.

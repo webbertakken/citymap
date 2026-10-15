@@ -64,8 +64,8 @@ pub struct TreeOptions {
 /// A built tree and what building it measured.
 #[derive(Clone, Debug)]
 pub struct Built {
-    pub tree: TreeNode,
-    pub shares: Shares,
+    pub tree: Arc<TreeNode>,
+    pub shares: Arc<Shares>,
     pub off_land: i64,
     pub docs: i64,
 }
@@ -337,8 +337,8 @@ pub fn build_tree(
     };
     let tree = collapse(builder.make(root, 0), true);
     Built {
-        tree,
-        shares: builder.next,
+        tree: Arc::new(tree),
+        shares: Arc::new(builder.next),
         off_land,
         docs,
     }

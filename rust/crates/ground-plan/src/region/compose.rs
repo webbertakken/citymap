@@ -1,5 +1,7 @@
 //! A city composed from one commit's tree: its towns, their outlines and places, old towns and highways.
 use std::collections::{HashMap, HashSet};
+
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 use crate::archetype::{Form, classify_node};
@@ -61,13 +63,39 @@ pub struct FoldCache {
     pub towns: HashMap<String, TownCache>,
     pub hits: u64,
     derived: Option<Derived>,
+    /// Each part's last built tree: building it again from the same files, folders and the shares it made gives the
+    /// same tree and shares, so it is kept.
+    trees: HashMap<String, KeptTree>,
+    /// Land use per path, remembered for a million paths: every commit asks again about the same paths.
+    uses: FxHashMap<Arc<str>, LandUse>,
 }
+
+/// A part's last tree, and the files it was built from: the range of the sorted file list under its root.
+struct KeptTree {
+    files: Arc<Vec<FileEntry>>,
+    range: std::ops::Range<usize>,
+    options: TreeOptions,
+    built: Built,
+}
+
+/// The files under a root: a contiguous range of the sorted list, as every path under `root/` sorts between `root/`
+/// and `root0` (`0` follows `/`).
+fn under(files: &[FileEntry], root: &str) -> std::ops::Range<usize> {
+    if root.is_empty() {
+        return 0..files.len();
+    }
+    let (from, to) = (format!("{root}/"), format!("{root}0"));
+    files.partition_point(|f| *f.path < *from)..files.partition_point(|f| *f.path < *to)
+}
+
+/// How many paths the land-use memory holds before it starts afresh.
+const USE_MEMORY: usize = 1 << 20;
 
 /// The plat and the runtime state a fold carries between commits: each town as last laid (to freeze on a switch), and
 /// the locality cache. Only the plat is persisted.
 pub struct FoldState {
     pub plat: Plat,
-    pub last: HashMap<String, Town>,
+    pub last: HashMap<String, Arc<Town>>,
     pub cache: Option<FoldCache>,
 }
 
@@ -138,7 +166,7 @@ fn old_town_name(name: &str, count: usize) -> String {
 }
 
 /// Rejects a city whose towns or highways reach the coordinate limit; lots and roads lie within their towns.
-pub fn check_extent(towns: &[Town], highways: &[Road]) -> Result<()> {
+pub fn check_extent(towns: &[Arc<Town>], highways: &[Road]) -> Result<()> {
     let points = towns
         .iter()
         .flat_map(|t| t.outline.iter())
@@ -156,8 +184,25 @@ pub fn check_extent(towns: &[Town], highways: &[Road]) -> Result<()> {
     Ok(())
 }
 
-fn derive(snapshot: &Snapshot) -> Derived {
-    let uses: Vec<LandUse> = snapshot.files.iter().map(|f| classify_land_use(&f.path)).collect();
+fn derive(snapshot: &Snapshot, memory: Option<&mut FxHashMap<Arc<str>, LandUse>>) -> Derived {
+    let uses: Vec<LandUse> = match memory {
+        Some(memory) => snapshot
+            .files
+            .iter()
+            .map(|f| {
+                if let Some(&known) = memory.get(&f.path) {
+                    return known;
+                }
+                if memory.len() >= USE_MEMORY {
+                    memory.clear();
+                }
+                let land_use = classify_land_use(&f.path);
+                memory.insert(f.path.clone(), land_use);
+                land_use
+            })
+            .collect(),
+        None => snapshot.files.iter().map(|f| classify_land_use(&f.path)).collect(),
+    };
     let paths: Vec<&str> = snapshot.files.iter().map(|f| &*f.path).collect();
     let declared = snapshot.workspaces.as_deref().map(Vec::as_slice);
     Derived {
@@ -217,9 +262,9 @@ pub fn lay_city(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -
                 Arc::ptr_eq(&d.files, &snapshot.files)
                     && same_workspaces(d.workspaces.as_ref(), snapshot.workspaces.as_ref())
             });
-            kept.unwrap_or_else(|| derive(snapshot))
+            kept.unwrap_or_else(|| derive(snapshot, Some(&mut cache.uses)))
         }
-        None => derive(snapshot),
+        None => derive(snapshot, None),
     };
     let layout = LayoutOptions {
         order: options.order,
@@ -284,15 +329,42 @@ pub fn lay_city(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -
     };
     let full_use = |i: usize, _: &FileEntry| derived.uses[i];
     let direct_use = |_: usize, f: &FileEntry| classify_land_use(&f.path);
-    let tree_for = |plat: &Plat, part: &Part| -> Built {
+    let mut trees = state.cache.as_mut().map(|c| &mut c.trees);
+    let mut tree_for = |plat: &Plat, part: &Part| -> Built {
         let shares = plat
             .towns
             .get(&part.key)
             .map_or_else(|| Arc::new(Shares::new()), |t| t.shares.clone());
-        match files_outside(&snapshot.files, plat.old.get(&part.key)) {
-            Some(files) => build_tree(snapshot, &files, &tree_options(part), &shares, &direct_use),
-            None => build_tree(snapshot, &snapshot.files, &tree_options(part), &shares, &full_use),
+        let options = tree_options(part);
+        if let Some(files) = files_outside(&snapshot.files, plat.old.get(&part.key)) {
+            return build_tree(snapshot, &files, &options, &shares, &direct_use);
         }
+        let range = under(&snapshot.files, &part.root);
+        let start = range.start;
+        let files = &snapshot.files[range.clone()];
+        let ranged_use = |i: usize, _: &FileEntry| derived.uses[start + i];
+        let Some(trees) = trees.as_deref_mut() else {
+            return build_tree(snapshot, files, &options, &shares, &ranged_use);
+        };
+        // Built again from the same files and the shares it made, a tree comes out the same, shares and all: sharing
+        // places every member it already holds. A part's folders and their first commits follow from its files.
+        if let Some(kept) = trees.get(&part.key)
+            && Arc::ptr_eq(&kept.built.shares, &shares)
+            && kept.options == options
+            && ((Arc::ptr_eq(&kept.files, &snapshot.files) && kept.range == range)
+                || kept.files[kept.range.clone()] == *files)
+        {
+            return kept.built.clone();
+        }
+        let built = build_tree(snapshot, files, &options, &shares, &ranged_use);
+        let kept = KeptTree {
+            files: snapshot.files.clone(),
+            range,
+            options,
+            built: built.clone(),
+        };
+        trees.insert(part.key.clone(), kept);
+        built
     };
 
     // Each part's tree, without the files its old towns hold; a root switch first freezes the town as it stood.
@@ -311,7 +383,7 @@ pub fn lay_city(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -
             .tree
         });
         let previous = plat.root_forms.get(&part.key).copied();
-        let root_form = classify_node(whole.as_ref().unwrap_or(&built.tree), previous);
+        let root_form = classify_node(whole.as_deref().unwrap_or(&built.tree), previous);
         plat.root_forms.insert(part.key.clone(), root_form);
         let switched = previous.is_some_and(|p| root_form != p && !(p.is_flat() && root_form.is_flat()));
         if switched && let Some(before) = state.last.get(&part.key) {
@@ -346,7 +418,7 @@ pub fn lay_city(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -
                     key: old_key,
                     name,
                     old: true,
-                    ..before.clone()
+                    ..(**before).clone()
                 },
                 members,
             });
@@ -379,12 +451,12 @@ pub fn lay_city(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -
     }
     let blockers: Vec<(Pt, i64)> = old_towns.iter().map(|(_, t)| footprint(t)).collect();
     let mut placed: Vec<(Pt, i64)> = Vec::new();
-    let mut towns: Vec<Town> = Vec::new();
+    let mut towns: Vec<Arc<Town>> = Vec::new();
     let count = laid_parts.len();
     let origin = Pt::new(0, 0);
     for (i, LaidPart { part, root_form, built }) in laid_parts.into_iter().enumerate() {
         let mut town_plat = plat.towns.remove(&part.key).unwrap_or_default();
-        town_plat.shares = Arc::new(built.shares);
+        town_plat.shares = built.shares.clone();
         let demand2 = built.tree.demand * 2;
         if town_plat.area2 == 0 || demand2 > town_plat.cap2 {
             if town_plat.area2 > 0 {
@@ -465,15 +537,16 @@ pub fn lay_city(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -
         translate_town(&mut town, centre);
         town.stats.off_land = built.off_land;
         town.stats.docs = built.docs;
+        let town = Arc::new(town);
         state.last.insert(part.key.clone(), town.clone());
         towns.push(town);
     }
 
     // Highways join each group town to the main town, and each old town to the town that replaced it.
     let main_count = towns.len();
-    let mut all: Vec<Town> = towns;
+    let mut all: Vec<Arc<Town>> = towns;
     let successors: Vec<String> = old_towns.iter().map(|(s, _)| s.clone()).collect();
-    all.extend(old_towns.into_iter().map(|(_, t)| t));
+    all.extend(old_towns.into_iter().map(|(_, t)| Arc::new(t)));
     let mut pairs: Vec<(usize, usize)> = (1..main_count).map(|t| (0, t)).collect();
     for (o, successor) in successors.iter().enumerate() {
         let found = all[..main_count].iter().position(|t| t.key == *successor);

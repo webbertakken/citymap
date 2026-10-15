@@ -186,6 +186,8 @@ pub struct TownCache {
     pub entries: HashMap<Arc<str>, CacheEntry>,
     pub hits: u64,
     pub warp: Option<(i64, MemoWarp)>,
+    /// Each neighbourhood's last grid, by its key.
+    pub grids: HashMap<String, crate::town::neighbourhood::KeptGrid>,
 }
 
 /// The mutable state of laying out one town.

@@ -58,10 +58,10 @@ pub fn tree_with(entries: &[FileEntry], folders: &[(&str, i64)], shares: &Shares
         land_uses: default_land_uses(),
         density_pct: 50,
     };
-    build_tree(&snapshot, &snapshot.files, &options, shares, &|_, f| {
+    let built = build_tree(&snapshot, &snapshot.files, &options, shares, &|_, f| {
         classify_land_use(&f.path)
-    })
-    .tree
+    });
+    Arc::unwrap_or_clone(built.tree)
 }
 
 pub fn tree_of(entries: &[FileEntry]) -> TreeNode {

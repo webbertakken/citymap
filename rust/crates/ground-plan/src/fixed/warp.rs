@@ -1,5 +1,5 @@
 //! Value noise, a smooth topology-preserving warp and densifying, in fixed point.
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use super::arithmetic::{floor_div, isqrt, round_div};
 use super::polygon::Pt;
@@ -84,7 +84,7 @@ impl Warp {
 pub struct MemoWarp {
     warp: Warp,
     limit: usize,
-    seen: HashMap<Pt, Pt>,
+    seen: FxHashMap<Pt, Pt>,
 }
 
 impl MemoWarp {
@@ -93,7 +93,7 @@ impl MemoWarp {
         Self {
             warp,
             limit,
-            seen: HashMap::new(),
+            seen: FxHashMap::default(),
         }
     }
 
