@@ -179,3 +179,55 @@ mod tests {
         assert_eq!(delaunay(&square[..2]), Triangulation::default());
     }
 }
+
+#[cfg(test)]
+mod properties {
+    use super::*;
+
+    fn points() -> Vec<Pt> {
+        // A deterministic scatter with some repeated rows and columns.
+        (0..60i64)
+            .map(|i| Pt::new((i * 7919) % 1000 - 500, (i * 104_729) % 700 - 350))
+            .collect()
+    }
+
+    #[test]
+    fn leaves_no_point_inside_any_triangle_s_circumcircle_every_triangle_anticlockwise() {
+        let pts = points();
+        let t = delaunay(&pts);
+        assert_ne!(t.triangles.len(), 0);
+        for tri in &t.triangles {
+            let (a, b, c) = (pts[tri[0]], pts[tri[1]], pts[tri[2]]);
+            assert!(orient(a, b, c) > 0);
+            for (i, &p) in pts.iter().enumerate() {
+                if !tri.contains(&i) {
+                    assert!(in_circle(a, b, c, p) <= I256::ZERO);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn names_each_triangle_s_neighbour_across_each_edge_and_is_the_same_every_time() {
+        let pts = points();
+        let t = delaunay(&pts);
+        assert_eq!(t, delaunay(&pts));
+        for (i, (tri, n)) in t.triangles.iter().zip(&t.neighbours).enumerate() {
+            for k in 0..3 {
+                if n[k] < 0 {
+                    continue;
+                }
+                let other = &t.triangles[at(n[k])];
+                let (u, v) = (tri[(k + 1) % 3], tri[(k + 2) % 3]);
+                assert!(other.contains(&u) && other.contains(&v));
+                assert!(t.neighbours[at(n[k])].contains(&index(i)));
+            }
+        }
+    }
+
+    #[test]
+    fn returns_nothing_for_points_on_one_line() {
+        let line: Vec<Pt> = (0..5).map(|i| Pt::new(i * 10, i * 10)).collect();
+        assert_eq!(delaunay(&line).triangles.len(), 0);
+    }
+}

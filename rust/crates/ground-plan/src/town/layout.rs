@@ -229,3 +229,425 @@ pub fn layout_town(
         events: ctx.events,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use super::*;
+    use crate::city::BlockKind;
+    use crate::fixed::compare_keys;
+    use crate::json::canonical_json;
+    use crate::region::outline::outline_for;
+    use crate::snapshot::FileEntry;
+    use crate::testing::{files, layout_options, sources, tree_of};
+    use crate::town::context::{Jog, Order, Value};
+    use crate::town::partition::centre_out;
+
+    struct Laid {
+        town: Town,
+        plat: TownPlat,
+        events: Vec<PlatEvent>,
+    }
+
+    /// Lays a tree on an outline of its land times room/100, or of an earlier tree's land, as a town keeps it.
+    fn lay_on(tree: &TreeNode, plat: TownPlat, options: &LayoutOptions, room: i64, land_of: &TreeNode) -> Laid {
+        let outline = outline_for(land_of.demand * 2 * room / 100, Pt::new(0, 0), "demo");
+        let laid = layout_town("demo", "demo", tree, &outline, plat, options, None, None);
+        Laid {
+            town: laid.draft.town(None),
+            plat: laid.plat,
+            events: laid.events,
+        }
+    }
+
+    fn lay(tree: &TreeNode, plat: TownPlat) -> Laid {
+        lay_on(tree, plat, &layout_options(), 100, tree)
+    }
+
+    fn codes(events: &[PlatEvent]) -> Vec<&'static str> {
+        events.iter().map(|e| e.code).collect()
+    }
+
+    fn keys_of(events: &[PlatEvent], code: &str) -> Vec<String> {
+        events
+            .iter()
+            .filter(|e| e.code == code)
+            .filter_map(|e| e.detail.iter().find(|(k, _)| *k == "key").map(|(_, v)| v.to_string()))
+            .collect()
+    }
+
+    fn positions(town: &Town) -> BTreeMap<String, String> {
+        town.lots
+            .iter()
+            .filter(|l| !l.vacant)
+            .map(|l| (l.key.clone(), canonical_json(&l.pts).expect("json")))
+            .collect()
+    }
+
+    const RING: [&str; 5] = ["north", "east", "south", "west", "up"];
+
+    fn radial_repo() -> Vec<FileEntry> {
+        let mut all = sources("core", 400, 0);
+        for (d, i) in RING.iter().zip(0..) {
+            all.extend(sources(d, 40, 500 + i * 100));
+        }
+        all
+    }
+
+    fn twin_repo() -> Vec<FileEntry> {
+        let mut all = sources("lib", 300, 0);
+        all.extend(sources("test-kit", 250, 400));
+        all.extend(sources("misc", 50, 800));
+        all
+    }
+
+    fn six_repo() -> Vec<FileEntry> {
+        let sizes = [150, 60, 200, 90, 120, 180];
+        ["a", "b", "c", "d", "e", "f"]
+            .iter()
+            .zip(0..)
+            .flat_map(|(d, i)| sources(d, sizes[i], i64::try_from(i).expect("small") * 300))
+            .collect()
+    }
+
+    #[test]
+    fn puts_the_oldest_in_the_middle_and_newcomers_at_the_edges() {
+        assert_eq!(centre_out(&[1, 2, 3, 4, 5]), vec![4, 2, 1, 3, 5]);
+    }
+
+    #[test]
+    fn is_deterministic_warp_included() {
+        let tree = tree_of(&six_repo());
+        let warped = LayoutOptions {
+            warp: true,
+            ..layout_options()
+        };
+        let a = lay_on(&tree, TownPlat::default(), &warped, 100, &tree);
+        let b = lay_on(&tree, TownPlat::default(), &warped, 100, &tree);
+        assert_eq!(
+            canonical_json(&a.town).expect("json"),
+            canonical_json(&b.town).expect("json")
+        );
+        assert_eq!(
+            canonical_json(&a.plat).expect("json"),
+            canonical_json(&b.plat).expect("json")
+        );
+    }
+
+    #[test]
+    fn gives_every_file_of_a_polycentric_town_a_lot_and_jogs_its_long_cut() {
+        let laid = lay(&tree_of(&six_repo()), TownPlat::default());
+        assert_eq!(laid.town.form, Form::Polycentric);
+        assert_eq!((laid.town.stats.lots, laid.town.stats.overflow), (800, 0));
+        assert_eq!(
+            laid.town
+                .lots
+                .iter()
+                .map(|l| l.address.as_str())
+                .collect::<BTreeSet<_>>()
+                .len(),
+            800
+        );
+        assert!(laid.town.blocks.iter().any(|b| b.kind == BlockKind::Plaza));
+        let flat = lay_on(
+            &tree_of(&six_repo()),
+            TownPlat::default(),
+            &LayoutOptions {
+                jog: Jog::Off,
+                ..layout_options()
+            },
+            100,
+            &tree_of(&six_repo()),
+        );
+        assert!(!flat.town.blocks.iter().any(|b| b.kind == BlockKind::Plaza));
+        let aged = LayoutOptions {
+            order: Order::FirstSeen,
+            ..layout_options()
+        };
+        assert_eq!(
+            lay_on(
+                &tree_of(&six_repo()),
+                TownPlat::default(),
+                &aged,
+                100,
+                &tree_of(&six_repo())
+            )
+            .town
+            .stats
+            .lots,
+            800
+        );
+    }
+
+    #[test]
+    fn lays_a_radial_town_with_a_ring_road_and_re_sectors_for_a_newcomer() {
+        let first = lay(&tree_of(&radial_repo()), TownPlat::default());
+        assert_eq!(first.town.form, Form::Radial);
+        let mut ring: Vec<String> = RING.iter().map(|s| (*s).to_owned()).collect();
+        ring.sort_by(|a, b| compare_keys(a, b));
+        assert_eq!(first.plat.radial[""].order, ring);
+        assert!(first.town.roads.iter().any(|r| r.pts.len() == RING.len() + 1));
+        let mut more = radial_repo();
+        more.extend(sources("down", 40, 2000));
+        let grown = lay_on(
+            &tree_of(&more),
+            first.plat.clone(),
+            &layout_options(),
+            100,
+            &tree_of(&radial_repo()),
+        );
+        assert!(codes(&grown.events).contains(&"plat/radial-resector"));
+        let mut order = ring.clone();
+        order.push("down".into());
+        assert_eq!(grown.plat.radial[""].order, order);
+        let forgotten = keys_of(&grown.events, "plat/forget");
+        for key in std::iter::once("core").chain(RING) {
+            assert!(forgotten.iter().any(|k| k == key), "{key} forgotten");
+        }
+        assert_eq!(grown.town.stats.overflow, 0);
+    }
+
+    #[test]
+    fn falls_back_to_cuts_when_a_radial_ring_has_fewer_than_three_items() {
+        let mut all = sources("core", 400, 0);
+        all.extend(sources("one", 60, 500));
+        all.extend(sources("two", 60, 600));
+        let laid = lay(&tree_of(&all), TownPlat::default());
+        assert_eq!(laid.town.form, Form::Radial);
+        assert!(!laid.plat.radial.contains_key("") && laid.plat.cuts.contains_key(""));
+    }
+
+    #[test]
+    fn lays_a_twin_town_across_a_river_with_a_bridge_warped_with_the_rest() {
+        let laid = lay(&tree_of(&twin_repo()), TownPlat::default());
+        assert_eq!(laid.town.form, Form::Twin);
+        assert!(laid.plat.cuts[""].river);
+        assert_eq!((laid.town.water.len(), laid.town.stats.lots), (1, 600));
+        let warped = LayoutOptions {
+            warp: true,
+            ..layout_options()
+        };
+        let laid = lay_on(
+            &tree_of(&twin_repo()),
+            TownPlat::default(),
+            &warped,
+            100,
+            &tree_of(&twin_repo()),
+        );
+        assert!(laid.town.water[0].len() > 4);
+    }
+
+    #[test]
+    fn keeps_every_surviving_lot_in_place_when_files_are_deleted() {
+        let all = six_repo();
+        let first = lay(&tree_of(&all), TownPlat::default());
+        let kept: Vec<FileEntry> = all
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| i % 10 != 0)
+            .map(|(_, f)| f.clone())
+            .collect();
+        let second = lay_on(
+            &tree_of(&kept),
+            first.plat.clone(),
+            &layout_options(),
+            100,
+            &tree_of(&all),
+        );
+        let before = positions(&first.town);
+        for (key, pts) in positions(&second.town) {
+            assert_eq!(Some(&pts), before.get(&key));
+        }
+        assert_eq!(second.town.lots.iter().filter(|l| l.vacant).count(), 80);
+    }
+
+    #[test]
+    fn moves_only_the_folder_whose_land_a_newcomer_folder_shares() {
+        let first = lay(&tree_of(&six_repo()), TownPlat::default());
+        let mut more = six_repo();
+        more.extend(sources("g", 10, 5000));
+        let second = lay_on(
+            &tree_of(&more),
+            first.plat.clone(),
+            &layout_options(),
+            100,
+            &tree_of(&six_repo()),
+        );
+        let before = positions(&first.town);
+        let moved: BTreeSet<String> = positions(&second.town)
+            .into_iter()
+            .filter(|(key, pts)| before.get(key).is_some_and(|b| b != pts))
+            .map(|(key, _)| key.split('/').next().expect("a folder").to_owned())
+            .collect();
+        assert!(moved.len() <= 1);
+    }
+
+    #[test]
+    fn moves_a_remembered_cut_when_one_side_outgrows_its_band_and_forgets_on_a_switch() {
+        let first = lay(&tree_of(&six_repo()), TownPlat::default());
+        let mut more = six_repo();
+        more.extend(sources("a/more", 600, 5000));
+        assert!(codes(&lay(&tree_of(&more), first.plat.clone()).events).contains(&"plat/recut"));
+        let solo = lay(&tree_of(&sources("solo", 30, 0)), TownPlat::default());
+        assert!(codes(&lay(&tree_of(&six_repo()), solo.plat).events).contains(&"plat/switch"));
+    }
+
+    #[test]
+    fn cuts_a_folder_s_own_lots_and_its_docs_park_beside_its_child_folders() {
+        let mut all = sources("", 120, 0);
+        all.extend((0..40).map(|i| FileEntry::new(&format!("guide-{i}.md"), &format!("g{i}"), i)));
+        all.extend(sources("a", 150, 200));
+        all.extend(sources("b", 150, 400));
+        let laid = lay(&tree_of(&all), TownPlat::default());
+        let sides = |item: &str| {
+            laid.plat
+                .cuts
+                .values()
+                .any(|c| c.left.iter().chain(&c.right).any(|k| k == item))
+        };
+        assert!(sides("#lots") && sides("#park"));
+        assert!(laid.town.blocks.iter().any(|b| b.kind == BlockKind::Park));
+    }
+
+    #[test]
+    fn keeps_a_vacated_radial_sector_as_reserve_until_the_ring_re_sectors() {
+        let first = lay(&tree_of(&radial_repo()), TownPlat::default());
+        let without: Vec<FileEntry> = radial_repo()
+            .into_iter()
+            .filter(|f| !f.path.starts_with("up/"))
+            .collect();
+        let second = lay_on(
+            &tree_of(&without),
+            first.plat.clone(),
+            &layout_options(),
+            100,
+            &tree_of(&radial_repo()),
+        );
+        assert!(second.plat.radial[""].order.iter().any(|k| k == "up"));
+        assert!(second.town.blocks.iter().any(|b| b.kind == BlockKind::Reserve));
+    }
+
+    #[test]
+    fn counts_every_lot_as_overflow_when_the_land_is_too_small() {
+        let tree = tree_of(&sources("", 5, 0));
+        let tiny = outline_for(200, Pt::new(0, 0), "demo");
+        let laid = layout_town(
+            "demo",
+            "demo",
+            &tree,
+            &tiny,
+            TownPlat::default(),
+            &layout_options(),
+            None,
+            None,
+        );
+        assert_eq!(laid.draft.town(None).stats.overflow, 5);
+        assert!(codes(&laid.events).contains(&"town/overflow"));
+        let docs_only = tree_of(&[FileEntry::new("a.md", "a", 0)]);
+        let laid = layout_town(
+            "demo",
+            "demo",
+            &docs_only,
+            &tiny,
+            TownPlat::default(),
+            &layout_options(),
+            None,
+            None,
+        );
+        assert_eq!(codes(&laid.events), Vec::<&str>::new());
+    }
+
+    #[test]
+    fn gathers_a_hamlet_round_a_green_and_runs_a_street_village_along_a_high_street() {
+        let hamlet = lay_on(
+            &tree_of(&sources("", 20, 0)),
+            TownPlat::default(),
+            &layout_options(),
+            2000,
+            &tree_of(&sources("", 20, 0)),
+        );
+        assert_eq!(hamlet.town.form, Form::Hamlet);
+        assert!(hamlet.plat.grids[""].green.is_some());
+        assert!(hamlet.town.blocks.iter().any(|b| b.kind == BlockKind::Green));
+        let village = lay_on(
+            &tree_of(&sources("", 60, 0)),
+            TownPlat::default(),
+            &layout_options(),
+            400,
+            &tree_of(&sources("", 60, 0)),
+        );
+        assert_eq!(village.town.form, Form::StreetVillage);
+        assert!(village.plat.grids[""].high.is_some());
+        assert!(
+            village
+                .town
+                .roads
+                .iter()
+                .any(|r| r.cls == crate::constants::RoadClass::Collector)
+        );
+        let again = lay_on(
+            &tree_of(&sources("", 60, 0)),
+            village.plat.clone(),
+            &layout_options(),
+            400,
+            &tree_of(&sources("", 60, 0)),
+        );
+        let addresses = |t: &Town| t.lots.iter().map(|l| l.address.clone()).collect::<Vec<_>>();
+        assert_eq!(addresses(&again.town), addresses(&village.town));
+    }
+
+    #[test]
+    fn renews_a_neighbourhood_whose_remembered_lots_are_mostly_vacant() {
+        let mut all = sources("a", 30, 0);
+        all.extend(sources("b", 30, 100));
+        let first = lay(&tree_of(&all), TownPlat::default());
+        assert_eq!(first.town.form, Form::Neighbourhood);
+        let mut kept = sources("a", 15, 0);
+        kept.extend(sources("b", 10, 100));
+        let second = lay_on(
+            &tree_of(&kept),
+            first.plat.clone(),
+            &layout_options(),
+            100,
+            &tree_of(&all),
+        );
+        assert_eq!(second.town.form, Form::Neighbourhood);
+        assert!(codes(&second.events).contains(&"plat/renew"));
+        assert!(second.town.lots.iter().all(|l| !l.vacant));
+    }
+
+    #[test]
+    fn lays_docs_as_a_park_strip_and_counts_lots_without_room_as_overflow() {
+        let mut all = sources("", 40, 0);
+        all.extend((0..30).map(|i| FileEntry::new(&format!("guide-{i}.md"), &format!("g{i}"), i)));
+        assert!(
+            lay(&tree_of(&all), TownPlat::default())
+                .town
+                .blocks
+                .iter()
+                .any(|b| b.kind == BlockKind::Park)
+        );
+        let crowded = lay_on(
+            &tree_of(&sources("", 200, 0)),
+            TownPlat::default(),
+            &layout_options(),
+            20,
+            &tree_of(&sources("", 200, 0)),
+        );
+        assert!(crowded.town.stats.overflow > 0);
+        let overflow = crowded
+            .events
+            .iter()
+            .find(|e| e.code == "town/overflow")
+            .expect("an overflow");
+        assert!(matches!(overflow.detail[1].1, Value::Number(n) if n > 0));
+    }
+
+    #[test]
+    fn lays_no_lots_for_docs_alone() {
+        let all = files("x", 3, 0, "md", "d");
+        let laid = lay(&tree_of(&all), TownPlat::default());
+        assert_eq!(laid.town.stats.lots, 0);
+    }
+}

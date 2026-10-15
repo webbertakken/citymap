@@ -301,3 +301,66 @@ pub fn tint(district: &str) -> u32 {
 pub fn to_poly(pts: &[Pt], width: i64) -> Poly {
     Poly::uniform(pts, width)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::constants::RoadClass;
+    use crate::plat::RadialRecord;
+    use crate::testing::{layout_options, tree_of};
+
+    fn radial() -> RadialRecord {
+        RadialRecord {
+            bounds: vec![],
+            caps: crate::json::Record::new(),
+            core: "a".into(),
+            order: vec![],
+            scale_mille: 0,
+            start: 0,
+        }
+    }
+
+    #[test]
+    fn adds_a_road_only_when_there_is_one() {
+        let (options, root) = (layout_options(), tree_of(&[]));
+        let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
+        ctx.road(None, RoadClass::Street, None);
+        ctx.road(Some(vec![Pt::new(0, 0)]), RoadClass::Lane, None);
+        assert_eq!(
+            ctx.roads,
+            vec![crate::city::Road {
+                pts: vec![Pt::new(0, 0)],
+                cls: RoadClass::Lane,
+                width: None
+            }]
+        );
+    }
+
+    #[test]
+    fn forgets_a_folder_s_records_and_says_so_only_when_there_were_any() {
+        let (options, root) = (layout_options(), tree_of(&[]));
+        let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
+        ctx.forget("src");
+        assert_eq!(ctx.events, vec![]);
+        ctx.plat.forms.insert("src".into(), Form::Hamlet);
+        ctx.plat.radial.insert("src>L".into(), radial());
+        ctx.plat.radial.insert("srcx".into(), radial());
+        ctx.forget("src");
+        assert_eq!(ctx.plat.radial.keys().collect::<Vec<_>>(), ["srcx"]);
+        assert_eq!(
+            ctx.events,
+            vec![PlatEvent::new(
+                "plat/forget",
+                vec![("key", "src".into()), ("count", 1.into())]
+            )]
+        );
+        assert_eq!(ctx.events[0].line(), "plat/forget key=src count=1");
+    }
+
+    #[test]
+    fn owns_a_folder_s_own_keys_descendants_and_sub_keys_and_the_root_owns_everything() {
+        assert!(["src", "src/a", "src>L", "src#lots"].iter().all(|k| owned(k, "src")));
+        assert!(!owned("srcx", "src"));
+        assert!(owned("anything", ""));
+    }
+}

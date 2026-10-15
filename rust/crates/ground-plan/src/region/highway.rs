@@ -107,3 +107,94 @@ pub fn highway_between(from: &Town, to: &Town) -> Road {
         width: None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+    use crate::archetype::Form;
+    use crate::city::TownStats;
+
+    fn square(x: i64, size: i64) -> Vec<Pt> {
+        vec![
+            Pt::new(x, 0),
+            Pt::new(x + size, 0),
+            Pt::new(x + size, size),
+            Pt::new(x, size),
+        ]
+    }
+
+    fn town(x: i64, roads: Vec<Road>) -> Town {
+        Town {
+            key: format!("t{x}"),
+            name: format!("t{x}"),
+            form: Form::Polycentric,
+            old: false,
+            outline: square(x, 1000),
+            water: vec![],
+            roads,
+            blocks: vec![],
+            lots: vec![],
+            districts: vec![],
+            stats: TownStats::default(),
+        }
+    }
+
+    fn road(x0: i64, y0: i64, x1: i64, y1: i64, cls: RoadClass) -> Road {
+        Road {
+            pts: vec![Pt::new(x0, y0), Pt::new(x1, y1)],
+            cls,
+            width: None,
+        }
+    }
+
+    #[test]
+    fn gives_a_town_without_roads_a_street_from_its_nearest_corner_to_its_heart() {
+        let mut bare = Arc::new(town(0, vec![]));
+        with_approach(&mut bare, Pt::new(5000, 0));
+        assert_eq!(bare.roads, vec![road(1000, 0, 500, 500, RoadClass::Street)]);
+        let mut built = Arc::new(town(0, vec![road(0, 500, 1000, 500, RoadClass::Avenue)]));
+        let before = built.clone();
+        with_approach(&mut built, Pt::new(0, 0));
+        assert!(Arc::ptr_eq(&built, &before));
+    }
+
+    #[test]
+    fn keeps_the_ends_near_the_edge_or_every_end_when_none_reach_it() {
+        let ends = edge_ends(&town(0, vec![road(0, 0, 500, 500, RoadClass::Street)]));
+        assert_eq!(ends.iter().map(|e| e.p).collect::<Vec<_>>(), [Pt::new(0, 0)]);
+        assert_eq!(
+            edge_ends(&town(0, vec![road(450, 500, 550, 500, RoadClass::Street)])).len(),
+            2
+        );
+    }
+
+    #[test]
+    fn joins_the_closest_edge_ends_of_the_highest_class_both_towns_offer() {
+        let a = town(
+            0,
+            vec![
+                road(0, 0, 1000, 1000, RoadClass::Avenue),
+                road(0, 1000, 1000, 0, RoadClass::Street),
+            ],
+        );
+        let b = town(
+            3000,
+            vec![
+                road(3000, 0, 4000, 1000, RoadClass::Avenue),
+                road(3000, 1000, 4000, 0, RoadClass::Boulevard),
+            ],
+        );
+        assert_eq!(highway_between(&a, &b), road(1000, 1000, 3000, 0, RoadClass::Avenue));
+        let a = town(0, vec![road(0, 500, 1000, 500, RoadClass::Collector)]);
+        let b = town(
+            3000,
+            vec![
+                road(3000, 500, 4000, 500, RoadClass::Lane),
+                road(3500, 0, 3500, 1000, RoadClass::Avenue),
+            ],
+        );
+        assert_eq!(highway_between(&a, &b).cls, RoadClass::Collector);
+    }
+}

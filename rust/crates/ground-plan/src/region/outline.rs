@@ -35,10 +35,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn lays_an_octagon_of_about_the_target_area() {
-        let outline = outline_for(2_000_000, Pt::new(10, -10), "demo");
+    fn lays_an_octagon_of_the_given_land_about_its_centre() {
+        let outline = outline_for(2_000_000_000, Pt::new(100, -50), "demo");
         assert_eq!(outline.len(), 8);
-        let a = area2(&outline);
-        assert!((a - 2_000_000).abs() < 2_000, "{a}");
+        assert!((area2(&outline) - 2_000_000_000).abs() < 2_000_000);
+    }
+
+    #[test]
+    fn is_the_same_for_the_same_key_and_differs_between_keys() {
+        assert_eq!(
+            outline_for(10_000_000, Pt::new(0, 0), "a"),
+            outline_for(10_000_000, Pt::new(0, 0), "a")
+        );
+        assert_ne!(
+            outline_for(10_000_000, Pt::new(0, 0), "a"),
+            outline_for(10_000_000, Pt::new(0, 0), "b")
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "engine/invariant")]
+    fn rejects_negative_land() {
+        let _ = outline_for(-4, Pt::new(0, 0), "a");
     }
 }
