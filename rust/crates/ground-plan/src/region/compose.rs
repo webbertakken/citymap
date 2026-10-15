@@ -786,3 +786,362 @@ fn check_outlines(outlines: &[Vec<Pt>]) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::constants::RoadClass;
+    use crate::fold::initial_state;
+    use crate::json::canonical_json;
+    use crate::land_use::default_land_uses;
+    use crate::testing::{files, snapshot_with, sources};
+
+    fn options() -> Options {
+        Options {
+            density_pct: 50,
+            land_uses: default_land_uses(),
+            order: Order::CentreOut,
+            jog: Jog::TopLevel,
+            warp: false,
+            loops: true,
+            split: vec!["apps".into()],
+        }
+    }
+
+    fn at(index: i64, entries: &[FileEntry]) -> Snapshot {
+        Snapshot {
+            index,
+            ..snapshot_with(entries, &[], "demo")
+        }
+    }
+
+    fn manifest(folder: &str, born: i64) -> FileEntry {
+        let path = format!("{folder}/package.json");
+        FileEntry::new(&path, &format!("{path}@{born}"), born)
+    }
+
+    fn monorepo(extra: &[FileEntry]) -> Vec<FileEntry> {
+        let mut all = sources("src", 120, 0);
+        all.push(manifest("packages/a", 0));
+        all.extend(sources("packages/a", 80, 200));
+        all.push(manifest("packages/b", 0));
+        all.extend(sources("packages/b", 60, 400));
+        all.push(manifest("apps/web", 600));
+        all.extend(sources("apps/web", 50, 600));
+        all.push(manifest("apps/api", 700));
+        all.extend(sources("apps/api", 40, 700));
+        all.extend_from_slice(extra);
+        all
+    }
+
+    fn keys(city: &City) -> Vec<&str> {
+        city.towns.iter().map(|t| t.key.as_str()).collect()
+    }
+
+    fn codes(events: &[PlatEvent]) -> Vec<&'static str> {
+        events.iter().map(|e| e.code).collect()
+    }
+
+    #[test]
+    fn lays_the_main_town_at_the_origin_and_the_others_round_it_joined_by_highways() {
+        let mut state = initial_state(&options(), None, true);
+        let (city, events) = lay_city(&at(0, &monorepo(&[])), &mut state, &options()).expect("a city");
+        assert_eq!(keys(&city), ["demo", "demo/apps/api", "demo/apps/web", "demo/packages"]);
+        assert_eq!(
+            city.towns.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+            ["demo", "apps/api", "apps/web", "packages"]
+        );
+        assert_eq!(city.highways.len(), 3);
+        assert!(!codes(&events).contains(&"plat/grow"));
+        let main = centroid(&city.towns[0].outline);
+        assert!(main.x.pow(2) < 1000i64.pow(2));
+        assert!(city.towns[1..].iter().all(|t| centroid(&t.outline) != main));
+    }
+
+    #[test]
+    fn counts_land_per_town_files_without_land_and_docs() {
+        let mut list = sources("src", 30, 0);
+        list.push(FileEntry::new("src/README.md", "r", 0));
+        list.push(FileEntry::new("src/a.test.ts", "t", 0));
+        let (city, _) =
+            lay_city(&at(0, &list), &mut initial_state(&options(), None, true), &options()).expect("a city");
+        assert_eq!((city.towns[0].stats.off_land, city.towns[0].stats.docs), (1, 1));
+    }
+
+    #[test]
+    fn is_deterministic_warp_included() {
+        let warped = Options {
+            warp: true,
+            ..options()
+        };
+        let a = lay_city(&at(0, &monorepo(&[])), &mut initial_state(&warped, None, true), &warped)
+            .expect("a city")
+            .0;
+        let b = lay_city(
+            &at(0, &monorepo(&[])),
+            &mut initial_state(&warped, None, false),
+            &warped,
+        )
+        .expect("a city")
+        .0;
+        assert_eq!(canonical_json(&a).expect("json"), canonical_json(&b).expect("json"));
+        assert!(a.highways[0].pts.len() > 2);
+    }
+
+    #[test]
+    fn grows_a_town_outward_about_its_centre_without_moving_its_lots() {
+        let mut state = initial_state(&options(), None, true);
+        let (first, _) = lay_city(&at(0, &sources("", 26, 0)), &mut state, &options()).expect("a city");
+        let slots = state.plat.towns["demo"].grids[""].slots.clone();
+        let (grown, events) = lay_city(&at(1, &sources("", 39, 0)), &mut state, &options()).expect("a city");
+        assert_eq!(
+            (first.towns[0].form, grown.towns[0].form),
+            (Form::Neighbourhood, Form::Neighbourhood)
+        );
+        assert_eq!(codes(&events), ["plat/grow"]);
+        for (lot, slot) in &slots {
+            assert_eq!(state.plat.towns["demo"].grids[""].slots.get(lot), Some(slot));
+        }
+    }
+
+    #[test]
+    fn freezes_the_town_as_an_old_town_when_its_root_switches_form_lit_while_its_files_live() {
+        let six: Vec<FileEntry> = ["a", "b", "c", "d", "e", "f"]
+            .iter()
+            .zip(0..)
+            .flat_map(|(d, i)| sources(d, 100, i * 200))
+            .collect();
+        let mut state = initial_state(&options(), None, true);
+        let (first, _) = lay_city(&at(0, &six), &mut state, &options()).expect("a city");
+        assert_eq!(first.towns[0].form, Form::Polycentric);
+        let mut heavy: Vec<FileEntry> = six.iter().filter(|f| !f.path.starts_with("f/")).cloned().collect();
+        heavy.extend(sources("core", 2000, 5000));
+        let (second, events) = lay_city(&at(1, &heavy), &mut state, &options()).expect("a city");
+        assert!(codes(&events).contains(&"plat/old-town"));
+        let old = second.towns.iter().find(|t| t.old).expect("an old town");
+        assert_eq!(old.name, "demo old town");
+        assert!(old.lots.iter().any(|l| l.vacant) && old.lots.iter().any(|l| !l.vacant));
+        assert_ne!(second.highways.len(), 0);
+        // The new town holds only files the old town does not: the newcomers.
+        assert_eq!(second.towns.iter().find(|t| !t.old).expect("a town").stats.lots, 2000);
+        let mut more = heavy.clone();
+        for (d, i) in ["p", "q", "r", "s", "t", "u", "v", "w"].iter().zip(0..) {
+            more.extend(sources(d, 700, 9000 + i * 1000));
+        }
+        let (third, _) = lay_city(&at(2, &more), &mut state, &options()).expect("a city");
+        let olds: Vec<&str> = third.towns.iter().filter(|t| t.old).map(|t| t.name.as_str()).collect();
+        assert_eq!(olds, ["demo old town", "demo old town 2"]);
+        assert_eq!(keys(&third), ["demo", "demo old town", "demo old town 2"]);
+    }
+
+    #[test]
+    fn moves_between_neighbourhood_forms_in_place_without_an_old_town() {
+        let mut state = initial_state(&options(), None, true);
+        let (first, _) = lay_city(&at(0, &sources("", 10, 0)), &mut state, &options()).expect("a city");
+        let (second, _) = lay_city(&at(1, &sources("", 60, 0)), &mut state, &options()).expect("a city");
+        assert_eq!(first.towns[0].form, Form::Hamlet);
+        assert_ne!(second.towns[0].form, Form::Hamlet);
+        assert!(second.towns.iter().all(|t| !t.old));
+    }
+
+    #[test]
+    fn gives_a_town_without_roads_an_approach_street_for_its_highway() {
+        let mut list = sources("src", 3, 0);
+        list.push(manifest("packages/a", 0));
+        list.extend(sources("packages/a", 2, 0));
+        list.push(manifest("packages/b", 0));
+        list.extend(sources("packages/b", 2, 0));
+        let (city, _) =
+            lay_city(&at(0, &list), &mut initial_state(&options(), None, true), &options()).expect("a city");
+        assert_eq!(city.highways.len(), 1);
+        assert!(city.towns.iter().all(|t| !t.roads.is_empty()));
+    }
+
+    #[test]
+    fn skips_a_repository_with_no_land_at_all() {
+        let list = [FileEntry::new("a.test.ts", "a", 0)];
+        let (city, _) =
+            lay_city(&at(0, &list), &mut initial_state(&options(), None, true), &options()).expect("a city");
+        assert_eq!((city.towns.len(), city.highways.len()), (0, 0));
+    }
+
+    #[test]
+    fn keeps_group_towns_where_they_stood_and_lays_nothing_new_when_nothing_grew() {
+        let mut state = initial_state(&options(), None, true);
+        let (first, _) = lay_city(&at(0, &monorepo(&[])), &mut state, &options()).expect("a city");
+        let (again, events) = lay_city(&at(1, &monorepo(&[])), &mut state, &options()).expect("a city");
+        assert_eq!(codes(&events), Vec::<&str>::new());
+        assert_eq!(
+            canonical_json(&again.towns).expect("json"),
+            canonical_json(&first.towns).expect("json")
+        );
+    }
+
+    #[test]
+    fn rejects_a_plat_laid_for_another_setting() {
+        let mut tests = default_land_uses();
+        tests.push(LandUse::Tests);
+        let other = Options {
+            land_uses: tests,
+            ..options()
+        };
+        let error = lay_city(
+            &at(0, &sources("", 3, 0)),
+            &mut initial_state(&other, None, true),
+            &options(),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::PlatSettingMismatch);
+        let unsplit = Options {
+            split: vec![],
+            ..options()
+        };
+        let error = lay_city(
+            &at(0, &sources("", 3, 0)),
+            &mut initial_state(&unsplit, None, true),
+            &options(),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::PlatSettingMismatch);
+        assert_eq!(
+            setting_key(&Options {
+                split: vec!["packages".into(), "apps".into()],
+                ..options()
+            }),
+            format!("{}|split:apps,packages", land_key(&default_land_uses()))
+        );
+    }
+
+    #[test]
+    fn splits_the_groups_it_is_asked_to_and_keeps_a_split_group_s_own_files_home() {
+        let both = Options {
+            split: vec!["apps".into(), "packages".into()],
+            ..options()
+        };
+        let (city, _) = lay_city(&at(0, &monorepo(&[])), &mut initial_state(&both, None, true), &both).expect("a city");
+        assert_eq!(
+            keys(&city),
+            [
+                "demo",
+                "demo/apps/api",
+                "demo/apps/web",
+                "demo/packages/a",
+                "demo/packages/b"
+            ]
+        );
+        let none = Options {
+            split: vec![],
+            ..options()
+        };
+        let (city, _) = lay_city(&at(0, &monorepo(&[])), &mut initial_state(&none, None, true), &none).expect("a city");
+        assert_eq!(keys(&city), ["demo", "demo/apps", "demo/packages"]);
+        let shared = monorepo(&sources("apps/shared", 20, 900));
+        let (city, _) =
+            lay_city(&at(0, &shared), &mut initial_state(&options(), None, true), &options()).expect("a city");
+        assert_eq!(
+            city.towns[0]
+                .lots
+                .iter()
+                .filter(|l| l.path.starts_with("apps/shared/"))
+                .count(),
+            20
+        );
+    }
+
+    #[test]
+    fn takes_members_from_the_manifests_when_the_snapshot_carries_them() {
+        let declared = Snapshot {
+            workspaces: Some(Arc::new(vec![
+                "apps/web".into(),
+                "packages/a".into(),
+                "packages/b".into(),
+            ])),
+            ..at(0, &monorepo(&[]))
+        };
+        let (city, _) = lay_city(&declared, &mut initial_state(&options(), None, true), &options()).expect("a city");
+        assert_eq!(keys(&city), ["demo", "demo/packages"]);
+    }
+
+    #[test]
+    fn rejects_a_city_reaching_past_the_coordinate_limit() {
+        let town = |x: i64| {
+            let (mut city, _) = lay_city(
+                &at(0, &sources("", 3, 0)),
+                &mut initial_state(&options(), None, false),
+                &options(),
+            )
+            .expect("a city");
+            let mut town = Arc::unwrap_or_clone(city.towns.remove(0));
+            town.outline = vec![Pt::new(x, 0)];
+            Arc::new(town)
+        };
+        assert!(check_extent(&[town(COORD_LIMIT - 1), town(-(COORD_LIMIT - 1))], &[]).is_ok());
+        assert_eq!(
+            check_extent(&[town(COORD_LIMIT)], &[]).unwrap_err().code,
+            ErrorCode::CityTooLarge
+        );
+        let highway = Road {
+            cls: RoadClass::Street,
+            pts: vec![Pt::new(0, -COORD_LIMIT)],
+            width: None,
+        };
+        assert_eq!(check_extent(&[], &[highway]).unwrap_err().code, ErrorCode::CityTooLarge);
+    }
+
+    #[test]
+    fn joins_nearby_dead_ends_with_short_lanes_by_default_and_never_inverts_a_cut() {
+        let paths = include_str!("../../../../../packages/ground-plan/src/testing/react-head-paths.txt");
+        let list: Vec<FileEntry> = paths
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|p| FileEntry::new(p, p, 0))
+            .collect();
+        let snapshot = snapshot_with(&list, &[], "react");
+        let lanes = |loops: bool| {
+            let options = Options { loops, ..options() };
+            let (city, _) = lay_city(&snapshot, &mut initial_state(&options, None, true), &options).expect("a city");
+            city.towns
+                .iter()
+                .flat_map(|t| {
+                    t.roads
+                        .iter()
+                        .filter(|r| r.cls == RoadClass::Lane)
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+        };
+        let off = lanes(false);
+        let added: Vec<Road> = lanes(true).into_iter().filter(|l| !off.contains(l)).collect();
+        assert_ne!(added.len(), 0);
+        assert!(
+            added
+                .iter()
+                .all(|l| (l.pts[0].x - l.pts[1].x).pow(2) + (l.pts[0].y - l.pts[1].y).pow(2)
+                    <= crate::town::connectors::LOOP_REACH.pow(2))
+        );
+        let mut state = initial_state(&options(), None, true);
+        lay_city(&snapshot, &mut state, &options()).expect("a city");
+        for town in state.plat.towns.values() {
+            for (key, cut) in &town.cuts {
+                if let Some((parent, _)) = key.rsplit_once('>')
+                    && let Some(parent) = town.cuts.get(parent)
+                {
+                    assert!(
+                        cut.cls.rank() <= parent.cls.rank(),
+                        "{key}: {:?} under {:?}",
+                        cut.cls,
+                        parent.cls
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn finds_the_files_under_a_root_as_a_range() {
+        let list = files("x", 2, 0, "ts", "f");
+        assert_eq!(under(&list, "x"), 0..2);
+        assert_eq!(under(&list, "y"), 2..2);
+    }
+}

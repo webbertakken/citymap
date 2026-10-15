@@ -585,6 +585,202 @@ fn pinwheel<'t>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::plat::TownPlat;
+    use crate::testing::{layout_options, lots_item, rect, tree_of};
+    use crate::town::context::{Ctx, Value};
+
+    fn codes(ctx: &Ctx) -> Vec<&'static str> {
+        ctx.events.iter().map(|e| e.code).collect()
+    }
+
+    fn detail<'e>(ctx: &'e Ctx, i: usize, key: &str) -> &'e Value {
+        &ctx.events[i]
+            .detail
+            .iter()
+            .find(|(k, _)| *k == key)
+            .expect("a detail")
+            .1
+    }
+
+    #[test]
+    fn moves_a_remembered_cut_when_one_side_starves_while_the_other_has_room() {
+        let (options, root) = (layout_options(), tree_of(&[]));
+        let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
+        let items = [lots_item("a", 1000), lots_item("b", 1000)];
+        let c = decide(&mut ctx, &items, &rect(1000, 1000), 2000, true, "k", None, None, None)
+            .expect("a cut")
+            .rec
+            .c;
+        // The land grows fourfold on both axes: the absolute line now leaves one side an eighth of it.
+        let moved = decide(&mut ctx, &items, &rect(4000, 4000), 2000, true, "k", None, None, None).expect("a cut");
+        assert_eq!(codes(&ctx), ["plat/recut"]);
+        assert_eq!(detail(&ctx, 0, "reason"), &Value::from("starved"));
+        assert_ne!(moved.rec.c, c);
+        // Once the land is shared as the demand is, the cut stays put.
+        let _ = decide(&mut ctx, &items, &rect(4000, 4000), 2000, true, "k", None, None, None);
+        assert_eq!(ctx.events.len(), 1);
+    }
+
+    #[test]
+    fn keeps_a_remembered_cut_while_each_side_is_within_its_band() {
+        let (options, root) = (layout_options(), tree_of(&[]));
+        let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
+        let items = [lots_item("a", 1000), lots_item("b", 1000)];
+        let c = decide(&mut ctx, &items, &rect(1000, 1000), 2000, true, "k", None, None, None)
+            .expect("a cut")
+            .rec
+            .c;
+        let kept = decide(&mut ctx, &items, &rect(1100, 1100), 2000, true, "k", None, None, None).expect("a cut");
+        assert_eq!(codes(&ctx), Vec::<&str>::new());
+        assert_eq!(kept.rec.c, c);
+    }
+
+    #[test]
+    fn reclasses_a_remembered_cut_by_the_band_and_leaves_a_river_alone() {
+        let (options, root) = (layout_options(), tree_of(&[]));
+        let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
+        let pair = [lots_item("a", 1000), lots_item("b", 1000)];
+        let cls = |ctx: &mut Ctx, mass: i64, first: bool, key: &str| {
+            decide(ctx, &pair, &rect(1000, 1000), mass, first, key, None, None, None)
+                .expect("a cut")
+                .rec
+                .cls
+        };
+        assert_eq!(cls(&mut ctx, 20_000, true, "k"), RoadClass::Street);
+        assert_eq!(cls(&mut ctx, 37_499, true, "k"), RoadClass::Street);
+        assert_eq!(cls(&mut ctx, 37_500, true, "k"), RoadClass::Collector);
+        assert_eq!(cls(&mut ctx, 24_000, true, "k"), RoadClass::Collector);
+        assert_eq!(cls(&mut ctx, 23_999, true, "k"), RoadClass::Street);
+        assert_eq!(codes(&ctx), ["plat/reclass", "plat/reclass"]);
+        let _ = cls(&mut ctx, 1000, true, "first");
+        assert_eq!(cls(&mut ctx, 4_000_000, true, "first"), RoadClass::Boulevard);
+        let _ = cls(&mut ctx, 1000, false, "later");
+        assert_eq!(cls(&mut ctx, 4_000_000, false, "later"), RoadClass::Avenue);
+        let banks: (&[Item], &[Item]) = (&pair[..1], &pair[1..]);
+        let _ = decide(
+            &mut ctx,
+            &pair,
+            &rect(1000, 1000),
+            1000,
+            true,
+            "river",
+            None,
+            Some(banks),
+            None,
+        );
+        let river = decide(
+            &mut ctx,
+            &pair,
+            &rect(1000, 1000),
+            4_000_000,
+            true,
+            "river",
+            None,
+            Some(banks),
+            None,
+        );
+        assert_eq!(river.expect("a river").rec.cls, RoadClass::Street);
+    }
+
+    #[test]
+    fn reserves_the_right_of_way_at_the_top_of_the_band_and_lays_it_again_when_the_cut_moves() {
+        let (options, root) = (layout_options(), tree_of(&[]));
+        let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
+        let pair = [lots_item("a", 1000), lots_item("b", 1000)];
+        let first = decide(&mut ctx, &pair, &rect(1000, 1000), 25_000, true, "k", None, None, None).expect("a cut");
+        assert_eq!(
+            (first.rec.cls, first.rec.row),
+            (RoadClass::Street, Some(RoadClass::Collector))
+        );
+        assert_eq!(carriageway(&first.rec), (RoadClass::Street, None));
+        let grown = decide(&mut ctx, &pair, &rect(1000, 1000), 400_000, true, "k", None, None, None).expect("a cut");
+        assert_eq!(
+            (grown.rec.cls, grown.rec.row),
+            (RoadClass::Avenue, Some(RoadClass::Collector))
+        );
+        assert_eq!(
+            carriageway(&grown.rec),
+            (RoadClass::Avenue, Some(RoadClass::Collector.width()))
+        );
+        let heavy = [lots_item("a", 5000), lots_item("b", 1000)];
+        let moved = decide(
+            &mut ctx,
+            &heavy,
+            &rect(1000, 1000),
+            400_000,
+            true,
+            "k",
+            None,
+            None,
+            None,
+        )
+        .expect("a cut");
+        assert_eq!(moved.rec.row, Some(RoadClass::Avenue));
+        assert_eq!(
+            CutRecord {
+                row: None,
+                ..moved.rec.clone()
+            }
+            .right_of_way(),
+            moved.rec.cls
+        );
+        split(&mut ctx, &pair, &rect(1000, 1000), 400_000, true, "s", "d", None);
+        let mut fresh = Ctx::new(&options, TownPlat::default(), &root, 0);
+        let _ = decide(
+            &mut fresh,
+            &pair,
+            &rect(1000, 1000),
+            25_000,
+            true,
+            "k",
+            None,
+            None,
+            None,
+        );
+        split(&mut fresh, &pair, &rect(1000, 1000), 400_000, true, "k", "d", None);
+        assert!(
+            fresh
+                .roads
+                .iter()
+                .any(|r| r.cls == RoadClass::Avenue && r.width == Some(RoadClass::Collector.width()))
+        );
+    }
+
+    #[test]
+    fn recuts_a_side_short_of_its_share_of_the_folder_and_only_then() {
+        let (options, root) = (layout_options(), tree_of(&[]));
+        let laid_at_45 = || {
+            let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
+            let uneven = [lots_item("a", 900), lots_item("b", 1100)];
+            let _ = decide(&mut ctx, &uneven, &rect(1000, 1000), 2000, true, "k", None, None, None);
+            ctx
+        };
+        let even = [lots_item("a", 1000), lots_item("b", 1000)];
+        let land2 = 2 * 1000 * 1000;
+        let mut short = laid_at_45();
+        let before = short.plat.cuts["k"].c;
+        let share = Some(Share {
+            land2: 2 * land2,
+            demand: 2000,
+        });
+        let moved = decide(&mut short, &even, &rect(1000, 1000), 2000, true, "k", None, None, share).expect("a cut");
+        assert_eq!(codes(&short), ["plat/recut"]);
+        assert_eq!(detail(&short, 0, "reason"), &Value::from("starved"));
+        assert_ne!(moved.rec.c, before);
+        let mut within = laid_at_45();
+        let _ = decide(
+            &mut within,
+            &even,
+            &rect(1000, 1000),
+            2000,
+            true,
+            "k",
+            None,
+            None,
+            Some(Share { land2, demand: 2000 }),
+        );
+        assert_eq!(codes(&within), Vec::<&str>::new());
+    }
 
     #[test]
     fn trims_a_segment_to_a_band_along_a_direction() {

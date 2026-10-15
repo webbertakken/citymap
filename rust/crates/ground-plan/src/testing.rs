@@ -73,3 +73,28 @@ pub fn tree_of(entries: &[FileEntry]) -> TreeNode {
 pub fn rect(w: i64, h: i64) -> Poly {
     Poly::uniform(&[Pt::new(0, 0), Pt::new(w, 0), Pt::new(w, h), Pt::new(0, h)], 0)
 }
+
+/// The layout options the town tests use: plain, unwarped.
+pub fn layout_options() -> crate::town::context::LayoutOptions {
+    crate::town::context::LayoutOptions {
+        order: crate::town::context::Order::CentreOut,
+        jog: crate::town::context::Jog::TopLevel,
+        warp: false,
+        density_pct: 50,
+        loops: true,
+    }
+}
+
+/// An item standing for lots of the given demand.
+pub fn lots_item(key: &str, demand: i64) -> crate::town::context::Item<'static> {
+    crate::town::context::Item {
+        key: key.into(),
+        demand,
+        mass_mille: 1000,
+        first_seen: 0,
+        kind: crate::town::context::ItemKind::Lots {
+            lots: &[],
+            district: "d".into(),
+        },
+    }
+}
