@@ -56,6 +56,26 @@ Every change to the ground plan is judged on these repositories, in order of imp
 11. [rust-lang/rust](https://github.com/rust-lang/rust)
 12. [torvalds/linux](https://github.com/torvalds/linux), the performance benchmark.
 
+A breadth corpus guards against tuning to the reference repositories: every change is also checked on these, chosen for
+their spread of languages, shapes and ages.
+
+- [golang/go](https://github.com/golang/go): a deep standard library, no workspace, history from 2008.
+- [django/django](https://github.com/django/django): a classic single application with a large test tree.
+- [rails/rails](https://github.com/rails/rails): gems at the root, history from 2004.
+- [vuejs/core](https://github.com/vuejs/core): a pnpm monorepo of packages.
+- [denoland/deno](https://github.com/denoland/deno): a Cargo workspace.
+- [spring-projects/spring-boot](https://github.com/spring-projects/spring-boot): a Gradle multi-module of deep Java
+  packages.
+- [flutter/flutter](https://github.com/flutter/flutter): packages, tools and examples in one repository.
+- [ohmyzsh/ohmyzsh](https://github.com/ohmyzsh/ohmyzsh): hundreds of sibling plugins.
+- [bitcoin/bitcoin](https://github.com/bitcoin/bitcoin): a long C++ history.
+- [kubernetes/kubernetes](https://github.com/kubernetes/kubernetes): very large, with vendored and staged code.
+
+A scale corpus confirms performance and large runs, and shows a single state of a very large repository (its HEAD laid
+once) rather than its whole history: [torvalds/linux](https://github.com/torvalds/linux),
+[microsoft/vscode](https://github.com/microsoft/vscode) and [godotengine/godot](https://github.com/godotengine/godot).
+It is also the yardstick for a later Rust port of the CLI.
+
 ## Technical constraints
 
 - TypeScript first, run with Bun; a later Rust port must reproduce the same plan.

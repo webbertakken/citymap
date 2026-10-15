@@ -6,6 +6,7 @@ import { judgeTown } from "./morphometrics.ts";
 
 /** The public repositories the corpus pass lays at HEAD. */
 export const CORPUS = [
+  // The reference corpus (its public members).
   "takken.io",
   "redux",
   "game-ci-cli",
@@ -14,6 +15,22 @@ export const CORPUS = [
   "next.js",
   "home-assistant",
   "typescript",
+  "rust",
+  // The breadth corpus: other languages, shapes and ages, so no rule is tuned to the few above.
+  "go",
+  "django",
+  "rails",
+  "vue",
+  "deno",
+  "spring-boot",
+  "flutter",
+  "ohmyzsh",
+  "bitcoin",
+  "kubernetes",
+  // The scale corpus: very large trees, so no rule is tuned to repositories of a modest size.
+  "linux",
+  "vscode",
+  "godot",
 ];
 
 export interface Totals {

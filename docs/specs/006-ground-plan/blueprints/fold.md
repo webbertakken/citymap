@@ -81,7 +81,8 @@ Each run ends with one summary line: `fold/done repository=… commits=… lots=
 
 - Budgets on the development machine, measured by `bun run bench` (growth checks, not absolute ceilings in CI): lay one
   HEAD snapshot of next.js (~30 k files) under 400 ms; home-assistant under 600 ms; a 1,200-commit react fold under 20 s
-  with the locality cache; linux HEAD under 5 s and its full fold cached incrementally on disk.
+  with the locality cache; linux HEAD under 5 s and its full fold cached incrementally on disk; the rest of the scale
+  corpus at HEAD, vscode (~20 k files) under 800 ms and godot (~14 k files) under 400 ms.
 - `bun run bench` (`scripts/bench`) reads the repositories under `~/.cache/citymap/repos` (or `$CITYMAP_REPOS`). A HEAD
   lay is timed on a snapshot of `git ls-tree -r HEAD` (files only, every one born at commit 0), built before the clock
   starts; the figure is the median of five lays from an empty plat, so it says what a lay costs rather than what

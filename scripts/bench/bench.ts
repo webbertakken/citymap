@@ -23,7 +23,10 @@ export const BUDGETS: readonly Budget[] = [
   { name: "next.js HEAD", repo: "next.js", kind: "head", ms: 400 },
   { name: "home-assistant HEAD", repo: "home-assistant", kind: "head", ms: 600 },
   { name: "react fold of 1,200 commits", repo: "react", kind: "fold", commits: 1200, ms: 20_000 },
+  // The scale corpus: single states of very large repositories.
   { name: "linux HEAD", repo: "linux", kind: "head", ms: 5_000 },
+  { name: "vscode HEAD", repo: "vscode", kind: "head", ms: 800 },
+  { name: "godot HEAD", repo: "godot", kind: "head", ms: 400 },
 ];
 
 export interface Ports {

@@ -78,6 +78,8 @@ describe("bench", () => {
       ["home-assistant HEAD", 600],
       ["react fold of 1,200 commits", 20_000],
       ["linux HEAD", 5_000],
+      ["vscode HEAD", 800],
+      ["godot HEAD", 400],
     ]);
   });
 });
