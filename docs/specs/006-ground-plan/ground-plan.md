@@ -130,7 +130,9 @@ therefore readable as distance from the core, and newcomers join the edges.
   at the last cut). A newcomer joins the side with more spare band. A side left empty lends its land to the other side,
   which extends over it; the cut stays remembered and nothing already laid moves. A cut moves, to the split of today's
   demand, only when a side outgrows its band, or when the land around it changed shape so far that one side's land falls
-  below its share of the demand by more than the band. This holds at every level, the top two folder levels included.
+  below its share of the demand by more than the band, measured against its sibling and against its folder's land as a
+  whole (so small shortfalls at every level of a folder of many children cannot add up). This holds at every level, the
+  top two folder levels included.
 - The plat remembers every neighbourhood: its grid origin, angle and pitch, its lot class, its park line, and the slot
   of every lot; a park line that no longer crosses its land is laid afresh, and so is one whose park grew over the land
   the lots need, when they no longer fit and a fresh line seats them. Lots keep their slots; a newcomer takes the first

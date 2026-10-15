@@ -38,6 +38,26 @@ function starved(poly: Poly, r: CutRecord, dl: number, dr: number): boolean {
   return short(left, dl) || short(right, dr);
 }
 
+/** A folder's land (doubled) and demand, as its top cut found them: what every cut below is measured against. */
+export interface Share {
+  readonly land2: number;
+  readonly demand: number;
+}
+
+/**
+ * True when a side's land, after its half of the right of way, is short of its share of the folder's land by more than
+ * the band. Shortfalls within the band at every level of a folder's cut tree would otherwise compound (a folder of many
+ * children is cut a dozen levels deep).
+ */
+function belowShare(poly: Poly, r: CutRecord, dl: number, dr: number, share: Share): boolean {
+  const width = ROAD_WIDTH[rightOfWay(r)];
+  const left = BigInt(area2(clip(poly, r.n, r.c, width).p));
+  const right = BigInt(area2(clip(poly, negate(r.n), -r.c, width).p));
+  const [land, demand, band] = [BigInt(share.land2), BigInt(share.demand), BigInt(GROWTH_PCT)];
+  const short = (side: bigint, own: number) => side * demand * band < BigInt(own) * land * 100n;
+  return short(left, dl) || short(right, dr);
+}
+
 /** The class whose width a cut's land was laid at; a cut laid before rights of way existed has its own class. */
 export const rightOfWay = (rec: { readonly cls: RoadClass; readonly row?: RoadClass }) => rec.row ?? rec.cls;
 
@@ -122,6 +142,7 @@ export function decide(
   key: string,
   forced?: Dir,
   assign?: [Item[], Item[]],
+  share?: Share,
 ): Decision | null {
   let rec = ctx.plat.cuts[key];
   if (rec) {
@@ -178,7 +199,11 @@ export function decide(
     const dl = demandOn("L");
     const dr = demandOn("R");
     const outgrown = dl > r.capLeft || dr > r.capRight;
-    if (outgrown || (dl > 0 && dr > 0 && starved(poly, r, dl, dr))) {
+    const both = dl > 0 && dr > 0;
+    // Short of its share of the folder's land, a side recuts where today's split would move the line.
+    const short =
+      both && share !== undefined && belowShare(poly, r, dl, dr, share) && offsetFor(poly, r.n, dl, dl + dr) !== r.c;
+    if (outgrown || (both && (starved(poly, r, dl, dr) || short))) {
       if (dl > 0 && dr > 0) {
         emit(ctx, "plat/recut", {
           key,
@@ -217,17 +242,20 @@ export function split(
   first: boolean,
   key: string,
   district: string,
+  fair?: Share,
 ) {
-  const decision = decide(ctx, items, poly, massMille, first, key);
+  // A folder's top cut sets the share every cut below it is measured against.
+  const share = first || !fair ? { land2: area2(poly.p), demand: demandOf(items) } : fair;
+  const decision = decide(ctx, items, poly, massMille, first, key, undefined, undefined, share);
   if (!decision) return place(ctx, poly, items[0]!, district);
-  if (pinwheel(ctx, decision, poly, key, district)) return;
+  if (pinwheel(ctx, decision, poly, key, district, share)) return;
   const { rec: r, left, right } = decision;
   const major = isMajor(r.cls);
   if (left.length === 0 || right.length === 0) {
     // A side left empty lends its land: the other side extends over the whole of it under its own key. Cuts and
     // grids are absolute, so nothing already laid moves; the vacated land becomes room to grow.
     const [part, sub] = left.length > 0 ? [left, `${key}>L`] : [right, `${key}>R`];
-    return split(ctx, part, poly, massOf(part), false, sub, major ? seedKey(sub) : district);
+    return split(ctx, part, poly, massOf(part), false, sub, major ? seedKey(sub) : district, share);
   }
   const drawn = carriageway(r);
   road(ctx, chord(poly.p, r.n, r.c), drawn.cls, drawn.width);
@@ -241,6 +269,7 @@ export function split(
     false,
     `${key}>L`,
     major ? seedKey(`${key}>L`) : district,
+    share,
   );
   split(
     ctx,
@@ -250,6 +279,7 @@ export function split(
     false,
     `${key}>R`,
     major ? seedKey(`${key}>R`) : district,
+    share,
   );
 }
 
@@ -283,7 +313,7 @@ export const diameterOf = (landArea2: number) => 2 * isqrt(floorDiv(landArea2 * 
  * A long cut whose sides each split again becomes a pinwheel: both cross cuts square to it, the cut stepping sideways
  * between them, four roads ending in T-junctions round a plaza. Every piece is the land within two half-planes.
  */
-function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, district: string): boolean {
+function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, district: string, share: Share): boolean {
   const { rec: r, left, right } = decision;
   const rootPath = ctx.root.path;
   if (ctx.options.jog === "off" || left.length < 2 || right.length < 2) return false;
@@ -294,8 +324,18 @@ function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, distric
   if (length * 1000 < LONG_CUT_MILLE * diameterOf(ctx.landArea2)) return false;
   const m = perp(r.n);
   // Both sides hold two or more items, so both decide a cut.
-  const below = decide(ctx, left, clip(poly, r.n, r.c, 0), massOf(left), false, `${key}>L`, m)!;
-  const above = decide(ctx, right, clip(poly, negate(r.n), -r.c, 0), massOf(right), false, `${key}>R`, m)!;
+  const below = decide(ctx, left, clip(poly, r.n, r.c, 0), massOf(left), false, `${key}>L`, m, undefined, share)!;
+  const above = decide(
+    ctx,
+    right,
+    clip(poly, negate(r.n), -r.c, 0),
+    massOf(right),
+    false,
+    `${key}>R`,
+    m,
+    undefined,
+    share,
+  )!;
   // Square to the main cut: parallel to m within 0.01 % (compared with |m|², as table directions are not exactly DIRECTION long).
   const square = (rec: CutRecord) => (rec.n[0] * m[0] + rec.n[1] * m[1]) * 10_000 >= (m[0] * m[0] + m[1] * m[1]) * 9999;
   if (!square(below.rec) || !square(above.rec)) return false;
@@ -341,7 +381,7 @@ function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, distric
   const sideDistrict = (side: string) => (major ? seedKey(side) : district);
   for (const [part, piece, sub, rec] of pieces) {
     const side = sub.slice(0, -2);
-    split(ctx, part, piece, massOf(part), false, sub, isMajor(rec.cls) ? seedKey(sub) : sideDistrict(side));
+    split(ctx, part, piece, massOf(part), false, sub, isMajor(rec.cls) ? seedKey(sub) : sideDistrict(side), share);
   }
   return true;
 }

@@ -84,7 +84,10 @@ top-level cut, the only one that jogs by default; `forced`: a normal replacing t
   exceeds its cap and both sides hold demand, log `plat/recut` (`reason=outgrown`) and move `c` to today's split with
   new caps; when one side is empty, raise the caps only. When both sides hold demand and the land the line leaves one
   side has fallen below its share of the demand shrunk by the band (`land × demand × GROWTH_PCT < own × total × 100`, in
-  BigInt), the land around the line changed shape: log `plat/recut` (`reason=starved`) and move `c` the same way.
+  BigInt), the land around the line changed shape: log `plat/recut` (`reason=starved`) and move `c` the same way. The
+  same holds against the folder: `split` carries the folder's `Share` (its top cut's land, doubled, and demand) down its
+  cut tree and through pinwheels; a side whose land after its half of the right of way × share.demand × `GROWTH_PCT` <
+  its demand × share.land2 × 100 is short of its share, and the cut recuts when today's split would move its line.
 
 `split(items, poly, mass, top, key, district)`: decide; one item places it (folder: partition, own lots: neighbourhood,
 park: park). Otherwise try the pinwheel; else emit the chord as a road of the cut's class (when both sides hold items),

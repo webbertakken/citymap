@@ -109,3 +109,37 @@ describe("decide rights of way", () => {
     expect(moved.rec.row).toBe(moved.rec.cls);
   });
 });
+
+describe("decide against its folder's share", () => {
+  // A cut laid at 45 % for 900 against 1,100, whose sides now ask for equal land: within the band of each other, so only
+  // the folder's share can move it.
+  const laidAt45 = () => {
+    const ctx = emptyCtx();
+    decide(ctx, [item("a", 900), item("b", 1100)], rect(1000, 1000), 2000, true, "k");
+    return ctx;
+  };
+  const even = [item("a", 1000), item("b", 1000)];
+  const land2 = 2 * 1000 * 1000;
+
+  it("recuts a side short of its share of the folder's land by more than the band", () => {
+    const ctx = laidAt45();
+    const before = ctx.plat.cuts.k!.c;
+    // The folder holds twice this cut's land for the same demand: each side here is half its share.
+    const moved = decide(ctx, even, rect(1000, 1000), 2000, true, "k", undefined, undefined, {
+      land2: 2 * land2,
+      demand: 2000,
+    })!;
+    expect(ctx.events.map((e) => [e.code, e.detail.reason])).toEqual([["plat/recut", "starved"]]);
+    expect(moved.rec.c).not.toBe(before);
+  });
+
+  it("leaves a cut within the band of its share, and one whose line would not move", () => {
+    const within = laidAt45();
+    decide(within, even, rect(1000, 1000), 2000, true, "k", undefined, undefined, { land2, demand: 2000 });
+    expect(within.events).toEqual([]);
+    const halved = emptyCtx();
+    decide(halved, even, rect(1000, 1000), 2000, true, "k");
+    decide(halved, even, rect(1000, 1000), 2000, true, "k", undefined, undefined, { land2: 8 * land2, demand: 2000 });
+    expect(halved.events).toEqual([]);
+  });
+});
