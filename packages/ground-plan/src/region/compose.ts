@@ -10,10 +10,10 @@ import { centroid, type Pt } from "../fixed/polygon";
 import { densify, warper } from "../fixed/warp";
 import { classifyLandUse, landKey, type LandUse } from "../land-use/land-use";
 import { emptyTownPlat, type OldTown, type Plat } from "../plat/plat";
-import { MAX_FILES, type Snapshot } from "../snapshot/snapshot";
+import { MAX_FILES, type FileEntry, type Snapshot } from "../snapshot/snapshot";
 import type { PlatEvent, TownCache } from "../town/context";
 import { layoutTown } from "../town/layout";
-import { buildTree } from "../tree/tree";
+import { buildTree, type Shares, type TreeOptions } from "../tree/tree";
 import { workspaceGroups, workspaceMembers } from "../workspace/workspace";
 import { highwayBetween, withApproach } from "./highway";
 import { outlineFor } from "./outline";
@@ -117,6 +117,68 @@ export function checkExtent(
     });
 }
 
+/** Built trees, kept per file list: a commit that leaves the files and the shares as they were builds the same tree. */
+const trees = new WeakMap<readonly FileEntry[], Map<string, { shares: Shares; folders: unknown; built: Built }>>();
+const NO_SHARES: Shares = {};
+type Built = ReturnType<typeof buildTree>;
+
+function treeOf(
+  snapshot: Snapshot,
+  files: readonly FileEntry[],
+  options: TreeOptions,
+  shares: Shares,
+  useOf: (path: string) => LandUse,
+): Built {
+  const key = `${options.root}|${options.exclude.join(",")}|${options.landUses.join(",")}|${options.densityPct}`;
+  const byKey = trees.get(files) ?? new Map();
+  trees.set(files, byKey);
+  const kept = byKey.get(key);
+  if (kept && kept.shares === shares && kept.folders === snapshot.folderFirstSeen) return kept.built;
+  const built = buildTree({ ...snapshot, files }, options, shares, useOf);
+  byKey.set(key, { shares, folders: snapshot.folderFirstSeen, built });
+  return built;
+}
+
+/** The files no old town holds, kept per old-town list so the same list comes back while nothing changed. */
+const outside = new WeakMap<readonly OldTown[], { files: readonly FileEntry[]; kept: readonly FileEntry[] }>();
+function filesOutside(files: readonly FileEntry[], old: readonly OldTown[] | undefined): readonly FileEntry[] {
+  if (!old) return files;
+  const known = outside.get(old);
+  if (known && known.files === files) return known.kept;
+  const held = new Set(old.flatMap((o) => Object.values(o.members).flat()));
+  const kept = files.filter((f) => !held.has(f.identity));
+  outside.set(old, { files, kept });
+  return kept;
+}
+
+interface Derived {
+  readonly workspaces: readonly string[] | undefined;
+  readonly useOf: (path: string) => LandUse;
+  readonly groups: readonly string[];
+  readonly memberFolders: readonly string[];
+  readonly live: ReadonlySet<string>;
+}
+/** What a file list says on its own, kept per list: a commit that only edits files hands over the same list. */
+const derived = new WeakMap<readonly FileEntry[], Derived>();
+
+function derive(snapshot: Snapshot): Derived {
+  const kept = derived.get(snapshot.files);
+  if (kept && kept.workspaces === snapshot.workspaces) return kept;
+  // Each path's land use, classified once for every tree a lay builds.
+  const uses = new Map(snapshot.files.map((f) => [f.path, classifyLandUse(f.path)]));
+  const useOf = (path: string) => uses.get(path)!;
+  const paths = snapshot.files.map((f) => f.path);
+  const fresh: Derived = {
+    workspaces: snapshot.workspaces,
+    useOf,
+    groups: workspaceGroups(paths, useOf, snapshot.workspaces),
+    memberFolders: workspaceMembers(paths, snapshot.workspaces),
+    live: new Set(snapshot.files.map((f) => f.identity)),
+  };
+  derived.set(snapshot.files, fresh);
+  return fresh;
+}
+
 export function layCity(
   snapshot: Snapshot,
   state: FoldState,
@@ -139,14 +201,9 @@ export function layCity(
     old: { ...state.plat.old },
     rootForms: { ...state.plat.rootForms },
   };
-  // Each path's land use, classified once for every tree this lay builds.
-  const uses = new Map(snapshot.files.map((f) => [f.path, classifyLandUse(f.path)]));
-  const useOf = (path: string) => uses.get(path)!;
+  const { useOf, groups, memberFolders, live } = derive(snapshot);
   const last: Record<string, Town> = { ...state.last };
   const events: PlatEvent[] = [];
-  const paths = snapshot.files.map((f) => f.path);
-  const groups = workspaceGroups(paths, useOf, snapshot.workspaces);
-  const memberFolders = workspaceMembers(paths, snapshot.workspaces);
   const split = options.split ?? DEFAULT_SPLIT;
   const isSplit = (group: string) => split.includes(group) || split.includes(group.slice(group.lastIndexOf("/") + 1));
   const firstSeen = (folder: string) => snapshot.folderFirstSeen.get(folder) ?? 0;
@@ -158,7 +215,6 @@ export function layCity(
       .map((t) => ({ name: t, key: `${snapshot.repository}/${t}`, root: t, exclude: [], firstSeen: firstSeen(t) }))
       .toSorted((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.name, b.name)),
   ];
-  const live = new Set(snapshot.files.map((f) => f.identity));
   const treeOptions = (part: Part) => ({
     root: part.root,
     exclude: part.exclude,
@@ -168,20 +224,19 @@ export function layCity(
 
   // Each part's tree, without the files its old towns hold; a root switch first freezes the town as it stood.
   const laidParts = parts.flatMap((part) => {
-    const heldBy = (p: string) => new Set((plat.old[p] ?? []).flatMap((o) => Object.values(o.members).flat()));
-    const treeFor = () => {
-      const held = heldBy(part.key);
-      const files = held.size > 0 ? snapshot.files.filter((f) => !held.has(f.identity)) : snapshot.files;
-      return buildTree(
-        { ...snapshot, files },
+    const treeFor = () =>
+      treeOf(
+        snapshot,
+        filesOutside(snapshot.files, plat.old[part.key]),
         treeOptions(part),
         (plat.towns[part.key] ?? emptyTownPlat()).shares,
         useOf,
       );
-    };
     let built = treeFor();
     // The root's form is judged over the whole part, old towns' files included; without old towns that is this tree.
-    const whole = plat.old[part.key] ? buildTree(snapshot, treeOptions(part), {}, useOf).tree : built.tree;
+    const whole = plat.old[part.key]
+      ? treeOf(snapshot, snapshot.files, treeOptions(part), NO_SHARES, useOf).tree
+      : built.tree;
     const previous = plat.rootForms[part.key];
     const rootForm: Form = classifyNode(whole, previous);
     plat.rootForms[part.key] = rootForm;

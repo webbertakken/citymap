@@ -60,8 +60,13 @@ describe("loopConnectors", () => {
     const roads = [street([0, 0], [1000, 0]), street([1100, 0], [2000, 0])];
     // An edge lying on the lane's line and overlapping it.
     expect(loopConnectors(roads, [square(1040, 0, 40)], outline)).toEqual([]);
-    // An edge on the same line but past the lane's end.
-    expect(loopConnectors(roads, [square(1150, 0, 40)], outline)).toHaveLength(1);
+    // An edge on the same line but past the lane's end, in a shape whose box still meets the lane's.
+    const beyond = [
+      { x: 1110, y: 0 },
+      { x: 1150, y: 0 },
+      { x: 1050, y: 40 },
+    ];
+    expect(loopConnectors(roads, [beyond], outline)).toHaveLength(1);
     // A shape holding the whole lane, its edges never crossed.
     expect(loopConnectors(roads, [square(900, -300, 600)], outline)).toEqual([]);
   });

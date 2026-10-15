@@ -104,6 +104,11 @@ describe("layCity", () => {
     expect(third.city.towns.filter((t) => t.old).map((t) => t.name)).toEqual(["demo old town", "demo old town 2"]);
     // Every town has a key of its own, an old town's made as its name is.
     expect(third.city.towns.map((t) => t.key)).toEqual(["demo", "demo old town", "demo old town 2"]);
+    // The same snapshot laid again, as a commit that only edits files is: the same city.
+    const again = at(1, heavy);
+    const once = layCity(again, first.state, OPTIONS);
+    expect(layCity(again, first.state, OPTIONS).city).toEqual(once.city);
+    expect(layCity(again, once.state, OPTIONS).city).toEqual(layCity(at(1, heavy), once.state, OPTIONS).city);
   });
 
   it("moves between neighbourhood forms in place, without an old town", () => {

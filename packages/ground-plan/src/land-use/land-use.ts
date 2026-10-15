@@ -1,5 +1,6 @@
 import { roundDiv } from "../fixed/arithmetic";
 import { compareKeys } from "../fixed/hash";
+import { remembering } from "../memo";
 
 /** The role of a file, from path rules; earlier rules win. */
 export type LandUse =
@@ -111,7 +112,7 @@ const TEST_FILE = /(\.(test|spec)\.[cm]?[jt]sx?$|_test\.(go|py|rs)$|^test_.*\.py
 const SNAPSHOT_FILE = /\.(snap|stderr|stdout|baseline)$/;
 
 /** The land use of a path, from its folders and file name alone (binary files are assets by extension). */
-export function classifyLandUse(path: string): LandUse {
+function classify(path: string): LandUse {
   const segments = path.split("/");
   const file = segments.pop()!;
   const folders = segments.map((segment) => segment.toLowerCase());
@@ -127,3 +128,6 @@ export function classifyLandUse(path: string): LandUse {
   if (CONFIG_EXT.test(file) || file.startsWith(".")) return "config";
   return "source";
 }
+
+/** `classify`, remembered for a million paths: every commit asks again about the same paths. */
+export const classifyLandUse = remembering(classify, 1 << 20);

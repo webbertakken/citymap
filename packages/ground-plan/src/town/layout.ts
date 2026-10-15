@@ -75,7 +75,8 @@ export function layoutTown(
   }
   const ctx: Ctx = {
     options,
-    plat: structuredClone(plat),
+    // Layout never changes a town's shares (its tree made them): they are kept, and the rest copied.
+    plat: { ...structuredClone({ ...plat, shares: {} }), shares: plat.shares },
     root,
     rootForm,
     events: [],

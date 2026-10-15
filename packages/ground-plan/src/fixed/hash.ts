@@ -1,9 +1,19 @@
 const encoder = new TextEncoder();
 
-/** 32-bit FNV-1a over the key's UTF-8 bytes, unsigned. */
+/** 32-bit FNV-1a over the key's UTF-8 bytes, unsigned. ASCII keys are their own UTF-8, so they skip the encoding. */
 export function fnv1a(key: string): number {
   let h = 0x811c9dc5;
-  for (const byte of encoder.encode(key)) h = Math.imul(h ^ byte, 0x01000193) >>> 0;
+  for (let i = 0; i < key.length; i++) {
+    const unit = key.charCodeAt(i);
+    if (unit >= 0x80) return fnv1aBytes(encoder.encode(key));
+    h = Math.imul(h ^ unit, 0x01000193) >>> 0;
+  }
+  return h;
+}
+
+function fnv1aBytes(bytes: Uint8Array): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i++) h = Math.imul(h ^ bytes[i]!, 0x01000193) >>> 0;
   return h;
 }
 

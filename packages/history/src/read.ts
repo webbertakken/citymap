@@ -62,7 +62,10 @@ interface Live {
 const encoder = new TextEncoder();
 const folderOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")));
 
-/** Applies one commit to the tree state: deletions, exact renames (equal blobs, paired in path order), additions. */
+/**
+ * Applies one commit to the tree state: deletions, exact renames (equal blobs, paired in path order), additions. True
+ * when the set of files changed; a commit that only edits files leaves it as it was.
+ */
 function apply(
   state: Map<string, Live>,
   folders: Map<string, number>,
@@ -70,7 +73,7 @@ function apply(
   commit: RawCommit,
   index: number,
   onEvent: (event: HistoryEvent) => void,
-) {
+): boolean {
   const deleted = new Map<string, Live[]>();
   const added: RawEntry[] = [];
   for (const entry of commit.entries) {
@@ -112,25 +115,29 @@ function apply(
       if (folder === "") break;
     }
   }
+  return deleted.size > 0 || added.length > 0;
 }
+
+/** The files of the tree state, sorted, as the snapshot holds them. */
+const filesOf = (state: Map<string, Live>): FileEntry[] =>
+  [...state]
+    .toSorted(([a], [b]) => compareKeys(a, b))
+    .map(([path, live]) => ({ path, identity: live.identity, firstSeen: live.firstSeen }));
 
 function snapshotOf(
   repository: string,
   sha: string,
   index: number,
-  state: Map<string, Live>,
-  folders: Map<string, number>,
+  files: readonly FileEntry[],
+  folders: ReadonlyMap<string, number>,
   workspaces: readonly string[] | undefined,
 ): Snapshot {
-  const files: FileEntry[] = [...state]
-    .toSorted(([a], [b]) => compareKeys(a, b))
-    .map(([path, live]) => ({ path, identity: live.identity, firstSeen: live.firstSeen }));
   return {
     repository,
     commit: sha,
     index,
     files,
-    folderFirstSeen: new Map(folders),
+    folderFirstSeen: folders,
     ...(workspaces === undefined ? {} : { workspaces }),
   };
 }
@@ -193,6 +200,10 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
   const workspaces = new Workspaces();
   const blobs = new BlobReader(dir);
   let index = 0;
+  // The files and folders as last handed over: a commit that leaves the file set as it was hands over the same ones, so
+  // what the layout derives from them can be kept (snapshots are immutable; nothing mutates these).
+  let files: readonly FileEntry[] | null = null;
+  let folderMap: ReadonlyMap<string, number> | null = null;
   const decoder = new TextDecoder();
   let rest = "";
   // Commits are complete once the next header arrives; buffer tokens and hand over each finished commit.
@@ -204,9 +215,12 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
     // The manifests these commits need, read in one pass before their snapshots are built.
     const texts = await blobs.readAll(workspaces.wanted(commits, index, from));
     for (const commit of commits) {
-      apply(state, folders, workspaces, commit, index, onEvent);
-      if (index >= from)
-        yield snapshotOf(repository, commit.sha, index, state, folders, workspaces.resolve(texts, index, onEvent));
+      if (apply(state, folders, workspaces, commit, index, onEvent)) [files, folderMap] = [null, null];
+      if (index >= from) {
+        files ??= filesOf(state);
+        folderMap ??= new Map(folders);
+        yield snapshotOf(repository, commit.sha, index, files, folderMap, workspaces.resolve(texts, index, onEvent));
+      }
       index++;
     }
     pending = pending.slice(cut);

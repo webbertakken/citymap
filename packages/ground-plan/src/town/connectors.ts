@@ -2,6 +2,7 @@
 import type { Road } from "../city/city";
 import { PAVEMENT, U, roadWidth } from "../constants";
 import type { Pt } from "../fixed/polygon";
+import { Grid, boxOf } from "./grid";
 
 /** Two dead ends at most this far apart are joined: three street widths. */
 export const LOOP_REACH = 3 * U;
@@ -74,30 +75,43 @@ export function loopConnectors(
   shapes: readonly (readonly Pt[])[],
   outline: readonly Pt[],
 ): Road[] {
+  // Each road under the box its touching distance reaches; each end then checks only the roads near it.
+  const reach = new Grid(4 * U);
+  for (const road of roads) reach.add(boxOf(road.pts, roadWidth(road) / 2 + TOUCH));
   const ends = roads.flatMap((road, r) =>
     road.cls === "street" || road.cls === "lane"
       ? [road.pts[0]!, road.pts[road.pts.length - 1]!]
           .filter(
             (p) =>
-              !roads.some((other, o) => o !== r && nearPath(p, other.pts, roadWidth(other) / 2 + TOUCH)) &&
+              !reach
+                .near(boxOf([p]))
+                .some((o) => o !== r && nearPath(p, roads[o]!.pts, roadWidth(roads[o]!) / 2 + TOUCH)) &&
               !nearPath(p, outline, EDGE, true),
           )
           .map((p) => ({ p, r }))
       : [],
   );
+  const endGrid = new Grid(LOOP_REACH);
+  for (const e of ends) endGrid.add(boxOf([e.p]));
   const pairs = ends.flatMap((e, i) =>
-    ends.slice(i + 1).flatMap((f, k) => {
-      const d2 = dot(sub(e.p, f.p), sub(e.p, f.p));
-      return e.r !== f.r && d2 > 0 && d2 <= LOOP_REACH * LOOP_REACH ? [{ i, j: i + 1 + k, d2 }] : [];
-    }),
+    endGrid
+      .near(boxOf([e.p], LOOP_REACH))
+      .filter((j) => j > i)
+      .flatMap((j) => {
+        const f = ends[j]!;
+        const d2 = dot(sub(e.p, f.p), sub(e.p, f.p));
+        return e.r !== f.r && d2 > 0 && d2 <= LOOP_REACH * LOOP_REACH ? [{ i, j, d2 }] : [];
+      }),
   );
+  const shapeGrid = new Grid(4 * U);
+  for (const shape of shapes) shapeGrid.add(boxOf(shape));
   const used = new Set<number>();
   const lanes: Road[] = [];
   // Closest first; the sort is stable, so pairs equally far apart keep the order of their ends.
   for (const { i, j } of pairs.toSorted((a, b) => a.d2 - b.d2)) {
     if (used.has(i) || used.has(j)) continue;
     const [a, b] = [ends[i]!.p, ends[j]!.p];
-    if (shapes.some((shape) => crosses(a, b, shape))) continue;
+    if (shapeGrid.near(boxOf([a, b])).some((k) => crosses(a, b, shapes[k]!))) continue;
     used.add(i).add(j);
     lanes.push({ pts: [a, b], cls: "lane" });
   }
