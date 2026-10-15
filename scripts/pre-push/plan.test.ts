@@ -109,4 +109,14 @@ describe("prePushPlan", () => {
       args: ["a.sh", "b.bash", ".husky/pre-push"],
     });
   });
+
+  it("checks the Rust workspace when Rust or the golden towns it replays change", () => {
+    expect(step(["rust/crates/cli/src/main.rs"], "rust")).toEqual({
+      label: "rust",
+      command: "bun",
+      args: ["run", "rust:check"],
+    });
+    expect(labels(["packages/ground-plan/src/town/__golden__/twin.json"])).toContain("rust");
+    expect(labels(["src/rust.ts", "trust/a.rs"])).not.toContain("rust");
+  });
 });

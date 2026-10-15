@@ -96,6 +96,39 @@ jobs:
           disable_search: true
           fail_ci_if_error: false
 
+  # The Rust implementation of the CLI (rust/): rustfmt, clippy with warnings as errors, and the tests, parity
+  # fixtures included. `bun run rust:check` runs the same locally.
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Rust, with rustfmt and clippy, is pinned in mise.toml (and in rust/rust-toolchain.toml for rustup).
+      - name: Set up Rust
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          install_args: rust
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+
+      # Builds are cached per lockfile; only runs on main write the cache, so pull requests share one.
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: rust
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Format, clippy and tests
+        run: bun run rust:check
+
   # ---------------------------------------------------------------------------------------------------------------------
   # LATER: the web app (apps/web), once it exists. Two jobs beside the ones above, each with the same set-up steps.
   #

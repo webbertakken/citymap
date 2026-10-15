@@ -81,10 +81,10 @@ Branch `feat/rust-engine` in the worktree `../citymap-rust`.
 
 ## Phase 8: gate
 
-- [ ] `bun run rust:check`; pre-commit runs it for staged `.rs` files; pre-push for pushes that change Rust
-- [ ] CI job: format, clippy, tests
-- [ ] `docs/instructions/development.md`
-- [ ] Commit
+- [x] `bun run rust:check`; pre-commit runs it for staged `.rs` files; pre-push for pushes that change Rust
+- [x] CI job: format, clippy, tests
+- [x] `docs/instructions/development.md`
+- [x] Commit
 
 ## Phase 9: fold-back and pull request
 
