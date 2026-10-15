@@ -148,3 +148,157 @@ pub fn city_regions(city: &City) -> Vec<Vec<Region>> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+    use crate::archetype::Form;
+    use crate::city::{Lot, TownStats};
+    use crate::land_use::LandUse;
+
+    fn square(x: i64, y: i64, s: i64) -> Vec<Pt> {
+        vec![
+            Pt::new(x, y),
+            Pt::new(x + s, y),
+            Pt::new(x + s, y + s),
+            Pt::new(x, y + s),
+        ]
+    }
+
+    fn lot(path: &str, x: i64, y: i64, vacant: bool) -> Lot {
+        Lot {
+            pts: square(x, y, 32),
+            key: path.into(),
+            address: path.into(),
+            vacant,
+            path: if vacant { String::new() } else { path.into() },
+            land_use: LandUse::Source,
+            district: 0,
+            form: None,
+        }
+    }
+
+    fn town(key: &str, lots: Vec<Lot>, old: bool) -> Arc<Town> {
+        Arc::new(Town {
+            key: key.into(),
+            name: key.into(),
+            form: Form::Polycentric,
+            old,
+            outline: square(0, 0, 2000),
+            water: vec![],
+            roads: vec![],
+            blocks: vec![],
+            lots,
+            districts: vec![],
+            stats: TownStats::default(),
+        })
+    }
+
+    fn grid(folder: &str, x0: i64, x1: i64) -> Vec<Lot> {
+        (0..30)
+            .map(|i| {
+                lot(
+                    &format!("{folder}/f{i}.ts"),
+                    x0 + (i * 97) % (x1 - x0 - 40),
+                    100 + (i * 61) % 1700,
+                    false,
+                )
+            })
+            .collect()
+    }
+
+    fn inside(p: Pt, pts: &[Pt]) -> bool {
+        let mut odd = false;
+        let mut j = pts.len() - 1;
+        for i in 0..pts.len() {
+            let (a, b) = (pts[i], pts[j]);
+            #[allow(clippy::cast_precision_loss)]
+            let cross = ((b.x - a.x) * (p.y - a.y)) as f64 / (b.y - a.y) as f64 + a.x as f64;
+            #[allow(clippy::cast_precision_loss)]
+            if (a.y > p.y) != (b.y > p.y) && (p.x as f64) < cross {
+                odd = !odd;
+            }
+            j = i;
+        }
+        odd
+    }
+
+    fn centre(l: &Lot) -> Pt {
+        Pt::new(l.pts[0].x + 16, l.pts[0].y + 16)
+    }
+
+    fn city(towns: Vec<Arc<Town>>) -> City {
+        City {
+            repository: "demo".into(),
+            commit: "c".into(),
+            highways: vec![],
+            towns,
+        }
+    }
+
+    #[test]
+    fn gives_each_top_level_folder_the_land_nearer_its_lots_inside_the_town() {
+        let mut lots = grid("lib", 100, 900);
+        lots.extend(grid("src", 1100, 1900));
+        lots.push(lot("src/gone.ts", 1500, 900, true));
+        let city = city(vec![town("demo", lots, false)]);
+        let regions = &city_regions(&city)[0];
+        assert_eq!(
+            regions.iter().map(|r| r.path.as_str()).collect::<Vec<_>>(),
+            ["lib", "src"]
+        );
+        for region in regions {
+            assert!(area2(&region.pts) > 0);
+            assert!(
+                region
+                    .pts
+                    .iter()
+                    .all(|p| (0..=2000).contains(&p.x) && (0..=2000).contains(&p.y))
+            );
+        }
+        assert!(
+            grid("lib", 100, 900)
+                .iter()
+                .all(|l| inside(centre(l), &regions[0].pts) && !inside(centre(l), &regions[1].pts))
+        );
+        assert!(
+            grid("src", 1100, 1900)
+                .iter()
+                .all(|l| inside(centre(l), &regions[1].pts))
+        );
+        assert_eq!(city_regions(&city), city_regions(&city));
+    }
+
+    #[test]
+    fn takes_a_split_town_s_folders_below_its_root_and_leaves_old_towns_without() {
+        let mut lots = grid("apps/web/app", 100, 900);
+        lots.extend(grid("apps/web/lib", 1100, 1900));
+        let regions = city_regions(&city(vec![
+            town("demo/apps/web", lots, false),
+            town("demo old town", grid("x", 100, 900), true),
+        ]));
+        assert_eq!(
+            regions[0].iter().map(|r| r.path.as_str()).collect::<Vec<_>>(),
+            ["apps/web/app", "apps/web/lib"]
+        );
+        assert_eq!(regions[1], vec![]);
+    }
+
+    #[test]
+    fn gives_one_folder_one_region_two_lots_on_one_spot_one_point_and_no_lots_none() {
+        let mut twice = grid("lib", 100, 1900);
+        twice.push(Lot {
+            key: "twin".into(),
+            path: "lib/twin.ts".into(),
+            ..grid("lib", 100, 1900)[0].clone()
+        });
+        let regions = city_regions(&city(vec![
+            town("demo", twice, false),
+            town("demo/empty", vec![], false),
+        ]));
+        assert_eq!(regions[0].iter().map(|r| r.path.as_str()).collect::<Vec<_>>(), ["lib"]);
+        assert_eq!(regions[1], vec![]);
+    }
+}

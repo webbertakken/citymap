@@ -353,3 +353,28 @@ mod parity {
         assert!(count > 7000);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::colour::contrast;
+
+    #[test]
+    fn keeps_labels_and_header_text_at_wcag_aa_contrast() {
+        for name in ThemeName::ALL {
+            let t = Theme::of(name);
+            assert!(contrast(&t.text, &t.halo) >= 4.5, "{name:?} text");
+            assert!(contrast(&t.header_text, &t.header) >= 4.5, "{name:?} header");
+            assert!(contrast(&t.sub_text, &t.header) >= 4.5, "{name:?} subtitle");
+        }
+    }
+
+    #[test]
+    fn spreads_district_hues_clear_of_park_green_the_root_warm() {
+        assert!((hue_of(fnv1a("")) - 60.0).abs() < f64::EPSILON);
+        for d in (0..2000).step_by(7) {
+            let h = hue_of(d);
+            assert!(!(95.0..165.0).contains(&h), "{d}: {h}");
+        }
+    }
+}

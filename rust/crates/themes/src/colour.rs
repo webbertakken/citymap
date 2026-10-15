@@ -69,3 +69,22 @@ pub fn contrast(a: &str, b: &str) -> f64 {
     let (x, y) = (luminance(a), luminance(b));
     (x.max(y) + 0.05) / (x.min(y) + 0.05)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn converts_oklch_to_srgb_clipped_to_the_gamut() {
+        assert_eq!(oklch(1.0, 0.0, 0.0), "#ffffff");
+        assert_eq!(oklch(0.0, 0.0, 0.0), "#000000");
+        assert_eq!(oklch(0.7, 0.4, 140.0).len(), 7);
+    }
+
+    #[test]
+    fn mixes_two_colours_and_measures_contrast_as_wcag_does() {
+        assert_eq!(mix("#000000", "#ffffff", 0.5), "#808080");
+        assert!((contrast("#000000", "#ffffff") - 21.0).abs() < 1e-5);
+        assert!((contrast("#ffffff", "#ffffff") - 1.0).abs() < f64::EPSILON);
+    }
+}

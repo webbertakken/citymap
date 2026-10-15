@@ -183,6 +183,104 @@ mod tests {
         }
     }
 
+    fn path(pts: &[(i64, i64)]) -> Road {
+        Road {
+            cls: RoadClass::Street,
+            pts: pts.iter().map(|&(x, y)| Pt::new(x, y)).collect(),
+            width: None,
+        }
+    }
+
+    fn square(x: i64, y: i64, s: i64) -> Vec<Pt> {
+        vec![
+            Pt::new(x, y),
+            Pt::new(x + s, y),
+            Pt::new(x + s, y + s),
+            Pt::new(x, y + s),
+        ]
+    }
+
+    fn lanes(roads: &[Road], shapes: &[Vec<Pt>]) -> Vec<Vec<Pt>> {
+        let shapes: Vec<&[Pt]> = shapes.iter().map(Vec::as_slice).collect();
+        loop_connectors(roads, &shapes, &square(-5000, -5000, 10_000))
+            .into_iter()
+            .map(|l| l.pts)
+            .collect()
+    }
+
+    #[test]
+    fn leaves_an_end_that_meets_another_road_one_at_the_edge_and_ends_too_far_apart() {
+        assert_eq!(
+            lanes(&[street((0, 0), (1000, 0)), street((1000, -500), (1000, 500))], &[]).len(),
+            0
+        );
+        assert_eq!(
+            lanes(&[street((4900, 0), (4990, 0)), street((4990, 100), (4900, 100))], &[]).len(),
+            0
+        );
+        assert_eq!(
+            lanes(&[street((0, 0), (1000, 0)), street((1300, 0), (2000, 0))], &[]).len(),
+            0
+        );
+    }
+
+    #[test]
+    fn never_joins_a_road_to_itself_and_gives_each_end_one_lane_to_its_nearest() {
+        assert_eq!(
+            lanes(&[path(&[(0, 0), (1000, 0), (1000, 100), (100, 100)])], &[]).len(),
+            0
+        );
+        let three = [
+            street((0, 0), (1000, 0)),
+            street((1100, 0), (2000, 0)),
+            street((1050, 150), (1050, 1000)),
+        ];
+        assert_eq!(lanes(&three, &[]), vec![vec![Pt::new(1000, 0), Pt::new(1100, 0)]]);
+    }
+
+    #[test]
+    fn draws_no_lane_across_a_shape_and_leaves_major_roads_ends_alone() {
+        let roads = [street((0, 0), (1000, 0)), street((1100, 0), (2000, 0))];
+        assert_eq!(lanes(&roads, &[square(1040, -20, 40)]).len(), 0);
+        assert_eq!(lanes(&roads, &[square(1040, 40, 40)]).len(), 1);
+        assert_eq!(lanes(&roads, &[square(1040, 0, 40)]).len(), 0);
+        assert_eq!(
+            lanes(&roads, &[vec![Pt::new(1110, 0), Pt::new(1150, 0), Pt::new(1050, 40)]]).len(),
+            1
+        );
+        assert_eq!(lanes(&roads, &[square(900, -300, 600)]).len(), 0);
+        let major = [
+            Road {
+                cls: RoadClass::Avenue,
+                ..roads[0].clone()
+            },
+            roads[1].clone(),
+        ];
+        assert_eq!(lanes(&major, &[]).len(), 0);
+    }
+
+    #[test]
+    fn measures_a_road_of_one_point_and_the_far_end_of_a_road() {
+        assert_eq!(
+            lanes(&[street((1040, 20), (1040, 20)), street((0, 0), (1000, 0))], &[]).len(),
+            0
+        );
+        assert_eq!(
+            lanes(&[street((0, 0), (1000, 0)), street((1020, 0), (1020, 900))], &[]).len(),
+            0
+        );
+    }
+
+    #[test]
+    fn settles_ends_equally_far_apart_by_the_order_of_their_roads() {
+        let roads = [
+            street((0, 0), (1000, 0)),
+            street((1100, 0), (1100, 600)),
+            street((1200, 0), (2000, 0)),
+        ];
+        assert_eq!(lanes(&roads, &[]), vec![vec![Pt::new(1000, 0), Pt::new(1100, 0)]]);
+    }
+
     #[test]
     fn joins_nearby_dead_ends_of_different_roads() {
         let outline = [
