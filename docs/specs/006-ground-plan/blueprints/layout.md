@@ -131,7 +131,8 @@ recurse as `path>L`, `path>R` with their own district seeds.
 
 1. Park strip: when `parkDemand > 0`, a remembered line along the longest edge's normal leaves
    `min(600 ‰, parkDemand / area)` of the land as park beyond a lane. A remembered line that no longer crosses the land
-   is laid afresh.
+   is laid afresh, and so is one that still crosses it but leaves the lots no land at all (`plat/repark`), when a fresh
+   line leaves them some.
 2. Land = `inset(poly, PAVEMENT)`; empty land counts every lot as overflow (`town/overflow`).
 3. Grid (remembered `GridRecord`): direction of the land's longest edge; origin and pitch fit the land:
    `rows = max(1, roundDiv(across + 64, BLOCK_SHORT + 64))`, `cols` likewise with `BLOCK_LONG`; pitches are

@@ -369,6 +369,24 @@ describe("neighbourhood edge cases", () => {
     expect(grown.events.map((e) => e.code)).not.toContain("plat/repark");
   });
 
+  it("lays its park line afresh when the remembered one leaves the lots no land at all", () => {
+    const first = emptyCtx();
+    neighbourhood(first, box(0, 0, 1200, 900), seeds(10), 3000, "k", "d", "neighbourhood");
+    const { n, c } = first.plat.grids.k!.park!;
+    // Lots lie where n·p ≤ c. Move the land so only a sliver thinner than the pavement is on that side.
+    expect(n).toEqual([0, 4096]);
+    const edge = Math.floor(c / 4096);
+    const moved = { ...emptyCtx(), plat: first.plat };
+    neighbourhood(moved, box(0, edge - 6, 1200, 2000), seeds(10), 3000, "k", "d", "neighbourhood");
+    expect(moved.events.map((e) => e.code)).toContain("plat/repark");
+    expect(moved.overflow).toBe(0);
+    expect(moved.lots).toHaveLength(10);
+    // A sliver no park line can leave land on: nothing to lay afresh, every lot without room.
+    const sliver = { ...emptyCtx(), plat: first.plat };
+    neighbourhood(sliver, box(0, edge - 6, 1200, 12), seeds(10), 3000, "k", "d", "neighbourhood");
+    expect(sliver.events.map((e) => e.code)).toEqual(["town/overflow"]);
+  });
+
   it("keeps a remembered park line while the lots fit", () => {
     const first = emptyCtx();
     neighbourhood(first, box(0, 0, 1200, 900), seeds(10), 3000, "k", "d", "neighbourhood");

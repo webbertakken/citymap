@@ -152,6 +152,9 @@ function layGrid(g: GridRecord, land: readonly Pt[]): Laid {
   return { cells, rows: [rMin, rMax], cols: [cMin, cMax], slotsFor };
 }
 
+/** True for land too small to lay anything on. */
+const empty = (pts: readonly Pt[]) => pts.length < 3 || area2(pts) < 2;
+
 /** A neighbourhood's land split by its park line: the line, the park strip, and the land left for lots. */
 function parkSplit(
   raw: Poly,
@@ -192,8 +195,16 @@ export function neighbourhood(
   // A remembered park line is kept while it crosses the land; one that no longer does is laid afresh.
   const rememberedPark = grid?.park && chord(raw.p, grid.park.n, grid.park.c) ? grid.park : null;
   let split = parkSplit(raw, parkDemand, rememberedPark);
+  if (rememberedPark && empty(split.land)) {
+    // The land moved under a remembered park line until the line leaves the lots nothing: lay it afresh.
+    const fresh = parkSplit(raw, parkDemand, null);
+    if (!empty(fresh.land)) {
+      emit(ctx, "plat/repark", { key });
+      split = fresh;
+    }
+  }
   let land = split.land;
-  if (land.length < 3 || area2(land) < 2) {
+  if (empty(land)) {
     pushPark(ctx, split.strip, district);
     ctx.overflow += lots.length;
     if (lots.length > 0) emit(ctx, "town/overflow", { key, count: lots.length });
