@@ -34,8 +34,9 @@ test("starts in Night atlas because the system prefers dark", async ({ page }) =
 test("switches city, view and theme", async ({ page }) => {
   await page.getByLabel("City", { exact: true }).selectOption("redux.json");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("redux");
-  await page.getByRole("button", { name: "Plan" }).click();
   await expect(page.getByRole("button", { name: "Plan" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Dimetric" }).click();
+  await expect(page.getByRole("button", { name: "Dimetric" })).toHaveAttribute("aria-pressed", "true");
   await page.getByLabel("Theme").selectOption("dracula");
   await expect(page.locator("main")).toHaveAttribute("data-theme", "dracula");
 });

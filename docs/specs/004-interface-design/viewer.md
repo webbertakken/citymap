@@ -11,7 +11,7 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
    dropping it on the page.
 3. Or they name any public GitHub repository (`owner/name`, or its URL) and see its city at its default branch, laid in
    their browser in seconds; a link carries the repository, so it can be shared.
-4. They look around: pan, zoom, and switch between the 2:1 dimetric view and the plan view.
+4. They look around: pan, zoom, and switch between the plan view, where they start, and the 2:1 dimetric view.
 5. They change the theme; the viewer starts in Paper atlas, or in Night atlas when the system prefers dark.
 6. They read the city: town and district names on the map, and the same names as a list beside it.
 
@@ -42,8 +42,8 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
 ## Map
 
 - One scene: town grounds, blocks, roads (casing and fill), water, parks and plazas flat; lots as low plinths.
-- The camera is orthographic. Dimetric: 30° elevation, 45° yaw. Plan: straight down. Switching keeps the centre and the
-  zoom.
+- The camera is orthographic. Plan, the default: straight down. Dimetric: 30° elevation, 45° yaw. Switching keeps the
+  centre and the zoom.
 - Pan by dragging or the arrow keys; zoom by the wheel, a pinch, or `+` and `-`; `0` fits the city to the window.
 - Town names and the largest district names float over the map as text, never as images, and never overlap.
 - Styles are the five themes of the ground plan; the viewer and the SVG export share their colours.

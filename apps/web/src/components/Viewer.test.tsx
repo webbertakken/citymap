@@ -89,9 +89,11 @@ describe("Viewer", () => {
     await screen.findByRole("heading", { level: 1, name: "alpha" });
     fireEvent.change(screen.getByLabelText("City"), { target: { value: "beta.json" } });
     expect(await screen.findByRole("heading", { level: 1, name: "beta" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Plan" }));
+    // Plan view is the default; the switch goes to dimetric and back.
     expect(screen.getByRole("button", { name: "Plan" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByTestId("canvas").textContent).toMatch(/^plan /);
+    fireEvent.click(screen.getByRole("button", { name: "Dimetric" }));
+    expect(screen.getByTestId("canvas").textContent).toMatch(/^dimetric /);
     fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dracula" } });
     expect(screen.getByTestId("canvas").textContent).toMatch(/Dracula$/);
   });
@@ -228,13 +230,13 @@ describe("Viewer, rendered elsewhere", () => {
     expect(html).toContain('data-theme="paper-atlas"');
   });
 
-  it("fetches from the browser by default, and switches back to dimetric", async () => {
+  it("fetches from the browser by default, and switches back to plan", async () => {
     vi.stubGlobal("fetch", fetcher);
     render(<Viewer Canvas={StubCanvas} />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });
-    fireEvent.click(screen.getByRole("button", { name: "Plan" }));
     fireEvent.click(screen.getByRole("button", { name: "Dimetric" }));
-    expect(read()).toMatch(/^dimetric /);
+    fireEvent.click(screen.getByRole("button", { name: "Plan" }));
+    expect(read()).toMatch(/^plan /);
     vi.unstubAllGlobals();
   });
 });
@@ -243,19 +245,22 @@ describe("Viewer fitting", () => {
   it("keeps a new city fitted to the map as it is measured, until the person moves it", async () => {
     let width = 800;
     const box = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => width);
-    render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
-    const map = await screen.findByRole("application");
-    const first = read();
-    width = 1600;
-    fireEvent(window, new Event("resize"));
-    const wider = read();
-    expect(wider).not.toBe(first);
-    fireEvent.keyDown(map, { key: "ArrowRight" });
-    const moved = read();
-    width = 400;
-    fireEvent(window, new Event("resize"));
-    expect(read()).toBe(moved);
-    box.mockRestore();
+    try {
+      render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
+      const map = await screen.findByRole("application");
+      const first = read();
+      // This square city is fitted by its height in plan view: a narrower window refits it.
+      width = 400;
+      fireEvent(window, new Event("resize"));
+      expect(read()).not.toBe(first);
+      fireEvent.keyDown(map, { key: "ArrowRight" });
+      const moved = read();
+      width = 300;
+      fireEvent(window, new Event("resize"));
+      expect(read()).toBe(moved);
+    } finally {
+      box.mockRestore();
+    }
   });
 });
 

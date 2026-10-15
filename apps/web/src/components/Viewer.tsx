@@ -63,10 +63,10 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const [chosen, setTheme] = useState<ThemeName | null>(null);
   const dark = useSyncExternalStore(subscribeDark, darkNow, darkOnServer);
   const theme: ThemeName = chosen ?? (dark ? "night-atlas" : "paper-atlas");
-  const [mode, setMode] = useState<Mode>("dimetric");
+  const [mode, setMode] = useState<Mode>("plan");
   const [viewport, setViewport] = useState<Viewport>({ width: 800, height: 600 });
   // The view the person moved to; while `fitted`, the view is derived instead, fitting what is shown to the map.
-  const [moved, setMoved] = useState<View>({ mode: "dimetric", centre: { x: 0, z: 0 }, zoom: 1 });
+  const [moved, setMoved] = useState<View>({ mode: "plan", centre: { x: 0, z: 0 }, zoom: 1 });
   // A newly opened city or town stays fitted to the map, whatever size the map turns out to be, until the person moves it.
   const [fitted, setFitted] = useState(true);
   // Drill down: the key of the one town shown, or null for the whole city.
