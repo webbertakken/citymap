@@ -422,3 +422,208 @@ mod tests {
         assert_eq!(built.tree.mass_mille, 2000);
     }
 }
+
+#[cfg(test)]
+mod ported {
+    use super::*;
+    use crate::constants::RoadClass;
+    use crate::land_use::{classify_land_use, default_land_uses};
+    use crate::testing::snapshot_with;
+
+    fn at(path: &str, first_seen: i64) -> FileEntry {
+        FileEntry::new(path, &format!("{path}@{first_seen}"), first_seen)
+    }
+
+    fn options() -> TreeOptions {
+        TreeOptions {
+            root: String::new(),
+            exclude: vec![],
+            land_uses: default_land_uses(),
+            density_pct: 50,
+        }
+    }
+
+    fn build(files: &[FileEntry], folders: &[(&str, i64)], options: &TreeOptions, shares: &Shares) -> Built {
+        let snapshot = snapshot_with(files, folders, "demo");
+        build_tree(&snapshot, &snapshot.files, options, shares, &|_, f| {
+            classify_land_use(&f.path)
+        })
+    }
+
+    fn find<'t>(node: &'t TreeNode, path: &str) -> Option<&'t TreeNode> {
+        if &*node.path == path {
+            Some(node)
+        } else {
+            node.children.iter().find_map(|c| find(c, path))
+        }
+    }
+
+    fn paths(nodes: &[TreeNode]) -> Vec<&str> {
+        nodes.iter().map(|c| &*c.path).collect()
+    }
+
+    #[test]
+    fn is_the_square_of_the_lots_land_over_density_plus_a_road_margin() {
+        assert_eq!(land_for(LOT_AREA, 50), (110 + 88) * (110 + 88));
+    }
+
+    #[test]
+    fn names_the_root_after_the_repository_and_sorts_children_by_path() {
+        let built = build(
+            &[at("b/x.ts", 0), at("a/y.ts", 0), at("a/z.ts", 0)],
+            &[],
+            &options(),
+            &Shares::new(),
+        );
+        assert_eq!(built.tree.name, "demo");
+        assert_eq!(paths(&built.tree.children), ["a", "b"]);
+    }
+
+    #[test]
+    fn keeps_tests_off_the_land_and_docs_as_parks_outside_the_mass_unless_tests_take_land() {
+        let files = [
+            at("src/a.ts", 0),
+            at("src/a.test.ts", 0),
+            at("src/README.md", 0),
+            at("src/__fixtures__/f.json", 0),
+        ];
+        let built = build(&files, &[], &options(), &Shares::new());
+        assert_eq!((built.off_land, built.docs, built.tree.mass_mille), (2, 1, 1000));
+        let src = find(&built.tree, "src").expect("src");
+        assert_eq!(
+            (src.lots.iter().map(|l| &*l.path).collect::<Vec<_>>(), src.docs),
+            (vec!["src/a.ts"], 1)
+        );
+        let mut uses = default_land_uses();
+        uses.push(LandUse::Tests);
+        let tested = TreeOptions {
+            land_uses: uses,
+            ..options()
+        };
+        let built = build(&[at("a.test.ts", 0), at("b.test.ts", 0)], &[], &tested, &Shares::new());
+        assert_eq!(
+            (built.off_land, built.tree.lots.len(), built.tree.mass_mille),
+            (0, 1, 600)
+        );
+    }
+
+    #[test]
+    fn shares_lots_among_files_of_one_use_and_keeps_a_lot_while_a_member_lives() {
+        let first = build(
+            &[at("a.json", 0), at("b.json", 1), at("c.json", 2)],
+            &[],
+            &options(),
+            &Shares::new(),
+        );
+        assert_eq!(
+            first.tree.lots.iter().map(|l| &*l.key).collect::<Vec<_>>(),
+            ["a.json@0", "c.json@2"]
+        );
+        let members = |s: &Shares| -> Vec<(String, Vec<String>)> {
+            s["|config"]
+                .iter()
+                .map(|l| (l.key.to_string(), l.members.iter().map(ToString::to_string).collect()))
+                .collect()
+        };
+        assert_eq!(
+            members(&first.shares),
+            [
+                ("a.json@0".into(), vec!["a.json@0".into(), "b.json@1".into()]),
+                ("c.json@2".into(), vec!["c.json@2".into()])
+            ]
+        );
+        let pair = build(&[at("a.json", 0), at("b.json", 1)], &[], &options(), &Shares::new());
+        let later = build(&[at("b.json", 1), at("c.json", 5)], &[], &options(), &pair.shares);
+        assert_eq!(
+            later.tree.lots.iter().map(|l| (&*l.key, &*l.path)).collect::<Vec<_>>(),
+            [("a.json@0", "b.json")]
+        );
+        assert_eq!(
+            members(&later.shares),
+            [("a.json@0".into(), vec!["b.json@1".into(), "c.json@5".into()])]
+        );
+    }
+
+    #[test]
+    fn collapses_chains_and_builds_a_sub_town_from_its_root_leaving_excluded_folders_out() {
+        let built = build(
+            &[at("src/main/kotlin/app/A.kt", 3)],
+            &[("src", 1), ("src/main", 2)],
+            &options(),
+            &Shares::new(),
+        );
+        let child = &built.tree.children[0];
+        assert_eq!(
+            (&*child.path, child.name.as_str(), child.depth, child.first_seen),
+            ("src/main/kotlin/app", "src/main/kotlin/app", 1, 0)
+        );
+        let files = [at("packages/a/x.ts", 0), at("packages/b/y.ts", 0), at("src/z.ts", 0)];
+        let group = build(
+            &files,
+            &[],
+            &TreeOptions {
+                root: "packages".into(),
+                ..options()
+            },
+            &Shares::new(),
+        );
+        assert_eq!(group.tree.name, "packages");
+        assert_eq!(paths(&group.tree.children), ["packages/a", "packages/b"]);
+        let main = build(
+            &files,
+            &[],
+            &TreeOptions {
+                exclude: vec!["packages".into()],
+                ..options()
+            },
+            &Shares::new(),
+        );
+        assert_eq!(paths(&main.tree.children), ["src"]);
+    }
+
+    #[test]
+    fn sums_mass_and_demand_up_the_tree() {
+        let built = build(
+            &[
+                at("a/x.ts", 0),
+                at("a/y.json", 0),
+                at("b/z.ts", 0),
+                at("b/README.md", 0),
+            ],
+            &[],
+            &options(),
+            &Shares::new(),
+        );
+        assert_eq!(built.tree.mass_mille, 2500);
+        let (a, b) = (find(&built.tree, "a").expect("a"), find(&built.tree, "b").expect("b"));
+        assert_eq!(a.demand, land_for(2 * LOT_AREA, 50));
+        assert_eq!(b.demand, land_for(LOT_AREA, 50) + land_for(LOT_AREA / 2, 50));
+        assert_eq!(built.tree.demand, a.demand + b.demand);
+    }
+
+    #[test]
+    fn budgets_the_land_for_a_folder_s_own_roads_above_a_street() {
+        let big: Vec<FileEntry> = (0..24)
+            .flat_map(|f| (0..1000).map(move |i| at(&format!("f{f}/x{i}.ts"), 0)))
+            .collect();
+        let built = build(&big, &[], &options(), &Shares::new());
+        let sum: i64 = built.tree.children.iter().map(|c| c.demand).sum();
+        let side = isqrt(sum) + RoadClass::Boulevard.width() - RoadClass::Street.width();
+        assert_eq!(built.tree.demand, side * side);
+        assert_eq!(built.tree.children[0].demand, land_for(1000 * LOT_AREA, 50));
+    }
+
+    #[test]
+    fn orders_own_lots_by_first_appearance_then_path() {
+        let built = build(
+            &[at("b.ts", 0), at("a.ts", 2), at("c.ts", 0)],
+            &[],
+            &options(),
+            &Shares::new(),
+        );
+        assert_eq!(
+            built.tree.lots.iter().map(|l| &*l.path).collect::<Vec<_>>(),
+            ["b.ts", "c.ts", "a.ts"]
+        );
+    }
+}

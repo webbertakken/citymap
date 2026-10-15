@@ -143,6 +143,36 @@ mod tests {
         }
     }
 
+    /// The research prototype's hash: ((h ^ (h >>> 16)) >>> 0) / 2^32 − 0.5, in 1/65536 steps.
+    fn reference(seed: u32, i: i64, j: i64) -> i64 {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let mut h = (i as u32).wrapping_mul(0x27d4_eb2d) ^ (j as u32).wrapping_mul(0x1656_67b1) ^ seed;
+        h = (h ^ (h >> 15)).wrapping_mul(0x85eb_ca6b);
+        h = (h ^ (h >> 13)).wrapping_mul(0xc2b2_ae35);
+        #[allow(clippy::cast_possible_truncation)]
+        let v = ((f64::from(h ^ (h >> 16)) / 4_294_967_296.0 - 0.5) * 65536.0).floor() as i64;
+        v
+    }
+
+    #[test]
+    fn matches_the_research_prototype_s_hash() {
+        for (seed, i, j) in [(1, 0, 0), (0x0051_ed27, -3, 7), (123_456_789, 1000, -1000)] {
+            assert_eq!(lattice(seed, i, j), reference(seed, i, j));
+        }
+    }
+
+    #[test]
+    fn moves_points_by_at_most_the_summed_amplitudes_and_stays_continuous() {
+        let warp = Warp::new(99, vec![(32, 1280), (100, 4000)]);
+        for k in -200..200i64 {
+            let (x, y) = (k * 5237 % (1 << 20), k * 7919 % (1 << 20));
+            let q = warp.apply(Pt::new(x, y));
+            assert!((q.x - x).abs() <= 133 && (q.y - y).abs() <= 133);
+            let (a, b) = (noise(3, x, y, 1280), noise(3, x + 1, y, 1280));
+            assert!((-32768..=32768).contains(&a) && (a - b).abs() <= 400);
+        }
+    }
+
     #[test]
     fn noise_matches_the_lattice_at_cell_corners() {
         assert_eq!(noise(7, 0, 0, 100), lattice(7, 0, 0));
