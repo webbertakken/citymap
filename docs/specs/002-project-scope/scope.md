@@ -14,6 +14,7 @@ The first deliverable is the **ground plan**: the city without buildings, as def
   the Paper atlas style, plus SVG export from the same model. Themes: Paper atlas, Night atlas, Beck schematic, Nolli
   noir and Dracula. Desktop and phones.
 - **Land dimension**: tests off the map (default) or tests as land.
+- **Rust CLI**: a second implementation of the command line, byte for byte the same output, many times faster.
 - **Morphometrics**: the generator measures its own output (orientation entropy, node degree, dead-end share, block
   shape factor, built share) and asserts them per archetype.
 
@@ -28,7 +29,7 @@ These shape today's design but are not part of the first deliverable.
 - Tests as a dimension of the source they cover, shown on that source's building.
 - History playback: animating the city through its history and exporting it as a video.
 - Private repositories, connected by their owner.
-- A local, offline build for any folder on disk, as a Rust port that matches the TypeScript output.
+- A local, offline build for any folder on disk, and a fold service, on the Rust CLI.
 - Statistics overlays, a 3D walk camera, a Monopoly-like game played in a chosen town (apps, packages, tools), and
   strangler-pattern detection (old versus new areas).
 - Dependency overlays: bridges between workspace islands, tram lines within packages.
@@ -74,11 +75,11 @@ their spread of languages, shapes and ages.
 A scale corpus confirms performance and large runs, and shows a single state of a very large repository (its HEAD laid
 once) rather than its whole history: [torvalds/linux](https://github.com/torvalds/linux),
 [microsoft/vscode](https://github.com/microsoft/vscode) and [godotengine/godot](https://github.com/godotengine/godot).
-It is also the yardstick for a later Rust port of the CLI.
+It is also the yardstick for the Rust CLI.
 
 ## Technical constraints
 
-- TypeScript first, run with Bun; a later Rust port must reproduce the same plan.
+- TypeScript first, run with Bun; the Rust CLI reproduces the same plan, byte for byte.
 - Integer arithmetic in the layout core; sorted iteration; per-node seeds from a path hash.
 - Repositories are read from blob-less clones; the history fold uses commits and trees only.
 - Accessibility: WCAG 2.2 AA for all UI and map text.

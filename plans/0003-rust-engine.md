@@ -1,0 +1,92 @@
+# 0003 Rust engine and CLI
+
+A second implementation of the `citymap` CLI in Rust whose city JSON, lockfile and SVG are byte-identical to the
+TypeScript CLI's, and much faster. Spec: [architecture](../docs/specs/003-system-architecture/architecture.md) § Rust
+implementation. Blueprint: [Rust implementation](../docs/specs/003-system-architecture/blueprints/rust.md).
+
+Branch `feat/rust-engine` in the worktree `../citymap-rust`.
+
+## Phase 0: groundwork
+
+- [x] Worktree from `origin/main`; read the specs, blueprints and every TypeScript module the CLI uses
+- [x] Architecture spec and scope: the Rust implementation, where it lives, how parity is proven
+- [x] Blueprint, defaults ledger, completeness for the port
+- [x] This plan
+- [x] Commit
+
+## Phase 1: workspace and fixed-point core
+
+- [ ] Toolchain pinned (latest stable), Cargo workspace, lints, rustfmt, crates scaffolded, versions confirmed
+- [ ] `ErrorCode` and `CitymapError`
+- [ ] Arithmetic: `floor_div`, `round_div`, `mul_div`, `isqrt`, with the ported tests
+- [ ] Directions: the table, `dir`, `normalise`, `perp`, `negate`, `rotate`, checksum test
+- [ ] Hashes: `fnv1a`, `seed_of`, `unit_mille`, `compare_keys`
+- [ ] Polygons: `area2`, `centroid`, `side`, `clip`, `inset`, `chord`, `extent`, `longest_edge`, `offset_for`, `reach`
+- [ ] Noise, warp, `densify`, memoised warp
+- [ ] Commit
+
+## Phase 2: model
+
+- [ ] Constants, road classes, `cut_class`, `reclass`, `reserve_for`, `road_excess`
+- [ ] Land use, weights, lot capacity, land key; parity fixture of classified paths
+- [ ] Snapshot, `parse_snapshot` limits; workspace members and groups
+- [ ] `build_tree`: sharing, chain collapse, mass, demand, digest
+- [ ] Archetype: features, district and flat forms, `classify_node`, `flatten`
+- [ ] Canonical JSON; plat, lock and city types, serialisation and parsing
+- [ ] Commit
+
+## Phase 3: town layout
+
+- [ ] Context, events, `forget`, item and draft types
+- [ ] `decide`, `split`, pinwheel, wards, park, reserve, `trim`
+- [ ] Partition with the locality cache; radial; twin
+- [ ] Neighbourhood: park split, grid, slots, span, green, high street, renewal, newcomers, addresses
+- [ ] Loop connectors and the uniform grid
+- [ ] `layout_town` with the warp
+- [ ] Golden towns byte-identical to `__golden__`
+- [ ] Commit
+
+## Phase 4: region and fold
+
+- [ ] Outline, highways, placement, old towns, `lay_city`, `check_extent`
+- [ ] `fold_history`, `initial_state`
+- [ ] Organic regions: Delaunay and Voronoi
+- [ ] Commit
+
+## Phase 5: history
+
+- [ ] Git environment, `resolve_commit`, `is_ancestor`
+- [ ] Raw log parser and the tree state: renames, submodules, folders
+- [ ] Manifests on `regress`, workspaces tracker, blob reader
+- [ ] `read_history` on a reader thread; `read_tree`
+- [ ] Ported tests on temporary repositories
+- [ ] Commit
+
+## Phase 6: themes, SVG and CLI
+
+- [ ] Colours and themes; parity fixture of every hue
+- [ ] `to_fixed` and the SVG renderer; parity fixture of SVG documents
+- [ ] Arguments, `run_lay` with lock resume and periodic saves, `main` with exit codes
+- [ ] Ported CLI tests
+- [ ] Commit
+
+## Phase 7: parity
+
+- [ ] `scripts/parity.ts` and `bun run parity`
+- [ ] `--no-history` on every parity repository: identical
+- [ ] Full folds on every parity repository: identical
+- [ ] next.js full fold: identical
+- [ ] Timings side by side; profile and speed up where the fold is slow
+- [ ] Commit
+
+## Phase 8: gate
+
+- [ ] `bun run rust:check`; pre-commit runs it for staged `.rs` files; pre-push for pushes that change Rust
+- [ ] CI job: format, clippy, tests
+- [ ] `docs/instructions/development.md`
+- [ ] Commit
+
+## Phase 9: fold-back and pull request
+
+- [ ] Fold-back: specs, blueprint, defaults and indexes match what shipped; every symbol and path verified
+- [ ] Private-name check, push, pull request with parity results and timings; not merged
