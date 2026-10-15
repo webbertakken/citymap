@@ -14,9 +14,9 @@ is read folder by folder.
 
 ## Phase 2: reading GitHub
 
-- [ ] `parseRepository` with every rejection
-- [ ] `readRepository`: commit, recursive tree, folder-by-folder fallback, manifests, rejections, request count
-- [ ] Unit tests on a stubbed fetcher, every path
+- [x] `parseRepository` with every rejection
+- [x] `readRepository`: commit, recursive tree, folder-by-folder fallback, manifests, rejections, request count
+- [x] Unit tests on a stubbed fetcher, every path
 
 ## Phase 3: the viewer
 
