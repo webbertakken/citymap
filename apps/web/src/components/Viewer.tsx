@@ -28,6 +28,8 @@ export interface ViewerProps {
   readonly fetcher?: Fetcher;
   /** How a snapshot becomes a city: in a Web Worker in the browser, on the calling thread in tests. */
   readonly lay?: Lay;
+  /** The site's path under its host, before every bundled file: "/citymap" on GitHub Pages. */
+  readonly basePath?: string;
 }
 
 const browserFetch: Fetcher = (url, init) => fetch(url, init);
@@ -51,7 +53,7 @@ export const focusOn = (city: City, key: string): City => ({
   highways: [],
 });
 
-export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker }: ViewerProps) {
+export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "" }: ViewerProps) {
   const [cities, setCities] = useState<readonly CityEntry[]>([]);
   const [selected, setSelected] = useState("");
   const [city, setCity] = useState<City | null>(null);
@@ -107,14 +109,14 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker }: Vi
       setSelected(entry.file);
       setStatus(`${entry.name}: laying out…`);
       try {
-        show(await loadCity(fetcher, entry), entry.name);
+        show(await loadCity(fetcher, entry, basePath), entry.name);
       } catch (failure) {
         log.error("viewer/open-failed", { name: entry.name, reason: reasonOf(failure) });
         setError(describeFailure(failure));
         setStatus("");
       }
     },
-    [fetcher, show],
+    [basePath, fetcher, show],
   );
   // A public GitHub repository's single state, read and laid in the browser.
   const openRepository = useCallback(
@@ -153,7 +155,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker }: Vi
   const first = useEffectEvent((entry: CityEntry) => void open(entry));
   const wanted = useEffectEvent((repo: string) => void openRepository(repo));
   useEffect(() => {
-    loadIndex(fetcher).then(
+    loadIndex(fetcher, basePath).then(
       (bundled) => {
         log.info("viewer/index", { cities: bundled.length });
         setCities(bundled);
@@ -168,7 +170,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker }: Vi
         setStatus("");
       },
     );
-  }, [fetcher]);
+  }, [basePath, fetcher]);
   const openFile = async (file: File) => {
     try {
       show(await readCityFile(file), file.name);

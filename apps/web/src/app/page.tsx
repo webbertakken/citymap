@@ -6,5 +6,5 @@ import { Viewer } from "../components/Viewer";
 const CityCanvas = dynamic(() => import("../components/CityCanvas"), { ssr: false });
 
 export default function Page() {
-  return <Viewer Canvas={CityCanvas} />;
+  return <Viewer Canvas={CityCanvas} basePath={process.env.NEXT_PUBLIC_BASE_PATH ?? ""} />;
 }

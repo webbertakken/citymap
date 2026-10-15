@@ -26,16 +26,16 @@ async function text(fetcher: Fetch, url: string): Promise<string> {
   return response.text();
 }
 
-/** The bundled cities, from /cities/index.json. */
-export async function loadIndex(fetcher: Fetch): Promise<CityEntry[]> {
-  const value: unknown = JSON.parse(await text(fetcher, "/cities/index.json"));
+/** The bundled cities, from /cities/index.json under the site's base path. */
+export async function loadIndex(fetcher: Fetch, base = ""): Promise<CityEntry[]> {
+  const value: unknown = JSON.parse(await text(fetcher, `${base}/cities/index.json`));
   if (!Array.isArray(value) || !value.every(isEntry)) throw new Error("/cities/index.json is not a list of cities");
   return value;
 }
 
 /** A bundled city by its file name. */
-export async function loadCity(fetcher: Fetch, entry: CityEntry): Promise<City> {
-  return parseCity(await text(fetcher, `/cities/${entry.file}`));
+export async function loadCity(fetcher: Fetch, entry: CityEntry, base = ""): Promise<City> {
+  return parseCity(await text(fetcher, `${base}/cities/${entry.file}`));
 }
 
 /** A city file a person picked or dropped. */

@@ -153,6 +153,17 @@ describe("Viewer", () => {
     fireEvent(window, new Event("resize"));
   });
 
+  it("fetches the bundled cities under the site's base path", async () => {
+    const asked: string[] = [];
+    const under = async (url: string) => {
+      asked.push(url);
+      return fetcher(url.replace(/^\/citymap/, ""));
+    };
+    render(<Viewer Canvas={StubCanvas} fetcher={under} basePath="/citymap" />);
+    expect(await screen.findByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
+    expect(asked).toEqual(["/citymap/cities/index.json", "/citymap/cities/alpha.json"]);
+  });
+
   it("shows the empty state, and a failed index, by name", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={empty} />);
     expect(await screen.findByText(/No city yet/)).toBeTruthy();
