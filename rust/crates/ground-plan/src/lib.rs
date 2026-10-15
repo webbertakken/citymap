@@ -9,8 +9,10 @@ pub mod json;
 pub mod land_use;
 pub mod lock;
 pub mod plat;
+pub mod region;
 pub mod roads;
 pub mod snapshot;
+pub mod town;
 pub mod tree;
 pub mod workspace;
 

@@ -37,14 +37,14 @@ Branch `feat/rust-engine` in the worktree `../citymap-rust`.
 
 ## Phase 3: town layout
 
-- [ ] Context, events, `forget`, item and draft types
-- [ ] `decide`, `split`, pinwheel, wards, park, reserve, `trim`
-- [ ] Partition with the locality cache; radial; twin
-- [ ] Neighbourhood: park split, grid, slots, span, green, high street, renewal, newcomers, addresses
-- [ ] Loop connectors and the uniform grid
-- [ ] `layout_town` with the warp
-- [ ] Golden towns byte-identical to `__golden__`
-- [ ] Commit
+- [x] Context, events, `forget`, item and draft types
+- [x] `decide`, `split`, pinwheel, wards, park, reserve, `trim`
+- [x] Partition with the locality cache; radial; twin
+- [x] Neighbourhood: park split, grid, slots, span, green, high street, renewal, newcomers, addresses
+- [x] Loop connectors and the uniform grid
+- [x] `layout_town` with the warp
+- [x] Golden towns byte-identical to `__golden__`
+- [x] Commit
 
 ## Phase 4: region and fold
 

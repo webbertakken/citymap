@@ -24,7 +24,6 @@ pub fn files(folder: &str, n: usize, born: i64, ext: &str, stem: &str) -> Vec<Fi
 }
 
 /// n source files in a folder, born at increasing indices from `born`.
-#[allow(dead_code)]
 pub fn sources(folder: &str, n: usize, born: i64) -> Vec<FileEntry> {
     files(folder, n, born, "ts", "f")
 }

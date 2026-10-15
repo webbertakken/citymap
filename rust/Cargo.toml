@@ -33,6 +33,8 @@ similar_names = "allow"
 missing_panics_doc = "allow"
 missing_errors_doc = "allow"
 module_name_repetitions = "allow"
+# Layout functions mirror the reference implementation one to one, so the two read side by side.
+too_many_lines = "allow"
 
 [profile.release]
 lto = "thin"
