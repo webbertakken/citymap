@@ -55,12 +55,12 @@ Branch `feat/rust-engine` in the worktree `../citymap-rust`.
 
 ## Phase 5: history
 
-- [ ] Git environment, `resolve_commit`, `is_ancestor`
-- [ ] Raw log parser and the tree state: renames, submodules, folders
-- [ ] Manifests on `regress`, workspaces tracker, blob reader
-- [ ] `read_history` on a reader thread; `read_tree`
-- [ ] Ported tests on temporary repositories
-- [ ] Commit
+- [x] Git environment, `resolve_commit`, `is_ancestor`
+- [x] Raw log parser and the tree state: renames, submodules, folders
+- [x] Manifests on `regress`, workspaces tracker, blob reader
+- [x] `read_history` on a reader thread; `read_tree`
+- [x] Ported tests on temporary repositories
+- [x] Commit
 
 ## Phase 6: themes, SVG and CLI
 
