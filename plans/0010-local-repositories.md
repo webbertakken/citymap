@@ -19,7 +19,7 @@ Spec: [local repositories](../docs/specs/007-local-repositories/local-repositori
       without extensions), refusing split and sparse indexes by name
 - [x] The folder reader: Chromium's directory handle (reads only the index and manifests), the folder input elsewhere;
       `.gitignore` for a folder without git; the remembered folder in Chromium
-- [ ] Equal to the CLI: the snapshot from a picked folder equals `citymap --no-history`'s on a clean checkout, on the
+- [x] Equal to the CLI: the snapshot from a picked folder equals `citymap --no-history`'s on a clean checkout, on the
       reference corpus
 
 ## Phase 3: in the viewer
