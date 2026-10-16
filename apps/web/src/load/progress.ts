@@ -2,14 +2,16 @@
 // the words for its phase, its count, the time spent and the time left.
 import type { Phase, Step } from "./step";
 
-/** What is being opened: a bundled city, a city file, or a GitHub repository. */
-export type Source = "bundled" | "file" | "github";
+/** What is being opened: a bundled city, a city file, a GitHub repository, or a repository on this machine. */
+export type Source = "bundled" | "file" | "github" | "local";
 
 /** Each source's phases, in the order they come. */
 export const PHASES: Readonly<Record<Source, readonly Phase[]>> = {
   github: ["commit", "tree", "manifests", "lay", "draw"],
   bundled: ["download", "parse", "draw"],
   file: ["download", "parse", "draw"],
+  // A folder with git reads its index; one without is walked instead.
+  local: ["index", "folder", "manifests", "lay", "draw"],
 };
 
 /** Each phase's share of the bar, per source: their shares of the time linux takes (see DEFAULTS.md). */
@@ -17,6 +19,7 @@ export const PHASE_WEIGHTS: Readonly<Record<Source, Partial<Record<Phase, number
   github: { commit: 0.03, tree: 0.67, manifests: 0.02, lay: 0.18, draw: 0.1 },
   bundled: { download: 0.6, parse: 0.15, draw: 0.25 },
   file: { download: 0.1, parse: 0.3, draw: 0.6 },
+  local: { index: 0.1, folder: 0.2, manifests: 0.05, lay: 0.5, draw: 0.15 },
 };
 
 /** The share of the bar, and the time spent, before the time left is estimated. */
@@ -77,6 +80,8 @@ const plural = (n: number, one: string, many: string) => `${number(n)} ${n === 1
 const WORDS: Readonly<Record<Phase, string>> = {
   commit: "Asking GitHub for the latest commit",
   tree: "Reading the file tree",
+  index: "Reading the git index",
+  folder: "Reading the folder",
   manifests: "Reading workspace manifests",
   lay: "Laying out the files",
   download: "Downloading",
@@ -106,6 +111,7 @@ export function countWords({ phase, step }: Progress): string | null {
     const read = `${number(done)} of ${number(of)} folders`;
     return requests === undefined ? read : `${read} · ${plural(requests, "request", "requests")}`;
   }
+  if (phase === "folder") return `${plural(done, "file", "files")} found`;
   if (phase === "manifests" && of !== undefined) return `${number(done)} of ${number(of)} manifests`;
   if (phase === "lay") return step.count ? `${number(step.count.done)} of ${number(step.count.of)} lots` : null;
   if (phase === "download") return bytes(done, of);

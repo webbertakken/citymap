@@ -4,7 +4,9 @@ import { Ellipsis, FolderOpen, Palette } from "lucide-react";
 import { useRef, type ChangeEvent } from "react";
 import type { CityEntry } from "../cities";
 import type { Mode } from "../view/view";
+import { LocalMenu } from "./LocalMenu";
 import { Popover } from "./Popover";
+import type { LocalRepository } from "./useLocalRepository";
 
 export interface ViewControlsProps {
   readonly mode: Mode;
@@ -16,9 +18,11 @@ export interface ViewControlsProps {
   readonly onTheme: (theme: ThemeName) => void;
   readonly onCity: (entry: CityEntry) => void;
   readonly onFile: (file: File) => void;
+  /** Opening a local repository, offered in More after the city file. */
+  readonly local?: LocalRepository;
 }
 
-/** Top right: the view switch, the map's theme, and More (the bundled cities, a city file). */
+/** Top right: the view switch, the map's theme, and More (the bundled cities, a city file, a local repository). */
 export function ViewControls(props: ViewControlsProps) {
   const input = useRef<HTMLInputElement>(null);
   const picked = (event: ChangeEvent<HTMLInputElement>) => {
@@ -91,6 +95,7 @@ export function ViewControls(props: ViewControlsProps) {
                 </button>
               </li>
             </ul>
+            {props.local && <LocalMenu local={props.local} close={close} />}
           </>
         )}
       </Popover>

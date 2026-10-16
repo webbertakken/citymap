@@ -13,7 +13,7 @@ import {
   type Source,
 } from "./progress";
 
-const SOURCES: readonly Source[] = ["github", "bundled", "file"];
+const SOURCES: readonly Source[] = ["github", "bundled", "file", "local"];
 /** A load begun at 0 that has come this far. */
 const at = (fraction: number) => ({ ...startProgress("github", "a/b", 0), fraction });
 
@@ -76,6 +76,9 @@ describe("phaseWords", () => {
     expect(phaseWords(bundled)).toBe("Downloading");
     expect(phaseWords(advance(bundled, { phase: "parse" }))).toBe("Reading the city");
     expect(phaseWords(startProgress("file", "city.json", 0))).toBe("Reading the file");
+    const local = startProgress("local", "widgets", 0);
+    expect(phaseWords(local)).toBe("Reading the git index");
+    expect(phaseWords(advance(local, { phase: "folder", done: 0 }))).toBe("Reading the folder");
   });
 });
 
@@ -100,6 +103,11 @@ describe("countWords", () => {
     expect(countWords(advance(bundled, { phase: "download", done: 4_100_000 }))).toBe("4.1 MB");
     expect(countWords(advance(bundled, { phase: "download", done: 51_200, of: 900_000 }))).toBe("51 of 900 kB");
     expect(countWords(advance(bundled, { phase: "download", done: 512 }))).toBe("1 kB");
+    const local = startProgress("local", "widgets", 0);
+    expect(countWords(advance(local, { phase: "folder", done: 12_345 }))).toBe("12,345 files found");
+    expect(countWords(advance(local, { phase: "folder", done: 1 }))).toBe("1 file found");
+    // A folder with git skips the walk: the bar jumps past it.
+    expect(advance(local, { phase: "manifests" }).fraction).toBeCloseTo(0.3, 9);
   });
 });
 

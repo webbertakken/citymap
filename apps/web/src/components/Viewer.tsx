@@ -21,6 +21,7 @@ import { layInWorker } from "../lay/browser";
 import type { Drawn, Lay } from "../lay/lay";
 import { afterPaint } from "../load/paint";
 import { loadingStatus, useLoading, type Job } from "../load/useLoading";
+import type { LocalPorts } from "../local/ports";
 import { log, reasonOf } from "../log";
 import { searchIndex, type SearchEntry } from "../search/search";
 import { FLY_MS, between, ease, flyTo } from "../view/fly";
@@ -33,6 +34,7 @@ import { MapView, type CanvasProps } from "./MapView";
 import { Notice } from "./Notice";
 import { SearchBox } from "./SearchBox";
 import { TitleCard } from "./TitleCard";
+import { LOCAL_STATUS, LOCAL_TITLE, useLocalRepository } from "./useLocalRepository";
 import { ViewControls } from "./ViewControls";
 import { ZoomControls } from "./ZoomControls";
 
@@ -43,6 +45,8 @@ export interface ViewerProps {
   readonly lay?: Lay;
   /** The site's path under its host, before every bundled file: "/citymap" on GitHub Pages. */
   readonly basePath?: string;
+  /** The browser's folder access: its own by default, stand-ins in tests. */
+  readonly folders?: LocalPorts;
 }
 
 const browserFetch: Fetcher = (url, init) => fetch(url, init);
@@ -75,7 +79,7 @@ export const focusOn = (city: City, key: string): City => ({
 });
 
 /** The viewer: one city at a time, its theme and its view. */
-export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "" }: ViewerProps) {
+export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "", folders }: ViewerProps) {
   const loading = useLoading();
   // GitHub's hourly allowance, heard from every API answer, shared by laying and the suggestions.
   const [allowance, setAllowance] = useState<Allowance | null>(null);
@@ -181,7 +185,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     setMarker({ x: entry.x, z: entry.z });
   };
 
-  const show = useCallback((next: City, name: string) => {
+  const show = useCallback((next: City, name: string, title: string = name) => {
     cancelAnimationFrame(flight.current);
     setCity(next);
     setFocus(null);
@@ -192,16 +196,16 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     log.info("viewer/open", { name, towns: next.towns.length, lots });
     setStatus(`${next.towns.length} towns · ${lots.toLocaleString("en-GB")} lots`);
     setFitted(true);
-    document.title = `${name} · citymap`;
+    document.title = `${title} · citymap`;
   }, []);
   // The last phase of every load: the city is in hand; it is shown, and the load is done once the map has drawn.
   const draw = useCallback(
-    async (job: Job, next: City, name: string, file: string, prebuilt: Drawn | null = null) => {
+    async (job: Job, next: City, name: string, file: string, prebuilt: Drawn | null = null, title = name) => {
       job.step({ phase: "draw" });
       await afterPaint();
       job.signal.throwIfAborted();
       setDrawn(prebuilt && { city: next, ...prebuilt });
-      show(next, name);
+      show(next, name, title);
       setSelected(file);
       await afterPaint();
       job.done();
@@ -262,6 +266,20 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     },
     [begin, draw, github, lay, theme],
   );
+  // A repository on the person's machine, read and laid in the browser; nothing about it leaves the page.
+  const local = useLocalRepository({
+    ...(folders ? { ports: folders } : {}),
+    lay,
+    theme,
+    begin,
+    status,
+    setStatus,
+    setError,
+    present: async (job, laid, name) => {
+      await draw(job, laid.city, name, "", laid.scene, LOCAL_TITLE);
+      setStatus((done) => `${done} · ${LOCAL_STATUS}`);
+    },
+  });
   // The index loads once, on mount; a repository in the address is laid, else the first bundled city opens.
   const first = useEffectEvent((entry: CityEntry) => void open(entry));
   const wanted = useEffectEvent((repo: string) => void openRepository(repo));
@@ -379,7 +397,9 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         onTheme={setTheme}
         onCity={(entry) => void open(entry)}
         onFile={(file) => void openFile(file)}
+        local={local}
       />
+      {local.input}
       <Drawer
         city={shown}
         settled={statusLine === ""}

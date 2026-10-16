@@ -1,0 +1,16 @@
+{
+  "note": "the conflict resolved: REUC",
+  "version": 2,
+  "entries": [
+    {
+      "mode": "100644",
+      "stage": 0,
+      "path": "both.txt"
+    },
+    {
+      "mode": "100644",
+      "stage": 0,
+      "path": "other.txt"
+    }
+  ]
+}
