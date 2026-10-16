@@ -2,7 +2,7 @@
 import type { City } from "@citymap/ground-plan";
 import type { Lay } from "./lay";
 
-export const layInWorker: Lay = (snapshot) =>
+export const layInWorker: Lay = (snapshot, toggles) =>
   new Promise<City>((resolve, reject) => {
     const worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
     worker.addEventListener("message", (event: MessageEvent<{ city?: City; error?: string }>) => {
@@ -14,5 +14,5 @@ export const layInWorker: Lay = (snapshot) =>
       worker.terminate();
       reject(new Error(event.message || "the layout worker failed"));
     });
-    worker.postMessage(snapshot, { transfer: [] });
+    worker.postMessage({ snapshot, toggles }, { transfer: [] });
   });

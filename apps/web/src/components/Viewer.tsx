@@ -1,5 +1,5 @@
 "use client";
-import type { City } from "@citymap/ground-plan";
+import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } from "@citymap/ground-plan";
 import { buildScene, pick, pickIndex, type Hit } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import {
@@ -56,7 +56,13 @@ const darkOnServer = () => false;
 const stillness = () =>
   typeof window.matchMedia !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/** The viewer: one city at a time, its theme and its view. */
+/** Where the city shown came from, so a change of toggles can lay it again: a bundled city, a live repository's
+ * snapshot, or a city file (which keeps its layout). */
+type Source =
+  | { readonly kind: "bundled"; readonly entry: CityEntry }
+  | { readonly kind: "live"; readonly name: string; readonly snapshot: Snapshot }
+  | { readonly kind: "file" };
+
 /** The city with only the town of that key, and no highways. */
 export const focusOn = (city: City, key: string): City => ({
   ...city,
@@ -64,8 +70,12 @@ export const focusOn = (city: City, key: string): City => ({
   highways: [],
 });
 
+/** The viewer: one city at a time, its theme, its view and its layout toggles. */
 export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "" }: ViewerProps) {
   const [cities, setCities] = useState<readonly CityEntry[]>([]);
+  // The layout toggles, at the engine's defaults on every visit; and where the city shown came from.
+  const [toggles, setToggles] = useState<readonly Toggle[]>(DEFAULT_TOGGLES);
+  const [source, setSource] = useState<Source | null>(null);
   const [selected, setSelected] = useState("");
   const [city, setCity] = useState<City | null>(null);
   const [status, setStatus] = useState("Loading the cities…");
@@ -159,33 +169,57 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     setMarker({ x: entry.x, z: entry.z });
   };
 
-  const show = useCallback((next: City, name: string) => {
+  // A city shown afresh fits the map; the same city in another layout keeps the view, and the town shown if it is there.
+  const show = useCallback((next: City, name: string, relaid = false) => {
     cancelAnimationFrame(flight.current);
     setCity(next);
-    setFocus(null);
+    setFocus((was) => (relaid && next.towns.some((t) => t.key === was) ? was : null));
     setPickedHit(null);
     setMarker(null);
     setError("");
     const lots = next.towns.reduce((s, t) => s + t.stats.lots, 0);
     log.info("viewer/open", { name, towns: next.towns.length, lots });
     setStatus(`${next.towns.length} towns · ${lots.toLocaleString("en-GB")} lots`);
-    setFitted(true);
+    if (!relaid) setFitted(true);
     document.title = `${name} · citymap`;
   }, []);
   const open = useCallback(
-    async (entry: CityEntry) => {
-      setSelected(entry.file);
-      setStatus(`${entry.name}: laying out…`);
+    async (entry: CityEntry, layout: readonly Toggle[], relaid = false) => {
+      setSelected(entry.name);
+      setStatus(relaid ? `${entry.name}: loading…` : `${entry.name}: laying out…`);
       try {
-        show(await loadCity(fetcher, entry, basePath), entry.name);
+        show(await loadCity(fetcher, entry, layout, basePath), entry.name, relaid);
+        setSource({ kind: "bundled", entry });
       } catch (failure) {
-        log.error("viewer/open-failed", { name: entry.name, reason: reasonOf(failure) });
+        log.error(relaid ? "viewer/variant-failed" : "viewer/open-failed", {
+          name: entry.name,
+          reason: reasonOf(failure),
+        });
         setError(describeFailure(failure));
         setStatus("");
       }
     },
     [basePath, fetcher, show],
   );
+  // A live repository's snapshot laid again with other toggles, off the main thread.
+  const relay = async (name: string, snapshot: Snapshot, layout: readonly Toggle[]) => {
+    setStatus(`${name}: laying out…`);
+    try {
+      show(await lay(snapshot, layout), name, true);
+      setStatus((done) => `${done} · single state, not folded`);
+    } catch (failure) {
+      log.error("viewer/variant-failed", { name, reason: reasonOf(failure) });
+      setError(describeFailure(failure));
+      setStatus("");
+    }
+  };
+  const toggle = (changed: Toggle, on: boolean) => {
+    const next = toggleList(on ? [...toggles, changed] : toggles.filter((t) => t !== changed));
+    setToggles(next);
+    log.info("viewer/toggles", { on: next.join(",") || "none" });
+    if (source?.kind === "bundled") void open(source.entry, next, true);
+    else if (source?.kind === "live") void relay(source.name, source.snapshot, next);
+  };
   // A public GitHub repository's single state, read and laid in the browser.
   const openRepository = useCallback(
     async (input: string) => {
@@ -200,8 +234,9 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
           setStatus(`${name}: reading the tree… (${n} requests)`);
         });
         setStatus(`${name}: laying out…`);
-        const next = await lay(snapshot);
+        const next = await lay(snapshot, toggles);
         show(next, name);
+        setSource({ kind: "live", name, snapshot });
         setStatus((done) => `${done} · single state, not folded`);
         setSelected("");
         log.info("viewer/github-read", {
@@ -217,10 +252,10 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         setStatus("");
       }
     },
-    [fetcher, lay, show],
+    [fetcher, lay, show, toggles],
   );
   // The index loads once, on mount; a repository in the address is laid, else the first bundled city opens.
-  const first = useEffectEvent((entry: CityEntry) => void open(entry));
+  const first = useEffectEvent((entry: CityEntry) => void open(entry, toggles));
   const wanted = useEffectEvent((repo: string) => void openRepository(repo));
   useEffect(() => {
     loadIndex(fetcher, basePath).then(
@@ -242,6 +277,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const openFile = async (file: File) => {
     try {
       show(await readCityFile(file), file.name);
+      setSource({ kind: "file" });
       setSelected("");
     } catch (failure) {
       log.error("viewer/file-rejected", { file: file.name, reason: reasonOf(failure) });
@@ -311,8 +347,11 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
           setMoved({ ...moved, mode: next });
         }}
         onTheme={setTheme}
-        onCity={(entry) => void open(entry)}
+        onCity={(entry) => void open(entry, toggles)}
         onFile={(file) => void openFile(file)}
+        toggles={toggles}
+        fixed={source?.kind === "file"}
+        onToggle={toggle}
       />
       <Drawer
         city={shown}

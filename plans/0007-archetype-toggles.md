@@ -60,12 +60,12 @@ touches the fold and the plat: rebase onto main when it merges.
 
 ## Phase 5: viewer
 
-- [ ] `cities.ts` variants; `liveOptions(toggles)`, worker message
-- [ ] `Toggles` popover with tooltips, Escape order; `ViewControls` cog; phone row
-- [ ] `Viewer`: toggles state, variant loading, live re-lay, city file disabled, logs
-- [ ] Component tests; gate
-- [ ] End-to-end: keyboard, axe light and dark (tooltip shown), no card overlap at every width, vitals
-- [ ] Commit
+- [x] `cities.ts` variants; `liveOptions(toggles)`, worker message
+- [x] `Toggles` popover with tooltips, Escape order; `ViewControls` cog; phone row
+- [x] `Viewer`: toggles state, variant loading, live re-lay, city file disabled, logs
+- [x] Component tests; gate
+- [x] End-to-end: keyboard, axe light and dark (tooltip shown), no card overlap at every width, vitals
+- [x] Commit
 
 ## Phase 6: measurements
 

@@ -1,24 +1,30 @@
 "use client";
+import type { Toggle } from "@citymap/ground-plan";
 import { THEMES, THEME_NAMES, type ThemeName } from "@citymap/themes";
-import { Ellipsis, FolderOpen, Palette } from "lucide-react";
+import { Ellipsis, FolderOpen, Palette, Settings } from "lucide-react";
 import { useRef, type ChangeEvent } from "react";
-import type { CityEntry } from "../cities";
+import { variantOf, type CityEntry } from "../cities";
 import type { Mode } from "../view/view";
 import { Popover } from "./Popover";
+import { Toggles } from "./Toggles";
 
 export interface ViewControlsProps {
   readonly mode: Mode;
   readonly theme: ThemeName;
   readonly cities: readonly CityEntry[];
-  /** The bundled city shown, by file; empty for any other. */
+  /** The bundled city shown, by name; empty for any other. */
   readonly selected: string;
   readonly onMode: (mode: Mode) => void;
   readonly onTheme: (theme: ThemeName) => void;
   readonly onCity: (entry: CityEntry) => void;
   readonly onFile: (file: File) => void;
+  /** The layout toggles on, whether the city shown can change with them, and a change. */
+  readonly toggles: readonly Toggle[];
+  readonly fixed: boolean;
+  readonly onToggle: (toggle: Toggle, on: boolean) => void;
 }
 
-/** Top right: the view switch, the map's theme, and More (the bundled cities, a city file). */
+/** Top right: the view switch, the map's theme, the layout toggles, and More (the bundled cities, a city file). */
 export function ViewControls(props: ViewControlsProps) {
   const input = useRef<HTMLInputElement>(null);
   const picked = (event: ChangeEvent<HTMLInputElement>) => {
@@ -59,22 +65,26 @@ export function ViewControls(props: ViewControlsProps) {
           </fieldset>
         )}
       </Popover>
+      <Popover label="Layout" face={<Settings size={20} aria-hidden="true" />}>
+        {() => <Toggles toggles={props.toggles} fixed={props.fixed} onToggle={props.onToggle} />}
+      </Popover>
       <Popover label="More" face={<Ellipsis size={20} aria-hidden="true" />}>
         {(close) => (
           <>
             <p className="popover-heading">Example cities</p>
             <ul className="menu">
               {props.cities.map((c) => (
-                <li key={c.file}>
+                <li key={c.name}>
                   <button
                     type="button"
-                    aria-current={c.file === props.selected ? "true" : undefined}
+                    aria-current={c.name === props.selected ? "true" : undefined}
                     onClick={() => {
                       close();
                       props.onCity(c);
                     }}
                   >
-                    <span>{c.name}</span> <span className="count">{c.lots.toLocaleString("en-GB")} lots</span>
+                    <span>{c.name}</span>{" "}
+                    <span className="count">{variantOf(c, props.toggles).lots.toLocaleString("en-GB")} lots</span>
                   </button>
                 </li>
               ))}

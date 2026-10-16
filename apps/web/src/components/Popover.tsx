@@ -24,7 +24,9 @@ export function Popover({ label, face, children }: PopoverProps) {
     const outside = (event: Event) => {
       if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
     };
+    // An Escape a control inside already answered (a tooltip it hid) is not the popover's to close on.
     const escape = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       if (event.key === "Escape" && event.target instanceof Node && root.current?.contains(event.target)) {
         setOpen(false);
         document.getElementById(`${id}-button`)?.focus();

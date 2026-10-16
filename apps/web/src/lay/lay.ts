@@ -1,4 +1,5 @@
-// Laying a snapshot into a city, with the CLI's default options, so the browser lays what `citymap --no-history` does.
+// Laying a snapshot into a city, with the CLI's default options and the chosen toggles, so the browser lays what
+// `citymap --no-history --toggles=…` does.
 import {
   DEFAULT_LAND_USES,
   DEFAULT_SPLIT,
@@ -7,12 +8,13 @@ import {
   type City,
   type Options,
   type Snapshot,
+  type Toggle,
 } from "@citymap/ground-plan";
 
-export type Lay = (snapshot: Snapshot) => Promise<City>;
+export type Lay = (snapshot: Snapshot, toggles: readonly Toggle[]) => Promise<City>;
 
-/** The CLI's defaults. */
-export const LIVE_OPTIONS: Options = {
+/** The CLI's defaults, with the toggles chosen. */
+export const liveOptions = (toggles: readonly Toggle[]): Options => ({
   densityPct: 50,
   landUses: DEFAULT_LAND_USES,
   order: "centre-out",
@@ -20,7 +22,11 @@ export const LIVE_OPTIONS: Options = {
   warp: true,
   loops: true,
   split: DEFAULT_SPLIT,
-};
+  toggles,
+});
 
 /** Lays on the calling thread: in the worker, and in tests. */
-export const layHere: Lay = async (snapshot) => layCity(snapshot, initialState(LIVE_OPTIONS), LIVE_OPTIONS).city;
+export const layHere: Lay = async (snapshot, toggles) => {
+  const options = liveOptions(toggles);
+  return layCity(snapshot, initialState(options), options).city;
+};

@@ -432,6 +432,80 @@ mark {
   font-weight: 700;
 }
 
+/* The layout toggles: a switch each, its tooltip beside the panel (beneath its row on a phone). */
+.toggles ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.toggles li {
+  position: relative;
+}
+.toggles label {
+  flex-direction: row-reverse;
+  justify-content: space-between;
+}
+.toggles input {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  appearance: none;
+  background: var(--glass-solid);
+  border: 2px solid var(--ink-soft);
+  border-radius: 10px;
+  transition: background-color var(--motion);
+}
+.toggles input::before {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  content: "";
+  background: var(--ink-soft);
+  border-radius: 50%;
+  transition: transform var(--motion);
+}
+.toggles input:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.toggles input:checked::before {
+  background: var(--accent-ink);
+  transform: translateX(16px);
+}
+.toggles :disabled,
+.toggles label:has(:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.toggles-note {
+  margin: 0 8px 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: normal;
+}
+.tooltip {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 16px);
+  z-index: 20;
+  width: 280px;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  white-space: normal;
+  color: var(--ink);
+  background: var(--glass-solid);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow);
+}
+.tooltip[hidden] {
+  display: none;
+}
+
 /* Right: the drawer, and the button that brings it back. */
 .drawer {
   position: absolute;
@@ -658,9 +732,10 @@ mark {
   :root {
     --gap: 8px;
   }
-  /* The title takes the row's width left of the controls (204 px on a touch screen: two segments and two 48 px buttons, with gaps). */
+  /* The viewer shows plan view only on a phone (the spec drops the view switch everywhere), so the title takes the row's
+     width left of the three 48 px buttons, with gaps: 152 px on a touch screen. */
   .card-title {
-    right: calc(2 * var(--gap) + 204px);
+    right: calc(2 * var(--gap) + 152px);
     width: auto;
     padding: 8px 12px;
   }
@@ -670,9 +745,8 @@ mark {
   .controls {
     gap: 4px;
   }
-  .segmented button {
-    min-width: 44px;
-    padding: 0 8px;
+  .controls .segmented {
+    display: none;
   }
   .search {
     top: calc(var(--gap) + 68px + 8px);
@@ -716,5 +790,11 @@ mark {
   }
   .legend {
     display: none;
+  }
+  .tooltip {
+    position: static;
+    width: auto;
+    margin: 0 8px 8px;
+    box-shadow: none;
   }
 }

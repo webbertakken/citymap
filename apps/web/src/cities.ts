@@ -1,22 +1,45 @@
-import { CitymapError, parseCity, type City } from "@citymap/ground-plan";
+import { CitymapError, TOGGLES, isToggle, parseCity, toggleList, type City, type Toggle } from "@citymap/ground-plan";
 
-/** A bundled city: its name, its file under /cities/, and its lot count. */
-export interface CityEntry {
-  readonly name: string;
+/** One layout of a bundled city: the toggles it was laid with, its file under /cities/, and its lot count. */
+export interface CityVariant {
+  readonly toggles: readonly Toggle[];
   readonly file: string;
   readonly lots: number;
 }
 
-const isEntry = (value: unknown): value is CityEntry =>
+/** A bundled city: its name and a variant for every combination of the toggles. */
+export interface CityEntry {
+  readonly name: string;
+  readonly variants: readonly CityVariant[];
+}
+
+/** The toggles as one text, whatever order they came in. */
+const key = (toggles: readonly Toggle[]) => toggleList(toggles).join(",");
+
+const isVariant = (value: unknown): value is CityVariant =>
   typeof value === "object" &&
   value !== null &&
-  "name" in value &&
-  typeof value.name === "string" &&
+  "toggles" in value &&
+  Array.isArray(value.toggles) &&
+  value.toggles.every((t: unknown) => typeof t === "string" && isToggle(t)) &&
   "file" in value &&
   typeof value.file === "string" &&
-  /^[\w.-]+\.json$/.test(value.file) &&
+  /^\w[\w.-]*\/\w[\w.-]*\.json$/.test(value.file) &&
   "lots" in value &&
   typeof value.lots === "number";
+
+const isEntry = (value: unknown): value is CityEntry => {
+  if (typeof value !== "object" || value === null || !("name" in value) || typeof value.name !== "string") return false;
+  if (!("variants" in value) || !Array.isArray(value.variants) || !value.variants.every(isVariant)) return false;
+  // Every combination of the toggles, once each.
+  return new Set(value.variants.map((v) => key(v.toggles))).size === 2 ** TOGGLES.length;
+};
+
+/** The variant of a city laid with exactly these toggles; an index that passed `loadIndex` holds every one. */
+export function variantOf(entry: CityEntry, toggles: readonly Toggle[]): CityVariant {
+  const wanted = key(toggles);
+  return entry.variants.find((v) => key(v.toggles) === wanted)!;
+}
 
 type Fetch = (url: string) => Promise<{ ok: boolean; status: number; text: () => Promise<string> }>;
 
@@ -33,9 +56,9 @@ export async function loadIndex(fetcher: Fetch, base = ""): Promise<CityEntry[]>
   return value;
 }
 
-/** A bundled city by its file name. */
-export async function loadCity(fetcher: Fetch, entry: CityEntry, base = ""): Promise<City> {
-  return parseCity(await text(fetcher, `${base}/cities/${entry.file}`));
+/** A bundled city, in the variant the toggles name. */
+export async function loadCity(fetcher: Fetch, entry: CityEntry, toggles: readonly Toggle[], base = ""): Promise<City> {
+  return parseCity(await text(fetcher, `${base}/cities/${variantOf(entry, toggles).file}`));
 }
 
 /** A city file a person picked or dropped. */

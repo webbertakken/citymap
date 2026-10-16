@@ -1,5 +1,5 @@
 // Cities, fetchers and a stub canvas for the viewer's tests.
-import { serialiseCity, type City, type Town } from "@citymap/ground-plan";
+import { DEFAULT_TOGGLES, TOGGLES, serialiseCity, type City, type Toggle, type Town } from "@citymap/ground-plan";
 import { fireEvent, screen, within } from "@testing-library/react";
 import type { View } from "../../view/view";
 import type { CanvasProps } from "../MapView";
@@ -37,14 +37,47 @@ export const city = (name: string): City => ({
   ],
 });
 
-export const index = [
-  { name: "alpha", file: "alpha.json", lots: 1 },
-  { name: "beta", file: "beta.json", lots: 1 },
-];
+/** Every combination of the toggles, none first, as the bundle lays them. */
+export const COMBINATIONS: Toggle[][] = Array.from({ length: 2 ** TOGGLES.length }, (_unused, mask) =>
+  TOGGLES.filter((_toggle, bit) => (mask >> bit) & 1),
+);
+const variantName = (toggles: readonly Toggle[]) => (toggles.length === 0 ? "none" : toggles.join("-"));
+/** How many toggles a variant sets otherwise than the defaults. */
+const changed = (toggles: readonly Toggle[]) =>
+  TOGGLES.filter((t) => toggles.includes(t) !== DEFAULT_TOGGLES.includes(t)).length;
+
+/** A bundled city's index entry: a variant per combination, each with one lot more per toggle set otherwise. */
+export const entryOf = (name: string, lots: number) => ({
+  name,
+  variants: COMBINATIONS.map((toggles) => ({
+    toggles,
+    file: `${name}/${variantName(toggles)}.json`,
+    lots: lots + changed(toggles),
+  })),
+});
+
+/** A city as a variant lays it: one lot more per toggle set otherwise than the defaults, so the status tells them apart. */
+export const variantCity = (name: string, toggles: readonly Toggle[]): City => {
+  const base = city(name);
+  const town = base.towns[0]!;
+  const lot = town.lots[0]!;
+  const lots = Array.from({ length: 1 + changed(toggles) }, (_, i) =>
+    i === 0 ? lot : { ...lot, key: `l${i}`, path: `f${i}.ts` },
+  );
+  return { ...base, towns: [{ ...town, lots, stats: { ...town.stats, lots: lots.length } }] };
+};
+
+export const index = [entryOf("alpha", 1), entryOf("beta", 1)];
 export const files: Record<string, string> = {
   "/cities/index.json": JSON.stringify(index),
-  "/cities/alpha.json": serialiseCity(city("alpha")),
-  "/cities/beta.json": serialiseCity(city("beta")),
+  ...Object.fromEntries(
+    ["alpha", "beta"].flatMap((name) =>
+      COMBINATIONS.map((toggles) => [
+        `/cities/${name}/${variantName(toggles)}.json`,
+        serialiseCity(variantCity(name, toggles)),
+      ]),
+    ),
+  ),
 };
 export const fetcher = async (url: string) => new Response(files[url] ?? "", { status: url in files ? 200 : 404 });
 
@@ -72,8 +105,10 @@ export const twin: City = {
   ],
 };
 const twinFiles: Record<string, string> = {
-  "/cities/index.json": JSON.stringify([{ name: "alpha", file: "alpha.json", lots: 2 }]),
-  "/cities/alpha.json": serialiseCity(twin),
+  "/cities/index.json": JSON.stringify([entryOf("alpha", 2)]),
+  ...Object.fromEntries(
+    COMBINATIONS.map((toggles) => [`/cities/alpha/${variantName(toggles)}.json`, serialiseCity(twin)]),
+  ),
 };
 export const twinFetcher = async (url: string) =>
   new Response(twinFiles[url] ?? "", { status: url in twinFiles ? 200 : 404 });
