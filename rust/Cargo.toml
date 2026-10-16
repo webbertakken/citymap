@@ -1,0 +1,45 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+citymap-ground-plan = { path = "crates/ground-plan" }
+citymap-history = { path = "crates/history" }
+citymap-themes = { path = "crates/themes" }
+citymap-svg = { path = "crates/svg" }
+ethnum = "1.5.3"
+indexmap = { version = "2.14.2", features = ["serde"] }
+proptest = "1.12.0"
+regress = "0.12.0"
+rustc-hash = "2.1.3"
+serde = { version = "1.0.229", features = ["derive", "rc"] }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+# The fixed-point core mirrors its formulas (x, y, n, c, a, b), and every panic is a documented precondition.
+many_single_char_names = "allow"
+similar_names = "allow"
+missing_panics_doc = "allow"
+missing_errors_doc = "allow"
+module_name_repetitions = "allow"
+# Layout functions mirror the reference implementation one to one, so the two read side by side.
+too_many_lines = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[profile.test]
+opt-level = 1

@@ -31,6 +31,9 @@ const WORKFLOW = /^\.github\/workflows\/[^/]+\.ya?ml$/;
 /** Shell scripts, including the extensionless Git hooks in `.husky/`. */
 const SHELL = /\.(?:sh|bash)$|^\.husky\/[^/_][^/]*$/;
 
+/** The Rust workspace, and the TypeScript outputs its parity tests replay (golden towns). */
+const RUST = /^rust\/|\/__golden__\//;
+
 /**
  * The local commits a push sends. Git writes one line per ref, `<local ref> <local sha> <remote ref> <remote sha>`;
  * deletions (a zero local sha) and tags carry nothing to check.
@@ -52,6 +55,7 @@ export function prePushPlan(changedFiles: readonly string[], base: string): Step
   const built = matching(BUILT);
   const workflows = matching(WORKFLOW);
   const shell = matching(SHELL);
+  const rust = matching(RUST);
 
   const steps: Step[] = [];
   if (formatted.length > 0) {
@@ -72,5 +76,6 @@ export function prePushPlan(changedFiles: readonly string[], base: string): Step
   }
   if (workflows.length > 0) steps.push({ label: "actionlint", command: "actionlint", args: workflows });
   if (shell.length > 0) steps.push({ label: "shellcheck", command: "shellcheck", args: shell });
+  if (rust.length > 0) steps.push({ label: "rust", command: "bun", args: ["run", "rust:check"] });
   return steps;
 }

@@ -18,6 +18,18 @@ updates:
         dependency-type: "production"
         update-types: ["minor", "patch"]
 
+  # The Rust workspace: one entry for rust/ covers every crate through rust/Cargo.lock.
+  - package-ecosystem: "cargo"
+    directory: "/rust"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      crates:
+        update-types: ["minor", "patch"]
+
   # The actions in .github/workflows, pinned by commit SHA; Dependabot updates the SHA and its version comment together.
   - package-ecosystem: "github-actions"
     directory: "/"

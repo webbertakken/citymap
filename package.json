@@ -17,15 +17,20 @@
     "typecheck": "bun scripts/check-references.ts && tsc --build",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
+    "rust:format": "cargo fmt --manifest-path rust/Cargo.toml --all",
+    "rust:lint": "cargo fmt --manifest-path rust/Cargo.toml --all --check && cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked --quiet -- -D warnings",
+    "rust:check": "bun run rust:lint && cargo test --manifest-path rust/Cargo.toml --locked --quiet",
     "bench": "bun scripts/bench.ts",
-    "check": "bun run format:check && bun run lint && bun run typecheck && bun run coverage"
+    "parity": "bun scripts/parity.ts",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run coverage && bun run rust:check"
   },
   "lint-staged": {
     "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,json,jsonc,json5,md,mdx,yml,yaml,toml,css,scss,less,html}": "oxfmt --write --no-error-on-unmatched-pattern",
     "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}": "oxlint --no-error-on-unmatched-pattern",
     "*.{sh,bash}": "shellcheck",
     ".husky/pre-*": "shellcheck",
-    ".github/workflows/*.{yml,yaml}": "actionlint"
+    ".github/workflows/*.{yml,yaml}": "actionlint",
+    "rust/**/*.rs": "rustfmt --edition 2024"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",
@@ -41,6 +46,8 @@
   },
   "dependencies": {
     "@citymap/ground-plan": "workspace:*",
-    "@citymap/history": "workspace:*"
+    "@citymap/history": "workspace:*",
+    "@citymap/svg": "workspace:*",
+    "@citymap/themes": "workspace:*"
   }
 }

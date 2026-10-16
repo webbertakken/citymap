@@ -5,7 +5,8 @@ What the ground plan is lives in [ground plan](../006-ground-plan/ground-plan.md
 
 ## Shape
 
-One Bun workspace in this repository. Domain packages hold the logic; apps only wire them to a surface.
+One Bun workspace in this repository, and one Cargo workspace beside it. Domain packages hold the logic; apps only wire
+them to a surface.
 
 | Workspace              | Role                                                                                                                                                                                              |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -15,6 +16,7 @@ One Bun workspace in this repository. Domain packages hold the logic; apps only 
 | `packages/scene`       | Turns a city model into Three.js geometry (instanced lots, merged roads), framework free.                                                                                                         |
 | `apps/cli`             | `citymap`: a repository in, a city (JSON, SVG) and a lockfile out.                                                                                                                                |
 | `apps/web`             | The viewer: Next.js with React and react-three-fiber, drawing `packages/scene` output; a static export on GitHub Pages that also lays any public GitHub repository's single state in the browser. |
+| `rust/`                | The Rust implementation of the CLI and the packages it uses (below).                                                                                                                              |
 
 - Dependencies point one way: apps depend on packages; `svg` and `scene` depend on `ground-plan`'s model types only;
   `history` and `ground-plan` do not know each other, and the apps join them.
@@ -37,8 +39,29 @@ git repository ──history──▶ snapshots ──ground-plan fold──▶ 
 ## Runtimes and languages
 
 - TypeScript 7, run with Bun 1.4 for packages, the CLI and scripts; the web app runs on Next.js 16 with React 19.
-- The ground-plan core uses fixed-point integer arithmetic only, so a later Rust port reproduces it bit for bit.
+- The ground-plan core uses fixed-point integer arithmetic only, so the Rust implementation reproduces it bit for bit.
 - The web app imports the engine directly; the same code runs in the CLI and in the browser.
+- Rust, stable, pinned in `mise.toml` and `rust/rust-toolchain.toml`, for the second implementation of the CLI.
+
+## Rust implementation
+
+A second implementation of the `citymap` command, for speed: a full fold of a large history takes hours on the
+TypeScript engine, and a fold service needs it in minutes.
+
+- It lives in `rust/`, one Cargo workspace whose crates mirror the TypeScript workspaces they implement:
+  `citymap-ground-plan`, `citymap-history`, `citymap-themes`, `citymap-svg` and `citymap-cli` (the `citymap` binary).
+  The scene and the web app stay TypeScript only.
+- The TypeScript packages are the reference implementation: the specs describe both, and a change lands in TypeScript
+  and Rust in the same pull request.
+- **Parity** is the contract: for the same repository, commit and flags, the Rust CLI writes the same bytes as the
+  TypeScript CLI to the city JSON, the lockfile and the SVG, and logs the same lines apart from timings. Exit codes and
+  error codes are the same.
+- Parity is proven at three levels: the TypeScript unit tests ported to Rust; shared fixtures (the golden towns, and
+  parity fixtures the TypeScript engine writes for land use, colours and SVG); and `bun run parity`, which runs both
+  CLIs on local clones of the reference repositories and compares their outputs byte for byte.
+- The Rust CLI may run work in parallel (the history read beside the fold) where the result cannot depend on it.
+- It reads git the way the TypeScript reader does: `git` subprocesses with argument arrays and the same flags.
+- The blueprint is [Rust implementation](blueprints/rust.md).
 
 ## Tooling
 
@@ -53,6 +76,8 @@ git repository ──history──▶ snapshots ──ground-plan fold──▶ 
 - One gate, `bun run check`: format check, lint, type check, tests with coverage. A commit formats and lints its staged
   files, type checks and scans for secrets; a push runs the gate's checks for what it changes; CI runs the whole gate on
   every pull request and every push to `main`.
+- Rust: rustfmt, clippy with pedantic lints denied as errors, and `cargo test`, run by `bun run rust:check`; `unsafe` is
+  forbidden. A commit with Rust files runs them; CI runs them in their own job.
 
 ## Boundaries and trust
 

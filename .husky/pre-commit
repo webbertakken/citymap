@@ -1,8 +1,11 @@
 #!/usr/bin/env sh
 # The commit gate (docs/instructions/development.md): staged files formatted and linted, every project type checked,
-# no secret staged.
+# Rust formatted and linted when the commit touches it, no secret staged.
 lint-staged --concurrent false
 bun run typecheck
+if git diff --cached --name-only --diff-filter=ACMR | grep -q '^rust/'; then
+  bun run rust:lint
+fi
 if ! command -v gitleaks >/dev/null 2>&1; then
   echo "[pre-commit] failed: gitleaks not found; run \`mise install\`" >&2
   exit 1

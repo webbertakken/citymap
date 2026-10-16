@@ -1,0 +1,21 @@
+[package]
+name = "citymap-cli"
+description = "citymap: a repository in, a city (JSON, SVG) and a lockfile out."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "citymap"
+path = "src/main.rs"
+
+[dependencies]
+citymap-ground-plan.workspace = true
+citymap-history.workspace = true
+citymap-svg.workspace = true
+citymap-themes.workspace = true
+
+[lints]
+workspace = true
