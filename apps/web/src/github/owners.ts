@@ -32,7 +32,10 @@ interface Kept<T> {
 const unknownOwner = (owner: string) => () =>
   new CitymapError("github/not-found", `No GitHub user or organisation named ${owner}`, { owner });
 
-/** Answers by key: fresh while kept `OWNER_TTL_MS`, shared while asked, forgotten when they fail. */
+/** True for a failure that is an answer: no such owner. It is kept like one, so it is not asked again. */
+const isAnswer = (failure: unknown) => failure instanceof CitymapError && failure.code === "github/not-found";
+
+/** Answers by key: fresh while kept `OWNER_TTL_MS`, shared while asked; a failure is forgotten unless it is an answer. */
 function memo<T>(now: () => number) {
   const kept = new Map<string, Kept<T>>();
   const fresh = (key: string) => {
@@ -47,7 +50,7 @@ function memo<T>(now: () => number) {
       kept.set(key, entry);
       entry.answer.then(
         (value) => (entry.value = value),
-        () => kept.get(key) === entry && kept.delete(key),
+        (failure: unknown) => !isAnswer(failure) && kept.get(key) === entry && kept.delete(key),
       );
       return entry.answer;
     },

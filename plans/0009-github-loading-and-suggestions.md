@@ -37,7 +37,7 @@ A progress card over the map while anything loads, and repository suggestions af
 - [x] `ownerRepositories`: one request per owner (`/users/{owner}/repos`, newest pushed first, 100 per page), kept ten
       minutes in the tab; the repository search for a name past the first page; named failures (unknown owner, limit
       with reset time, offline); reads the remaining allowance (tests with a stubbed fetcher)
-- [ ] SearchBox: an "On GitHub" group after the city's matches (city at most three then), seven in all; marked names,
+- [x] SearchBox: an "On GitHub" group after the city's matches (city at most three then), seven in all; marked names,
       one-line descriptions, stars, language, fork and archived; the remaining allowance in the summary
 - [ ] Debounce so typing a name costs one request per owner, measured
 

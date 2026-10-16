@@ -482,6 +482,35 @@ describe("Viewer and a GitHub repository", () => {
     expect(screen.getByText(/^12 matches; the first 7 are shown, type more to narrow them$/)).toBeTruthy();
   });
 
+  it("suggests an owner's repositories with the allowance left, and lays the one picked", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const owner = github({
+      "https://api.github.com/users/acme/repos?sort=pushed&per_page=100": () =>
+        new Response(
+          JSON.stringify([
+            {
+              name: "widgets",
+              description: "Widgets.",
+              stargazers_count: 7,
+              language: "Go",
+              fork: false,
+              archived: false,
+            },
+          ]),
+          { headers: { "x-ratelimit-remaining": "57", "x-ratelimit-reset": "1700000000" } },
+        ),
+    });
+    render(<Viewer Canvas={StubCanvas} fetcher={owner} lay={layHere} />);
+    await screen.findByText("1 towns · 1 lots");
+    type("acme/");
+    expect(await screen.findByText("On GitHub")).toBeTruthy();
+    expect(document.querySelector(".summary")?.textContent).toBe(
+      "1 of acme's repositories match · 57 GitHub requests left this hour",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^GitHub repository acme\/widgets/ }));
+    expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
+  });
+
   it("lays the repository an address names, instead of the first bundled city, and says why a bad one cannot", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     window.history.replaceState(null, "", "/?repo=acme/widgets");

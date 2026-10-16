@@ -66,16 +66,19 @@ describe("createSuggester", () => {
     expect(suggester.cachedSearch("facebook", "zs")).toBeNull();
   });
 
-  it("names an unknown owner, and asks again after a failure", async () => {
-    const { fetcher, asked } = github({});
+  it("names an unknown owner and keeps that answer, but asks again after any other failure", async () => {
+    const { fetcher, asked } = github({ [`${API}/users/down/repos?sort=pushed&per_page=100`]: () => json({}, 502) });
     const suggester = createSuggester(fetcher, () => 0);
     await expect(suggester.ownerRepositories("nobody")).rejects.toMatchObject({
       code: "github/not-found",
       detail: { owner: "nobody" },
     });
     await expect(suggester.ownerRepositories("nobody")).rejects.toThrow("github/not-found");
-    expect(asked).toHaveLength(2);
+    expect(asked).toHaveLength(1);
     expect(suggester.cached("nobody")).toBeNull();
+    await expect(suggester.ownerRepositories("down")).rejects.toThrow("github/failed");
+    await expect(suggester.ownerRepositories("down")).rejects.toThrow("github/failed");
+    expect(asked).toHaveLength(3);
     await expect(suggester.searchRepositories("nobody", "x")).rejects.toThrow("github/not-found");
   });
 });

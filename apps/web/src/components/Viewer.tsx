@@ -13,6 +13,8 @@ import {
   type ComponentType,
 } from "react";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
+import { meter, type Allowance } from "../github/allowance";
+import { createSuggester } from "../github/owners";
 import { readRepository, type Fetcher } from "../github/read";
 import { parseRepository } from "../github/repository";
 import { layInWorker } from "../lay/browser";
@@ -44,6 +46,8 @@ export interface ViewerProps {
 }
 
 const browserFetch: Fetcher = (url, init) => fetch(url, init);
+/** The time of day, in epoch milliseconds: what kept suggestions age by. */
+const wallClock = () => Date.now();
 
 // The system's colour preference, as an external store: read on the client, light while prerendering.
 const DARK = "(prefers-color-scheme: dark)";
@@ -73,6 +77,10 @@ export const focusOn = (city: City, key: string): City => ({
 /** The viewer: one city at a time, its theme and its view. */
 export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "" }: ViewerProps) {
   const loading = useLoading();
+  // GitHub's hourly allowance, heard from every API answer, shared by laying and the suggestions.
+  const [allowance, setAllowance] = useState<Allowance | null>(null);
+  const github = useMemo(() => meter(fetcher, setAllowance), [fetcher]);
+  const suggester = useMemo(() => createSuggester(github, wallClock), [github]);
   const [cities, setCities] = useState<readonly CityEntry[]>([]);
   const [selected, setSelected] = useState("");
   const [city, setCity] = useState<City | null>(null);
@@ -227,7 +235,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         const load = begin("github", name);
         job = load;
         let requests = 0;
-        const snapshot = await readRepository(fetcher, repo, {
+        const snapshot = await readRepository(github, repo, {
           signal: load.signal,
           onStep: (step) => {
             requests = step.requests;
@@ -252,7 +260,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         setError(describeFailure(failure));
       }
     },
-    [begin, draw, fetcher, lay, theme],
+    [begin, draw, github, lay, theme],
   );
   // The index loads once, on mount; a repository in the address is laid, else the first bundled city opens.
   const first = useEffectEvent((entry: CityEntry) => void open(entry));
@@ -353,6 +361,8 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         // Matches come only from `finder`'s index, so `finder` is there whenever one is picked.
         onPick={(entry) => goTo(entry, finder!)}
         onRepository={(name) => void openRepository(name)}
+        suggester={suggester}
+        allowance={allowance}
       />
       {loading.shown && loading.progress && (
         <LoadingCard progress={loading.progress} now={loading.now} onCancel={loading.cancel} />
