@@ -644,7 +644,8 @@ mark {
   .search {
     top: calc(var(--gap) + 76px + 8px);
     left: var(--gap);
-    width: 360px;
+    /* Up to the drawer: the room left of it, less the gaps. */
+    width: min(440px, calc(100vw - 3 * var(--gap) - var(--drawer)));
     transform: none;
   }
   .notice {

@@ -111,16 +111,18 @@ test("reaches every control and the map by keyboard, and moves the map with keys
     .toBeCloseTo(before?.x ?? 0, 0);
 });
 
-test("lays the cards out so none covers another", async ({ page }, info) => {
-  const cards = [".card-title", ".search", ".controls", ".zoom", ".legend", ".drawer", ".details-button"];
+const CARDS = [".card-title", ".search", ".controls", ".zoom", ".legend", ".drawer", ".details-button"];
+
+/** Every pair of visible cards whose boxes meet. */
+async function overlapping(page: Page): Promise<string[]> {
   const measured = await Promise.all(
-    cards.map(async (selector) => {
+    CARDS.map(async (selector) => {
       const card = page.locator(selector);
       return { selector, box: (await card.isVisible()) ? await card.boundingBox() : null };
     }),
   );
   const boxes = measured.flatMap(({ selector, box }) => (box ? [{ selector, box }] : []));
-  const overlaps = boxes.flatMap((a, i) =>
+  return boxes.flatMap((a, i) =>
     boxes
       .slice(i + 1)
       .filter(
@@ -132,8 +134,35 @@ test("lays the cards out so none covers another", async ({ page }, info) => {
       )
       .map((b) => `${a.selector} × ${b.selector}`),
   );
+}
+
+/** The overlaps at each window size in turn, by width. */
+async function overlapsAt(page: Page, sizes: readonly [number, number][]): Promise<Record<number, string[]>> {
+  const [first, ...rest] = sizes;
+  if (!first) return {};
+  await page.setViewportSize({ width: first[0], height: first[1] });
+  const here = await overlapping(page);
+  return { [first[0]]: here, ...(await overlapsAt(page, rest)) };
+}
+
+test("lays the cards out so none covers another, at every width", async ({ page, isMobile }, info) => {
   await page.screenshot({ path: info.outputPath("cards.png") });
-  expect(overlaps).toEqual([]);
+  if (isMobile) {
+    expect(await overlapping(page)).toEqual([]);
+    return;
+  }
+  // The wide layout, the medium one where the search sits under the title, and the narrow one.
+  const sizes: [number, number][] = [
+    [1400, 900],
+    [1101, 800],
+    [1100, 800],
+    [900, 700],
+    [761, 700],
+    [760, 700],
+    [360, 640],
+  ];
+  const found = await overlapsAt(page, sizes);
+  expect(found).toEqual(Object.fromEntries(sizes.map(([w]) => [w, []])));
 });
 
 test("keeps the drawer as a closed sheet on a phone, and as a panel that hides on a desktop", async ({
