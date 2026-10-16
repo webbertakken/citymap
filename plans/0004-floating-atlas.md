@@ -25,15 +25,15 @@ Rework the viewer's interface into the floating atlas, following the system's li
 
 ## Phase 5: the interface
 
-- [ ] Dependencies: Inter and lucide-react at their latest versions
-- [ ] Stylesheet: scheme variables, glass, sizes, layers, reduced motion, phone layout
-- [ ] `TitleCard`, `SearchBox`, `ViewControls`, `Drawer`, `ZoomControls`, `Legend`, `Notice`, tested
-- [ ] `Viewer` composes them; `TopBar` and `CityPanel` removed
-- [ ] Logs: `viewer/search`, `viewer/search-pick`, `viewer/drawer`
+- [x] Dependencies: Inter and lucide-react at their latest versions
+- [x] Stylesheet: scheme variables, glass, sizes, layers, reduced motion, phone layout
+- [x] `TitleCard`, `SearchBox`, `ViewControls`, `Drawer`, `ZoomControls`, `Legend`, `Notice`, tested
+- [x] `Viewer` composes them; `TopBar` and `CityPanel` removed
+- [x] Logs: `viewer/search`, `viewer/search-pick`, `viewer/drawer`
 
 ## Phase 6: proof
 
-- [ ] Unit tests at 100 % coverage; `bun run check`
+- [x] Unit tests at 100 % coverage; `bun run check`
 - [ ] End-to-end: journeys, axe in light and dark, vitals, phone layout
 - [ ] Screenshots: desktop and phone, light and dark, search open
 - [ ] README pictures and text updated

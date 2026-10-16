@@ -3,7 +3,7 @@ import type { Hit, PickIndex, Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
 import { useEffectEvent, useLayoutEffect, useRef, useState, type ComponentType } from "react";
 import { describeHit, hitAt } from "../view/hover";
-import { declutter, onKey, pan, type View, type Viewport } from "../view/view";
+import { NO_INSETS, declutter, onKey, pan, project, type Insets, type View, type Viewport } from "../view/view";
 
 /** What the WebGL canvas draws: the scene's layers from the view, filling its parent. */
 export interface CanvasProps {
@@ -18,6 +18,10 @@ export interface MapViewProps {
   readonly scene: Scene;
   readonly index: PickIndex;
   readonly view: View;
+  /** Where the cards cover the map; `0` fits the city in the rest. */
+  readonly insets?: Insets;
+  /** A place to mark on the map (scene units), or null. */
+  readonly marker?: { readonly x: number; readonly z: number } | null;
   readonly theme: Theme;
   readonly Canvas: ComponentType<CanvasProps>;
   readonly onSelect: (hit: Hit | null) => void;
@@ -44,6 +48,8 @@ export function MapView({
   scene,
   index,
   view,
+  insets = NO_INSETS,
+  marker = null,
   theme,
   Canvas,
   onView,
@@ -73,7 +79,7 @@ export function MapView({
       onEscape();
       return;
     }
-    const next = onKey(event.key, view, viewport, scene.bounds);
+    const next = onKey(event.key, view, viewport, scene.bounds, insets);
     if (!next) return;
     event.preventDefault();
     onView(next);
@@ -150,6 +156,7 @@ export function MapView({
   }, []);
 
   const labels = declutter(scene.labels, view, viewport);
+  const mark = marker ? project(view, viewport, { x: marker.x, y: 0, z: marker.z }) : null;
   const card = hover ? describeHit(hover.hit) : null;
   // Beside the pointer, flipped to the other side near the map's edges, so it never covers the pointer.
   const cardLeft =
@@ -185,8 +192,9 @@ export function MapView({
           </span>
         ))}
       </div>
+      {mark && <span className="marker" aria-hidden="true" style={{ left: mark.x, top: mark.y }} />}
       {card && (
-        <div className="card" role="tooltip" style={{ left: cardLeft, top: cardTop }}>
+        <div className="hover-card" role="tooltip" style={{ left: cardLeft, top: cardTop }}>
           <strong>{card.title}</strong>
           {card.lines.map((line) => (
             <span key={line}>{line}</span>

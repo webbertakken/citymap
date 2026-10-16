@@ -1,16 +1,16 @@
 "use client";
 import type { City } from "@citymap/ground-plan";
-import { buildScene, pickIndex, type Hit } from "@citymap/scene";
+import { buildScene, pick, pickIndex, type Hit } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import {
   useCallback,
   useEffect,
   useEffectEvent,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ComponentType,
-  type CSSProperties,
 } from "react";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
 import { readRepository, type Fetcher } from "../github/read";
@@ -18,10 +18,18 @@ import { parseRepository } from "../github/repository";
 import { layInWorker } from "../lay/browser";
 import type { Lay } from "../lay/lay";
 import { log, reasonOf } from "../log";
-import { fit, type Mode, type View, type Viewport } from "../view/view";
-import { CityPanel } from "./CityPanel";
+import { searchIndex, type SearchEntry } from "../search/search";
+import { FLY_MS, between, ease, flyTo } from "../view/fly";
+import { insetsFor } from "../view/insets";
+import { fit, onKey, type Mode, type View, type Viewport } from "../view/view";
+import { Drawer } from "./Drawer";
+import { Legend } from "./Legend";
 import { MapView, type CanvasProps } from "./MapView";
-import { TopBar } from "./TopBar";
+import { Notice } from "./Notice";
+import { SearchBox } from "./SearchBox";
+import { TitleCard } from "./TitleCard";
+import { ViewControls } from "./ViewControls";
+import { ZoomControls } from "./ZoomControls";
 
 export interface ViewerProps {
   readonly Canvas: ComponentType<CanvasProps>;
@@ -44,6 +52,9 @@ const subscribeDark = (changed: () => void) => {
 };
 const darkNow = () => media()?.matches ?? false;
 const darkOnServer = () => false;
+// Flights are instant where motion is unwelcome, and where it cannot be asked (tests).
+const stillness = () =>
+  typeof window.matchMedia !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /** The viewer: one city at a time, its theme and its view. */
 /** The city with only the town of that key, and no highways. */
@@ -80,26 +91,76 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const shown = town ?? city;
   const scene = townScene ?? wholeScene;
   const index = townIndex ?? wholeIndex;
+  const [drawer, setDrawer] = useState<boolean | null>(null);
+  const insets = useMemo(() => insetsFor(viewport, drawer), [viewport, drawer]);
   const view = useMemo(
-    () => (fitted && scene ? fit(scene.bounds, mode, viewport) : moved),
-    [fitted, scene, mode, viewport, moved],
+    () => (fitted && scene ? fit(scene.bounds, mode, viewport, insets) : moved),
+    [fitted, scene, mode, viewport, insets, moved],
   );
-  const [picked, setPicked] = useState<Hit | null>(null);
-  // A city that is not bundled: where it came from, for the picker; and the GitHub repository last laid.
-  const [elsewhere, setElsewhere] = useState<string | null>(null);
-  const [laidRepository, setLaidRepository] = useState("");
+  const [picked, setPickedHit] = useState<Hit | null>(null);
+  // Where a search took the person: a marker over the map, until the selection changes.
+  const [marker, setMarker] = useState<{ x: number; z: number } | null>(null);
+  const setPicked = (hit: Hit | null) => {
+    setPickedHit(hit);
+    setMarker(null);
+  };
+  const finder = useMemo(() => (city ? searchIndex(city) : null), [city]);
+  // A flight in progress: its animation frame, cancelled by any other move.
+  const flight = useRef(0);
+  const settle = (next: View) => {
+    cancelAnimationFrame(flight.current);
+    setFitted(false);
+    setMoved(next);
+  };
+  const flyView = (from: View, to: View) => {
+    cancelAnimationFrame(flight.current);
+    setFitted(false);
+    if (stillness()) {
+      setMoved(to);
+      return;
+    }
+    // Until the first frame, the map holds where the flight starts.
+    setMoved(from);
+    const start = performance.now();
+    const step = (now: number) => {
+      const share = Math.min(1, (now - start) / FLY_MS);
+      setMoved(between(from, to, ease(share)));
+      if (share < 1) flight.current = requestAnimationFrame(step);
+    };
+    flight.current = requestAnimationFrame(step);
+  };
   const drill = (key: string | null) => {
     if (key === null) log.info("viewer/city");
     else log.info("viewer/town", { key });
+    cancelAnimationFrame(flight.current);
     setFocus(key);
     setPicked(null);
     setFitted(true);
   };
+  // A search hit: leave a town it is not in, fly to it, select it and mark it.
+  // Matches come from `finder`, built from the city shown, so the city's scene and index are there.
+  const goTo = (entry: SearchEntry) => {
+    const bounds = wholeScene!.bounds;
+    const picking = wholeIndex!;
+    const leaving = focus !== null && focus !== entry.townKey;
+    if (leaving) setFocus(null);
+    const whole = fit(bounds, mode, viewport, insets);
+    const from = leaving ? whole : view;
+    flyView(from, flyTo(from, viewport, entry, whole, insets));
+    const hit: Hit | null =
+      entry.kind === "file"
+        ? pick(picking, entry.x, entry.z)
+        : { kind: "district", town: entry.town, townKey: entry.townKey, district: entry.name };
+    setPickedHit(hit);
+    setMarker({ x: entry.x, z: entry.z });
+  };
 
   const show = useCallback((next: City, name: string) => {
+    cancelAnimationFrame(flight.current);
     setCity(next);
     setFocus(null);
-    setPicked(null);
+    setPickedHit(null);
+    setMarker(null);
     setError("");
     const lots = next.towns.reduce((s, t) => s + t.stats.lots, 0);
     log.info("viewer/open", { name, towns: next.towns.length, lots });
@@ -110,7 +171,6 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const open = useCallback(
     async (entry: CityEntry) => {
       setSelected(entry.file);
-      setElsewhere(null);
       setStatus(`${entry.name}: laying out…`);
       try {
         show(await loadCity(fetcher, entry, basePath), entry.name);
@@ -140,8 +200,6 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         show(next, name);
         setStatus((done) => `${done} · single state, not folded`);
         setSelected("");
-        setElsewhere(`${name} (GitHub)`);
-        setLaidRepository(name);
         log.info("viewer/github-read", {
           repo: name,
           requests,
@@ -181,7 +239,6 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     try {
       show(await readCityFile(file), file.name);
       setSelected("");
-      setElsewhere(`${file.name} (file)`);
     } catch (failure) {
       log.error("viewer/file-rejected", { file: file.name, reason: reasonOf(failure) });
       setError(describeFailure(failure));
@@ -204,70 +261,75 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     };
   }, []);
   const colours = THEMES[theme];
-  // The page and the panel take the theme's colours; custom properties carry them into the stylesheet.
-  const style: CSSProperties & Record<`--${string}`, string> = {
-    background: colours.country,
-    color: colours.headerText,
-    "--panel": colours.header,
-    "--panel-text": colours.headerText,
-    "--panel-line": colours.outline,
-  };
   return (
-    <main className="viewer" style={style} data-theme={theme}>
-      <TopBar
+    <main className="viewer" style={{ background: colours.country }} data-theme={theme}>
+      {scene && city && index ? (
+        <MapView
+          name={city.repository}
+          scene={scene}
+          index={index}
+          onSelect={setPicked}
+          onEscape={() => {
+            // Escape clears the selection, else leaves the town for the whole city.
+            if (picked) setPicked(null);
+            else if (focus !== null) drill(null);
+          }}
+          view={view}
+          insets={insets}
+          marker={marker}
+          theme={colours}
+          Canvas={Canvas}
+          onView={settle}
+          onViewport={setViewport}
+        />
+      ) : (
+        <div className="map empty" />
+      )}
+      <TitleCard
         title={city?.repository ?? "citymap"}
         status={status}
-        cities={cities}
-        selected={selected}
-        mode={mode}
-        theme={theme}
         town={town?.towns[0]!.name ?? null}
         onWhole={() => drill(null)}
-        onCity={(file) => {
-          const entry = cities.find((c) => c.file === file);
-          if (entry) void open(entry);
-        }}
-        onFile={(file) => void openFile(file)}
-        onRepository={(input) => void openRepository(input)}
-        elsewhere={elsewhere}
-        repository={laidRepository}
+      />
+      <SearchBox index={finder} onPick={goTo} onRepository={(name) => void openRepository(name)} />
+      <ViewControls
+        mode={mode}
+        theme={theme}
+        cities={cities}
+        selected={selected}
         onMode={(next) => {
           setMode(next);
           setMoved({ ...moved, mode: next });
         }}
         onTheme={setTheme}
+        onCity={(entry) => void open(entry)}
+        onFile={(file) => void openFile(file)}
       />
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
+      <Drawer
+        city={shown}
+        selected={picked}
+        focused={focus !== null}
+        open={drawer}
+        onOpen={(next) => {
+          log.info("viewer/drawer", { open: next ? "open" : "closed" });
+          setDrawer(next);
+        }}
+        onDrill={drill}
+      />
+      {scene && (
+        <ZoomControls
+          onKey={(key) => {
+            if (key === "0") {
+              cancelAnimationFrame(flight.current);
+              setFitted(true);
+              return;
+            }
+            settle(onKey(key, view, viewport, scene.bounds, insets)!);
+          }}
+        />
       )}
-      <div className="body">
-        {scene && city && index ? (
-          <MapView
-            name={city.repository}
-            scene={scene}
-            index={index}
-            onSelect={setPicked}
-            onEscape={() => {
-              // Escape clears the selection, else leaves the town for the whole city.
-              if (picked) setPicked(null);
-              else if (focus !== null) drill(null);
-            }}
-            view={view}
-            theme={colours}
-            Canvas={Canvas}
-            onView={(next) => {
-              setFitted(false);
-              setMoved(next);
-            }}
-            onViewport={setViewport}
-          />
-        ) : (
-          <div className="map empty" />
-        )}
-        <CityPanel city={shown} selected={picked} focused={focus !== null} onDrill={drill} />
-      </div>
+      <Legend theme={colours} />
+      {error && <Notice message={error} onDismiss={() => setError("")} />}
     </main>
   );
 }

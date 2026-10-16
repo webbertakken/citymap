@@ -111,6 +111,24 @@ describe("search", () => {
     expect(search(index, "zebra")).toEqual({ hits: [], total: 0 });
   });
 
+  it("breaks ties by kind, then path length, then path, keeping an old town's twin beside its own", () => {
+    const tied: City = {
+      ...city,
+      towns: [
+        town("b", "b", [lot("b/pal", 0), lot("a/pal", 64)], [district("x/pal", box(0, 0, 64, 64))]),
+        town("old", "b old town", [lot("b/pal", 0)], [district("x/pal", box(0, 0, 64, 64))]),
+      ],
+    };
+    const found = search(searchIndex(tied), "pal").hits;
+    expect(found.map((h) => [h.kind, h.path, h.town])).toEqual([
+      ["folder", "x/pal", "b"],
+      ["folder", "x/pal", "b old town"],
+      ["file", "a/pal", "b"],
+      ["file", "b/pal", "b"],
+      ["file", "b/pal", "b old town"],
+    ]);
+  });
+
   it("shows at most seven, and counts them all", () => {
     const many: City = {
       ...city,

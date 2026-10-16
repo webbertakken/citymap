@@ -57,8 +57,29 @@ export function project(view: View, viewport: Viewport, p: { x: number; y: numbe
   };
 }
 
-/** The view that centres the city and fills nine tenths of the viewport with it. */
-export function fit(bounds: Scene["bounds"], mode: Mode, viewport: Viewport): View {
+/** How far, in pixels, the cards over the map reach in from each edge. */
+export interface Insets {
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly left: number;
+}
+
+export const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/** The part of the map the cards leave free. */
+const freeOf = (viewport: Viewport, insets: Insets): Viewport => ({
+  width: Math.max(1, viewport.width - insets.left - insets.right),
+  height: Math.max(1, viewport.height - insets.top - insets.bottom),
+});
+
+/** A view shifted so what was at the viewport's centre sits at the centre of the free part. */
+export const framed = (view: View, insets: Insets): View =>
+  pan(view, (insets.right - insets.left) / 2, (insets.top - insets.bottom) / 2);
+
+/** The view that centres the city in the map the cards leave free, and fills nine tenths of it. */
+export function fit(bounds: Scene["bounds"], mode: Mode, whole: Viewport, insets: Insets = NO_INSETS): View {
+  const viewport = freeOf(whole, insets);
   const centre = { x: (bounds.min.x + bounds.max.x) / 2, z: (bounds.min.z + bounds.max.z) / 2 };
   const b = basis(mode);
   let wide = 0;
@@ -73,7 +94,7 @@ export function fit(bounds: Scene["bounds"], mode: Mode, viewport: Viewport): Vi
     wide === 0 && tall === 0
       ? 1
       : FIT_SHARE * Math.min(viewport.width / (wide || tall), viewport.height / (tall || wide));
-  return { mode, centre, zoom };
+  return framed({ mode, centre, zoom }, insets);
 }
 
 /** A view moved along the ground by a screen distance in pixels (right and up). */
@@ -101,7 +122,13 @@ export const KEY_ZOOM = 1.25;
 export const FIT_SHARE = 0.9;
 
 /** The view after a key: arrows pan by `PAN_SHARE`, + and - zoom by `KEY_ZOOM`, 0 fits; null for any other key. */
-export function onKey(key: string, view: View, viewport: Viewport, bounds: Scene["bounds"]): View | null {
+export function onKey(
+  key: string,
+  view: View,
+  viewport: Viewport,
+  bounds: Scene["bounds"],
+  insets: Insets = NO_INSETS,
+): View | null {
   switch (key) {
     case "ArrowRight":
       return pan(view, viewport.width * PAN_SHARE, 0);
@@ -117,7 +144,7 @@ export function onKey(key: string, view: View, viewport: Viewport, bounds: Scene
     case "-":
       return { ...view, zoom: view.zoom / KEY_ZOOM };
     case "0":
-      return fit(bounds, view.mode, viewport);
+      return fit(bounds, view.mode, viewport, insets);
     default:
       return null;
   }

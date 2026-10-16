@@ -1,5 +1,5 @@
 // Flying the view to a place: where it ends, and the eased steps between.
-import type { View, Viewport } from "./view";
+import { NO_INSETS, framed, type Insets, type View, type Viewport } from "./view";
 
 /** A place flown to fills this share of the map's shorter side. */
 export const FLY_SHARE = 0.4;
@@ -8,15 +8,17 @@ export const FLY_MIN_EXTENT = 6;
 /** How long a flight takes, in milliseconds; none under reduced motion. */
 export const FLY_MS = 300;
 
-/** The view centred on a place, zoomed so it fills its share, never further out than the fitted view. */
+/** The view centring a place in the free map, zoomed so it fills its share, never further out than the fitted view. */
 export function flyTo(
   view: View,
   viewport: Viewport,
   place: { readonly x: number; readonly z: number; readonly extent: number },
   fitted: View,
+  insets: Insets = NO_INSETS,
 ): View {
-  const zoom = (Math.min(viewport.width, viewport.height) * FLY_SHARE) / Math.max(place.extent, FLY_MIN_EXTENT);
-  return { mode: view.mode, centre: { x: place.x, z: place.z }, zoom: Math.max(zoom, fitted.zoom) };
+  const free = Math.min(viewport.width - insets.left - insets.right, viewport.height - insets.top - insets.bottom);
+  const zoom = (Math.max(1, free) * FLY_SHARE) / Math.max(place.extent, FLY_MIN_EXTENT);
+  return framed({ mode: view.mode, centre: { x: place.x, z: place.z }, zoom: Math.max(zoom, fitted.zoom) }, insets);
 }
 
 /** Cubic ease in and out: still at both ends. */

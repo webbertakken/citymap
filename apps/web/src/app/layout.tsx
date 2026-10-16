@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import "@fontsource-variable/inter/index.css";
 import "./globals.css";
 
 export const metadata: Metadata = {

@@ -81,6 +81,25 @@ describe("onKey", () => {
   });
 });
 
+describe("fit within insets", () => {
+  it("fits the city to the map the cards leave free, and centres it there", () => {
+    const insets = { top: 100, right: 300, bottom: 0, left: 100 };
+    for (const mode of ["plan", "dimetric"] as const) {
+      const view = fit(bounds, mode, viewport, insets);
+      expect(view.zoom).toBeCloseTo(fit(bounds, mode, { width: 600, height: 400 }).zoom, 9);
+      const centre = project(view, viewport, { x: 0, y: 0, z: 0 });
+      expect(centre.x).toBeCloseTo(100 + 600 / 2, 6);
+      expect(centre.y).toBeCloseTo(100 + 400 / 2, 6);
+    }
+  });
+
+  it("fits within the same insets from the keyboard", () => {
+    const insets = { top: 0, right: 200, bottom: 0, left: 0 };
+    const view: View = { mode: "plan", centre: { x: 9, z: 9 }, zoom: 3 };
+    expect(onKey("0", view, viewport, bounds, insets)).toEqual(fit(bounds, "plan", viewport, insets));
+  });
+});
+
 describe("declutter", () => {
   it("keeps labels in order and drops those that would overlap or fall outside", () => {
     const view: View = { mode: "plan", centre: { x: 0, z: 0 }, zoom: 10 };
