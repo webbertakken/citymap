@@ -57,4 +57,4 @@ Branch `feat/fold-schedule` in the worktree `../citymap-stride`.
       `EVERY_COMMIT`; no CLI flag), recorded in the spec and blueprints
 - [x] README: fold times and history; architecture and development notes on fold times
 - [x] Fold-back: spec reconciled to what shipped, blueprint re-derived, every symbol, file and reference verified
-- [ ] Commit, push, open the pull request (not merged)
+- [x] Commit, push, open the pull request (not merged): #28
