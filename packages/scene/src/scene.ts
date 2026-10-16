@@ -34,8 +34,6 @@ export interface Scene {
 /** The height of a lot's plinth, in street widths. */
 export const LOT_HEIGHT = 0.12;
 const HEIGHT = { ground: 0, blocks: 0.01, water: 0.015, casings: 0.02, roads: 0.025, lots: 0.03 } as const;
-/** The height of a lot's top in the dimetric view, where picking meets it. */
-export const LOT_TOP = HEIGHT.lots + LOT_HEIGHT;
 /** A road's casing is this much wider than its fill, in fixed units. */
 const CASING = 16;
 

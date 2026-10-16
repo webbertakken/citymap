@@ -74,16 +74,17 @@ keeps the name to your own screen.
 
   ![linux, vscode and godot at HEAD](docs/img/scale.png)
 
-- **Themes and views.** Five themes (Paper atlas, Night atlas, Beck, Nolli, Dracula), plan view or 2:1 dimetric 3D, and
-  optional Voronoi district regions.
+- **Themes and views.** Five themes (Paper atlas, Night atlas, Beck, Nolli, Dracula), plan view, or 2:1 dimetric 3D in
+  the SVG export, and optional Voronoi district regions.
 
   ![react in five themes](docs/img/themes.png)
 
 - **A viewer.** The map fills the page and every control floats over it, light or dark as your system prefers. Search
-  for any file or folder and the map flies to it; pan, zoom, hover to name anything, click to select, and drill into one
-  town. Press `/` to search from anywhere.
+  for any file or folder and the map flies to it; pan, zoom, hover over anything to learn what it is and what it means,
+  click to select it and copy its path (or, for a city from GitHub, open it there), and drill into one town. Press `/`
+  to search from anywhere.
 
-  ![The viewer over livediagram: searching for "palette" in light, and arriving there in dark](docs/img/viewer.png)
+  ![The viewer over livediagram: searching for "palette" in light, and in dark a hover card saying what a file is](docs/img/viewer.png)
 
   On a phone the details fold into a sheet:
 

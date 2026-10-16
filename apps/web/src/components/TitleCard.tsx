@@ -29,7 +29,7 @@ export function TitleCard({ title, status, town, onWhole }: TitleCardProps) {
           </ol>
         </nav>
       )}
-      <p className="status" aria-live="polite" title={status}>
+      <p className="status" aria-live="polite">
         {status}
       </p>
     </header>

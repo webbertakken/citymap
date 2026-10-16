@@ -30,9 +30,30 @@ in `BufferGeometry`.
 - `pickIndex(city)` builds a uniform grid over the city (cells of 8 u) listing, per cell, the lots, blocks, roads,
   districts and towns whose bounding boxes touch it; `pick(index, x, z)` (scene units) returns the topmost hit: a lot
   (point in polygon), else a block, else a road (distance to a segment within half its width), else a district (smallest
-  containing), else a town. Hits carry the lot's path, use, address and vacancy, the block's kind, the road's class, the
-  district's and town's names.
-- Budget: picking next.js (about 8,000 lots) answers in under 1 ms per query after a 50 ms index.
+  containing), else a town.
+- A city's districts are only its labelled folders (top level, or at least 15 ‰ of the town's mass), so the deepest
+  folder the model knows for a block is the smallest labelled district holding the point; a park's own folder (a
+  flattened subfolder's) is not in the model, nor is any folder's count of documents.
+- `townRoot(city, town)`: the folder a town is laid from: empty for the main town and its old towns (key equal to the
+  repository, or starting with "{repository} old town"), else the key after "{repository}/" without a trailing " old
+  town" or " old town {n}".
+- Every hit of a town carries `town` (its name), `townKey` and `root` (`townRoot`). Per kind:
+  - `lot`: `path` (empty when vacant), `use`, `address`, `vacant`, `folder` (the file's folder: its path up to the last
+    slash, empty at the top; for a vacant lot the address's folder, `addressFolder`), `folderLots` (the live lots whose
+    folder is `folder`);
+  - `block`: `block` (the kind), `folder` (the smallest labelled district's path holding the point, else `root`);
+  - `road`: `cls`, `joins` (for a highway, the names of the towns nearest its two ends, in that order; empty for a
+    town's road); `town`, `townKey` and `root` are null for a highway;
+  - `district`: `district` (its name), `path`, `form` (or null), `lots` (live lots at or below its path) and `folders`
+    (folders below its path that hold lots, or lead to folders that do);
+  - `town`: `form`, `old`, `lots` (`stats.lots`) and `districts` (its top-level labelled districts).
+- `folderHit(index, townKey, path)`: the `district` hit of a labelled folder by its town and path (what a search pick
+  selects), or null.
+- Counts are made once, while indexing: live lots per folder, then summed into every ancestor up to the town's root;
+  folders below each labelled district from the set of folders on the way from each lot's folder up to it. A highway's
+  towns are those whose outline lies nearest each end (distance to the outline's edges, 0 inside).
+- Budget: next.js (about 8,000 lots) indexes in under 50 ms, linux (about 75,000 lots) in under 500 ms; a query answers
+  in under 1 ms.
 
 ## App (`apps/web`)
 
@@ -43,12 +64,13 @@ in `BufferGeometry`.
 - Components: `Viewer` (state: city, theme, view), the floating atlas's cards (below), `CityCanvas` (react-three-fiber
   `Canvas` with an `OrthographicCamera`, one `mesh` per layer with vertex colours); labels are HTML over the canvas,
   placed by `MapView`).
-- Camera: plan by default; dimetric position `(d·cos30°·sin45°, d·sin30°, d·cos30°·cos45°)` looking at the centre; plan
-  position straight above with `up = (0, 0, −1)`. Zoom fits the bounds on load and on `0`.
-- Hover: `unproject(view, viewport, pointer, height)` meets the ray from the pointer with the plane at a height (the lot
-  tops for lots, the ground for the rest); a `Card` (`role="tooltip"`) sits 16 px right and below the pointer, and flips
-  to the left or above near the edges. Click selects; the panel's "Selected" section (`aria-live="polite"`) repeats the
-  details. Escape clears both. The selection's place carries a marker (a ring, `aria-hidden`) over the map.
+- Camera: plan only, straight above the centre with `up = (0, 0, −1)` (`basis()`: eye `(0, 1, 0)`, screen right
+  `(1, 0, 0)`, screen up `(0, 0, −1)`). A `View` is `{ centre, zoom }`. Zoom fits the bounds on load and on `0`. The
+  dimetric view lives on only in the SVG export (`packages/svg`, the CLI's `--camera`).
+- Hover: `hitAt(index, view, viewport, pointer)` unprojects the pointer to the ground and picks there (in plan, a lot's
+  top lies over its footprint). The hover card is described under Hover cards. Click selects; the drawer's "Selected"
+  section (`aria-live="polite"`) shows the same details. Escape clears both. The selection's place carries a marker (a
+  ring, `aria-hidden`) over the map.
 - Drill down: `focus` (a town key or null). The scene and the pick index are built from the city with only that town (no
   highways); the view refits; the title card shows a breadcrumb (`<nav aria-label="Breadcrumb">`: the city as a button,
   then the town); the panel offers "Show only this town" on each town, and on a selection within a town.
@@ -236,7 +258,9 @@ phone), so nothing the cards do moves the map or each other.
   `lucide-react` (ISC), 20 px, `aria-hidden`; every icon-only button has an `aria-label`.
 - `TitleCard` (top left, 300 px; on a phone from the left edge to 8 px short of the controls): `<h1>` the city's name;
   the breadcrumb (`<nav aria-label="Breadcrumb">`, the city as a button, then the town) when one town is shown; the
-  status (`aria-live="polite"`, one line, ellipsis).
+  status (`aria-live="polite"`), 13 px on an 18 px line, wrapping (`overflow-wrap: anywhere`) and never cut: its box
+  holds two lines from the first paint (`min-height: 36px`), so a status that wraps moves nothing. The card is 94 px
+  tall on a desktop and 82 px on a phone.
 - `SearchBox` (`<search>`; top centre, at most 520 px and clear of the title card on both sides; from 1,100 px down,
   under the title card, as wide as the room left of the drawer, at most 440 px; on a phone, the full width under the
   title row): an `<input type="search">` labelled "Search files and folders, or lay owner/name", over a summary
@@ -264,31 +288,30 @@ phone), so nothing the cards do moves the map or each other.
     until the first frame; any other move cancels it; under `prefers-reduced-motion: reduce` it is instant. A match in
     another town than the one shown leaves the town first. The match is then selected (a file as the lot hit at its
     centre, a folder as a district hit) and marked with a ring (`.marker`, `aria-hidden`) until the selection changes.
-- `ViewControls` (top right): a `<fieldset>` (legend "View", visually hidden) of two `aria-pressed` buttons, "Plan" and
-  "3D"; then "Theme" (a popover `<fieldset>`, legend "Map theme", of radio inputs, one per theme); then "More" (a
-  popover headed "Example cities": each bundled city as a button, "{name} {lots} lots", the current one `aria-current`,
-  then "Open a city file…" behind a hidden `<input type="file">` labelled "City file", then the local repository group
-  of [local repositories](../../007-local-repositories/blueprints/local-repositories.md)). A popover (`Popover.tsx`:
-  `aria-expanded`, `aria-controls`) closes on Escape and on a pick, both handing focus back to its button, and on focus
-  or a press outside.
+- `ViewControls` (top right): "Theme" (a popover `<fieldset>`, legend "Map theme", of radio inputs, one per theme); then
+  "More" (a popover headed "Example cities": each bundled city as a button, "{name} {lots} lots", the current one
+  `aria-current`, then "Open a city file…" behind a hidden `<input type="file">` labelled "City file", then the local
+  repository group of [local repositories](../../007-local-repositories/blueprints/local-repositories.md)). A popover
+  (`Popover.tsx`: `aria-expanded`, `aria-controls`) closes on Escape and on a pick, both handing focus back to its
+  button, and on focus or a press outside.
 - `Drawer` (`<aside aria-label="Details">`; right, 320 px, from below the top row to 16 px above the bottom): "Selected"
-  (the hit's title, ellipsis, full text in `title`, and its lines; "Show only this town" when allowed), then "Towns"
-  (each town's name and lot count, the first `TOWNS_SHOWN` 7 by lots, then "Show all {n} towns" and "Show fewer towns";
-  each name a button, described as "Shows only this town", that shows only that town; while one town is shown its name
-  is plain text). The empty state ("No city yet…") shows only when nothing is on its way (an empty status). A close
-  button ("Hide details") collapses it to a "Details" button. Its state is `data-open`: `auto` until the person chooses
-  (open on a wide screen, closed on a phone), then `true` or `false`. Below 760 px wide it is a bottom sheet, at most
-  half the height.
+  (the hit's card body, `CardBody`, as on the hover card, then its actions, below), then "Towns" (each town's name and
+  lot count, the first `TOWNS_SHOWN` 7 by lots, then "Show all {n} towns" and "Show fewer towns"; each name a button,
+  described as "Shows only this town", that shows only that town; while one town is shown its name is plain text). The
+  empty state ("No city yet…") shows only when nothing is on its way (an empty status). A close button ("Hide details")
+  collapses it to a "Details" button. Its state is `data-open`: `auto` until the person chooses (open on a wide screen,
+  closed on a phone), then `true` or `false`. Below 760 px wide it is a bottom sheet, at most half the height.
 - `ZoomControls` (a `<fieldset>`, legend "Zoom"; bottom right, beside the drawer, or at the right edge when it is
   closed): "Zoom in", "Zoom out", "Fit the city" (the keyboard's `+`, `-`, `0`).
-- `Legend` (`<section aria-label="Legend">`, bottom left): swatches from the map theme: "A folder's files, source
-  stronger" (two tints of one district), "Park: documentation", and "Room to grow, and deleted files' lots" (the reserve
-  colour, which vacant lots share). Hidden below 760 px wide.
+- `Legend` (`<section aria-label="Legend">`, bottom left): swatches from the map theme, in the cards' words (`LEGEND` in
+  `card/words.ts`): "Lot: a file's land, tinted by folder; source stronger" (two tints of one district), "Park: land for
+  a folder's documentation", and "Reserve plot: room to grow; empty lots too" (the reserve colour, which vacant lots
+  share). Hidden below 760 px wide.
 - `Notice` (top centre, under the search box): an error as `role="alert"` with a "Dismiss" button; floating, so it moves
   nothing.
 - Insets (`view/insets.ts`, `insetsFor(viewport, drawer)`): where the cards cover the map, from the stylesheet's sizes:
-  top 100 px (156 px from 1,100 px down, where the search is under the title), right 352 px unless the drawer is closed;
-  on a phone top 140 px and bottom 64 px (half the height while the sheet is open). `fit`, `onKey`'s `0` and `flyTo`
+  top 118 px (174 px from 1,100 px down, where the search is under the title), right 352 px unless the drawer is closed;
+  on a phone top 154 px and bottom 64 px (half the height while the sheet is open). `fit`, `onKey`'s `0` and `flyTo`
   take them: the zoom fits the free part, and `framed` pans so the free part's centre is the view's.
 - Sizes: controls 48 px tall on `(pointer: coarse)`, 40 px otherwise (above the 32 px floor), 8 px apart; spacing from
   4, 8, 12, 16, 24, 32, 48 px. Layers (`z-index`): map 0, marker 1, labels 2, cards 10, the search, the controls'
@@ -306,8 +329,7 @@ phone), so nothing the cards do moves the map or each other.
   focus, and hides when both end and on Escape: the first Escape while one shows hides it and is marked answered
   (`preventDefault`, as the page's React root may be the document the popover listens on); `Popover` skips an Escape
   already answered, so the next one closes it. A switch never closes the popover.
-- Below 760 px the view switch is hidden (the viewer shows plan view only, as the spec says, there first), so the three
-  controls take 152 px of a touch screen's top row.
+- The top right holds three controls (Theme, Layout, More), 152 px of a touch screen's top row.
 - `Viewer` holds `toggles` (`DEFAULT_TOGGLES` at start; not remembered) and the `origin` of the city shown (a bundled
   entry; a live repository's name, snapshot, status note and tab title, from GitHub or the person's machine; or a file).
   A change re-opens what is shown in the new variant as a load of its own, with the loading card and the status naming
@@ -335,53 +357,152 @@ phone), so nothing the cards do moves the map or each other.
 - A label's width is its characters times its size times an advance: 0.62 em, plus its letter spacing (0.15 em for a
   town, 0.08 em for a district).
 - `declutter` keeps a label only when, in this order: it lies inside the viewport; a district or minor label's extent on
-  screen is at least its width times `LABEL_FIT` 0.6; no label of the same text was kept within `REPEAT_PX` 240 px; it
-  overlaps no label kept before.
+  screen is at least its width times `LABEL_FIT` 0.6; no label of the same text, compared without regard to case
+  (`toLowerCase`), was kept within `REPEAT_PX` 240 px; it overlaps no label kept before.
+
+## Hover cards (`apps/web/src/card`)
+
+One description of a hit feeds the hover card and the drawer's selection, so both say the same.
+
+- `describeHit(hit)` (`card/describe.ts`, pure) → `Card`: `{ kind, eyebrow, title, place, meaning, rows, target }`,
+  where `kind` is one of `file`, `vacant`, `park`, `plaza`, `green`, `reserve`, `block`, `road`, `highway`, `folder`,
+  `town` (it chooses the icon and is the card's `data-kind`); `eyebrow` names the kind above a name (null when the title
+  is the kind); `place` is the list of names from the town down (`placeOf(town, root, folder)`: the town's name, then
+  the folder's segments after the town's root); `meaning` is one sentence or null; `rows` are `{ label, value, note? }`;
+  `target` is `{ path, type: "blob" | "tree" }` for a file, a folder or a town (its root), else null.
+- No fact appears twice: a name in the title or the place line is never a row; a kind in the title is never an eyebrow.
+  Per kind (all words live in `card/words.ts`):
+
+  | kind      | eyebrow                         | title                | place                     | meaning                | rows                                                      |
+  | --------- | ------------------------------- | -------------------- | ------------------------- | ---------------------- | --------------------------------------------------------- |
+  | `file`    | `USE[use].name` ("Source file") | the file's name      | town › its folders        | `USE[use].meaning`     | "In this folder": `{n} lots`; "Address" (below)           |
+  | `vacant`  | null                            | "Empty lot"          | town › the address folder | `VACANT`               | "Address"                                                 |
+  | `park`    | null                            | "Park"               | town › its folder         | `BLOCK.park`           | none                                                      |
+  | `plaza`   | null                            | "Plaza"              | town › its folder         | `BLOCK.plaza`          | none                                                      |
+  | `green`   | null                            | "Green"              | town › its folder         | `BLOCK.green`          | none                                                      |
+  | `reserve` | null                            | "Reserve plot"       | town › its folder         | `BLOCK.reserve`        | none                                                      |
+  | `block`   | null                            | "Block"              | town › its folder         | `BLOCK.built`          | none                                                      |
+  | `road`    | null                            | the class ("Avenue") | town                      | `ROAD[cls]`            | none                                                      |
+  | `highway` | null                            | "Highway"            | none                      | `HIGHWAY`              | "Joins": "a and b" (one name when both ends are one town) |
+  | `folder`  | "Folder"                        | the folder's name    | town › its parent folders | null                   | "Holds": `{lots} lots in {folders} folders`; "Layout"     |
+  | `town`    | "Town", or "Old town"           | the town's name      | none                      | `FORM[form]` (+ `OLD`) | "Lots"; "Districts"                                       |
+
+  Counts read "1 lot", "2 lots", "no folders" and use `en-GB` grouping. "Layout" is `FORM[form]` when the folder has a
+  form, else absent.
+
+- Words (`card/words.ts`), each meaning one sentence:
+  - `USE` (name; meaning): source "Source file"; "Code the project is built from." config "Configuration file";
+    "Settings that tools and builds read." assets "Asset file"; "An image, font, sound or other media." ci "Tooling
+    file"; "A script or setting that builds, checks or ships the project." docs "Documentation file"; "Written
+    documentation; most of it is drawn as parks." tests "Test file"; "A test. Tests are kept off the map unless asked
+    for." examples "Example file"; "An example of how to use the project." fixtures "Test data file"; "Data for tests,
+    kept off the map unless asked for." generated "Generated file"; "Made by a tool, not written by hand." vendored
+    "Vendored file"; "Code copied in from another project."
+  - `BLOCK`: park "Open land for this folder's documentation: each document gives its folder half a lot of park." plaza
+    "A square where a long road changes direction, its roads turning round it." green "The open centre of a hamlet, a
+    small settlement." reserve "Land kept free for this folder's future files." built "Land between streets, its lots
+    back to back."
+  - `VACANT`: "A file was deleted here. The lot stays empty so its neighbours never move, until the neighbourhood
+    renews."
+  - `ROAD`: lane "The smallest road, between blocks inside a neighbourhood." street "Runs between rows of blocks inside
+    a neighbourhood." collector "Gathers the streets, between districts." avenue "A main road between large districts."
+    boulevard "The main road through a city." highway "A road between towns."
+  - `HIGHWAY`: "A road across open country between towns."
+  - `TOWN_FORM` (a town's meaning): hamlet "A hamlet: a few blocks round a green." street-village "A street village:
+    blocks along one high street." neighbourhood "A single neighbourhood: one grid of blocks." radial "A radial town:
+    districts round a centre." twin "A twin town: two halves facing each other across a river." polycentric "A
+    polycentric town: districts side by side between roads." corridor "A corridor: a road through a small edge quarter
+    leads to the one folder that holds nearly everything." archipelago "An archipelago: each package an island, with
+    canals and bridges between them." quarters "A town of quarters: many small folders gathered into tidy quarters of
+    straight streets."
+  - `LAYOUT` (a folder's "Layout" row): hamlet "A hamlet round a green"; street-village "A street village along a high
+    street"; neighbourhood "One grid of blocks"; radial "Its folders round a centre"; twin "Two halves across a river";
+    polycentric "Its folders side by side between roads"; corridor "A gateway through to the folder that holds nearly
+    all of it"; archipelago "Its packages as islands between canals"; quarters "Its small folders gathered into
+    quarters".
+  - `OLD`: "Kept whole as it stood before its layout changed; the new town grows beside it."
+- Address in words (`addressWords(address)`): the address `{folder}:{row}.{block}.{side}.{index}` reads "No. {index + 1}
+  on {folder}" ("the top folder" when the folder is empty; `#lots` dropped), with the note "Block {row}.{block}, side
+  {side + 1}; kept for life". An address that does not parse is shown as it is, without a note.
+- `CardBody` (`components/CardBody.tsx`, classes `hit-*`) draws a card: a head (a 32 px icon chip, `aria-hidden`, one
+  lucide icon per kind: file `FileCode`, vacant `SquareDashed`, park `Trees`, plaza `Square`, green `Sprout`, reserve
+  `Fence`, block `LayoutGrid`, road `Route`, highway `Waypoints`, folder `Folder`, town `Building2`; then the eyebrow at
+  12 px, the title at 15 px bold, and the place at 12 px, its names joined by " › "), then the meaning at 13 px, then
+  the rows as a `<dl>` (label 12 px muted on the left, 88 px; value 13 px; a note under the value at 12 px muted). Every
+  text wraps: `overflow-wrap: anywhere`, and a `<wbr>` after every slash and dot of a path or name, so long paths break
+  after a slash first. Nothing is cut or hidden.
+- `HoverCard` (`components/HoverCard.tsx`, `role="tooltip"`, `data-kind`): `CardBody`, then a hint at the foot: "Click
+  to select", followed by what the selection offers ("; then show only this town, copy the path or open it on GitHub"):
+  `hintFor(offersFor(hit, card, { focused, github }))`, where `offersFor` (`card/describe.ts`) offers the town unless
+  one is shown alone or the hit has none (a highway), the path when the target's path is not empty, and GitHub when the
+  city came from there and the hit has a target. `min-width` 280 px, `max-width` 360 px (never more than the map less 16
+  px), width by its content; 12 px padding; 8 px between parts; radius 12 px; solid glass. Its words (the card, the hint
+  and the map's size) key an inner component that measures itself once when they first show (`useLayoutEffect`,
+  `offsetWidth`/`offsetHeight`; until then `FIRST_SIZE` 280 by 160 px) and is placed again before paint; it then follows
+  the pointer at that size.
+- `placeCard(pointer, size, map)` (`card/place.ts`, pure): right of and below the pointer by `CARD_GAP` 16 px; flipped
+  to the left when it would cross the right edge less `CARD_MARGIN` 8 px, above when it would cross the bottom; then
+  nudged inside the margins on both axes; then, if it covers the pointer (its box grown by `CARD_GAP` / 2), moved to
+  whichever side of the pointer (left, right, above, below, in that order) holds it whole, keeping the nudged other
+  coordinate. A card larger than the map lies at the top left margin.
+- The selection's actions (`components/Actions.tsx`, in the drawer under `CardBody`): "Show only this town" (when a town
+  is not already shown alone); "Copy path" when the target's path is not empty (`navigator.clipboard.writeText`; the
+  button reads "Copied" for `COPIED_MS` 1,500 ms and keeps its width; a failure shows the notice "The path could not be
+  copied"); "Open on GitHub" when the city came from GitHub and has a target: a link
+  (`target="_blank" rel="noopener noreferrer"`) to `https://github.com/{owner}/{name}/{blob|tree}/{commit}/{path}`, each
+  path segment URI-encoded, the town's root (`tree/{commit}`) when the path is empty.
+- A city came from GitHub when the viewer's `origin` is live via GitHub: its name ("owner/name") and the city's commit
+  make the drawer's `github` (`card/github.ts`, `GitHubSource`), and `githubUrl(github, target)` makes the link.
+- Logs: `viewer/copy-path kind`, `viewer/copy-failed reason`, `viewer/github-open kind`.
 
 ## Observability
 
 - `src/log.ts` writes one line per decision point or failure, fingerprinted by its first token: `viewer/index cities`,
   `viewer/open name towns lots`, `viewer/town key`, `viewer/city`, `viewer/search length hits` (when a query settles),
-  `viewer/search-pick kind path`, `viewer/drawer open`, the loading and suggestion events above (to `console.info`);
-  `viewer/index-failed reason`, `viewer/open-failed name reason`, `viewer/file-rejected file reason`,
-  `viewer/suggest-failed owner reason` (to `console.error`). A reason is the engine's code (`city/bad-json`) or the
-  error's text. Every failure also reaches the person as `role="alert"` text.
+  `viewer/search-pick kind path`, `viewer/drawer open`, `viewer/copy-path kind`, `viewer/github-open kind`, the loading
+  and suggestion events above (to `console.info`); `viewer/index-failed reason`, `viewer/open-failed name reason`,
+  `viewer/file-rejected file reason`, `viewer/suggest-failed owner reason`, `viewer/copy-failed reason` (to
+  `console.error`). A reason is the engine's code (`city/bad-json`) or the error's text. Every failure also reaches the
+  person as `role="alert"` text.
 
 ## Constants
 
 Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_SHARE`, `KEY_ZOOM`, `FIT_SHARE`,
 `LABEL_FIT`, `REPEAT_PX` (in `view/view.ts`), `FLY_SHARE`, `FLY_MIN_EXTENT`, `FLY_MS` (in `view/fly.ts`), `NARROW`,
-`MEDIUM` and the card sizes (in `view/insets.ts`), `CLICK_SLOP`, `WHEEL_ZOOM`, `CARD` (in `MapView.tsx`), `MIN_QUERY`,
+`MEDIUM` and the card sizes (in `view/insets.ts`), `CLICK_SLOP`, `WHEEL_ZOOM` (in `MapView.tsx`), `CARD_GAP`,
+`CARD_MARGIN` (in `card/place.ts`), `COPIED_MS` (in `Actions.tsx`), `FIRST_SIZE` (in `HoverCard.tsx`), `MIN_QUERY`,
 `MAX_HITS` (in `search/search.ts`), `SETTLE_MS` and `CITY_WITH_SUGGESTIONS` (in `SearchBox.tsx`), `SUGGEST_MS` (in
 `github/useSuggestions.ts`), `IN_FLIGHT` (in `github/read.ts`), `FILE_CHUNK` (in `cities.ts`), `FRAME_WAIT_MS` (in
 `load/paint.ts`), `TOWNS_SHOWN` (in `Drawer.tsx`), `PHASE_WEIGHTS`, `ESTIMATE_FROM` and `STEADY_MS` (in
 `load/progress.ts`), `SHOW_AFTER_MS`, `HOLD_MS` and `TICK_MS` (in `load/useLoading.ts`), `POST_MS` (in `lay/worker.ts`),
-`OWNER_TTL_MS` (in `github/owners.ts`), the tooltip's width (`.tooltip` in the stylesheet), `LOT_TOP` and `LOT_HEIGHT`
-(in `packages/scene`).
+`OWNER_TTL_MS` (in `github/owners.ts`), the tooltip's width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in
+`packages/scene`).
 
 ## Web experience
 
 - LCP: text of a card paints first (on a phone, the search's placeholder, drawn inside the field, so it names no
   element), about 40 ms on loopback; a town label may follow (about 100 to 170 ms). Budget: the last largest paint under
   2.5 s.
-- CLS 0: every card floats (`position: absolute`) with a fixed width; the status is one line with an ellipsis; a notice
-  floats over the map; the empty state waits until nothing is on its way; the font comes with a size-matched fallback;
-  so a longer name, status or error never moves anything. Shifts after input (a breadcrumb appearing) are the person's
-  own and do not count.
+- CLS 0: every card floats (`position: absolute`) with a fixed width; the status holds two lines from the first paint; a
+  notice floats over the map; the hover card floats over everything and moves nothing; the empty state waits until
+  nothing is on its way; the font comes with a size-matched fallback; so a longer name, status or error never moves
+  anything. Shifts after input (a breadcrumb appearing) are the person's own and do not count.
 - The app is built with the React Compiler (`reactCompiler: true`, `babel-plugin-react-compiler`), so moving the map
   re-renders what the view feeds and not the other cards. Against the bar-and-panel viewer, under the same machine load
   at a fourfold slowdown, a key press on livediagram answers in a median 48 ms (was 40 ms), p90 64 ms (was 64 ms). Unit
   tests render uncompiled; the end-to-end suite proves the compiled build. Nothing the compiler memoises reads a
   property of a value that may be null during render: the search's context (`finder`) carries the scene's bounds and the
   pick index, built only once the city is.
-- INP under 200 ms on a phone: the view while fitted is derived from the scene
-  (`fit(scene.bounds, mode, viewport, insets)`), never built twice; the whole city's scene and pick index stay built
-  while one town is shown, so going back costs nothing. Measured on a Pixel 7 profile with the processor slowed fourfold
-  (CDP `Emulation.setCPUThrottlingRate`), over taps, keys, the view switch, a search and a drill.
+- INP under 200 ms on a phone: the view while fitted is derived from the scene (`fit(scene.bounds, viewport, insets)`),
+  never built twice; the whole city's scene and pick index stay built while one town is shown, so going back costs
+  nothing. Measured on a Pixel 7 profile with the processor slowed fourfold (CDP `Emulation.setCPUThrottlingRate`), over
+  taps, keys, a theme change, a search and a drill. A theme change is a transition (`startTransition`): the menu closes
+  in the next frame and the scene is rebuilt in its new colours after it, so the tap answers within the budget.
 - Laying a large repository: the worker lays and builds the scene, so on that phone profile linux's longest main-thread
-  task fell from 2.25 s to 0.83 s, of which the pick index takes 0.70 s and the search index 0.09 s (both still on the
-  main thread, after the card says "Drawing the map"; the card's sweep runs on the compositor meanwhile). The loading
-  card shifts nothing and its Cancel answers within the budget (`vitals.spec.ts`).
+  task fell from 2.25 s to 0.83 s, most of it the pick index (which appends to its cells rather than copying them: about
+  100 ms for linux on a desktop) and the search index 0.09 s (both still on the main thread, after the card says
+  "Drawing the map"; the card's sweep runs on the compositor meanwhile). The loading card shifts nothing and its Cancel
+  answers within the budget (`vitals.spec.ts`).
 - `e2e/vitals.spec.ts` runs in its own projects (`vitals-desktop`, `vitals-phone`) once the journeys are done, so no
   other test draws at the same time; it reports the slowest interaction as an annotation. It records
   `largest-contentful-paint`, `layout-shift` and `event` entries (from 16 ms) through `PerformanceObserver` before the
@@ -392,12 +513,17 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
 - `packages/scene`: unit tests for triangulation, ribbons, plinths, layers and labels (Vitest, Node).
 - `apps/web`: component tests in jsdom for every card, search, flight, file errors and keyboard handling (the canvas is
   replaced by a stub there; fixtures in `components/testing/`); Playwright end-to-end on a desktop and a phone, in dark
-  mode with one light run: loads, switches city, theme and view, searches and flies, opens a file, shows an error for a
-  bad file, reaches every control by keyboard, keeps every card clear of the others at widths from 1,400 to 360 px, and
+  mode with one light run: loads, switches city and theme, searches and flies, opens a file, shows an error for a bad
+  file, reaches every control by keyboard, keeps every card clear of the others at widths from 1,400 to 360 px, and
   passes axe (WCAG 2.2 AA rules) with no violations, with the menus, the matches, the layout toggles (a tooltip shown)
   and the drawer open, in light and dark; switches a toggle by keyboard and sees the variant load; a screenshot per
-  theme for review. `e2e/github.spec.ts` holds the GitHub journeys, every API call answered from fixtures (anything
-  unanswered is a 404, so nothing reaches the real GitHub).
+  theme for review. Hover cards: a long path near each of the map's four edges and corners lies wholly inside the map,
+  clear of the pointer, with no text clipped (every text element's `scrollWidth` within its `clientWidth`); axe passes
+  with a hover card shown. `e2e/github.spec.ts` holds the GitHub journeys, every API call answered from fixtures
+  (anything unanswered is a 404, so nothing reaches the real GitHub).
+- `card/`: unit tests for every kind's card (including a park in a folder named "Documentation", whose name appears
+  once), the address in words, counts, and placement at every edge and corner, for a card larger than the map, and never
+  over the pointer.
 - Loading and suggestions: the progress model, the meter, the suggester and the ranking in Node with a stubbed clock and
   fetcher; the card's thresholds with fake timers; cancel by button and by Escape, keeping the last city; the engine's
   progress against the same lay without it (equal output, `placed` and `shaped` reaching `lots`). End-to-end, GitHub

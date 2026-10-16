@@ -1,6 +1,5 @@
 export {
   LOT_HEIGHT,
-  LOT_TOP,
   buildScene,
   flatLayer,
   plinths,
@@ -10,4 +9,5 @@ export {
   type Layer,
   type Scene,
 } from "./scene";
-export { pick, pickIndex, type Hit, type PickIndex } from "./pick";
+export { folderHit, pick, pickIndex, townRoot, type Hit, type PickIndex } from "./pick";
+export { folderOf, parseAddress, type Address } from "./address";

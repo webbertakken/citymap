@@ -52,8 +52,7 @@ describe("Viewer search", () => {
     expect(matches().map((b) => b.textContent)).toEqual(["Folder lib lib"]);
     expect(within(matches()[0]!).getByText("li").tagName).toBe("MARK");
     fireEvent.keyDown(searchField(), { key: "Enter" });
-    expect(selected()).toContain("lib");
-    expect(selected()).toContain("District of alpha");
+    expect(selected()).toContain("FolderlibIn alpha");
     const lot = project(currentView(), { width: 800, height: 600 }, { x: 96 / 64, y: 0.15, z: -32 / 64 });
     fireEvent.pointerDown(map, { pointerId: 1, clientX: lot.x, clientY: lot.y });
     fireEvent.pointerUp(map, { pointerId: 1, clientX: lot.x, clientY: lot.y });
@@ -157,7 +156,7 @@ describe("Viewer search", () => {
     type("page");
     fireEvent.keyDown(searchField(), { key: "Enter" });
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeTruthy();
-    expect(selected()).toContain("apps/web/page.tsx");
+    expect(selected()).toContain("page.tsxIn apps/web");
     // Matched by its path only, a folder's name is shown unmarked.
     type("web");
     expect(within(matches()[0]!).queryByText("web")).toBeNull();

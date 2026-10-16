@@ -6,12 +6,12 @@ import type { Insets, Viewport } from "./view";
 export const NARROW = 760;
 /** At or below this width the search sits under the title card. */
 export const MEDIUM = 1100;
-/** The title row: 16 px gap, a 76 px title card, 8 px clear. */
-const TITLE_ROW = 100;
-/** The title row with the search under it: 16 + 76 + 8 + 48 px, and 8 px clear. */
-const SEARCH_ROW = 156;
-/** On a phone: 8 + 68 px title, 8 + 48 px search, 8 px clear. */
-const PHONE_TOP = 140;
+/** The title row: 16 px gap, a 94 px title card (its status holds two lines), 8 px clear. */
+const TITLE_ROW = 118;
+/** The title row with the search under it: 16 + 94 + 8 + 48 px, and 8 px clear. */
+const SEARCH_ROW = 174;
+/** On a phone: 8 + 82 px title, 8 + 48 px search, 8 px clear. */
+const PHONE_TOP = 154;
 /** On a phone: the details button and its gaps. */
 const PHONE_BOTTOM = 64;
 /** The drawer: 320 px and a 16 px gap either side. */

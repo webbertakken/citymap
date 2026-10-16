@@ -1,7 +1,6 @@
 // The viewer's camera and labels as plain maths: views, projection, fitting, keys and decluttering. No WebGL.
 import type { Label, Scene } from "@citymap/scene";
 
-export type Mode = "dimetric" | "plan";
 type Vec = readonly [number, number, number];
 
 /** Where the camera looks from (a unit vector to the eye), and the world directions of screen right and screen up. */
@@ -12,9 +11,8 @@ export interface Basis {
   readonly screenUp: Vec;
 }
 
-/** A view: plan or dimetric, the ground point at the centre of the screen, and pixels per street width. */
+/** A view: the ground point at the centre of the screen, and pixels per street width. */
 export interface View {
-  readonly mode: Mode;
   readonly centre: { readonly x: number; readonly z: number };
   readonly zoom: number;
 }
@@ -24,36 +22,16 @@ export interface Viewport {
   readonly height: number;
 }
 
-const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a: Vec, b: Vec): Vec => [
-  a[1] * b[2] - a[2] * b[1],
-  a[2] * b[0] - a[0] * b[2],
-  a[0] * b[1] - a[1] * b[0],
-];
-const unit = (a: Vec): Vec => {
-  const length = Math.hypot(a[0], a[1], a[2]);
-  return [a[0] / length, a[1] / length, a[2] / length];
-};
+const PLAN: Basis = { eye: [0, 1, 0], up: [0, 0, -1], right: [1, 0, 0], screenUp: [0, 0, -1] };
 
-const ELEVATION = (30 * Math.PI) / 180;
-const YAW = (45 * Math.PI) / 180;
+/** The camera's directions: straight down with north up (the viewer shows plan view only). */
+export const basis = (): Basis => PLAN;
 
-/** The camera's directions: plan looks straight down with north up; dimetric from 30° up and 45° round. */
-export function basis(mode: Mode): Basis {
-  if (mode === "plan") return { eye: [0, 1, 0], up: [0, 0, -1], right: [1, 0, 0], screenUp: [0, 0, -1] };
-  const eye: Vec = [Math.cos(ELEVATION) * Math.sin(YAW), Math.sin(ELEVATION), Math.cos(ELEVATION) * Math.cos(YAW)];
-  const forward: Vec = [-eye[0], -eye[1], -eye[2]];
-  const right = unit(cross(forward, [0, 1, 0]));
-  return { eye, up: [0, 1, 0], right, screenUp: cross(right, forward) };
-}
-
-/** A world point on screen, in pixels from the top left. */
+/** A world point on screen, in pixels from the top left: east is right, south is down. */
 export function project(view: View, viewport: Viewport, p: { x: number; y: number; z: number }) {
-  const b = basis(view.mode);
-  const d: Vec = [p.x - view.centre.x, p.y, p.z - view.centre.z];
   return {
-    x: viewport.width / 2 + dot(d, b.right) * view.zoom,
-    y: viewport.height / 2 - dot(d, b.screenUp) * view.zoom,
+    x: viewport.width / 2 + (p.x - view.centre.x) * view.zoom,
+    y: viewport.height / 2 + (p.z - view.centre.z) * view.zoom,
   };
 }
 
@@ -78,40 +56,21 @@ export const framed = (view: View, insets: Insets): View =>
   pan(view, (insets.right - insets.left) / 2, (insets.top - insets.bottom) / 2);
 
 /** The view that centres the city in the map the cards leave free, and fills nine tenths of it. */
-export function fit(bounds: Scene["bounds"], mode: Mode, whole: Viewport, insets: Insets = NO_INSETS): View {
+export function fit(bounds: Scene["bounds"], whole: Viewport, insets: Insets = NO_INSETS): View {
   const viewport = freeOf(whole, insets);
   const centre = { x: (bounds.min.x + bounds.max.x) / 2, z: (bounds.min.z + bounds.max.z) / 2 };
-  const b = basis(mode);
-  let wide = 0;
-  let tall = 0;
-  for (const x of [bounds.min.x, bounds.max.x])
-    for (const z of [bounds.min.z, bounds.max.z]) {
-      const d: Vec = [x - centre.x, 0, z - centre.z];
-      wide = Math.max(wide, 2 * Math.abs(dot(d, b.right)));
-      tall = Math.max(tall, 2 * Math.abs(dot(d, b.screenUp)));
-    }
+  const wide = bounds.max.x - bounds.min.x;
+  const tall = bounds.max.z - bounds.min.z;
   const zoom =
     wide === 0 && tall === 0
       ? 1
       : FIT_SHARE * Math.min(viewport.width / (wide || tall), viewport.height / (tall || wide));
-  return framed({ mode, centre, zoom }, insets);
+  return framed({ centre, zoom }, insets);
 }
 
 /** A view moved along the ground by a screen distance in pixels (right and up). */
 export function pan(view: View, dx: number, dy: number): View {
-  const b = basis(view.mode);
-  const ground = unit([b.screenUp[0], 0, b.screenUp[2]]);
-  // Moving the centre along the ground's up shifts the screen by this much per unit.
-  const along = dot(ground, b.screenUp);
-  const right = dx / view.zoom;
-  const up = dy / view.zoom / along;
-  return {
-    ...view,
-    centre: {
-      x: view.centre.x + b.right[0] * right + ground[0] * up,
-      z: view.centre.z + b.right[2] * right + ground[2] * up,
-    },
-  };
+  return { ...view, centre: { x: view.centre.x + dx / view.zoom, z: view.centre.z - dy / view.zoom } };
 }
 
 /** An arrow pans this share of the view. */
@@ -144,7 +103,7 @@ export function onKey(
     case "-":
       return { ...view, zoom: view.zoom / KEY_ZOOM };
     case "0":
-      return fit(bounds, view.mode, viewport, insets);
+      return fit(bounds, viewport, insets);
     default:
       return null;
   }
@@ -167,7 +126,8 @@ export const REPEAT_PX = 240;
 
 /**
  * The labels that fit, in order: each kept only if it lies inside the viewport, a district's land is wide enough on
- * screen for its name, the same name is not already shown nearby, and it is clear of every one kept before.
+ * screen for its name, the same name (in any letter case) is not already shown nearby, and it is clear of every one kept
+ * before.
  */
 export function declutter(labels: readonly Label[], view: View, viewport: Viewport): Placed[] {
   const kept: Placed[] = [];
@@ -180,7 +140,9 @@ export function declutter(labels: readonly Label[], view: View, viewport: Viewpo
     const box: [number, number, number, number] = [at.x - half, at.y - size / 2 - 3, at.x + half, at.y + size / 2 + 3];
     if (box[0] < 0 || box[1] < 0 || box[2] > viewport.width || box[3] > viewport.height) continue;
     if (label.size !== "town" && label.extent * view.zoom < width * LABEL_FIT) continue;
-    if (kept.some((k) => k.text === label.text && Math.hypot(k.left - at.x, k.top - at.y) < REPEAT_PX)) continue;
+    const name = label.text.toLowerCase();
+    if (kept.some((k) => k.text.toLowerCase() === name && Math.hypot(k.left - at.x, k.top - at.y) < REPEAT_PX))
+      continue;
     if (boxes.some((b) => b[0] < box[2] && box[0] < b[2] && b[1] < box[3] && box[1] < b[3])) continue;
     boxes.push(box);
     kept.push({ ...label, left: at.x, top: at.y });
@@ -188,17 +150,10 @@ export function declutter(labels: readonly Label[], view: View, viewport: Viewpo
   return kept;
 }
 
-/** The map point under a screen point: where the view ray meets the plane at the given height. */
-export function unproject(view: View, viewport: Viewport, screen: { x: number; y: number }, height: number) {
-  const b = basis(view.mode);
-  const sx = (screen.x - viewport.width / 2) / view.zoom;
-  const sy = (viewport.height / 2 - screen.y) / view.zoom;
-  // The point on the camera's plane through the centre, then along the view ray down to the height.
-  const p = [
-    view.centre.x + b.right[0] * sx + b.screenUp[0] * sy,
-    b.right[1] * sx + b.screenUp[1] * sy,
-    view.centre.z + b.right[2] * sx + b.screenUp[2] * sy,
-  ] as const;
-  const t = (p[1] - height) / b.eye[1];
-  return { x: p[0] - b.eye[0] * t, z: p[2] - b.eye[2] * t };
+/** The ground point under a screen point. */
+export function unproject(view: View, viewport: Viewport, screen: { x: number; y: number }) {
+  return {
+    x: view.centre.x + (screen.x - viewport.width / 2) / view.zoom,
+    z: view.centre.z + (screen.y - viewport.height / 2) / view.zoom,
+  };
 }

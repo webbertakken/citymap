@@ -25,7 +25,17 @@ export const city = (name: string): City => ({
       water: [],
       roads: [],
       blocks: [],
-      lots: [{ pts: square(64, 64), key: "a", address: "a", vacant: false, path: "a.ts", use: "source", district: 1 }],
+      lots: [
+        {
+          pts: square(64, 64),
+          key: "a",
+          address: "#lots:0.0.0.0",
+          vacant: false,
+          path: "a.ts",
+          use: "source",
+          district: 1,
+        },
+      ],
       districts: [
         { pts: square(0, 3200), path: "src", name: "src", depth: 1, massMille: 2000, ward: false },
         { pts: square(3200, 3200), path: "lib", name: "lib", depth: 1, massMille: 1000, ward: false },
@@ -117,15 +127,15 @@ export const read = () => screen.getByTestId("canvas").textContent;
 
 /** The view the stub canvas was last given. */
 export const currentView = (): View => {
-  const [mode, zoom, centre] = (read() ?? "").split(" ");
+  const [zoom, centre] = (read() ?? "").split(" ");
   const [x, z] = centre!.split(",").map(Number);
-  return { mode: mode === "plan" ? "plan" : "dimetric", zoom: Number(zoom), centre: { x: x!, z: z! } };
+  return { zoom: Number(zoom), centre: { x: x!, z: z! } };
 };
 
 export function StubCanvas({ view, theme }: CanvasProps) {
   return (
     <p data-testid="canvas">
-      {view.mode} {view.zoom} {view.centre.x},{view.centre.z} {theme.label}
+      {view.zoom} {view.centre.x},{view.centre.z} {theme.label}
     </p>
   );
 }

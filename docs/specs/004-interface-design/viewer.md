@@ -179,17 +179,20 @@ what it means, so a person who has never read this spec understands the map.
   always lies wholly inside the map, and never under the pointer.
 - **What each card says**:
   - a file's lot: the file's name; where it is; what kind of file it is ("Source", "Test", "Documentation" and so on,
-    with a short meaning, e.g. "Tests are kept off the map unless asked for"); its folder with how many files the folder
-    holds; its address in words ("No. 3 on drivers/phy/intel"), with the note that a lot keeps its address for life;
+    with a short meaning, e.g. "Tests are kept off the map unless asked for"); how many lots its folder holds (a lot is
+    the land of one file, or of a few small files of one kind, so the map counts lots, not files); its address in words,
+    numbered from 1 ("No. 4 on drivers/phy/intel" for `drivers/phy/intel:0.0.0.3`), with its block and side and the note
+    that a lot keeps its address for life;
   - a vacant lot: "Empty lot", and why: a file was deleted here, and the lot stays free so its neighbours never move,
     until the neighbourhood renews;
   - a park: "Park", and what it is: open land for the documentation of its folder (each document gives its folder half a
-    lot of park), the folder named once, with how many documents it holds where known;
+    lot of park), the folder named once: the deepest folder the city records round it (a city records its larger folders
+    only, and no count of documents, so the card names no count);
   - a plaza: a square where a long road changes direction; a green: the open centre of a small settlement; a reserve
     plot: land kept free for the folder's future files;
   - a road: its class with its meaning (a lane inside a neighbourhood, a street, a collector or avenue between
     districts, the boulevard through a city, a highway between towns), and for a highway the towns it joins;
-  - a folder's ground: the folder, its path, how many files and folders it holds;
+  - a folder's ground: the folder, where it is, how many lots and folders it holds, and its layout in words;
   - a town: its name, its lots and districts, and its form in words (e.g. "a radial town: districts round a centre").
 - **A hint at the foot**: "Click to select" on a pointer; what selecting offers.
 - The card follows the pointer, never covers it, and goes with Escape or when the pointer leaves the map.
