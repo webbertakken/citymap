@@ -195,9 +195,11 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         const name = `${repo.owner}/${repo.name}`;
         let requests = 0;
         setStatus(`${name}: reading the tree…`);
-        const snapshot = await readRepository(fetcher, repo, (n) => {
-          requests = n;
-          setStatus(`${name}: reading the tree… (${n} requests)`);
+        const snapshot = await readRepository(fetcher, repo, {
+          onStep: (step) => {
+            requests = step.requests ?? requests;
+            setStatus(`${name}: reading the tree… (${requests} requests)`);
+          },
         });
         setStatus(`${name}: laying out…`);
         const next = await lay(snapshot);

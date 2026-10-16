@@ -2,6 +2,7 @@
 // root workspace manifests, as the snapshot the CLI's `--no-history` would lay.
 import { CitymapError, compareKeys, stateSnapshot, type Snapshot } from "@citymap/ground-plan";
 import { isManifest, patternsOf, resolveWorkspaces, type Patterns } from "@citymap/history/manifests";
+import type { OnStep } from "../load/step";
 import type { Repository } from "./repository";
 
 export type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
@@ -33,6 +34,10 @@ const entriesOf = (value: unknown): Entry[] => {
   }));
 };
 
+/** The folders among a tree's entries, as paths from the repository's root. */
+const foldersIn = (entries: readonly Entry[], prefix: string) =>
+  entries.filter((e) => e.type === "tree").map((e) => prefix + e.path);
+
 /** Runs `task` over the items, `IN_FLIGHT` at a time, results in the items' order. */
 async function inBatches<T, R>(items: readonly T[], task: (item: T) => Promise<R>): Promise<R[]> {
   if (items.length === 0) return [];
@@ -40,20 +45,29 @@ async function inBatches<T, R>(items: readonly T[], task: (item: T) => Promise<R
   return [...now, ...(await inBatches(items.slice(IN_FLIGHT), task))];
 }
 
-/** Reads a repository's tree at its default branch, counting each API request as it goes. */
+export interface ReadOptions {
+  /** Aborts every request, and the read, with the signal's reason. */
+  readonly signal?: AbortSignal;
+  /** Hears the read's progress: the commit, folders read of folders known, and the manifests. */
+  readonly onStep?: OnStep;
+}
+
+/** Reads a repository's tree at its default branch, telling how far it has come as it goes. */
 export async function readRepository(
   fetcher: Fetcher,
   repo: Repository,
-  onRequest: (requests: number) => void = () => {},
+  { signal, onStep = () => {} }: ReadOptions = {},
 ): Promise<Snapshot> {
   let requests = 0;
   const base = `${API}/repos/${repo.owner}/${repo.name}`;
   const json = async (url: string): Promise<unknown> => {
-    onRequest(++requests);
+    signal?.throwIfAborted();
+    requests++;
     let response: Response;
     try {
-      response = await fetcher(url, { headers: { Accept: "application/vnd.github+json" } });
+      response = await fetcher(url, { headers: { Accept: "application/vnd.github+json" }, signal: signal ?? null });
     } catch (error) {
+      signal?.throwIfAborted();
       throw new CitymapError("github/offline", `GitHub could not be reached: ${String(error)}`, { url });
     }
     if (response.status === 404)
@@ -70,32 +84,57 @@ export async function readRepository(
     return response.json();
   };
 
+  onStep({ phase: "commit", requests });
   const commit = await json(`${base}/commits/HEAD`);
   const sha = text(get(commit, "sha"), "commit");
   const tree = text(get(get(get(commit, "commit"), "tree"), "sha"), "tree");
 
+  // Folders known (named by any answer, a truncated one too) and read (their entries in hand), the root first.
+  const known = new Set([""]);
+  const read = new Set<string>();
+  const tellTree = () => onStep({ phase: "tree", done: read.size, of: known.size, requests });
   // A whole tree at once; one too large for a single answer is read folder by folder.
-  const files = async (treeSha: string, prefix: string): Promise<string[]> => {
+  const files = async (treeSha: string, folder: string): Promise<string[]> => {
+    const prefix = folder === "" ? "" : `${folder}/`;
     const whole = await json(`${base}/git/trees/${treeSha}?recursive=1`);
-    if (get(whole, "truncated") !== true)
-      return entriesOf(whole)
-        .filter((e) => e.type === "blob")
-        .map((e) => prefix + e.path);
+    const entries = entriesOf(whole);
+    const inside = foldersIn(entries, prefix);
+    for (const f of inside) known.add(f);
+    if (get(whole, "truncated") !== true) {
+      for (const f of [folder, ...inside]) read.add(f);
+      tellTree();
+      return entries.filter((e) => e.type === "blob").map((e) => prefix + e.path);
+    }
+    tellTree();
     const top = entriesOf(await json(`${base}/git/trees/${treeSha}`));
+    for (const f of foldersIn(top, prefix)) known.add(f);
+    read.add(folder);
+    tellTree();
     const own = top.filter((e) => e.type === "blob").map((e) => prefix + e.path);
     const subtrees = top.filter((e) => e.type === "tree");
-    const nested = await inBatches(subtrees, (t) => files(t.sha, `${prefix}${t.path}/`));
+    const nested = await inBatches(subtrees, (t) => files(t.sha, prefix + t.path));
     return [...own, ...nested.flat()];
   };
+  tellTree();
   const paths = (await files(tree, "")).toSorted(compareKeys);
 
   // Root workspace manifests come from raw files, outside the API's hourly limit; one that cannot be read is left out.
+  const manifests = paths.filter(isManifest);
+  let readManifests = 0;
+  const tellManifests = () => onStep({ phase: "manifests", done: readManifests, of: manifests.length, requests });
+  tellManifests();
   const declared = await Promise.all(
-    paths.filter(isManifest).map(async (path) => {
-      const response = await fetcher(`${RAW}/${repo.owner}/${repo.name}/${sha}/${path}`).catch(() => null);
-      return response?.ok ? patternsOf(path, await response.text()) : null;
+    manifests.map(async (path) => {
+      const response = await fetcher(`${RAW}/${repo.owner}/${repo.name}/${sha}/${path}`, {
+        signal: signal ?? null,
+      }).catch(() => null);
+      const patterns = response?.ok ? patternsOf(path, await response.text()) : null;
+      readManifests++;
+      tellManifests();
+      return patterns;
     }),
   );
+  signal?.throwIfAborted();
   const patterns = declared.filter((p): p is Patterns => p !== null);
   const folders = new Set<string>();
   for (const path of paths)
