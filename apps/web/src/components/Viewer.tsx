@@ -307,6 +307,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
       />
       <Drawer
         city={shown}
+        settled={status === ""}
         selected={picked}
         focused={focus !== null}
         open={drawer}

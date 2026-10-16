@@ -169,6 +169,17 @@ describe("Viewer", () => {
     expect(asked).toEqual(["/citymap/cities/index.json", "/citymap/cities/alpha.json"]);
   });
 
+  it("says nothing of an empty city while the first one is still on its way", async () => {
+    let arrive: ((response: Response) => void) | undefined;
+    const slow = async (url: string) =>
+      url === "/cities/index.json" ? fetcher(url) : new Promise<Response>((done) => (arrive = done));
+    render(<Viewer Canvas={StubCanvas} fetcher={slow} />);
+    expect(await screen.findByText("alpha: laying out…")).toBeTruthy();
+    expect(screen.queryByText(/No city yet/)).toBeNull();
+    await act(async () => arrive!(await fetcher("/cities/alpha.json")));
+    expect(await screen.findByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
+  });
+
   it("shows the empty state, and a failed index, by name", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={empty} />);
     expect(await screen.findByText(/No city yet/)).toBeTruthy();

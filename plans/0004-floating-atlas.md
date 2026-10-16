@@ -34,7 +34,7 @@ Rework the viewer's interface into the floating atlas, following the system's li
 ## Phase 6: proof
 
 - [x] Unit tests at 100 % coverage; `bun run check`
-- [ ] End-to-end: journeys, axe in light and dark, vitals, phone layout
+- [x] End-to-end: journeys, axe in light and dark, vitals, phone layout
 - [ ] Screenshots: desktop and phone, light and dark, search open
 - [ ] README pictures and text updated
 

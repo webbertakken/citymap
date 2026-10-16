@@ -130,6 +130,14 @@ describe("declutter", () => {
     expect(declutter(labels, { ...view, zoom: 50 }, viewport).map((l) => l.text)).toContain("narrow-and-long");
   });
 
+  it("counts a town name's letter spacing, so a wide name near the edge is left out rather than cut", () => {
+    // 18 characters of 20 px with 0.15 em spacing: about 277 px; centred 130 px from the right edge, it does not fit.
+    const view: View = { mode: "plan", centre: { x: 0, z: 0 }, zoom: 10 };
+    const label = { text: "TAKKEN.IO OLD TOWN", x: 37, z: 0, size: "town", extent: 40 } as const;
+    expect(declutter([label], view, viewport)).toEqual([]);
+    expect(declutter([{ ...label, x: 25 }], view, viewport)).toHaveLength(1);
+  });
+
   it("does not repeat a name close to where it is already shown", () => {
     const view: View = { mode: "plan", centre: { x: 0, z: 0 }, zoom: 10 };
     const labels = [

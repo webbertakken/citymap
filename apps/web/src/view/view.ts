@@ -157,6 +157,8 @@ export interface Placed extends Label {
 }
 
 const FONT: Readonly<Record<Label["size"], number>> = { town: 20, district: 13, minor: 11 };
+/** A character's width in ems: the face's average, plus the label's letter spacing (globals.css). */
+const ADVANCE: Readonly<Record<Label["size"], number>> = { town: 0.62 + 0.15, district: 0.62 + 0.08, minor: 0.62 };
 
 /** A district's name shows once its land on screen is at least this share of the name's width. */
 export const LABEL_FIT = 0.6;
@@ -173,7 +175,7 @@ export function declutter(labels: readonly Label[], view: View, viewport: Viewpo
   for (const label of labels) {
     const at = project(view, viewport, { x: label.x, y: 0, z: label.z });
     const size = FONT[label.size];
-    const width = label.text.length * size * 0.62;
+    const width = label.text.length * size * ADVANCE[label.size];
     const half = (width + 8) / 2;
     const box: [number, number, number, number] = [at.x - half, at.y - size / 2 - 3, at.x + half, at.y + size / 2 + 3];
     if (box[0] < 0 || box[1] < 0 || box[2] > viewport.width || box[3] > viewport.height) continue;

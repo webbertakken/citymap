@@ -20,25 +20,61 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
 });
 
-test("draws the first bundled city with its labels and its list", async ({ page }) => {
+/** Picks a map theme from the Theme menu. */
+async function chooseTheme(page: Page, label: string) {
+  await page.getByRole("button", { name: "Theme" }).click();
+  await page.getByRole("radio", { name: label }).click();
+}
+
+/** Opens the drawer where it starts closed (a phone). */
+async function openDetails(page: Page, isMobile: boolean) {
+  if (isMobile) await page.getByRole("button", { name: "Details", exact: true }).click();
+}
+
+const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+
+test("draws the first bundled city with its labels and its list", async ({ page, isMobile }) => {
   await expect(page.locator("canvas")).toBeVisible();
   await expect(page.locator(".label.town").first()).toHaveText("TAKKEN.IO");
-  await expect(page.getByRole("status").or(page.locator(".status"))).toContainText("lots");
+  await expect(page.locator(".status")).toContainText("lots");
   await expect(page.getByRole("application", { name: /Map of takken.io/ })).toBeVisible();
+  await openDetails(page, isMobile);
+  await expect(page.getByRole("region", { name: "Towns" }).getByRole("listitem")).toHaveCount(2);
 });
 
-test("starts in Night atlas because the system prefers dark", async ({ page }) => {
-  await expect(page.getByLabel("Theme")).toHaveValue("night-atlas");
+test("starts in Night atlas and a dark interface because the system prefers dark", async ({ page }) => {
+  await expect(page.locator("main")).toHaveAttribute("data-theme", "night-atlas");
+  const ink = await page.locator(".card-title h1").evaluate((h) => getComputedStyle(h).color);
+  expect(ink).toBe("rgb(238, 241, 245)");
 });
 
 test("switches city, view and theme", async ({ page }) => {
-  await page.getByLabel("City", { exact: true }).selectOption("redux.json");
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: /^redux/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("redux");
   await expect(page.getByRole("button", { name: "Plan" })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "Dimetric" }).click();
-  await expect(page.getByRole("button", { name: "Dimetric" })).toHaveAttribute("aria-pressed", "true");
-  await page.getByLabel("Theme").selectOption("dracula");
+  await page.getByRole("button", { name: "3D" }).click();
+  await expect(page.getByRole("button", { name: "3D" })).toHaveAttribute("aria-pressed", "true");
+  await chooseTheme(page, "Dracula");
   await expect(page.locator("main")).toHaveAttribute("data-theme", "dracula");
+  await expect(page.getByRole("radio", { name: "Dracula" })).toBeHidden();
+});
+
+test("finds a file, flies to it and selects it", async ({ page, isMobile }, info) => {
+  await page.getByRole("searchbox").fill("tailwind");
+  const matches = page.getByRole("list", { name: "Matches" }).getByRole("button");
+  await expect(matches.first()).toBeVisible();
+  expect(await matches.count()).toBeLessThanOrEqual(7);
+  await page.screenshot({ path: info.outputPath("search.png") });
+  const name = (await matches.first().locator(".option-text > span").first().textContent())!.replace(
+    /^(File|Folder) /,
+    "",
+  );
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".marker")).toBeVisible();
+  await openDetails(page, isMobile);
+  await expect(page.getByRole("region", { name: "Selected" })).toContainText(name);
+  await page.screenshot({ path: info.outputPath("found.png") });
 });
 
 test("opens a city file, and keeps the last city when a file is not a city", async ({ page }) => {
@@ -56,10 +92,13 @@ test("opens a city file, and keeps the last city when a file is not a city", asy
 
 test("reaches every control and the map by keyboard, and moves the map with keys", async ({ page, isMobile }) => {
   test.skip(isMobile, "keyboard journey on desktop");
-  const reached = await tabThrough(page, 9);
-  expect(reached.join(" | ")).toMatch(/Open a city file/);
-  expect(reached.join(" | ")).toMatch(/Dimetric/);
+  const reached = await tabThrough(page, 8);
   expect(reached.join(" | ")).toMatch(/Map of takken.io/);
+  expect(reached.join(" | ")).toMatch(/Search files and folders/);
+  expect(reached.join(" | ")).toMatch(/3D/);
+  expect(reached.join(" | ")).toMatch(/More/);
+  await page.keyboard.press("/");
+  await expect(page.getByRole("searchbox")).toBeFocused();
   const map = page.getByRole("application");
   await map.focus();
   const before = await page.locator(".label.town").first().boundingBox();
@@ -72,12 +111,46 @@ test("reaches every control and the map by keyboard, and moves the map with keys
     .toBeCloseTo(before?.x ?? 0, 0);
 });
 
-test("folds the town list behind a button on a phone", async ({ page, isMobile }) => {
-  test.skip(!isMobile, "phone layout");
-  const toggle = page.getByRole("button", { name: "Towns and districts" });
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await toggle.click();
-  await expect(page.getByRole("region", { name: "Towns and districts" })).toBeVisible();
+test("lays the cards out so none covers another", async ({ page }, info) => {
+  const cards = [".card-title", ".search", ".controls", ".zoom", ".legend", ".drawer", ".details-button"];
+  const measured = await Promise.all(
+    cards.map(async (selector) => {
+      const card = page.locator(selector);
+      return { selector, box: (await card.isVisible()) ? await card.boundingBox() : null };
+    }),
+  );
+  const boxes = measured.flatMap(({ selector, box }) => (box ? [{ selector, box }] : []));
+  const overlaps = boxes.flatMap((a, i) =>
+    boxes
+      .slice(i + 1)
+      .filter(
+        (b) =>
+          a.box.x < b.box.x + b.box.width &&
+          b.box.x < a.box.x + a.box.width &&
+          a.box.y < b.box.y + b.box.height &&
+          b.box.y < a.box.y + a.box.height,
+      )
+      .map((b) => `${a.selector} × ${b.selector}`),
+  );
+  await page.screenshot({ path: info.outputPath("cards.png") });
+  expect(overlaps).toEqual([]);
+});
+
+test("keeps the drawer as a closed sheet on a phone, and as a panel that hides on a desktop", async ({
+  page,
+  isMobile,
+}) => {
+  const drawer = page.getByRole("complementary", { name: "Details" });
+  if (isMobile) {
+    await expect(drawer).toBeHidden();
+    await page.getByRole("button", { name: "Details", exact: true }).click();
+    await expect(drawer).toBeVisible();
+    const box = (await drawer.boundingBox())!;
+    expect(box.y + box.height).toBeCloseTo(page.viewportSize()!.height, 0);
+  } else await expect(drawer).toBeVisible();
+  await page.getByRole("button", { name: "Hide details" }).click();
+  await expect(drawer).toBeHidden();
+  await expect(page.getByRole("button", { name: "Details", exact: true })).toBeVisible();
 });
 
 test("names what is under the pointer, and selects it into the panel", async ({ page, isMobile }, info) => {
@@ -101,37 +174,69 @@ test("shows one town alone, and the whole city again from the breadcrumb or Esca
   page,
   isMobile,
 }, info) => {
-  if (isMobile) await page.getByRole("button", { name: "Towns and districts" }).click();
-  await page.getByRole("button", { name: "Show only this town: takken.io old town" }).click();
+  await openDetails(page, isMobile);
+  const towns = page.getByRole("region", { name: "Towns" });
+  await towns.getByRole("button", { name: "takken.io old town" }).click();
   const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
   await expect(crumbs.locator("[aria-current=page]")).toHaveText("takken.io old town");
-  await expect(page.getByRole("region", { name: "Towns and districts" }).getByRole("heading")).toHaveCount(1);
+  await expect(towns.getByRole("listitem")).toHaveCount(1);
   await expect(page.locator(".label.town")).toHaveText(["TAKKEN.IO OLD TOWN"]);
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
+  const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
   expect(results.violations.map((v) => v.id)).toEqual([]);
   await page.screenshot({ path: info.outputPath("drill.png") });
   await crumbs.getByRole("button", { name: "takken.io" }).click();
   await expect(crumbs).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Towns and districts" }).getByRole("heading")).toHaveCount(2);
+  await expect(towns.getByRole("listitem")).toHaveCount(2);
   if (isMobile) return;
-  await page.getByRole("button", { name: "Show only this town: takken.io old town" }).click();
+  await towns.getByRole("button", { name: "takken.io old town" }).click();
   await page.getByRole("application").focus();
   await page.keyboard.press("Escape");
   await expect(crumbs).toHaveCount(0);
 });
 
-test("passes axe with no WCAG 2.2 AA violations", async ({ page }) => {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
+/** Axe over the page with its menus and matches open, so every card is judged. */
+async function axeEverything(page: Page, isMobile: boolean) {
+  const violations = async () =>
+    (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations.map(
+      (v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`,
+    );
+  expect(await violations()).toEqual([]);
+  await page.getByRole("searchbox").fill("src");
+  await expect(page.getByRole("list", { name: "Matches" })).toBeVisible();
+  expect(await violations()).toEqual([]);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "More" }).click();
+  expect(await violations()).toEqual([]);
+  await page.keyboard.press("Escape");
+  await openDetails(page, isMobile);
+  expect(await violations()).toEqual([]);
+}
+
+test("passes axe with no WCAG 2.2 AA violations, dark", async ({ page, isMobile }) => {
+  await axeEverything(page, isMobile);
 });
 
-for (const theme of ["paper-atlas", "night-atlas", "beck", "nolli", "dracula"]) {
+test.describe("in a light system scheme", () => {
+  test.use({ colorScheme: "light" });
+
+  test("passes axe with no WCAG 2.2 AA violations, light", async ({ page, isMobile }, info) => {
+    await expect(page.locator("main")).toHaveAttribute("data-theme", "paper-atlas");
+    const ink = await page.locator(".card-title h1").evaluate((h) => getComputedStyle(h).color);
+    expect(ink).toBe("rgb(31, 29, 25)");
+    await page.screenshot({ path: info.outputPath("light.png") });
+    await axeEverything(page, isMobile);
+  });
+});
+
+for (const [theme, label] of [
+  ["paper-atlas", "Paper atlas"],
+  ["night-atlas", "Night atlas"],
+  ["beck", "Beck schematic"],
+  ["nolli", "Nolli noir"],
+  ["dracula", "Dracula"],
+] as const) {
   test(`renders in ${theme}`, async ({ page }, info) => {
-    await page.getByLabel("Theme").selectOption(theme);
+    await chooseTheme(page, label);
     await page.waitForTimeout(300);
     await page.screenshot({ path: info.outputPath(`${theme}.png`) });
     await expect(page.locator("main")).toHaveAttribute("data-theme", theme);
@@ -156,8 +261,8 @@ test("lays a GitHub repository in a worker, from the field and from the address"
   await page.route("https://api.github.com/repos/acme/widgets/git/trees/t9?recursive=1", (route) =>
     route.fulfill({ json: { truncated: false, tree }, headers: { "access-control-allow-origin": "*" } }),
   );
-  await page.getByLabel("GitHub repository").fill("acme/widgets");
-  await page.getByRole("button", { name: "Lay" }).click();
+  await page.getByRole("searchbox").fill("acme/widgets");
+  await page.getByRole("button", { name: /^Lay acme\/widgets from GitHub/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("widgets");
   await expect(page.locator(".status")).toHaveText(/towns · 80 lots · single state, not folded$/);
   await expect(page).toHaveURL(/\?repo=acme\/widgets$/);

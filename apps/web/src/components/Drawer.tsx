@@ -10,6 +10,8 @@ export const TOWNS_SHOWN = 7;
 
 export interface DrawerProps {
   readonly city: City | null;
+  /** False while a city is on its way: the empty state waits until nothing is. */
+  readonly settled: boolean;
   readonly selected: Hit | null;
   /** True while one town is shown alone. */
   readonly focused: boolean;
@@ -20,7 +22,7 @@ export interface DrawerProps {
 }
 
 /** Right: what is selected, then the towns. Closes to a button; on a phone it is a sheet, closed at first. */
-export function Drawer({ city, selected, focused, open, onOpen, onDrill }: DrawerProps) {
+export function Drawer({ city, settled, selected, focused, open, onOpen, onDrill }: DrawerProps) {
   const [all, setAll] = useState(false);
   const hint = useId();
   const details = selected ? describeHit(selected) : null;
@@ -80,10 +82,12 @@ export function Drawer({ city, selected, focused, open, onOpen, onDrill }: Drawe
         <section className="towns" aria-label="Towns">
           <h2>Towns</h2>
           {towns.length === 0 ? (
-            <p className="hint">
-              No city yet. Make one with <code>citymap &lt;repository&gt; --out=city.json</code> and open it from More,
-              or type a GitHub repository as owner/name in the search.
-            </p>
+            settled && (
+              <p className="hint">
+                No city yet. Make one with <code>citymap &lt;repository&gt; --out=city.json</code> and open it from
+                More, or type a GitHub repository as owner/name in the search.
+              </p>
+            )
           ) : (
             <>
               <p id={hint} hidden>

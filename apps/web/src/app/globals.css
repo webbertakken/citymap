@@ -58,7 +58,7 @@ body {
   margin: 0;
   height: 100%;
   font:
-    400 14px/1.4 "Inter Variable",
+    400 14px/1.4 var(--font-inter),
     "Noto Sans",
     "DejaVu Sans",
     system-ui,
@@ -656,8 +656,10 @@ mark {
   :root {
     --gap: 8px;
   }
+  /* The title takes the row's width left of the controls (204 px on a touch screen: two segments and two 48 px buttons, with gaps). */
   .card-title {
-    width: calc(100vw - 3 * var(--gap) - 148px);
+    right: calc(2 * var(--gap) + 204px);
+    width: auto;
     padding: 8px 12px;
   }
   .card-title h1 {
