@@ -1,6 +1,7 @@
 "use client";
 // Opening a repository on the person's machine: the folder dialog (Chromium) or the folder input (Firefox), the read,
 // the lay, and the remembered folder. The city, its status and the notice stay the viewer's.
+import type { Snapshot, Toggle } from "@citymap/ground-plan";
 import type { ThemeName } from "@citymap/themes";
 import {
   useEffect,
@@ -35,13 +36,15 @@ export interface LocalOptions {
   readonly lay: Lay;
   /** The map theme the worker builds the scene in. */
   readonly theme: ThemeName;
+  /** The layout toggles a folder is laid with. */
+  readonly toggles: readonly Toggle[];
   /** Begins a load on the loading card, ending any other. */
   readonly begin: (source: Source, name: string) => Job;
   readonly status: string;
   readonly setStatus: Dispatch<SetStateAction<string>>;
   readonly setError: (message: string) => void;
-  /** Draws the laid city under the folder's name, and ends the load. */
-  readonly present: (job: Job, laid: Laid, name: string) => Promise<void>;
+  /** Draws the laid city under the folder's name, and ends the load; the snapshot lays it again in another layout. */
+  readonly present: (job: Job, laid: Laid, name: string, snapshot: Snapshot) => Promise<void>;
 }
 
 export interface LocalRepository {
@@ -65,6 +68,7 @@ export function useLocalRepository({
   ports = browserPorts,
   lay,
   theme,
+  toggles,
   begin,
   status,
   setStatus,
@@ -112,8 +116,8 @@ export function useLocalRepository({
       if (read.source === "walk") log.info("viewer/local-walk", { files });
       for (const path of read.unread) log.info("viewer/local-manifest-unread", { path });
       job.step({ phase: "lay", files });
-      const laid = await lay(read.snapshot, { signal: job.signal, onProgress: job.step, theme });
-      await present(job, laid, name);
+      const laid = await lay(read.snapshot, { signal: job.signal, onProgress: job.step, theme, toggles });
+      await present(job, laid, name, read.snapshot);
       // Nothing about a local repository goes in the address; a GitHub repository named there before goes.
       window.history.replaceState(null, "", window.location.pathname);
       log.info("viewer/local-read", { source: read.source, files, ms: Math.round(performance.now() - started) });

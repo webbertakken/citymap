@@ -4,6 +4,8 @@ use crate::archetype::Form;
 use crate::city::{Block, District, Lot, Road, Town, TownStats};
 use crate::fixed::{MemoWarp, Pt, Rounding, Warp, area2, densify, fnv1a, mul_div};
 use crate::plat::TownPlat;
+use crate::roads::{Tier, tier_rule, town_tier};
+use crate::toggles::Toggle;
 use crate::town::connectors::loop_connectors;
 use crate::town::context::{Ctx, DraftBlock, DraftLot, LayoutOptions, PlatEvent, TownCache, to_poly};
 use crate::town::cut::diameter_of;
@@ -29,6 +31,7 @@ pub struct TownDraft {
     lots: Vec<DraftLot>,
     districts: Vec<District>,
     water: Vec<Vec<Pt>>,
+    canals: Vec<Vec<Pt>>,
     root_mass: i64,
     stats: TownStats,
     /// The warp's diameter, when the plan is warped.
@@ -123,6 +126,7 @@ impl TownDraft {
             old: false,
             outline: self.outline.clone(),
             water: self.water.clone(),
+            canals: self.canals.clone(),
             roads,
             blocks: blocks.collect(),
             lots: lots.collect(),
@@ -156,6 +160,9 @@ impl TownDraft {
                 for water in &mut town.water {
                     *water = bend(warp, water, true, 64);
                 }
+                for canal in &mut town.canals {
+                    *canal = bend(warp, canal, true, 64);
+                }
             });
         }
         town
@@ -175,14 +182,22 @@ pub fn layout_town(
     root_form: Option<Form>,
     mut cache: Option<&mut TownCache>,
 ) -> LaidTown {
-    // A town's cached folders hold only while its constants do: its options, its land and its root.
+    // A town's cached folders hold only while its constants do: its options, its land, its root, its toggles and tier.
     let land_area2 = area2(outline);
+    let previous_tier = plat.tier;
+    let tier = options
+        .toggles
+        .contains(&Toggle::Tiers)
+        .then(|| town_tier(root.mass_mille, previous_tier));
+    let toggles: Vec<&str> = options.toggles.iter().map(|t| t.as_str()).collect();
     let constants = format!(
-        "{}|{}|{}|{land_area2}|{}",
+        "{}|{}|{}|{land_area2}|{}|toggles:{}|tier:{}",
         options.order.as_str(),
         options.jog.as_str(),
         options.density_pct,
-        root.path
+        root.path,
+        toggles.join(","),
+        tier.map_or("", Tier::as_str)
     );
     if let Some(cache) = cache.as_deref_mut()
         && cache.constants != constants
@@ -193,6 +208,22 @@ pub fn layout_town(
     let mut ctx = Ctx::new(options, plat, root, land_area2);
     ctx.root_form = root_form;
     ctx.cache = cache;
+    if let Some(tier) = tier {
+        ctx.plat.tier = Some(tier);
+        ctx.tier = Some(tier_rule(tier, root.mass_mille));
+        if let Some(from) = previous_tier
+            && from != tier
+        {
+            ctx.emit(
+                "plat/tier",
+                vec![
+                    ("key", key.into()),
+                    ("from", from.as_str().into()),
+                    ("to", tier.as_str().into()),
+                ],
+            );
+        }
+    }
     partition(&mut ctx, root, &to_poly(outline, 0), "");
     let warp = options.warp.then(|| {
         if ctx.plat.diameter == 0 {
@@ -218,6 +249,7 @@ pub fn layout_town(
         lots: std::mem::take(&mut ctx.lots),
         districts: std::mem::take(&mut ctx.districts),
         water: std::mem::take(&mut ctx.water),
+        canals: std::mem::take(&mut ctx.canals),
         root_mass: root.mass_mille,
         stats,
         warp,

@@ -3,23 +3,26 @@ use std::sync::Arc;
 
 use crate::archetype::{Form, classify_node, flatten};
 use crate::city::District;
-use crate::constants::{GROWTH_PCT, LOT_AREA, PAVEMENT, RoadClass, U};
+use crate::constants::{GROWTH_PCT, LOT_AREA};
 use crate::fixed::{
-    DIRECTION, Poly, Pt, Rounding, TURN, area2, centroid, chord, clip, compare_keys, dir, floor_div, isqrt,
-    isqrt_of_number, mul_div, negate, normalise, reach, round_div, unit_mille,
+    DIRECTION, Poly, Pt, Rounding, TURN, area2, centroid, clip, compare_keys, dir, floor_div, isqrt_of_number, mul_div,
+    negate, normalise, reach, round_div, unit_mille,
 };
 use crate::plat::RadialRecord;
-use crate::roads::cut_class;
+use crate::roads::class_of;
+use crate::town::archipelago::archipelago;
 use crate::town::context::{CacheEntry, CacheKey, Ctx, Item, ItemKind, Order, demand_of, mass_of, seed_key, to_poly};
-use crate::town::cut::{decide, place, reserve, split};
+use crate::town::corridor::corridor;
+use crate::town::cut::{How, Water, decide, place, reserve, split};
 use crate::town::neighbourhood::neighbourhood;
+use crate::town::quarters::quarters;
+use crate::town::waterway::{Into, RIVER, waterway};
 use crate::tree::{TreeNode, land_for};
 
 /// A sector spans at most this many angle steps (0.95π).
 const MAX_SPAN: i64 = 1946;
 /// A radial core reaches at most this share (‰) of the way to the edge, so the ring keeps room.
 const RADIAL_MAX_SCALE: i64 = 950;
-const RIVER: i64 = 5 * U / 2;
 
 /// Oldest in the middle, then alternately either side, so newcomers join the edges.
 #[must_use]
@@ -39,7 +42,8 @@ pub fn centre_out<T: Clone>(ordered: &[T]) -> Vec<T> {
 }
 
 /// A folder's items: child folders, its own lots, its own park; by first appearance, then key.
-fn items_of<'t>(ctx: &Ctx<'t, '_>, node: &'t TreeNode, district: &str) -> Vec<Item<'t>> {
+#[must_use]
+pub fn items_of<'t>(ctx: &Ctx<'t, '_>, node: &'t TreeNode, district: &str) -> Vec<Item<'t>> {
     let mut items: Vec<Item<'t>> = node
         .children
         .iter()
@@ -116,6 +120,7 @@ pub fn partition<'t>(ctx: &mut Ctx<'t, '_>, node: &'t TreeNode, poly: &Poly, dis
         ctx.lots.extend(hit.lots.iter().cloned());
         ctx.districts.extend(hit.districts.iter().cloned());
         ctx.water.extend(hit.water.iter().cloned());
+        ctx.canals.extend(hit.canals.iter().cloned());
         ctx.events.extend(hit.overflow_events.iter().cloned());
         ctx.overflow += hit.overflow;
         ctx.lot_area2 += hit.lot_area2;
@@ -128,6 +133,7 @@ pub fn partition<'t>(ctx: &mut Ctx<'t, '_>, node: &'t TreeNode, poly: &Poly, dis
         ctx.districts.len(),
         ctx.water.len(),
         ctx.events.len(),
+        ctx.canals.len(),
     );
     let (overflow, lot_area2) = (ctx.overflow, ctx.lot_area2);
     lay_folder(ctx, node, poly, district);
@@ -138,6 +144,7 @@ pub fn partition<'t>(ctx: &mut Ctx<'t, '_>, node: &'t TreeNode, poly: &Poly, dis
         lots: ctx.lots[before.2..].to_vec(),
         districts: ctx.districts[before.3..].to_vec(),
         water: ctx.water[before.4..].to_vec(),
+        canals: ctx.canals[before.6..].to_vec(),
         overflow: ctx.overflow - overflow,
         lot_area2: ctx.lot_area2 - lot_area2,
         overflow_events: ctx.events[before.5..]
@@ -159,7 +166,7 @@ fn lay_folder<'t>(ctx: &mut Ctx<'t, '_>, node: &'t TreeNode, poly: &Poly, distri
     let previous = ctx.plat.forms.get(&*node.path).copied();
     let form = match ctx.root_form {
         Some(root_form) if is_root => root_form,
-        _ => classify_node(node, previous),
+        _ => classify_node(node, previous, &ctx.options.toggles),
     };
     if let Some(previous) = previous
         && previous != form
@@ -199,7 +206,10 @@ fn lay_folder<'t>(ctx: &mut Ctx<'t, '_>, node: &'t TreeNode, poly: &Poly, distri
         return;
     }
     let items = items_of(ctx, node, district);
-    let done = (form == Form::Radial && radial(ctx, node, &items, poly, district))
+    let done = (form == Form::Corridor && corridor(ctx, node, &items, poly, district))
+        || (form == Form::Archipelago && archipelago(ctx, node, &items, poly, district))
+        || (form == Form::Quarters && quarters(ctx, node, &items, poly, district))
+        || (form == Form::Radial && radial(ctx, node, &items, poly, district))
         || (form == Form::Twin && twin(ctx, node, &items, poly, district));
     if !done {
         let ordered = if ctx.options.order == Order::CentreOut {
@@ -377,8 +387,9 @@ fn radial<'t>(ctx: &mut Ctx<'t, '_>, node: &'t TreeNode, items: &[Item<'t>], pol
             rec
         }
     };
-    let ring_class = cut_class(node.mass_mille, true);
-    let spoke_class = cut_class(node.mass_mille, false);
+    // The ring is the folder's first road: under tiers, the town's first when the folder is the root.
+    let ring_class = class_of(node.mass_mille, true, std::ptr::eq(node, ctx.root), ctx.tier);
+    let spoke_class = class_of(node.mass_mille, false, false, ctx.tier);
     let (w_ring, w_spoke) = (ring_class.width(), spoke_class.width());
     let spokes = &rec.bounds[..rec.bounds.len() - 1];
     let inner: Vec<Pt> = spokes
@@ -445,33 +456,15 @@ fn twin<'t>(ctx: &mut Ctx<'t, '_>, node: &'t TreeNode, items: &[Item<'t>], poly:
         node.mass_mille,
         true,
         &node.path,
-        None,
-        Some((left.as_slice(), right.as_slice())),
-        None,
+        How {
+            assign: Some((left.as_slice(), right.as_slice())),
+            water: Some(Water::River),
+            ..How::default()
+        },
     )
     .expect("a twin decides its river");
     let r = &decision.rec;
-    let [a, b] = chord(&poly.p, r.n, r.c).expect("a twin's river crosses its land");
-    let half = RIVER / 2 * DIRECTION;
-    // The band holds the chord, so the water is never empty.
-    ctx.water
-        .push(clip(&clip(poly, r.n, r.c + half, 0), negate(r.n), -(r.c - half), 0).p);
-    let length = isqrt((b.x - a.x).pow(2) + (b.y - a.y).pow(2));
-    let reach_out = RIVER / 2 + 2 * PAVEMENT;
-    let bridges: &[(i64, i64)] = if length > 12 * U { &[(1, 3), (2, 3)] } else { &[(1, 2)] };
-    for &(num, den) in bridges {
-        let m = Pt::new(
-            a.x + round_div((b.x - a.x) * num, den),
-            a.y + round_div((b.y - a.y) * num, den),
-        );
-        let dx = mul_div(r.n[0], reach_out, DIRECTION, Rounding::Round);
-        let dy = mul_div(r.n[1], reach_out, DIRECTION, Rounding::Round);
-        ctx.road(
-            Some(vec![Pt::new(m.x - dx, m.y - dy), Pt::new(m.x + dx, m.y + dy)]),
-            RoadClass::Street,
-            None,
-        );
-    }
+    waterway(ctx, poly, r, RIVER, Into::Water);
     let banks = [
         (&decision.left, clip(poly, r.n, r.c, RIVER), format!("{}>L", node.path)),
         (

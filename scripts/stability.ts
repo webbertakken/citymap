@@ -1,4 +1,4 @@
-// `bun scripts/stability.ts <repo> [from] [count] [--lock=<file>]`: lays `count` steps of the fold schedule from index
+// `bun scripts/stability.ts <repo> [from] [count] [--lock=<file>] [--toggles=<list>]`: lays `count` steps of the fold schedule from index
 // `from` (a fresh plat at the first; the root's fold when 0), or from a lockfile's commit and plat, and reports how many
 // lots move per laid step, overall and on steps that delete files.
 import { readFileSync } from "node:fs";
@@ -6,6 +6,7 @@ import {
   DEFAULT_LAND_USES,
   DEFAULT_SPLIT,
   initialState,
+  isToggle,
   layCity,
   parseLock,
   type City,
@@ -17,7 +18,12 @@ import { compareCities, summarise, type Step } from "./stability/stability.ts";
 const args = process.argv.slice(2);
 const [repo, fromArg = "0", countArg = "300"] = args.filter((arg) => !arg.startsWith("--"));
 const lockFile = args.find((arg) => arg.startsWith("--lock="))?.slice("--lock=".length);
-if (!repo) throw new Error("usage: bun scripts/stability.ts <repo> [from] [count] [--lock=<file>]");
+// The toggles laid with, as the CLI names them; the defaults when absent.
+const toggleArg = args.find((arg) => arg.startsWith("--toggles="))?.slice("--toggles=".length);
+const named = toggleArg?.split(",").filter((name) => name !== "");
+const unknown = named?.find((name) => !isToggle(name));
+if (unknown !== undefined) throw new Error(`stability/usage: no toggle ${unknown}`);
+if (!repo) throw new Error("usage: bun scripts/stability.ts <repo> [from] [count] [--lock=<file>] [--toggles=<list>]");
 const options: Options = {
   densityPct: 50,
   landUses: DEFAULT_LAND_USES,
@@ -25,6 +31,7 @@ const options: Options = {
   jog: "top-level",
   warp: true,
   split: DEFAULT_SPLIT,
+  ...(named ? { toggles: named.filter(isToggle) } : {}),
 };
 const lock = lockFile === undefined ? null : parseLock(readFileSync(lockFile, "utf8"));
 const from = lock?.index ?? Number(fromArg);

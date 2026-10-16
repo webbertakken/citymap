@@ -91,6 +91,27 @@ describe("Viewer, a local repository", () => {
     expect(screen.getByRole("button", { name: PICK }).getAttribute("aria-describedby")).toBeTruthy();
   });
 
+  it("lays the folder again with other layout toggles, keeping it private", async () => {
+    const laid: unknown[] = [];
+    const counting: Lay = async (snapshot, options) => {
+      laid.push(options?.toggles);
+      return layHere(snapshot, options);
+    };
+    await opened(ports(), counting);
+    fromMore(PICK);
+    expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Layout" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Quarters" }));
+    await vi.waitFor(() =>
+      expect(laid).toEqual([
+        ["corridor", "tiers"],
+        ["corridor", "quarters", "tiers"],
+      ]),
+    );
+    expect(await screen.findByText(/^\d+ towns · \d+ lots · local, single state, not folded$/)).toBeTruthy();
+    expect(document.title).toBe("Local repository · citymap");
+  });
+
   it("shows the loading card while a picked folder is laid, and Cancel keeps the last city", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const { lay, release } = held();

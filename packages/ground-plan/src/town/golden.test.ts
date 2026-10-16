@@ -6,7 +6,8 @@ import { files, treeOf } from "../testing/fixtures";
 import type { TreeNode } from "../tree/tree";
 import { layoutTown } from "./layout";
 
-// Golden cities: any change to the layout shows up here as a reviewable diff of the city and its plat.
+// Golden cities: any change to the layout shows up here as a reviewable diff of the city and its plat. With every
+// toggle off they are the towns laid before the toggles, byte for byte.
 const lay = (tree: TreeNode, room = 100) =>
   layoutTown(
     "golden",
@@ -19,6 +20,7 @@ const lay = (tree: TreeNode, room = 100) =>
       jog: "top-level",
       warp: true,
       densityPct: 50,
+      toggles: [],
     },
   );
 

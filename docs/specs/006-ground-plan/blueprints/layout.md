@@ -36,7 +36,8 @@ right-of-way class, set whenever the cut is laid (fresh or recut) to `cutClass(m
 river's is its own class); a record without one reads as its class. Land is clipped at `ROAD_WIDTH[row]`; the road is
 drawn at its class's width, or at the right of way's when the class is wider (`carriageway`, which then sets
 `Road.width`). `starved()` measures each side after its half of the right of way. A radial's ring and spokes are classed
-afresh at each lay.
+afresh at each lay. With tiers on, every class and right of way here goes through the town's tier ([toggles](toggles.md)
+§ Tiers).
 
 ## Classify
 
@@ -49,9 +50,11 @@ afresh at each lay.
    lot count when flat). Shares are `floorDiv(m × 1000, mass)`; mass 0 gives 0.
 3. Flat: hamlet when `mass < 25,000` (`< 31,250` if previous is hamlet); else street village when `lots ≥ 40` and
    `f0 ≥ 600` (`≥ 32` and `≥ 480` if previous is street village); else neighbourhood.
-4. District: margins in ‰, `radial = s1 − 600`, `twin = min(s2 − 300, s1 + s2 − 750)`, `polycentric = 1000`. Cold start
-   (no previous or previous flat): the first rule with margin ≥ 0. Otherwise: an earlier rule with margin ≥ 100 wins;
-   else the incumbent while its margin ≥ −150; else the first later rule with margin ≥ 100, else polycentric.
+4. District: margins in ‰, `radial = s1 − 600`, `twin = min(s2 − 300, s1 + s2 − 750)`, `polycentric = 1000`, and the
+   toggles' corridor, archipelago and quarters ([toggles](toggles.md) § Classify), each with its band. Cold start (no
+   previous or previous flat): the first rule with margin ≥ 0. Otherwise: an earlier rule with margin ≥ its challenge
+   wins; else the incumbent while its margin ≥ −stay; else the first later rule with margin ≥ its challenge, else
+   polycentric.
 
 ## Partition
 
@@ -63,8 +66,8 @@ afresh at each lay.
 3. Flat: `neighbourhood(poly, flatten(node).lots, park demand, path, district, form)`. `flatten` lists own lots, then
    children by `(firstSeen, path)`, recursively.
 4. District form: items are child folders, then `path#lots` (own lots) and `path#park` (own docs), sorted by
-   `(firstSeen, compareKeys(key))`. Radial and twin try first; when they decline,
-   `split(centreOut(items), poly, mass, top = true, path, district)`.
+   `(firstSeen, compareKeys(key))`. Corridor, archipelago, quarters ([toggles](toggles.md)), radial and twin try first,
+   by the folder's form; when they decline, `split(centreOut(items), poly, mass, top = true, path, district)`.
 5. Every block and lot laid inside without a district form takes this one.
 
 `centreOut`: even indices to the right in order, odd to the left, the left reversed, then concatenated.
@@ -126,7 +129,8 @@ For a node classified radial, with at least one folder item:
 The two heaviest folders take opposite banks, the rest join the bank with less demand, in item order. The decision is a
 cut with `river: true` at `node.path`. Emits water (the band `c ± RIVER/2`), one bridge (a street of length
 `RIVER + 4 × PAVEMENT`) at the middle, or two at a third and two thirds when the river is longer than 12 u; banks
-recurse as `path>L`, `path>R` with their own district seeds.
+recurse as `path>L`, `path>R` with their own district seeds. The river is drawn by `waterway` ([toggles](toggles.md) §
+Archipelago), shared with the archipelago's canals.
 
 ## Neighbourhood
 

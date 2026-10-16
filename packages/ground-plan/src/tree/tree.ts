@@ -26,6 +26,10 @@ export interface TreeNode {
   readonly demand: number;
   /** A 64-bit digest (hex) of the folder's content: its lots, docs, first appearance and its children's digests. */
   readonly digest: string;
+  /** The folder, or a folder its chain collapsed into it, is a workspace member. */
+  readonly member: boolean;
+  /** The mass of its subtree's source files (1,000 each). */
+  readonly sourceMille: number;
 }
 
 /** A shared lot: its key (its founding identity) and its member identities. */
@@ -41,6 +45,8 @@ export interface TreeOptions {
   readonly exclude: readonly string[];
   readonly landUses: readonly LandUse[];
   readonly densityPct: number;
+  /** The workspace members of the region, which mark packages; none when absent. */
+  readonly members?: readonly string[];
 }
 
 /** Land a neighbourhood needs for the given lot area: lots over density, plus a road margin round a square. */
@@ -107,6 +113,7 @@ function collapseChain(node: TreeNode): TreeNode {
       name: `${n.name}/${child.name}`,
       depth: n.depth,
       firstSeen: Math.min(n.firstSeen, child.firstSeen),
+      member: n.member || child.member,
     };
   }
   return n;
@@ -121,6 +128,7 @@ export function buildTree(
 ): { tree: TreeNode; shares: Record<string, ShareRecord[]>; offLand: number; docs: number } {
   const { root, exclude, densityPct } = options;
   const takesLand = new Set(options.landUses);
+  const members = new Set(options.members ?? []);
   const prefix = root === "" ? "" : `${root}/`;
   const raw = new Map<string, Raw>();
   const get = (path: string): Raw => {
@@ -155,6 +163,9 @@ export function buildTree(
     const children = [...entry.kids].toSorted(compareKeys).map((kid) => make(kid, depth + 1));
     const ownMass = entry.files.reduce((sum, f) => sum + WEIGHT_MILLE[f.use], 0);
     const massMille = ownMass + children.reduce((sum, c) => sum + c.massMille, 0);
+    const ownSource = entry.files.filter((f) => f.use === "source").length * WEIGHT_MILLE.source;
+    const sourceMille = ownSource + children.reduce((sum, c) => sum + c.sourceMille, 0);
+    const member = members.has(path);
     const items =
       landFor(lots.length * LOT_AREA, densityPct) +
       landFor((entry.docs * LOT_AREA) / 2, densityPct) +
@@ -170,6 +181,7 @@ export function buildTree(
       entry.docs,
       massMille,
       demand,
+      member ? 1 : 0,
       ...lots.map((l) => `${l.key}>${l.path}>${l.use}>${l.firstSeen}`),
       ...children.map((c) => c.digest),
     ].join("|");
@@ -184,6 +196,8 @@ export function buildTree(
       children,
       massMille,
       demand,
+      member,
+      sourceMille,
     };
   };
   // Below the root, a folder with no land of its own and a single child merges into that child.

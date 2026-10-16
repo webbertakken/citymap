@@ -9,6 +9,8 @@ use crate::constants::RoadClass;
 use crate::fixed::{MemoWarp, Poly, Pt, fnv1a};
 use crate::land_use::LandUse;
 use crate::plat::TownPlat;
+use crate::roads::TierRule;
+use crate::toggles::Toggle;
 use crate::tree::{LotSeed, TreeNode};
 
 /// A detail value of an event: printed as it is.
@@ -113,14 +115,25 @@ pub struct LayoutOptions {
     pub density_pct: i64,
     /// Lanes joining nearby dead ends.
     pub loops: bool,
+    /// The archetype toggles on, in their own order.
+    pub toggles: Vec<Toggle>,
 }
 
 /// What a folder's land is cut between: a child folder, the folder's own lots, or its own park.
 #[derive(Clone, Debug)]
 pub enum ItemKind<'t> {
     Folder(&'t TreeNode),
-    Lots { lots: &'t [LotSeed], district: Arc<str> },
-    Park { district: Arc<str> },
+    Lots {
+        lots: &'t [LotSeed],
+        district: Arc<str>,
+    },
+    Park {
+        district: Arc<str>,
+    },
+    /// Items laid together: an archipelago's island of several packages, or its mainland.
+    Group(Vec<Item<'t>>),
+    /// A planned quarter of small folders, cut square to its own frame.
+    Quarter(Vec<Item<'t>>),
 }
 
 #[derive(Clone, Debug)]
@@ -173,6 +186,7 @@ pub struct CacheEntry {
     pub lots: Vec<DraftLot>,
     pub districts: Vec<District>,
     pub water: Vec<Vec<Pt>>,
+    pub canals: Vec<Vec<Pt>>,
     pub overflow: i64,
     pub lot_area2: i64,
     pub overflow_events: Vec<PlatEvent>,
@@ -202,6 +216,9 @@ pub struct Ctx<'t, 'c> {
     pub lots: Vec<DraftLot>,
     pub districts: Vec<District>,
     pub water: Vec<Vec<Pt>>,
+    pub canals: Vec<Vec<Pt>>,
+    /// The town's tier as its roads read it, when tiers are on.
+    pub tier: Option<TierRule>,
     pub land_area2: i64,
     pub cache: Option<&'c mut TownCache>,
     pub form: Form,
@@ -223,6 +240,8 @@ impl<'t> Ctx<'t, '_> {
             lots: Vec::new(),
             districts: Vec::new(),
             water: Vec::new(),
+            canals: Vec::new(),
+            tier: None,
             land_area2,
             cache: None,
             form: Form::Neighbourhood,
@@ -251,13 +270,30 @@ impl<'t> Ctx<'t, '_> {
         });
     }
 
-    /// Drops every remembered cut, grid and radial layout of the folder at path.
+    /// Drops every remembered cut, grid, radial layout, island and quarter of the folder at path.
     pub fn forget(&mut self, path: &str) {
-        let before = self.plat.cuts.len() + self.plat.grids.len() + self.plat.radial.len();
-        self.plat.cuts.retain(|key, _| !owned(key, path));
-        self.plat.grids.retain(|key, _| !owned(key, path));
-        self.plat.radial.retain(|key, _| !owned(key, path));
-        let count = before - (self.plat.cuts.len() + self.plat.grids.len() + self.plat.radial.len());
+        let plat = &mut self.plat;
+        let held = |plat: &crate::plat::TownPlat| {
+            plat.cuts.len()
+                + plat.grids.len()
+                + plat.radial.len()
+                + plat.islands.as_ref().map_or(0, std::collections::BTreeMap::len)
+                + plat.quarters.as_ref().map_or(0, std::collections::BTreeMap::len)
+        };
+        let before = held(plat);
+        plat.cuts.retain(|key, _| !owned(key, path));
+        plat.grids.retain(|key, _| !owned(key, path));
+        plat.radial.retain(|key, _| !owned(key, path));
+        // The toggles' records are present only while they hold something.
+        for records in [&mut plat.islands, &mut plat.quarters] {
+            if let Some(map) = records {
+                map.retain(|key, _| !owned(key, path));
+                if map.is_empty() {
+                    *records = None;
+                }
+            }
+        }
+        let count = before - held(plat);
         if count > 0 {
             let count = i64::try_from(count).expect("small");
             self.emit("plat/forget", vec![("key", path.into()), ("count", count.into())]);

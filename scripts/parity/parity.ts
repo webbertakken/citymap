@@ -18,6 +18,8 @@ export interface Settings {
   readonly modes: readonly Mode[];
   /** Cargo features the Rust CLI is built with (`--features=mimalloc`). */
   readonly features: readonly string[];
+  /** The toggles both CLIs lay with (`--toggles=corridor`, `--toggles=` for none); null for the defaults. */
+  readonly toggles: string | null;
 }
 
 /** The files a run writes, compared between the CLIs; the log is compared without its timings. */
@@ -35,14 +37,22 @@ const list = (text: string | undefined) => text?.split(",").filter((item) => ite
 
 const isMode = (value: string): value is Mode => MODES.some((mode) => mode === value);
 
-/** `--long` adds next.js, `--repos=a,b` names the repositories, `--modes=state,fold,resume` the modes, `--features=a` the Rust build. */
+/**
+ * `--long` adds next.js, `--repos=a,b` names the repositories, `--modes=state,fold,resume` the modes, `--features=a`
+ * the Rust build, `--toggles=a,b` the toggles both CLIs lay with.
+ */
 export function parseSettings(argv: readonly string[]): Settings {
   const value = (name: string) => argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
   const modes = list(value("modes")) ?? [...MODES];
   const bad = modes.find((mode) => !isMode(mode));
   if (bad !== undefined) throw new Error(`parity/usage: --modes takes state, fold and resume, not ${bad}`);
   const repos = list(value("repos")) ?? [...PARITY, ...(argv.includes("--long") ? LONG : [])];
-  return { repos, modes: modes.filter(isMode), features: list(value("features")) ?? [] };
+  return {
+    repos,
+    modes: modes.filter(isMode),
+    features: list(value("features")) ?? [],
+    toggles: value("toggles") ?? null,
+  };
 }
 
 /** The cargo command that builds the Rust CLI, with the features asked for. */
@@ -56,16 +66,25 @@ export const buildArgs = (features: readonly string[]): string[] => [
   ...(features.length > 0 ? ["--features", features.join(",")] : []),
 ];
 
-/** The CLI arguments of one run: the clone, its outputs in `out`, and the mode's own flag. */
-export const cliArgs = (clone: string, out: string, mode: Mode): string[] => [
+/** The toggles flag of a run, when the settings name toggles. */
+const togglesFlag = (toggles: string | null) => (toggles === null ? [] : [`--toggles=${toggles}`]);
+
+/** The CLI arguments of one run: the clone, its outputs in `out`, the mode's own flag and the toggles. */
+export const cliArgs = (clone: string, out: string, mode: Mode, toggles: string | null = null): string[] => [
   clone,
   `--out=${out}/city.json`,
   `--svg=${out}/city.svg`,
   mode === "state" ? "--no-history" : "--lock",
+  ...togglesFlag(toggles),
 ];
 
 /** The CLI arguments that save a lock part way: a fold to `commit`, writing nothing but the lock. */
-export const saveArgs = (clone: string, commit: string): string[] => [clone, `--to=${commit}`, "--lock"];
+export const saveArgs = (clone: string, commit: string, toggles: string | null = null): string[] => [
+  clone,
+  `--to=${commit}`,
+  "--lock",
+  ...togglesFlag(toggles),
+];
 
 /**
  * The index to save a lock at, for a history of `commits`: halfway through the commits whose fold lays the same

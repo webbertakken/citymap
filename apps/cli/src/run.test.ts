@@ -137,6 +137,11 @@ describe("runLay", () => {
     const tests = memoryIo({ [join(dir, LOCKFILE)]: lock });
     await runLay(command(dir, "--tests"), tests.io);
     expect(tests.lines.some((l) => l.startsWith("lock/ignored reason=setting"))).toBe(true);
+    // A lock folded under other toggles is set aside too: the history folds afresh, never continued.
+    const untoggled = memoryIo({ [join(dir, LOCKFILE)]: lock });
+    await runLay(command(dir, "--toggles="), untoggled.io);
+    expect(untoggled.lines).toContain(`lock/ignored reason=setting lock=${JSON.parse(lock).plat.setting}`);
+    expect(JSON.parse(lock).plat.setting).toMatch(/\|toggles:corridor,tiers$/);
     git(dir, "checkout", "-q", "-b", "other", "HEAD~1");
     writeFileSync(join(dir, "x.ts"), "x");
     git(dir, "add", "-A");

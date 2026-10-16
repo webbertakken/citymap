@@ -133,6 +133,7 @@ mod tests {
             old: false,
             outline: square(x, 1000),
             water: vec![],
+            canals: vec![],
             roads,
             blocks: vec![],
             lots: vec![],

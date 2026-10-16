@@ -72,6 +72,7 @@ export async function runLay(
     warp: command.warp,
     loops: command.loops,
     split: command.split,
+    toggles: command.toggles,
   };
   const target = await resolveCommit(repo, command.to);
   const lock = command.history ? await readLock(repo, target, options, io) : null;

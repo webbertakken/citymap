@@ -1,6 +1,7 @@
-import { CitymapError, serialiseCity, type City } from "@citymap/ground-plan";
+import { CitymapError, DEFAULT_TOGGLES, serialiseCity, type City } from "@citymap/ground-plan";
 import { describe, expect, it } from "vitest";
-import { describeFailure, loadCity, loadIndex, readCityFile } from "./cities";
+import { describeFailure, loadCity, loadIndex, readCityFile, variantOf } from "./cities";
+import { entryOf } from "./components/testing/fixtures";
 import type { Step } from "./load/step";
 
 const city: City = { repository: "demo", commit: "worktree", towns: [], highways: [] };
@@ -19,27 +20,50 @@ const chunked = (text: string, headers: Record<string, string>) => async () => {
   });
   return new Response(body, { headers });
 };
-const entry = { name: "demo", file: "demo.json", lots: 0 };
+const entry = entryOf("demo", 0);
 
 describe("loadIndex", () => {
-  it("reads the bundled cities", async () => {
-    const index = [{ name: "demo", file: "demo.json", lots: 3 }];
+  it("reads the bundled cities, each with its sixteen variants", async () => {
+    const index = [entryOf("demo", 3)];
     expect(await loadIndex(fetcher({ "/cities/index.json": JSON.stringify(index) }))).toEqual(index);
   });
 
   it("rejects a missing or malformed index", async () => {
+    const bad = (value: unknown) => fetcher({ "/cities/index.json": JSON.stringify(value) });
+    const demo = entryOf("demo", 1);
     await expect(loadIndex(fetcher({}))).rejects.toThrow("/cities/index.json answered 404");
-    await expect(loadIndex(fetcher({ "/cities/index.json": '[{"name":"x","file":"../x","lots":1}]' }))).rejects.toThrow(
+    await expect(loadIndex(bad({}))).rejects.toThrow("not a list of cities");
+    await expect(loadIndex(bad([{ ...demo, variants: demo.variants.slice(1) }]))).rejects.toThrow(
       "not a list of cities",
     );
-    await expect(loadIndex(fetcher({ "/cities/index.json": "{}" }))).rejects.toThrow("not a list of cities");
+    const [first, ...rest] = demo.variants;
+    await expect(loadIndex(bad([{ ...demo, variants: [{ ...first, file: "../x.json" }, ...rest] }]))).rejects.toThrow(
+      "not a list of cities",
+    );
+    await expect(
+      loadIndex(bad([{ ...demo, variants: [{ ...first, toggles: ["gridiron"] }, ...rest] }])),
+    ).rejects.toThrow("not a list of cities");
+    await expect(loadIndex(bad([{ ...demo, variants: [rest[0], ...rest] }]))).rejects.toThrow("not a list of cities");
+    await expect(loadIndex(bad([{ ...demo, variants: [{ ...first, lots: "1" }, ...rest] }]))).rejects.toThrow(
+      "not a list of cities",
+    );
+    await expect(loadIndex(bad([{ name: 1, variants: demo.variants }]))).rejects.toThrow("not a list of cities");
+  });
+});
+
+describe("variantOf", () => {
+  it("finds the variant with exactly the toggles named, in any order", () => {
+    const demo = entryOf("demo", 1);
+    expect(variantOf(demo, DEFAULT_TOGGLES).file).toBe("demo/corridor-tiers.json");
+    expect(variantOf(demo, ["tiers", "corridor"]).file).toBe("demo/corridor-tiers.json");
+    expect(variantOf(demo, []).file).toBe("demo/none.json");
   });
 });
 
 describe("loadCity and readCityFile", () => {
-  it("parse a city", async () => {
-    const files = { "/cities/demo.json": serialiseCity(city) };
-    expect(await loadCity(fetcher(files), { name: "demo", file: "demo.json", lots: 0 })).toEqual(city);
+  it("parse a city, the bundled one in the variant the toggles name", async () => {
+    const files = { "/cities/demo/quarters.json": serialiseCity(city) };
+    expect(await loadCity(fetcher(files), entryOf("demo", 0), ["quarters"])).toEqual(city);
     expect(await readCityFile(new Blob([serialiseCity(city)]))).toEqual(city);
   });
 
@@ -48,7 +72,9 @@ describe("loadCity and readCityFile", () => {
     const length = String(new TextEncoder().encode(body).length);
     const steps: Step[] = [];
     expect(
-      await loadCity(chunked(body, { "content-length": length }), entry, "", { onStep: (s) => steps.push(s) }),
+      await loadCity(chunked(body, { "content-length": length }), entry, DEFAULT_TOGGLES, "", {
+        onStep: (s) => steps.push(s),
+      }),
     ).toEqual(city);
     const size = Number(length);
     const half = Math.floor(size / 2);
@@ -62,7 +88,7 @@ describe("loadCity and readCityFile", () => {
     const unknown = await Promise.all(
       [{ "content-length": "9", "content-encoding": "gzip" }, {}].map(async (headers) => {
         const heard: Step[] = [];
-        await loadCity(chunked(body, headers), entry, "", { onStep: (s) => heard.push(s) });
+        await loadCity(chunked(body, headers), entry, DEFAULT_TOGGLES, "", { onStep: (s) => heard.push(s) });
         return heard.at(-2);
       }),
     );
@@ -77,13 +103,13 @@ describe("loadCity and readCityFile", () => {
 
   it("read a body without a stream whole", async () => {
     const plain = async () => Object.assign(new Response(null), { text: async () => serialiseCity(city) });
-    expect(await loadCity(plain, entry)).toEqual(city);
+    expect(await loadCity(plain, entry, DEFAULT_TOGGLES)).toEqual(city);
   });
 
   it("stop when their signal aborts, while downloading or before reading", async () => {
     const controller = new AbortController();
     const steps: Step[] = [];
-    const reading = loadCity(chunked(serialiseCity(city), {}), entry, "", {
+    const reading = loadCity(chunked(serialiseCity(city), {}), entry, DEFAULT_TOGGLES, "", {
       signal: controller.signal,
       onStep: (s) => {
         steps.push(s);

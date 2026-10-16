@@ -66,8 +66,10 @@ describe("decide road classes", () => {
     decide(ctx, pair, rect(1000, 1000), 1000, false, "later");
     expect(decide(ctx, pair, rect(1000, 1000), 4_000_000, false, "later")!.rec.cls).toBe("avenue");
     const banks: [Item[], Item[]] = [[pair[0]!], [pair[1]!]];
-    decide(ctx, pair, rect(1000, 1000), 1000, true, "river", undefined, banks);
-    expect(decide(ctx, pair, rect(1000, 1000), 4_000_000, true, "river", undefined, banks)!.rec.cls).toBe("street");
+    decide(ctx, pair, rect(1000, 1000), 1000, true, "river", { assign: banks, water: "river" });
+    expect(
+      decide(ctx, pair, rect(1000, 1000), 4_000_000, true, "river", { assign: banks, water: "river" })!.rec.cls,
+    ).toBe("street");
   });
 });
 
@@ -103,9 +105,12 @@ describe("decide rights of way", () => {
     split(ctx, pair, rect(1000, 1000), 400_000, true, "k", "d");
     expect(ctx.roads).toContainEqual(expect.objectContaining({ cls: "avenue", width: ROAD_WIDTH.collector }));
     const banks: [Item[], Item[]] = [[pair[0]!], [pair[1]!]];
-    decide(ctx, pair, rect(1000, 1000), 25_000, true, "river", undefined, banks);
+    decide(ctx, pair, rect(1000, 1000), 25_000, true, "river", { assign: banks, water: "river" });
     const grown = [item("a", 5000), item("b", 1000)];
-    const moved = decide(ctx, grown, rect(1000, 1000), 25_000, true, "river", undefined, [[grown[0]!], [grown[1]!]])!;
+    const moved = decide(ctx, grown, rect(1000, 1000), 25_000, true, "river", {
+      assign: [[grown[0]!], [grown[1]!]],
+      water: "river",
+    })!;
     expect(moved.rec.row).toBe(moved.rec.cls);
   });
 });
@@ -125,21 +130,18 @@ describe("decide against its folder's share", () => {
     const ctx = laidAt45();
     const before = ctx.plat.cuts.k!.c;
     // The folder holds twice this cut's land for the same demand: each side here is half its share.
-    const moved = decide(ctx, even, rect(1000, 1000), 2000, true, "k", undefined, undefined, {
-      land2: 2 * land2,
-      demand: 2000,
-    })!;
+    const moved = decide(ctx, even, rect(1000, 1000), 2000, true, "k", { share: { land2: 2 * land2, demand: 2000 } })!;
     expect(ctx.events.map((e) => [e.code, e.detail.reason])).toEqual([["plat/recut", "starved"]]);
     expect(moved.rec.c).not.toBe(before);
   });
 
   it("leaves a cut within the band of its share, and one whose line would not move", () => {
     const within = laidAt45();
-    decide(within, even, rect(1000, 1000), 2000, true, "k", undefined, undefined, { land2, demand: 2000 });
+    decide(within, even, rect(1000, 1000), 2000, true, "k", { share: { land2, demand: 2000 } });
     expect(within.events).toEqual([]);
     const halved = emptyCtx();
     decide(halved, even, rect(1000, 1000), 2000, true, "k");
-    decide(halved, even, rect(1000, 1000), 2000, true, "k", undefined, undefined, { land2: 8 * land2, demand: 2000 });
+    decide(halved, even, rect(1000, 1000), 2000, true, "k", { share: { land2: 8 * land2, demand: 2000 } });
     expect(halved.events).toEqual([]);
   });
 });

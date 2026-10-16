@@ -194,6 +194,8 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
 - `args.rs` parses the command line by hand, as `node:util` `parseArgs` does in strict mode: `--name=value` or
   `--name value` for string options, bare booleans (a value is an error), positionals anywhere, `--` ends options.
   Messages and the usage text are the TypeScript ones.
+- `--toggles=<list>` names the archetype toggles on, as the TypeScript CLI does: `corridor,tiers` by default, empty for
+  none, an unknown name `cli/usage` with the TypeScript message.
 - `run.rs` takes an `Io` trait (read file, write file, log, clock) as `Io` is injected in TypeScript.
 - Exit codes: 0 success, 2 usage (with the usage on standard error), 1 any other failure. The summary line is
   `fold/done repository=… commits=… laid=… lots=… overflow=… ms=…`.
@@ -211,6 +213,8 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   one the uninterrupted fold could have saved. The CLIs' resumed outputs are compared with each other, and each CLI's
   city, SVG and lock with its own `fold` outputs: `parity/resumed repo=… saved=… same` or
   `parity/resume-differs repo=… saved=… files=<side>:<file>,…` (exit 1).
+- `--toggles=<list>` passes the same flag to both CLIs, so one run proves one toggle setting: the defaults (no flag),
+  each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`).
 - One line per run: `parity/same repo=… mode=… ts-ms=… rs-ms=…` or `parity/differs repo=… mode=… files=… …` (exit 1),
   the second followed by `parity/kept repo=… dir=…` where every mode's outputs for the repository stay; a missing
   repository is `parity/skipped reason=no-repository`. The run ends with a Markdown table of outputs and timings.
@@ -228,9 +232,12 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   test writes them.
 - Parity fixtures under `rust/fixtures/` are written by `scripts/parity-fixtures.ts` from the TypeScript engine:
   `land-use.tsv` (every path in `react-head-paths.txt` and a list of edge cases), `fold.json` (a synthetic history of
-  groups, split apps, edits, deletions, a rename and a root switch, its events per commit, its city and its plat),
-  `colours.tsv` (every colour of every theme for every district class and form), `svg.tsv` and `city.svg` (the folded
-  city drawn in every theme, camera and region setting, as lengths and digests, one whole) and `usage.txt`.
+  groups, split apps, edits, deletions, a rename and a root switch, its events per commit, its city and its plat, with
+  every toggle off), `fold-defaults.json` and `fold-all.json` (that history grown by a corridor, an app of plugins and
+  four packages, folded with the default toggles and with all four), `colours.tsv` (every colour of every theme for
+  every district class and form), `svg.tsv` and `city.svg` (the folded city drawn in every theme, camera and region
+  setting, as lengths and digests, one whole) and `usage.txt`.
+- The toggles' forms are laid whole in `town/toggled.rs`, the TypeScript `town/toggles.test.ts` case by case.
 - `cargo test` runs in under ten seconds on the development machine; the parity script is local, not in CI.
 
 ## Known differences

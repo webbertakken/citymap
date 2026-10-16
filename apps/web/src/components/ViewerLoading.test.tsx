@@ -122,7 +122,7 @@ describe("Viewer while loading", () => {
     vi.spyOn(console, "info").mockImplementation(() => {});
     let arrive: ((response: Response) => void) | undefined;
     const slow: Fetcher = async (url) =>
-      url === "/cities/beta.json"
+      url === "/cities/beta/corridor-tiers.json"
         ? new Promise<Response>((done) => (arrive = done))
         : new Response(files[url] ?? "", { status: url in files ? 200 : 404 });
     render(<Viewer Canvas={StubCanvas} fetcher={slow} />);
@@ -133,12 +133,14 @@ describe("Viewer while loading", () => {
     expect(within(card()!).getByText("Downloading")).toBeTruthy();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(card()).toBeNull();
-    arrive!(new Response(files["/cities/beta.json"]));
+    arrive!(new Response(files["/cities/beta/corridor-tiers.json"]));
     await wait(1000);
     expect(screen.getByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
     // A file being read is replaced by the next one picked; only the last arrives.
     const input = screen.getByLabelText<HTMLInputElement>("City file");
-    fireEvent.change(input, { target: { files: [new File([files["/cities/beta.json"]!], "first.json")] } });
+    fireEvent.change(input, {
+      target: { files: [new File([files["/cities/beta/corridor-tiers.json"]!], "first.json")] },
+    });
     fireEvent.change(input, { target: { files: [new File([serialiseCity(city("gamma"))], "gamma.json")] } });
     await wait(1000);
     expect(screen.getByRole("heading", { level: 1, name: "gamma" })).toBeTruthy();

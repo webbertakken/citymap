@@ -237,6 +237,16 @@ pub fn render_city(city: &City, options: &RenderOptions) -> String {
                 sheet.thin(0.6)
             );
         }
+        for w in &town.canals {
+            let _ = write!(
+                out,
+                r#"<path d="{}" fill="{}" stroke="{}" stroke-width="{}"/>"#,
+                sheet.path(w, true),
+                theme.canal,
+                theme.canalline,
+                sheet.thin(0.6)
+            );
+        }
         // Roads: every casing, then every fill, smallest class first, so junctions merge.
         let mut roads: Vec<&Road> = town.roads.iter().collect();
         roads.sort_by_key(|r| ORDER.iter().position(|&c| c == r.cls));
@@ -490,6 +500,7 @@ mod tests {
             warp: true,
             loops: true,
             split: vec!["apps".into()],
+            toggles: citymap_ground_plan::toggles::DEFAULT_TOGGLES.to_vec(),
         };
         lay_city(&snapshot, &mut initial_state(&options, None, false), &options)
             .expect("a city")

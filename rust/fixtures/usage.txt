@@ -13,6 +13,8 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --jog=<cuts>        off, top-level or all (default top-level)
   --split=<groups>    workspace groups whose members each become a town, comma-separated (default apps;
                       --split=apps,packages splits packages too; --split= splits none)
+  --toggles=<forms>   archetype toggles on, comma-separated: corridor, archipelago, quarters, tiers
+                      (default corridor,tiers; --toggles= turns all off)
   --no-warp           draw the plan without its organic warp
   --no-loops          leave dead ends unjoined (default: nearby dead ends are joined by lanes)
   --no-history        lay the tree at --to once, every file at once, without folding its history (no --lock)

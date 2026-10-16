@@ -81,6 +81,7 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize, strides
         warp: command.warp,
         loops: command.loops,
         split: command.split.clone(),
+        toggles: command.toggles.clone(),
     };
     let target = resolve_commit(&repo, &command.to)?;
     let lock = if command.history {

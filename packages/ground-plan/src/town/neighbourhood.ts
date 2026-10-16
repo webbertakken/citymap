@@ -16,6 +16,7 @@ import {
   type Pt,
 } from "../fixed/polygon";
 import type { GridRecord } from "../plat/plat";
+import { cappedClass } from "../roads";
 import type { LotSeed } from "../tree/tree";
 import { emit, road, toPoly, type Ctx } from "./context";
 
@@ -281,7 +282,7 @@ export function neighbourhood(
     road(
       ctx,
       chord(land, perp(g.dir), (g.b0 + r * g.rowPitch - U / 2) * DIRECTION),
-      r === g.high ? "collector" : "street",
+      r === g.high ? cappedClass("collector", ctx.tier) : "street",
     );
   for (let c = cMin + 1; c <= cMax; c++)
     road(ctx, chord(land, g.dir, (g.a0 + c * g.colPitch - U / 2) * DIRECTION), "lane");

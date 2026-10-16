@@ -36,8 +36,10 @@ in `BufferGeometry`.
 
 ## App (`apps/web`)
 
-- Next.js App Router, `output: "export"`, one page. Bundled cities live in `public/cities/*.json` with an index
-  `public/cities/index.json` (`[{ name, file, lots }]`), produced by `scripts/bundle-cities.ts` from CLI output.
+- Next.js App Router, `output: "export"`, one page. Bundled cities live in `public/cities/<name>/<variant>.json`, one
+  per combination of toggles, with an index `public/cities/index.json`
+  (`[{ name, variants: [{ toggles, file, lots }] }]`, sixteen variants per city), produced by `scripts/bundle-cities.ts`
+  (Layout toggles, below).
 - Components: `Viewer` (state: city, theme, view), the floating atlas's cards (below), `CityCanvas` (react-three-fiber
   `Canvas` with an `OrthographicCamera`, one `mesh` per layer with vertex colours); labels are HTML over the canvas,
   placed by `MapView`).
@@ -81,12 +83,13 @@ in `BufferGeometry`.
      limit), parsed with `patternsOf` and resolved with `resolveWorkspaces`; one that cannot be read is left out.
   5. The snapshot is `stateSnapshot(name, sha, paths, workspaces)` from `@citymap/ground-plan`, the same builder the
      CLI's `--no-history` and the bench use, so the browser lays exactly what `citymap --no-history` lays.
-- Laying (`lay/`): `Lay = (snapshot, { signal, onProgress, theme }) => Promise<Laid>`, `Laid = { city, scene }`.
-  `layHere` lays on the calling thread, `layCity(snapshot, initialState(LIVE_OPTIONS), LIVE_OPTIONS, onProgress)` with
-  the CLI's default options, and, given a `theme`, posts a `draw` step and builds the scene there too
-  (`scene: { theme, scene }`, else null). `layInWorker` (the default; `layHere` in tests) runs it in a module Web Worker
-  (`lay/worker.ts`) sent `{ snapshot, theme }`; the scene's buffers come back transferred (`buffersOf`), not copied. See
-  Loading for the progress it posts and how it ends.
+- Laying (`lay/`): `Lay = (snapshot, { signal, onProgress, theme, toggles }) => Promise<Laid>`,
+  `Laid = { city, scene }`. `layHere` lays on the calling thread,
+  `layCity(snapshot, initialState(options), options, onProgress)` with the CLI's default options and the chosen toggles
+  (`liveOptions(toggles)`, the engine's defaults when none are given), and, given a `theme`, posts a `draw` step and
+  builds the scene there too (`scene: { theme, scene }`, else null). `layInWorker` (the default; `layHere` in tests)
+  runs it in a module Web Worker (`lay/worker.ts`) sent `{ snapshot, theme, toggles }`; the scene's buffers come back
+  transferred (`buffersOf`), not copied. See Loading for the progress it posts and how it ends.
 - `Viewer` keeps the worker's scene (`drawn`: the city, the theme, the scene) and uses it while that city is shown in
   that theme; any other city or theme builds its scene on the main thread as before.
 - A repository is laid from the search box (below). While it loads, the status line names the phase ("{name}: {phase}…";
@@ -291,6 +294,41 @@ phone), so nothing the cards do moves the map or each other.
   4, 8, 12, 16, 24, 32, 48 px. Layers (`z-index`): map 0, marker 1, labels 2, cards 10, the search, the controls'
   popovers and the hover card 20, notices 30. Transitions 150 ms, none under reduced motion.
 
+## Layout toggles
+
+- `ViewControls` gains the settings cog between Theme and More: a `Popover` labelled "Layout" (icon `Settings`), whose
+  panel is `Toggles` (`components/Toggles.tsx`): a `<fieldset>`, legend "City layout", of four
+  `<input type="checkbox" role="switch" aria-checked>` in `TOGGLES` order, each in a `<label>` with its name
+  ("Corridor", "Archipelago", "Quarters", "Tiers"), drawn as a track and thumb, and a `role="tooltip"` element
+  (`TOOLTIPS`, the spec's text word for word) that is its `aria-describedby`. The tooltip (`.tooltip` in the stylesheet)
+  is 280 px wide, beside the panel to its left on a wide screen, and beneath its row inside the panel below 760 px.
+- A tooltip shows while its row is hovered (the row holds the tooltip, so the pointer can rest on it) or its switch has
+  focus, and hides when both end and on Escape: the first Escape while one shows hides it and is marked answered
+  (`preventDefault`, as the page's React root may be the document the popover listens on); `Popover` skips an Escape
+  already answered, so the next one closes it. A switch never closes the popover.
+- Below 760 px the view switch is hidden (the viewer shows plan view only, as the spec says, there first), so the three
+  controls take 152 px of a touch screen's top row.
+- `Viewer` holds `toggles` (`DEFAULT_TOGGLES` at start; not remembered) and the `origin` of the city shown (a bundled
+  entry; a live repository's name, snapshot, status note and tab title, from GitHub or the person's machine; or a file).
+  A change re-opens what is shown in the new variant as a load of its own, with the loading card and the status naming
+  its phases (Loading): a bundled city loads `variantOf(entry, toggles)`; a live repository is laid again from its kept
+  snapshot in the worker (`relay`, under the same title, so a local repository's stays private); a city file disables
+  every switch and shows "A city file keeps the layout it was laid with."; with nothing shown the switches only change.
+  A city shown again in another layout keeps the view and the town shown when it has a town of that key (`relaid`).
+- `cities.ts`: `CityEntry { name, variants }`, each variant `{ toggles, file, lots }`; `isEntry` checks sixteen distinct
+  variants whose toggles are known, files `^\w[\w.-]*/\w[\w.-]*\.json$` (no `..`); `variantOf(entry, toggles)` finds the
+  variant with exactly those toggles, in any order; `loadCity(fetcher, entry, toggles, base)`. "More" lists each city
+  with the lots of the variant the toggles name, the one shown marked by its name.
+- Logs: `viewer/toggles on` (the list, `none` when empty) on every change; `viewer/variant-failed name reason` when a
+  variant cannot load (also a notice; the last city stays).
+- `scripts/bundle-cities.ts` lays every combination (`combinations()` in `scripts/bundle/bundle.ts`, the sixteen subsets
+  of `TOGGLES` in binary order) of each public city from `~/.cache/citymap/repos/<name>` with the Rust CLI
+  (`rust/target/release/citymap <repo> --toggles=<list> --out=…`, a full fold, no lock), into
+  `public/cities/<name>/<variant>.json`, where `variantName(toggles)` joins the toggles with `-`, or is `none`; then
+  writes the index. One line per lay: `bundle/laid name variant lots bytes gzip ms`; at the end
+  `bundle/done cities variants bytes gzip`. The six cities' 96 variants take 62.2 MB (10.0 MB gzipped, 1.7 MB in a git
+  pack); a visitor loads one at a time, 35 to 320 kB gzipped.
+
 ## Labels
 
 - `Label` carries `extent`: the scene-unit width of the town's or district's bounding box (the smaller side).
@@ -318,7 +356,8 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
 `github/useSuggestions.ts`), `IN_FLIGHT` (in `github/read.ts`), `FILE_CHUNK` (in `cities.ts`), `FRAME_WAIT_MS` (in
 `load/paint.ts`), `TOWNS_SHOWN` (in `Drawer.tsx`), `PHASE_WEIGHTS`, `ESTIMATE_FROM` and `STEADY_MS` (in
 `load/progress.ts`), `SHOW_AFTER_MS`, `HOLD_MS` and `TICK_MS` (in `load/useLoading.ts`), `POST_MS` (in `lay/worker.ts`),
-`OWNER_TTL_MS` (in `github/owners.ts`), `LOT_TOP` and `LOT_HEIGHT` (in `packages/scene`).
+`OWNER_TTL_MS` (in `github/owners.ts`), the tooltip's width (`.tooltip` in the stylesheet), `LOT_TOP` and `LOT_HEIGHT`
+(in `packages/scene`).
 
 ## Web experience
 
@@ -355,9 +394,10 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
   replaced by a stub there; fixtures in `components/testing/`); Playwright end-to-end on a desktop and a phone, in dark
   mode with one light run: loads, switches city, theme and view, searches and flies, opens a file, shows an error for a
   bad file, reaches every control by keyboard, keeps every card clear of the others at widths from 1,400 to 360 px, and
-  passes axe (WCAG 2.2 AA rules) with no violations, with the menus, the matches and the drawer open, in light and dark;
-  a screenshot per theme for review. `e2e/github.spec.ts` holds the GitHub journeys, every API call answered from
-  fixtures (anything unanswered is a 404, so nothing reaches the real GitHub).
+  passes axe (WCAG 2.2 AA rules) with no violations, with the menus, the matches, the layout toggles (a tooltip shown)
+  and the drawer open, in light and dark; switches a toggle by keyboard and sees the variant load; a screenshot per
+  theme for review. `e2e/github.spec.ts` holds the GitHub journeys, every API call answered from fixtures (anything
+  unanswered is a 404, so nothing reaches the real GitHub).
 - Loading and suggestions: the progress model, the meter, the suggester and the ranking in Node with a stubbed clock and
   fetcher; the card's thresholds with fake timers; cancel by button and by Escape, keeping the last city; the engine's
   progress against the same lay without it (equal output, `placed` and `shaped` reaching `lots`). End-to-end, GitHub

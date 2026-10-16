@@ -188,6 +188,7 @@ export function buildScene(city: City, theme: Theme): Scene {
       blocks.flat(b.pts, colour, HEIGHT.blocks);
     }
     for (const w of town.water) water.flat(w, theme.water, HEIGHT.water);
+    for (const w of town.canals ?? []) water.flat(w, theme.canal, HEIGHT.water);
     for (const lot of town.lots) {
       if (lot.vacant) {
         lots.flat(lot.pts, theme.reserve(lot.district)[0], HEIGHT.lots);

@@ -1,4 +1,5 @@
-// Laying a snapshot into a city, with the CLI's default options, so the browser lays what `citymap --no-history` does.
+// Laying a snapshot into a city, with the CLI's default options and the chosen toggles, so the browser lays what
+// `citymap --no-history --toggles=…` does.
 import {
   DEFAULT_LAND_USES,
   DEFAULT_SPLIT,
@@ -8,6 +9,7 @@ import {
   type LayProgress,
   type Options,
   type Snapshot,
+  type Toggle,
 } from "@citymap/ground-plan";
 import { buildScene, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
@@ -20,6 +22,8 @@ export interface LayOptions {
   readonly onProgress?: OnStep;
   /** The map theme to build the scene in, off the main thread; none builds no scene. */
   readonly theme?: ThemeName;
+  /** The layout toggles to lay with; the engine's defaults when absent. */
+  readonly toggles?: readonly Toggle[];
 }
 
 /** A scene built in a theme, ready to draw while that theme is the map's. */
@@ -42,8 +46,8 @@ export const buffersOf = (scene: Scene): ArrayBuffer[] =>
     .flatMap((l) => [l.positions.buffer, l.colours.buffer, l.indices.buffer])
     .filter((b): b is ArrayBuffer => b instanceof ArrayBuffer);
 
-/** The CLI's defaults. */
-export const LIVE_OPTIONS: Options = {
+/** The CLI's defaults, with the toggles chosen (the engine's defaults when none are). */
+export const liveOptions = (toggles?: readonly Toggle[]): Options => ({
   densityPct: 50,
   landUses: DEFAULT_LAND_USES,
   order: "centre-out",
@@ -51,7 +55,8 @@ export const LIVE_OPTIONS: Options = {
   warp: true,
   loops: true,
   split: DEFAULT_SPLIT,
-};
+  ...(toggles ? { toggles } : {}),
+});
 
 /** The engine's progress as a step: placing and shaping each fill half the bar; the words count lots placed. */
 export const layStep = ({ placed, shaped, lots }: LayProgress): Step => ({
@@ -80,10 +85,11 @@ export function throttled<T>(tell: (value: T) => void, ms: number, now: () => nu
 }
 
 /** Lays on the calling thread, and builds the scene when given a theme: in the worker, and in tests. */
-export const layHere: Lay = async (snapshot, { signal, onProgress, theme } = {}) => {
+export const layHere: Lay = async (snapshot, { signal, onProgress, theme, toggles } = {}) => {
   signal?.throwIfAborted();
   const tell = onProgress && ((progress: LayProgress) => onProgress(layStep(progress)));
-  const { city } = layCity(snapshot, initialState(LIVE_OPTIONS), LIVE_OPTIONS, tell);
+  const options = liveOptions(toggles);
+  const { city } = layCity(snapshot, initialState(options), options, tell);
   if (theme === undefined) return { city, scene: null };
   onProgress?.({ phase: "draw" });
   return { city, scene: { theme, scene: buildScene(city, THEMES[theme]) } };

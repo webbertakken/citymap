@@ -1,7 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // The static export served over HTTPS on loopback; dark mode throughout.
-const port = 5193;
+// The port the export is served on: 5193, or CITYMAP_E2E_PORT when another checkout runs its suite at once.
+const port = Number(process.env.CITYMAP_E2E_PORT ?? 5193);
 const desktop = { ...devices["Desktop Chrome"], viewport: { width: 1400, height: 900 } };
 const phone = devices["Pixel 7"];
 

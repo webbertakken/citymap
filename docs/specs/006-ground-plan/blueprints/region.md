@@ -9,9 +9,10 @@ Reference: `docs/research/city-layout/variants/region.ts`. Module: `packages/gro
    group (key `${name}/${group}`), groups by `(folderFirstSeen, compareKeys)`. A group named in `Options.split` (default
    `["apps"]`) gives one town per member instead (key `${name}/${member}`, named by the member's path), members by
    `(folderFirstSeen, compareKeys)`; the group's own files outside its members stay in the main town.
-2. Files held by a part's old towns are excluded from its tree.
-3. Root form: classified over the whole part (old towns' files included) with `plat.rootForms[key]` as previous. A
-   change that is not between two neighbourhood forms is an **archetype switch** (below).
+2. Files held by a part's old towns are excluded from its tree; each tree is built with the region's workspace members
+   (`TreeOptions.members`), which mark packages.
+3. Root form: classified over the whole part (old towns' files included) with `plat.rootForms[key]` as previous and the
+   options' toggles. A change that is not between two neighbourhood forms is an **archetype switch** (below).
 4. Parts with zero demand are skipped.
 
 ## Outline and growth

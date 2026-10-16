@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-const cityFile = join(import.meta.dirname, "../public/cities/redux.json");
+const cityFile = join(import.meta.dirname, "../public/cities/redux/corridor-tiers.json");
 
 /** Presses Tab n times, in order, naming each element that takes focus. */
 async function tabThrough(page: Page, n: number, seen: string[] = []): Promise<string[]> {
@@ -48,13 +48,17 @@ test("starts in Night atlas and a dark interface because the system prefers dark
   expect(ink).toBe("rgb(238, 241, 245)");
 });
 
-test("switches city, view and theme", async ({ page }) => {
+test("switches city, view and theme", async ({ page, isMobile }) => {
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("button", { name: /^redux/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("redux");
-  await expect(page.getByRole("button", { name: "Plan" })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "3D" }).click();
-  await expect(page.getByRole("button", { name: "3D" })).toHaveAttribute("aria-pressed", "true");
+  // A phone shows plan view only.
+  if (isMobile) await expect(page.getByRole("button", { name: "3D" })).toBeHidden();
+  else {
+    await expect(page.getByRole("button", { name: "Plan" })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "3D" }).click();
+    await expect(page.getByRole("button", { name: "3D" })).toHaveAttribute("aria-pressed", "true");
+  }
   await chooseTheme(page, "Dracula");
   await expect(page.locator("main")).toHaveAttribute("data-theme", "dracula");
   await expect(page.getByRole("radio", { name: "Dracula" })).toBeHidden();
@@ -80,6 +84,45 @@ test("finds a file, flies to it and selects it", async ({ page, isMobile }, info
   await page.screenshot({ path: info.outputPath("found.png") });
 });
 
+test("switches the city's layout by keyboard, a tooltip naming each toggle, and loads its variant", async ({
+  page,
+  isMobile,
+}, info) => {
+  const layout = page.getByRole("button", { name: "Layout" });
+  await layout.focus();
+  await page.keyboard.press("Enter");
+  await expect(layout).toHaveAttribute("aria-expanded", "true");
+  const switches = page.getByRole("group", { name: "City layout" }).getByRole("switch");
+  await expect(switches).toHaveCount(4);
+  await page.keyboard.press("Tab");
+  const corridor = page.getByRole("switch", { name: "Corridor" });
+  await expect(corridor).toBeFocused();
+  await expect(corridor).toBeChecked();
+  const tip = page.getByRole("tooltip").filter({ hasText: "when one folder holds nearly everything" });
+  await expect(tip).toBeVisible();
+  await expect(corridor).toHaveAccessibleDescription(
+    "when one folder holds nearly everything, the small folders beside it gather into one corner quarter behind a short avenue, instead of thin strips round the edge.",
+  );
+  await page.screenshot({ path: info.outputPath("toggles.png") });
+  const variant = page.waitForResponse((r) => r.url().endsWith("/cities/takken.io/tiers.json"));
+  await page.keyboard.press("Space");
+  expect((await variant).ok()).toBe(true);
+  await expect(corridor).not.toBeChecked();
+  await expect(page.locator(".status")).toContainText("lots");
+  // The popover stays open while switches change; Escape hides the tooltip first, then closes the popover.
+  await page.keyboard.press("Escape");
+  await expect(tip).toBeHidden();
+  await expect(layout).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(layout).toHaveAttribute("aria-expanded", "false");
+  await expect(layout).toBeFocused();
+  if (isMobile) return;
+  // A pointer resting on a switch's row shows its tooltip, beside the panel.
+  await layout.click();
+  await page.getByRole("switch", { name: "Tiers" }).hover();
+  await expect(page.getByRole("tooltip").filter({ hasText: "a town's size sets its widest road" })).toBeVisible();
+});
+
 test("opens a city file, and keeps the last city when a file is not a city", async ({ page }) => {
   await page.getByLabel("City file").setInputFiles(cityFile);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("redux");
@@ -95,10 +138,11 @@ test("opens a city file, and keeps the last city when a file is not a city", asy
 
 test("reaches every control and the map by keyboard, and moves the map with keys", async ({ page, isMobile }) => {
   test.skip(isMobile, "keyboard journey on desktop");
-  const reached = await tabThrough(page, 8);
+  const reached = await tabThrough(page, 9);
   expect(reached.join(" | ")).toMatch(/Map of takken.io/);
   expect(reached.join(" | ")).toMatch(/Search files and folders/);
   expect(reached.join(" | ")).toMatch(/3D/);
+  expect(reached.join(" | ")).toMatch(/Layout/);
   expect(reached.join(" | ")).toMatch(/More/);
   await page.keyboard.press("/");
   await expect(page.getByRole("searchbox")).toBeFocused();
@@ -240,6 +284,13 @@ async function axeEverything(page: Page, isMobile: boolean) {
   await page.getByRole("button", { name: "More" }).click();
   expect(await violations()).toEqual([]);
   await page.keyboard.press("Escape");
+  // The layout toggles, a tooltip shown.
+  await page.getByRole("button", { name: "Layout" }).click();
+  await page.getByRole("switch", { name: "Quarters" }).focus();
+  await expect(page.getByRole("tooltip").filter({ hasText: "planned quarters" })).toBeVisible();
+  expect(await violations()).toEqual([]);
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
   await openDetails(page, isMobile);
   expect(await violations()).toEqual([]);
 }
@@ -302,6 +353,11 @@ test("lays a GitHub repository in a worker, from the field and from the address"
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("widgets");
   await expect(page.locator(".status")).toHaveText(/towns · 80 lots · single state, not folded$/);
   await expect(page).toHaveURL(/\?repo=acme\/widgets$/);
+  // Another layout lays the snapshot again, in the worker.
+  await page.getByRole("button", { name: "Layout" }).click();
+  await page.getByRole("switch", { name: "Quarters" }).check();
+  await expect(page.locator(".status")).toHaveText(/towns · 80 lots · single state, not folded$/);
+  await page.keyboard.press("Escape");
   await page.reload();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("widgets");
 });

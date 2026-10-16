@@ -188,6 +188,7 @@ mod tests {
             old,
             outline: square(0, 0, 2000),
             water: vec![],
+            canals: vec![],
             roads: vec![],
             blocks: vec![],
             lots,

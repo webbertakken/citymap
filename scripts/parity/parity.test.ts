@@ -16,7 +16,12 @@ import {
 
 describe("parseSettings", () => {
   it("covers the parity repositories in both modes by default, and next.js with --long", () => {
-    expect(parseSettings([])).toEqual({ repos: [...PARITY], modes: ["state", "fold", "resume"], features: [] });
+    expect(parseSettings([])).toEqual({
+      repos: [...PARITY],
+      modes: ["state", "fold", "resume"],
+      features: [],
+      toggles: null,
+    });
     expect(parseSettings(["--long"]).repos).toEqual([...PARITY, ...LONG]);
   });
 
@@ -25,8 +30,11 @@ describe("parseSettings", () => {
       repos: ["redux", "react"],
       modes: ["fold"],
       features: [],
+      toggles: null,
     });
     expect(parseSettings(["--features=mimalloc"]).features).toEqual(["mimalloc"]);
+    expect(parseSettings(["--toggles=quarters"]).toggles).toBe("quarters");
+    expect(parseSettings(["--toggles="]).toggles).toBe("");
   });
 
   it("rejects a mode it does not know", () => {
@@ -53,12 +61,14 @@ describe("cliArgs", () => {
     ]);
     expect(cliArgs("/c/redux", "/o", "fold").at(-1)).toBe("--lock");
     expect(cliArgs("/c/redux", "/o", "resume").at(-1)).toBe("--lock");
+    expect(cliArgs("/c/redux", "/o", "fold", "corridor").at(-1)).toBe("--toggles=corridor");
   });
 });
 
 describe("saveArgs", () => {
   it("folds to the save point and writes its lock, and nothing else", () => {
     expect(saveArgs("/c/redux", "abc")).toEqual(["/c/redux", "--to=abc", "--lock"]);
+    expect(saveArgs("/c/redux", "abc", "").at(-1)).toBe("--toggles=");
   });
 });
 

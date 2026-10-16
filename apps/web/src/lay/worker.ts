@@ -1,6 +1,6 @@
 // The Web Worker that lays a snapshot off the main thread, and builds its scene there too, so the page answers while a
 // large repository is laid; the scene's buffers are handed over without a copy.
-import type { Snapshot } from "@citymap/ground-plan";
+import type { Snapshot, Toggle } from "@citymap/ground-plan";
 import type { ThemeName } from "@citymap/themes";
 import type { Step } from "../load/step";
 import { buffersOf, layHere, throttled } from "./lay";
@@ -8,13 +8,15 @@ import { buffersOf, layHere, throttled } from "./lay";
 /** The least time between two progress posts, in milliseconds. */
 const POST_MS = 100;
 
-self.addEventListener("message", (event: MessageEvent<{ snapshot: Snapshot; theme?: ThemeName }>) => {
+type Request = { snapshot: Snapshot; theme?: ThemeName; toggles?: readonly Toggle[] };
+
+self.addEventListener("message", (event: MessageEvent<Request>) => {
   const post = throttled(
     (step: Step) => self.postMessage({ step }, { transfer: [] }),
     POST_MS,
     () => performance.now(),
   );
-  const { snapshot, theme } = event.data;
+  const { snapshot, theme, toggles } = event.data;
   // Each step posts as it comes when its phase changes; within a phase, at most one per POST_MS.
   let phase = "";
   const onProgress = (step: Step) => {
@@ -24,7 +26,11 @@ self.addEventListener("message", (event: MessageEvent<{ snapshot: Snapshot; them
       self.postMessage({ step }, { transfer: [] });
     } else post(step);
   };
-  layHere(snapshot, { onProgress, ...(theme === undefined ? {} : { theme }) }).then(
+  layHere(snapshot, {
+    onProgress,
+    ...(theme === undefined ? {} : { theme }),
+    ...(toggles === undefined ? {} : { toggles }),
+  }).then(
     ({ city, scene }) => {
       post.flush();
       self.postMessage({ city, scene }, { transfer: scene ? buffersOf(scene.scene) : [] });

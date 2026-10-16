@@ -16,7 +16,8 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
    [local repositories](../007-local-repositories/local-repositories.md)).
 5. They look around in plan view: pan and zoom. Hovering names anything on the map and says what it means.
 6. They change the theme; the viewer starts in Paper atlas, or in Night atlas when the system prefers dark.
-7. They read the city: town and district names on the map, and the same names as a list beside it.
+7. They change how the city is laid out: four archetype toggles behind a settings cog, each explained by its tooltip.
+8. They read the city: town and district names on the map, and the same names as a list beside it.
 
 ## Layout
 
@@ -27,8 +28,9 @@ stays clear for the city.
   town is shown. The status wraps to a second line rather than being cut; it is never truncated.
 - **Top centre, the search box**: finds folders and files of the city shown, and lays a GitHub repository when the text
   is `owner/name` or a GitHub URL. `/` puts the cursor in it from anywhere.
-- **Top right, two controls**: the theme menu, and More (the bundled cities, opening a city file, opening a local
-  repository). The viewer shows plan view only; the 2:1 dimetric view stays in the CLI's SVG export (`--camera`).
+- **Top right, three controls**: the theme menu, the settings cog (the layout toggles), and More (the bundled cities,
+  opening a city file, opening a local repository). The viewer shows plan view only; the 2:1 dimetric view stays in the
+  CLI's SVG export (`--camera`).
 - **Right, the drawer**: what is selected, then the towns (seven, then "Show all"), each with "Show only this town". It
   can be closed to give the map the whole page. On a phone it becomes a sheet at the bottom, closed at first.
 - **Bottom right, zoom**: in, out, and fit.
@@ -37,6 +39,31 @@ stays clear for the city.
 - Empty state: no city loaded says how to make one (`citymap <repository> --out=city.json`) or to type a repository.
 - Loading state: a progress card over the map (see Loading); the status line names the phase too.
 - Error state: one sentence in a notice that floats above the map and never moves anything; the last good city stays.
+
+## Layout toggles
+
+The settings cog opens a popover, "City layout", of four switches: the ground plan's toggles
+([ground plan](../006-ground-plan/ground-plan.md) § Toggles), in this order, each with its tooltip, word for word.
+
+| Toggle      | Default | Tooltip                                                                                                                                                            |
+| ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Corridor    | on      | when one folder holds nearly everything, the small folders beside it gather into one corner quarter behind a short avenue, instead of thin strips round the edge.  |
+| Archipelago | off     | a folder of packages becomes islands, one per package, with canals and bridges between them instead of roads.                                                      |
+| Quarters    | off     | many similar small folders are grouped into planned quarters, each a tidy grid of blocks square to its own outline, so you get neighbourhoods rather than stripes. |
+| Tiers       | on      | a town's size sets its widest road, and only one road per town gets that class; every other road is at least one class narrower.                                   |
+
+- Each toggle is a switch named by its toggle. Its tooltip shows beside it while the pointer rests on the switch or on
+  the tooltip itself, and while the switch has keyboard focus; it is the switch's description, so a screen reader reads
+  it too. Escape hides a tooltip first, then closes the popover.
+- A switch takes effect at once, and the popover stays open, so several can be changed in a row.
+- A bundled city shows the variant its switches name: the command-line tool lays every combination of the four toggles
+  (16 cities per repository), and the viewer loads the one the switches name, as any opening loads (Loading).
+- A repository laid live, from GitHub or from the person's machine, is laid again off the main thread with the chosen
+  switches, under the same title.
+- A city file is shown as it was written: its layout cannot change, so the switches are disabled, with the line "A city
+  file keeps the layout it was laid with."
+- The switches start at their defaults on every visit.
+- A variant that fails to load leaves the last city in place and says so in a notice.
 
 ## Search
 

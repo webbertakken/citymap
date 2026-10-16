@@ -6,10 +6,11 @@ use crate::fixed::{
     negate, offset_for, perp, rotate, round_div, unit_mille,
 };
 use crate::plat::CutRecord;
-use crate::roads::{cut_class, reclass, reserve_for};
+use crate::roads::{class_of, reclass_of, right_of_way_for};
 use crate::town::context::{Ctx, Item, ItemKind, demand_of, mass_of, seed_key};
 use crate::town::neighbourhood::neighbourhood;
 use crate::town::partition::partition;
+use crate::town::quarters::quarter;
 
 /// The largest tilt of a fresh cut, in angle steps (0.175 rad).
 const TILT: i64 = 114;
@@ -19,7 +20,8 @@ const JOG: i64 = 3 * U;
 const MIN_JOG: i64 = 2 * U;
 pub const PAVEMENT_INSET: i64 = 12;
 
-fn grow(demand: i64) -> i64 {
+#[must_use]
+pub fn grow(demand: i64) -> i64 {
     round_div(demand * GROWTH_PCT, 100)
 }
 
@@ -72,7 +74,8 @@ pub fn carriageway(rec: &CutRecord) -> (RoadClass, Option<i64>) {
     }
 }
 
-const fn is_major(cls: RoadClass) -> bool {
+#[must_use]
+pub const fn is_major(cls: RoadClass) -> bool {
     !matches!(cls, RoadClass::Street | RoadClass::Lane)
 }
 
@@ -106,22 +109,35 @@ pub fn place<'t>(ctx: &mut Ctx<'t, '_>, poly: &Poly, item: &Item<'t>, district: 
             );
         }
         ItemKind::Park { district } => park(ctx, poly, district),
+        ItemKind::Group(items) => split(ctx, items, poly, item.mass_mille, false, &item.key, district, None),
+        ItemKind::Quarter(items) => quarter(ctx, poly, &item.key, item.mass_mille, items, district),
     }
 }
 
-/// The heaviest folder of some items: the first of the heaviest.
-fn heaviest_folder<'a, 't>(items: &'a [Item<'t>]) -> Option<&'a Item<'t>> {
-    items
-        .iter()
-        .filter(|i| matches!(i.kind, ItemKind::Folder(_)))
-        .fold(None, |a, b| match a {
-            Some(a) if a.mass_mille >= b.mass_mille => Some(a),
-            _ => Some(b),
-        })
+/// The folders of some items, those inside groups and quarters included.
+fn folders_of<'a, 't>(items: &'a [Item<'t>], out: &mut Vec<&'a Item<'t>>) {
+    for item in items {
+        match &item.kind {
+            ItemKind::Folder(_) => out.push(item),
+            ItemKind::Group(inner) | ItemKind::Quarter(inner) => folders_of(inner, out),
+            _ => {}
+        }
+    }
+}
+
+/// The heaviest folder of some items (the first of the heaviest), groups and quarters looked into.
+#[must_use]
+pub fn heaviest_folder<'a, 't>(items: &'a [Item<'t>]) -> Option<&'a Item<'t>> {
+    let mut folders = Vec::new();
+    folders_of(items, &mut folders);
+    folders.into_iter().fold(None, |a, b| match a {
+        Some(a) if a.mass_mille >= b.mass_mille => Some(a),
+        _ => Some(b),
+    })
 }
 
 /// Land bounded by collectors or bigger roads: each side with two or more items records a ward.
-fn wards(ctx: &mut Ctx, poly: &Poly, rec: &CutRecord, left: &[Item], right: &[Item], key: &str) {
+pub fn wards(ctx: &mut Ctx, poly: &Poly, rec: &CutRecord, left: &[Item], right: &[Item], key: &str) {
     let sides = [
         (clip(poly, rec.n, rec.c, 0), left),
         (clip(poly, negate(rec.n), -rec.c, 0), right),
@@ -151,6 +167,42 @@ pub struct Decision<'t> {
     pub right: Vec<Item<'t>>,
 }
 
+/// Water instead of a road: a twin's river, an archipelago's canal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Water {
+    River,
+    Canal,
+}
+
+/// How a decision is made beyond the fresh rule.
+#[derive(Clone, Copy, Default)]
+pub struct How<'a, 't> {
+    /// A normal replacing the fresh rule (a pinwheel's cross cuts, a quarter's frame).
+    pub forced: Option<Dir>,
+    /// Fixed sides: a twin's banks, a corridor's faubourg and destination.
+    pub assign: Option<(&'a [Item<'t>], &'a [Item<'t>])>,
+    /// The folder's land and demand, which a side short of its share recuts against.
+    pub share: Option<Share>,
+    /// A fixed class instead of the class by mass: a quarter's streets.
+    pub fixed: Option<RoadClass>,
+    /// Water instead of a road.
+    pub water: Option<Water>,
+}
+
+/// When a side is left empty, the side that lends its land: the other side extends over the whole of it under its own
+/// key. Cuts and grids are absolute, so nothing already laid moves; the vacated land becomes room to grow.
+#[must_use]
+pub fn lent<'t>(decision: &Decision<'t>, key: &str) -> Option<(Vec<Item<'t>>, String)> {
+    if !decision.left.is_empty() && !decision.right.is_empty() {
+        return None;
+    }
+    Some(if decision.left.is_empty() {
+        (decision.right.clone(), format!("{key}>R"))
+    } else {
+        (decision.left.clone(), format!("{key}>L"))
+    })
+}
+
 /// A fresh cut's normal: across the land's longer extent, tilted by its seed.
 fn fresh_normal(poly: &Poly, key: &str) -> Dir {
     let edge = longest_edge(&poly.p);
@@ -167,9 +219,7 @@ fn keys(items: &[Item]) -> Vec<String> {
     items.iter().map(|i| i.key.to_string()).collect()
 }
 
-/// The remembered binary decision at a key. A forced normal replaces the fresh rule; `assign` fixes the sides (a
-/// twin's banks). None when one item is left and nothing is remembered.
-#[allow(clippy::too_many_arguments)]
+/// The remembered binary decision at a key, made as `how` says. None when one item is left and nothing is remembered.
 pub fn decide<'t>(
     ctx: &mut Ctx<'t, '_>,
     items: &[Item<'t>],
@@ -177,10 +227,18 @@ pub fn decide<'t>(
     mass_mille: i64,
     first: bool,
     key: &str,
-    forced: Option<Dir>,
-    assign: Option<(&[Item<'t>], &[Item<'t>])>,
-    share: Option<Share>,
+    how: How<'_, 't>,
 ) -> Option<Decision<'t>> {
+    let How {
+        forced,
+        assign,
+        share,
+        fixed,
+        water,
+    } = how;
+    // The town's first cut is the first cut of its root folder's land: under tiers, the one road of its top class.
+    let town_first = first && key == &*ctx.root.path;
+    let tier = ctx.tier;
     let mut rec = ctx.plat.cuts.get(key).cloned();
     if let Some(known) = &rec {
         let in_rec = |i: &Item| known.left.iter().any(|k| **k == *i.key) || known.right.iter().any(|k| **k == *i.key);
@@ -190,11 +248,11 @@ pub fn decide<'t>(
         }
     }
     let r = if let Some(mut r) = rec {
-        // A road follows its land's tier, within the band; a river stays a river.
-        let cls = if r.river {
+        // A road follows its land's tier, within the band; water stays water, and a fixed class stays.
+        let cls = if r.river || r.canal || fixed.is_some() {
             r.cls
         } else {
-            reclass(r.cls, mass_mille, first)
+            reclass_of(r.cls, mass_mille, first, town_first, tier)
         };
         if cls != r.cls {
             ctx.emit(
@@ -254,7 +312,11 @@ pub fn decide<'t>(
                 );
                 r.c = offset_for(poly, r.n, dl, dl + dr);
                 // Laid again: the road takes its class's width, and room for the land at the top of its new band.
-                r.row = Some(if r.river { r.cls } else { reserve_for(mass_mille, first) });
+                r.row = Some(if r.river || r.canal || fixed.is_some() {
+                    r.cls
+                } else {
+                    right_of_way_for(mass_mille, first, town_first, tier)
+                });
                 r.cap_left = grow(dl);
                 r.cap_right = grow(dr);
             } else {
@@ -280,20 +342,22 @@ pub fn decide<'t>(
         }
         let (left, right) = assign.unwrap_or((&items[..k], &items[k..]));
         let n = forced.unwrap_or_else(|| fresh_normal(poly, key));
+        let cls = fixed.unwrap_or_else(|| class_of(mass_mille, first, town_first, tier));
         CutRecord {
             n,
             c: offset_for(poly, n, demand_of(left), total),
-            cls: cut_class(mass_mille, first),
-            row: Some(if assign.is_some() {
-                cut_class(mass_mille, first)
+            cls,
+            row: Some(if water.is_some() || fixed.is_some() {
+                cls
             } else {
-                reserve_for(mass_mille, first)
+                right_of_way_for(mass_mille, first, town_first, tier)
             }),
             left: keys(left),
             right: keys(right),
             cap_left: grow(demand_of(left)),
             cap_right: grow(demand_of(right)),
-            river: assign.is_some(),
+            river: water == Some(Water::River),
+            canal: water == Some(Water::Canal),
         }
     };
     ctx.plat.cuts.insert(key.to_owned(), r.clone());
@@ -330,23 +394,27 @@ pub fn split<'t>(
             demand: demand_of(items),
         },
     };
-    let Some(decision) = decide(ctx, items, poly, mass_mille, first, key, None, None, Some(share)) else {
+    let Some(decision) = decide(
+        ctx,
+        items,
+        poly,
+        mass_mille,
+        first,
+        key,
+        How {
+            share: Some(share),
+            ..How::default()
+        },
+    ) else {
         place(ctx, poly, &items[0], district);
         return;
     };
     if pinwheel(ctx, &decision, poly, key, district, share) {
         return;
     }
-    let Decision { rec: r, left, right } = decision;
-    let major = is_major(r.cls);
+    let major = is_major(decision.rec.cls);
     let sub_district = |sub: &str| if major { seed_key(sub) } else { district.to_owned() };
-    if left.is_empty() || right.is_empty() {
-        // A side left empty lends its land: the other side extends over the whole of it under its own key.
-        let (part, sub) = if left.is_empty() {
-            (right, format!("{key}>R"))
-        } else {
-            (left, format!("{key}>L"))
-        };
+    if let Some((part, sub)) = lent(&decision, key) {
         split(
             ctx,
             &part,
@@ -359,6 +427,7 @@ pub fn split<'t>(
         );
         return;
     }
+    let Decision { rec: r, left, right } = decision;
     let (cls, width) = carriageway(&r);
     ctx.road(chord(&poly.p, r.n, r.c).map(Vec::from), cls, width);
     if major {
@@ -459,9 +528,11 @@ fn pinwheel<'t>(
         mass_of(left),
         false,
         &format!("{key}>L"),
-        Some(m),
-        None,
-        Some(share),
+        How {
+            forced: Some(m),
+            share: Some(share),
+            ..How::default()
+        },
     )
     .expect("two or more items decide a cut");
     let right_land = clip(poly, negate(r.n), -r.c, 0);
@@ -472,9 +543,11 @@ fn pinwheel<'t>(
         mass_of(right),
         false,
         &format!("{key}>R"),
-        Some(m),
-        None,
-        Some(share),
+        How {
+            forced: Some(m),
+            share: Some(share),
+            ..How::default()
+        },
     )
     .expect("two or more items decide a cut");
     // Square to the main cut: parallel to m within 0.01 % (table directions are not exactly DIRECTION long).
@@ -607,17 +680,17 @@ mod tests {
         let (options, root) = (layout_options(), tree_of(&[]));
         let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
         let items = [lots_item("a", 1000), lots_item("b", 1000)];
-        let c = decide(&mut ctx, &items, &rect(1000, 1000), 2000, true, "k", None, None, None)
+        let c = decide(&mut ctx, &items, &rect(1000, 1000), 2000, true, "k", How::default())
             .expect("a cut")
             .rec
             .c;
         // The land grows fourfold on both axes: the absolute line now leaves one side an eighth of it.
-        let moved = decide(&mut ctx, &items, &rect(4000, 4000), 2000, true, "k", None, None, None).expect("a cut");
+        let moved = decide(&mut ctx, &items, &rect(4000, 4000), 2000, true, "k", How::default()).expect("a cut");
         assert_eq!(codes(&ctx), ["plat/recut"]);
         assert_eq!(detail(&ctx, 0, "reason"), &Value::from("starved"));
         assert_ne!(moved.rec.c, c);
         // Once the land is shared as the demand is, the cut stays put.
-        let _ = decide(&mut ctx, &items, &rect(4000, 4000), 2000, true, "k", None, None, None);
+        let _ = decide(&mut ctx, &items, &rect(4000, 4000), 2000, true, "k", How::default());
         assert_eq!(ctx.events.len(), 1);
     }
 
@@ -626,11 +699,11 @@ mod tests {
         let (options, root) = (layout_options(), tree_of(&[]));
         let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
         let items = [lots_item("a", 1000), lots_item("b", 1000)];
-        let c = decide(&mut ctx, &items, &rect(1000, 1000), 2000, true, "k", None, None, None)
+        let c = decide(&mut ctx, &items, &rect(1000, 1000), 2000, true, "k", How::default())
             .expect("a cut")
             .rec
             .c;
-        let kept = decide(&mut ctx, &items, &rect(1100, 1100), 2000, true, "k", None, None, None).expect("a cut");
+        let kept = decide(&mut ctx, &items, &rect(1100, 1100), 2000, true, "k", How::default()).expect("a cut");
         assert_eq!(codes(&ctx), Vec::<&str>::new());
         assert_eq!(kept.rec.c, c);
     }
@@ -641,7 +714,7 @@ mod tests {
         let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
         let pair = [lots_item("a", 1000), lots_item("b", 1000)];
         let cls = |ctx: &mut Ctx, mass: i64, first: bool, key: &str| {
-            decide(ctx, &pair, &rect(1000, 1000), mass, first, key, None, None, None)
+            decide(ctx, &pair, &rect(1000, 1000), mass, first, key, How::default())
                 .expect("a cut")
                 .rec
                 .cls
@@ -664,9 +737,11 @@ mod tests {
             1000,
             true,
             "river",
-            None,
-            Some(banks),
-            None,
+            How {
+                assign: Some(banks),
+                water: Some(Water::River),
+                ..How::default()
+            },
         );
         let river = decide(
             &mut ctx,
@@ -675,9 +750,11 @@ mod tests {
             4_000_000,
             true,
             "river",
-            None,
-            Some(banks),
-            None,
+            How {
+                assign: Some(banks),
+                water: Some(Water::River),
+                ..How::default()
+            },
         );
         assert_eq!(river.expect("a river").rec.cls, RoadClass::Street);
     }
@@ -687,13 +764,13 @@ mod tests {
         let (options, root) = (layout_options(), tree_of(&[]));
         let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
         let pair = [lots_item("a", 1000), lots_item("b", 1000)];
-        let first = decide(&mut ctx, &pair, &rect(1000, 1000), 25_000, true, "k", None, None, None).expect("a cut");
+        let first = decide(&mut ctx, &pair, &rect(1000, 1000), 25_000, true, "k", How::default()).expect("a cut");
         assert_eq!(
             (first.rec.cls, first.rec.row),
             (RoadClass::Street, Some(RoadClass::Collector))
         );
         assert_eq!(carriageway(&first.rec), (RoadClass::Street, None));
-        let grown = decide(&mut ctx, &pair, &rect(1000, 1000), 400_000, true, "k", None, None, None).expect("a cut");
+        let grown = decide(&mut ctx, &pair, &rect(1000, 1000), 400_000, true, "k", How::default()).expect("a cut");
         assert_eq!(
             (grown.rec.cls, grown.rec.row),
             (RoadClass::Avenue, Some(RoadClass::Collector))
@@ -703,18 +780,7 @@ mod tests {
             (RoadClass::Avenue, Some(RoadClass::Collector.width()))
         );
         let heavy = [lots_item("a", 5000), lots_item("b", 1000)];
-        let moved = decide(
-            &mut ctx,
-            &heavy,
-            &rect(1000, 1000),
-            400_000,
-            true,
-            "k",
-            None,
-            None,
-            None,
-        )
-        .expect("a cut");
+        let moved = decide(&mut ctx, &heavy, &rect(1000, 1000), 400_000, true, "k", How::default()).expect("a cut");
         assert_eq!(moved.rec.row, Some(RoadClass::Avenue));
         assert_eq!(
             CutRecord {
@@ -726,17 +792,7 @@ mod tests {
         );
         split(&mut ctx, &pair, &rect(1000, 1000), 400_000, true, "s", "d", None);
         let mut fresh = Ctx::new(&options, TownPlat::default(), &root, 0);
-        let _ = decide(
-            &mut fresh,
-            &pair,
-            &rect(1000, 1000),
-            25_000,
-            true,
-            "k",
-            None,
-            None,
-            None,
-        );
+        let _ = decide(&mut fresh, &pair, &rect(1000, 1000), 25_000, true, "k", How::default());
         split(&mut fresh, &pair, &rect(1000, 1000), 400_000, true, "k", "d", None);
         assert!(
             fresh
@@ -752,7 +808,7 @@ mod tests {
         let laid_at_45 = || {
             let mut ctx = Ctx::new(&options, TownPlat::default(), &root, 0);
             let uneven = [lots_item("a", 900), lots_item("b", 1100)];
-            let _ = decide(&mut ctx, &uneven, &rect(1000, 1000), 2000, true, "k", None, None, None);
+            let _ = decide(&mut ctx, &uneven, &rect(1000, 1000), 2000, true, "k", How::default());
             ctx
         };
         let even = [lots_item("a", 1000), lots_item("b", 1000)];
@@ -763,7 +819,19 @@ mod tests {
             land2: 2 * land2,
             demand: 2000,
         });
-        let moved = decide(&mut short, &even, &rect(1000, 1000), 2000, true, "k", None, None, share).expect("a cut");
+        let moved = decide(
+            &mut short,
+            &even,
+            &rect(1000, 1000),
+            2000,
+            true,
+            "k",
+            How {
+                share,
+                ..How::default()
+            },
+        )
+        .expect("a cut");
         assert_eq!(codes(&short), ["plat/recut"]);
         assert_eq!(detail(&short, 0, "reason"), &Value::from("starved"));
         assert_ne!(moved.rec.c, before);
@@ -775,9 +843,10 @@ mod tests {
             2000,
             true,
             "k",
-            None,
-            None,
-            Some(Share { land2, demand: 2000 }),
+            How {
+                share: Some(Share { land2, demand: 2000 }),
+                ..How::default()
+            },
         );
         assert_eq!(codes(&within), Vec::<&str>::new());
     }

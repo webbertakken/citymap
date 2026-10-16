@@ -166,7 +166,7 @@ describe("Viewer", () => {
     };
     render(<Viewer Canvas={StubCanvas} fetcher={under} basePath="/citymap" />);
     expect(await screen.findByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
-    expect(asked).toEqual(["/citymap/cities/index.json", "/citymap/cities/alpha.json"]);
+    expect(asked).toEqual(["/citymap/cities/index.json", "/citymap/cities/alpha/corridor-tiers.json"]);
   });
 
   it("says nothing of an empty city while the first one is still on its way", async () => {
@@ -176,7 +176,7 @@ describe("Viewer", () => {
     render(<Viewer Canvas={StubCanvas} fetcher={slow} />);
     expect(await screen.findByText("alpha: downloading…")).toBeTruthy();
     expect(screen.queryByText(/No city yet/)).toBeNull();
-    await act(async () => arrive!(await fetcher("/cities/alpha.json")));
+    await act(async () => arrive!(await fetcher("/cities/alpha/corridor-tiers.json")));
     expect(await screen.findByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
   });
 
@@ -194,7 +194,7 @@ describe("Viewer", () => {
   it("names a bundled city that fails to load", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={half} />);
     expect((await screen.findByRole("alert")).textContent).toBe(
-      "The city could not load: Error: /cities/alpha.json answered 404",
+      "The city could not load: Error: /cities/alpha/corridor-tiers.json answered 404",
     );
   });
 

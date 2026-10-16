@@ -84,8 +84,12 @@ test("answers every interaction within 200 ms on a slowed phone", async ({ page,
   await page.keyboard.press("+");
   await page.keyboard.press("-");
   await page.keyboard.press("0");
-  await page.getByRole("button", { name: "3D" }).tap();
-  await page.getByRole("button", { name: "Plan" }).tap();
+  // Another layout: the variant loads while the page answers.
+  await page.getByRole("button", { name: "Layout" }).tap();
+  await page.getByRole("switch", { name: "Quarters" }).tap();
+  await expect(page.getByRole("switch", { name: "Quarters" })).toBeChecked();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
   await page.getByRole("searchbox").tap();
   await page.keyboard.type("palette");
   await page.keyboard.press("Enter");

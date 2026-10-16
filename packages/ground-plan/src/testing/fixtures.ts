@@ -43,7 +43,9 @@ export function treeOf(
 /** An empty layout context, for laying single neighbourhoods and items directly. */
 export function emptyCtx(root: TreeNode = treeOf([]), landArea2 = 0): Ctx {
   return {
-    options: { order: "centre-out", jog: "top-level", warp: false, densityPct: 50 },
+    options: { order: "centre-out", jog: "top-level", warp: false, densityPct: 50, toggles: [] },
+    toggles: [],
+    tier: undefined,
     plat: emptyTownPlat(),
     root,
     rootForm: undefined,
@@ -53,6 +55,7 @@ export function emptyCtx(root: TreeNode = treeOf([]), landArea2 = 0): Ctx {
     lots: [],
     districts: [],
     water: [],
+    canals: [],
     landArea2,
     cache: undefined,
     hooks: undefined,

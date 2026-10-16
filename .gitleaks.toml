@@ -1,8 +1,13 @@
-# The default rules, everywhere but the bundled cities: generated maps of public repositories, whose town and lot keys
-# are folder and file paths that the generic API-key rule mistakes for secrets.
+# The default rules, everywhere but generated maps: the bundled cities (maps of public repositories) and the parity
+# fixtures (maps of a synthetic one), whose town and lot keys are folder and file paths that the generic API-key rule
+# mistakes for secrets.
 [extend]
 useDefault = true
 
 [[allowlists]]
 description = "Bundled cities: paths of public repositories"
-paths = ['''^apps/web/public/cities/[^/]+\.json$''']
+paths = ['''^apps/web/public/cities/([^/]+/)?[^/]+\.json$''']
+
+[[allowlists]]
+description = "Parity fixtures: folds of a synthetic history"
+paths = ['''^rust/fixtures/fold(-[a-z]+)?\.json$''']

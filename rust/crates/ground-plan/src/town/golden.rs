@@ -24,6 +24,8 @@ fn lay(tree: &TreeNode, room: i64) -> String {
         warp: true,
         density_pct: 50,
         loops: true,
+        // With every toggle off, the golden towns are the towns laid before the toggles, byte for byte.
+        toggles: vec![],
     };
     let outline = outline_for(tree.demand * 2 * room / 100, Pt::new(0, 0), "golden");
     let laid = layout_town(

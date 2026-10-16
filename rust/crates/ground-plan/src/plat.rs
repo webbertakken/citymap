@@ -10,6 +10,7 @@ use crate::constants::RoadClass;
 use crate::error::{CitymapError, ErrorCode, Result};
 use crate::fixed::{Dir, Pt};
 use crate::json::{Record, canonical_json, parse_json, sorted, validate};
+use crate::roads::Tier;
 use crate::tree::Shares;
 
 pub const PLAT_VERSION: u32 = 1;
@@ -22,12 +23,12 @@ const fn is_false(value: &bool) -> bool {
     !*value
 }
 
-/// `river` is `true` or absent.
+/// `river` and `canal` are `true` or absent.
 fn literal_true<'de, D: Deserializer<'de>>(deserializer: D) -> std::result::Result<bool, D::Error> {
     if bool::deserialize(deserializer)? {
         Ok(true)
     } else {
-        Err(serde::de::Error::custom("river is true or absent"))
+        Err(serde::de::Error::custom("a flag is true or absent"))
     }
 }
 
@@ -36,6 +37,9 @@ fn literal_true<'de, D: Deserializer<'de>>(deserializer: D) -> std::result::Resu
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct CutRecord {
     pub c: i64,
+    /// An archipelago's cut: a canal with bridges instead of a road.
+    #[serde(default, skip_serializing_if = "is_false", deserialize_with = "literal_true")]
+    pub canal: bool,
     pub cap_left: i64,
     pub cap_right: i64,
     pub cls: RoadClass,
@@ -140,10 +144,19 @@ pub struct TownPlat {
     pub diameter: i64,
     pub forms: Record<Form>,
     pub grids: Record<GridRecord>,
+    /// Per archipelago folder, the packages of each island, in age order; present while it holds any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub islands: Option<Record<Vec<Vec<String>>>>,
+    /// Per folder, the members of each quarter, in age order; present while it holds any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quarters: Option<Record<Vec<Vec<String>>>>,
     pub radial: Record<RadialRecord>,
     /// The town's shares, as its tree made them; layout reads them and never changes them.
     #[serde(serialize_with = "sorted_shares")]
     pub shares: Arc<Shares>,
+    /// The town's tier, with tiers on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier: Option<Tier>,
 }
 
 /// A town kept whole by an archetype switch.
@@ -239,6 +252,7 @@ mod tests {
                 right: vec![],
                 river: true,
                 row: None,
+                canal: false,
             },
         );
         let mut slots = Slots::new();

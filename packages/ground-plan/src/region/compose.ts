@@ -1,5 +1,6 @@
 import { classifyNode } from "../archetype/classify";
 import { isFlat, type Form } from "../archetype/forms";
+import { toggleList, type Toggle } from "../archetype/toggles";
 import type { City, Road, Town } from "../city/city";
 import { GROWTH_PCT } from "../constants";
 import { CitymapError } from "../errors";
@@ -28,14 +29,17 @@ export interface Options {
   readonly loops?: boolean;
   /** Workspace groups whose members each become a town, by folder path or name; `apps` by default. */
   readonly split?: readonly string[];
+  /** The archetype toggles on; `DEFAULT_TOGGLES` (corridor and tiers) when absent. */
+  readonly toggles?: readonly Toggle[];
 }
 
 /** Each app of an `apps/` group is its own town by default; other groups stay one town each. */
 export const DEFAULT_SPLIT: readonly string[] = ["apps"];
 
-/** The setting a plat is laid for: its land uses and its split groups. Each setting has its own plat. */
+/** The setting a plat is laid for: its land uses, its split groups and its toggles. Each setting has its own plat. */
 export const settingKey = (options: Options) =>
-  `${landKey(options.landUses)}|split:${(options.split ?? DEFAULT_SPLIT).toSorted(compareKeys).join(",")}`;
+  `${landKey(options.landUses)}|split:${(options.split ?? DEFAULT_SPLIT).toSorted(compareKeys).join(",")}` +
+  `|toggles:${toggleList(options.toggles).join(",")}`;
 
 /** The locality caches of a fold, per town, and how often they spared a folder its layout. */
 export interface FoldCache {
@@ -82,6 +86,7 @@ export function translateTown(town: Town, by: Pt): Town {
     ...town,
     outline: move(town.outline),
     water: town.water.map(move),
+    ...(town.canals ? { canals: town.canals.map(move) } : {}),
     roads: town.roads.map((r) => ({ ...r, pts: move(r.pts) })),
     blocks: town.blocks.map((b) => ({ ...b, pts: move(b.pts) })),
     lots: town.lots.map((l) => ({ ...l, pts: move(l.pts) })),
@@ -118,7 +123,13 @@ export function checkExtent(
 }
 
 /** Built trees, kept per file list: a commit that leaves the files and the shares as they were builds the same tree. */
-const trees = new WeakMap<readonly FileEntry[], Map<string, { shares: Shares; folders: unknown; built: Built }>>();
+interface KeptTree {
+  readonly shares: Shares;
+  readonly folders: unknown;
+  readonly members: unknown;
+  readonly built: Built;
+}
+const trees = new WeakMap<readonly FileEntry[], Map<string, KeptTree>>();
 const NO_SHARES: Shares = {};
 type Built = ReturnType<typeof buildTree>;
 
@@ -133,9 +144,10 @@ function treeOf(
   const byKey = trees.get(files) ?? new Map();
   trees.set(files, byKey);
   const kept = byKey.get(key);
-  if (kept && kept.shares === shares && kept.folders === snapshot.folderFirstSeen) return kept.built;
+  if (kept && kept.shares === shares && kept.folders === snapshot.folderFirstSeen && kept.members === options.members)
+    return kept.built;
   const built = buildTree({ ...snapshot, files }, options, shares, useOf);
-  byKey.set(key, { shares, folders: snapshot.folderFirstSeen, built });
+  byKey.set(key, { shares, folders: snapshot.folderFirstSeen, members: options.members, built });
   return built;
 }
 
@@ -233,6 +245,7 @@ export function layCity(
     exclude: part.exclude,
     landUses: options.landUses,
     densityPct: options.densityPct,
+    members: memberFolders,
   });
 
   // Each part's tree, without the files its old towns hold; a root switch first freezes the town as it stood.
@@ -251,7 +264,7 @@ export function layCity(
       ? treeOf(snapshot, snapshot.files, treeOptions(part), NO_SHARES, useOf).tree
       : built.tree;
     const previous = plat.rootForms[part.key];
-    const rootForm: Form = classifyNode(whole, previous);
+    const rootForm: Form = classifyNode(whole, previous, toggleList(options.toggles));
     plat.rootForms[part.key] = rootForm;
     const before = state.last[part.key];
     const switched = previous !== undefined && rootForm !== previous && !(isFlat(previous) && isFlat(rootForm));

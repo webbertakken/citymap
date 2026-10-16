@@ -106,6 +106,8 @@ export function renderCity(city: City, options: RenderOptions): string {
     }
     for (const w of town.water)
       out.push(`<path d="${poly(w)}" fill="${theme.water}" stroke="${theme.waterline}" stroke-width="${thin(0.6)}"/>`);
+    for (const w of town.canals ?? [])
+      out.push(`<path d="${poly(w)}" fill="${theme.canal}" stroke="${theme.canalline}" stroke-width="${thin(0.6)}"/>`);
     // Roads: every casing, then every fill, smallest class first, so junctions merge.
     const roads = town.roads.toSorted((a, b) => ORDER.indexOf(a.cls) - ORDER.indexOf(b.cls));
     for (const r of roads) out.push(roadPath(r.pts, roadWidth(r), true));

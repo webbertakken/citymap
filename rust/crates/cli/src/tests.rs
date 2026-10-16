@@ -239,6 +239,22 @@ fn ignores_a_lockfile_for_another_land_setting_or_off_the_history() {
     tests.files.insert(repo.0.join(LOCKFILE), lock.clone());
     run_lay(&command(&repo.0, &["--tests"]), &mut tests, 1000, FOLD_STRIDES).expect("a city");
     assert!(tests.lines.iter().any(|l| l.starts_with("lock/ignored reason=setting")));
+    // A lock folded under other toggles is set aside too: the history folds afresh, never continued.
+    let setting = String::from(
+        lock.split("\"setting\":\"")
+            .nth(1)
+            .and_then(|rest| rest.split('"').next())
+            .expect("a setting"),
+    );
+    assert!(setting.ends_with("|toggles:corridor,tiers"));
+    let mut untoggled = Memory::default();
+    untoggled.files.insert(repo.0.join(LOCKFILE), lock.clone());
+    run_lay(&command(&repo.0, &["--toggles="]), &mut untoggled, 1000, FOLD_STRIDES).expect("a city");
+    assert!(
+        untoggled
+            .lines
+            .contains(&format!("lock/ignored reason=setting lock={setting}"))
+    );
     git(&repo.0, &["checkout", "-q", "-b", "other", "HEAD~1"]);
     std::fs::write(repo.0.join("x.ts"), "x").expect("a file");
     git(&repo.0, &["add", "-A"]);

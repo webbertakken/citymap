@@ -28,8 +28,17 @@ Each concept has one name; the names in brackets are not used.
 | u               | One local street width; every dimension is a multiple of it.                                       |
 | road class      | lane, street, collector, avenue or boulevard.                                                      |
 | road graph      | Junctions and road edges; blocks are its faces.                                                    |
-| island          | The land of one workspace member, surrounded by water.                                             |
-| mainland        | The land of everything outside workspace members.                                                  |
+| package         | A child folder that is a workspace member and whose mass is at least half source.                  |
+| island          | The land of one package (or of several, beyond a dozen) in an archipelago, ringed by canals.       |
+| mainland        | An archipelago's land outside its islands: the folder's other items.                               |
+| canal           | Water instead of a road between an archipelago's islands, crossed by bridges.                      |
+| corridor        | A folder nearly all of whose mass lies in one child: it leads through to that child.               |
+| destination     | The first folder down a corridor's chain that is no corridor: it takes most of the land.           |
+| faubourg        | The edge quarter of a corridor holding the chain's other items, behind the gateway.                |
+| gateway         | The short road that cuts a corridor's faubourg off from its destination.                           |
+| quarter         | A planned group of small folders laid as one, cut square to its own frame by streets.              |
+| tier            | A town's size class by decade of mass: hamlet, village, town, city, metropolis.                    |
+| toggle          | An archetype setting: corridor, archipelago, quarters or tiers, each on or off.                    |
 | vacant lot      | The lot of a deleted file, kept empty.                                                             |
 | renewal         | Clearing a folder's vacant lots and re-laying its land.                                            |
 | reserve plot    | A block with no lots yet: room for growth.                                                         |
@@ -37,7 +46,7 @@ Each concept has one name; the names in brackets are not used.
 | pinwheel        | Four pieces turning round a plaza, their roads ending in T-junctions: how a long cut jogs.         |
 | plaza           | The open square at the heart of a pinwheel.                                                        |
 | density         | The setting for land per lot, from suburban to dense core.                                         |
-| old town        | A city kept whole, as an island, when its archetype switches.                                      |
+| old town        | A town kept whole where it stood when its archetype switches.                                      |
 | land use        | The role of a file (source, tests, fixtures and so on), from path rules.                           |
 | mass            | Land-use weighted file count of a node's subtree.                                                  |
 | archetype       | A node's form and tier.                                                                            |
@@ -146,9 +155,10 @@ therefore readable as distance from the core, and newcomers join the edges.
 - A town's outline is an irregular octagon of the town's land.
 - The outline is cut recursively between a folder's ordered children (child folders, its own lots, its park): each cut
   splits the list where the land is halved, across the longer extent of the land, with a small path-seeded tilt.
-- Every cut is a street. Its class follows the tier of the land it separates: city land gets a boulevard on its first
-  cut and avenues after; town land an avenue then collectors; village land a collector then streets. A town therefore
-  has at most one boulevard, and local streets carry most of the length.
+- Every cut is a street (or, in an archipelago, a canal). Its class follows the tier of the land it separates, under the
+  town's tier when tiers are on (Toggles): city land gets a boulevard on its first cut and avenues after; town land an
+  avenue then collectors; village land a collector then streets. A town therefore has at most one boulevard, and local
+  streets carry most of the length.
 - A folder with under nine blocks of land, or without child folders, flattens into a neighbourhood: its files in order
   (own files first, then child folders by first appearance), on one block grid aligned with its longest frontage.
 - Blocks fill in serpentine order; lots run out along one side and back along the other, so a folder stays one
@@ -180,8 +190,9 @@ therefore readable as distance from the core, and newcomers join the edges.
 
 ## Archetypes
 
-- Each folder has a form (hamlet, street village, archipelago, radial, twin, polycentric) and a tier by decade of mass
-  (hamlet under 30, village under 300, town under 3,000, city under 30,000, metropolis above).
+- Each folder has a form (hamlet, street village, neighbourhood, radial, twin, polycentric, and, when their toggles are
+  on, corridor, archipelago and quarters) and a tier by decade of mass (hamlet under 30, village under 300, town under
+  3,000, city under 30,000, metropolis above).
 - Features are continuous; the choice uses a Schmitt trigger: a challenger enters at margin 0 or more, the incumbent
   stays down to -0.15, and a switch needs +0.1. Roads follow their land's tier as it grows and shrinks: a laid road
   moves up a class at the tier's threshold times 1.25 and down below the threshold divided by 1.25. A road's class and
@@ -201,9 +212,85 @@ therefore readable as distance from the core, and newcomers join the edges.
     remembered; a newcomer or an item outgrowing its band re-sectors the ring, which re-lays the ring's items afresh.
   - **twin**: the two heaviest children on either bank of a river 2.5 u wide, the rest joining the lighter bank in age
     order; one bridge, or two on a river longer than 12 u.
-  - **polycentric**: recursive cuts, as in Structure. Many similar children (integrations, examples) take this form too:
-    there is no gridiron, as rows of single folders read as stripes of long straight roads.
-- Archipelago is the region's form: workspace groups become towns (Edges and open land).
+  - **polycentric**: recursive cuts, as in Structure. Many similar children (integrations, examples) take this form too,
+    unless quarters are on: there is no gridiron, as rows of single folders read as stripes of long straight roads.
+- A district form is chosen in priority order: corridor, archipelago, radial, twin, quarters, polycentric; a form whose
+  toggle is off takes no part. Each has its margin and band; the toggles' forms are below.
+
+## Toggles
+
+Four archetypes are toggles: corridor, archipelago, quarters and tiers. Corridor and tiers are on by default,
+archipelago and quarters off.
+
+- Each combination of toggles has its own plat, as the land dimension does: a lockfile folded under other toggles is set
+  aside and the history folded afresh, never continued. A change of defaults therefore re-lays existing cities.
+- With every toggle off, the city is exactly the one the other forms alone lay.
+- Each toggle keeps its decisions in the plat (a gateway's cut, an archipelago's islands, a folder's quarters, a town's
+  tier): a newcomer joins what is remembered, and nothing moves unless a band is outgrown. Over nine reference windows
+  the defaults move as few lots as every toggle off, or fewer (rust: 1.9 to 1.4 % of lots per step). Archipelago and
+  quarters, off by default, move more in some: a deleted package leaves its island smaller (react's deleting steps, 6.1
+  to 7.0 %), and quarters grow at their last quarter (home-assistant, 0.3 to 0.7 % per step).
+- The forms combine; a folder takes at most one form.
+
+### Corridor
+
+- A folder is a corridor when its heaviest child folder holds at least 90 % of its mass and its own files under 10 %.
+  Its band is narrower than the other forms': the incumbent stays down to -0.05 and a challenger needs +0.02.
+- The heaviest child is the next level of the chain while it is a corridor too; the first heaviest child that is not is
+  the destination. Every other item of every level of the chain (the wayside) gathers into one faubourg.
+- The faubourg lies on the edge of the corridor's land, cut off by the gateway: of 32 directions, the one whose cut
+  leaves the faubourg its share of the land with the shortest road, so the gateway never crosses town. The gateway takes
+  the class of a folder's later cuts (an avenue on city land).
+- The faubourg is cut between its items as any folder's land, in age order, centre-out; the destination takes the rest
+  of the land and is laid as any folder.
+- Each level of the chain is a district over the whole corridor's land.
+- The plat remembers the gateway as a cut: the wayside on the faubourg's side, the destination on the other. Newcomers
+  join the faubourg; the gateway moves as any cut does (a side outgrowing its band, or starved of its share); a new
+  destination lays the corridor afresh.
+
+### Archipelago
+
+- A folder with three or more packages that hold at least half its mass is an archipelago, with the standard band.
+- Each package is an island; the folder's other items together are the mainland. Islands and mainland are cut as any
+  folder's items, in age order, centre-out, but every cut between them is a canal: the first 2.5 u wide, the others 1.5
+  u, each crossed by one bridge, or two on a canal longer than 12 u. Inside an island or the mainland, roads as usual.
+- More than a dozen packages share islands: in age order, an island closes once its packages hold a twelfth of all the
+  packages' mass; roads, not canals, run between the packages of one island.
+- The plat remembers the islands. A newcomer joins the last island while it holds under a twelfth, else founds the next;
+  a package that leaves drops out, and its island keeps its place.
+- Every island takes its own tint. Canals are drawn a deeper, more saturated blue than a twin's river, so no district
+  tint matches them.
+- Canal land is not asked for in the folder's demand: an archipelago may leave a few more files without a lot.
+
+### Quarters
+
+- A folder whose effective number of children (one over the sum of the squared mass shares of its child folders and its
+  own files) is at least 7, and none of whose children holds over a quarter of its mass, takes quarters, with the
+  standard band.
+- Its children small enough to flatten (a neighbourhood form, and land of at most 24 blocks) and its own lots join
+  quarters in age order: a quarter closes once its members need 24 blocks of land, and at the first lay a last quarter
+  under 40 % of that joins the one before it.
+- Quarters and the larger children are cut as usual, so collectors run between quarters. Inside a quarter every cut is a
+  street, square to the quarter's own frame (its longest edge), across the land's longer extent: tidy rectangular
+  blocks, and the grid never runs the width of the town.
+- A quarter is a ward, named after its heaviest folder.
+- The plat remembers each quarter's members. A newcomer joins the last quarter while it needs under 24 blocks, else
+  opens the next; a member that leaves (deleted, or grown past flattening) drops out, and its quarter keeps its place.
+- Quarters suit wide, flat fan-outs (home-assistant's components, linux's drivers); their frames take some land from
+  lots, so a fan-out may leave a few more files without a lot (home-assistant's single state: 14 to 22).
+
+### Tiers
+
+- A town's tier follows the decade of its mass (30, 300, 3,000, 30,000), moving up at a threshold times 1.25 and down
+  below a threshold divided by 1.25; the plat remembers it.
+- The tier sets the class of the town's first cut, the first cut of its root folder's land (its ring road when the root
+  is radial): a street for a hamlet, a collector for a village, an avenue for a town, a boulevard for a city or a
+  metropolis.
+- Every other road the town lays (nested folders' cuts, spokes, gateways and a street village's high street included) is
+  at least one class below; under that cap, a road's class follows its land's mass as before. A town therefore has one
+  road of its top class, and a hamlet's roads are all streets.
+- A cut's right of way is the class the rule gives with the town and the cut's land each at the top of its band. The
+  land a folder asks for its own roads follows the mass rule, which the tier only narrows, so it always suffices.
 
 ## Edges and open land
 
@@ -262,6 +349,7 @@ warp. It never feeds back into the plat.
 - One 3D model; styles are data over it.
 - The lead style is Paper atlas: warm paper ground, light district tints of equal OKLCH lightness, white streets with
   casings, desaturated water with waterlines, sage parks. Its dark twin is Night atlas.
+- Every theme draws canals in a deeper, more saturated blue than its rivers, with a darker canal line.
 - Themes ship beside it: Beck schematic, Nolli noir and Dracula (the Dracula palette: background ground, current-line
   streets, its seven accents as district tints).
 - Phones are a target: the same city with lighter effects.

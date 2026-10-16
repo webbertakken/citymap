@@ -42,6 +42,7 @@ mod parity {
     use crate::land_use::default_land_uses;
     use crate::plat::serialise_plat;
     use crate::snapshot::FileEntry;
+    use crate::toggles::{DEFAULT_TOGGLES, TOGGLES, Toggle};
     use crate::town::context::{Jog, Order};
 
     fn snapshots(value: &serde_json::Value) -> Vec<Snapshot> {
@@ -80,9 +81,21 @@ mod parity {
             .collect()
     }
 
+    /// The fold fixtures: every toggle off, the defaults, and all four.
+    const FIXTURES: [(&str, &[Toggle]); 3] = [
+        (include_str!("../../../fixtures/fold.json"), &[]),
+        (include_str!("../../../fixtures/fold-defaults.json"), &DEFAULT_TOGGLES),
+        (include_str!("../../../fixtures/fold-all.json"), &TOGGLES),
+    ];
+
     fn fold(cache: bool) {
-        let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../../../fixtures/fold.json")).expect("the fold fixture");
+        for (text, toggles) in FIXTURES {
+            fold_one(text, toggles, cache);
+        }
+    }
+
+    fn fold_one(text: &str, toggles: &[Toggle], cache: bool) {
+        let fixture: serde_json::Value = serde_json::from_str(text).expect("the fold fixture");
         let options = Options {
             density_pct: 50,
             land_uses: default_land_uses(),
@@ -91,6 +104,7 @@ mod parity {
             warp: true,
             loops: true,
             split: vec!["apps".into()],
+            toggles: toggles.to_vec(),
         };
         let mut state = initial_state(&options, None, cache);
         let expected: Vec<Vec<String>> = serde_json::from_value(fixture["events"].clone()).expect("events");
@@ -138,6 +152,7 @@ mod resume {
     use crate::plat::serialise_plat;
     use crate::region::compose::lay_city;
     use crate::snapshot::FileEntry;
+    use crate::toggles::DEFAULT_TOGGLES;
     use crate::town::context::{Jog, Order};
 
     /// The TypeScript test's deterministic history: files arrive in folders (new folders too) and some are deleted.
@@ -214,6 +229,7 @@ mod resume {
             warp: false,
             loops: true,
             split: vec!["apps".into()],
+            toggles: DEFAULT_TOGGLES.to_vec(),
         }
     }
 

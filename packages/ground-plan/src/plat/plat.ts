@@ -6,6 +6,7 @@ import { ROAD_CLASSES, type RoadClass } from "../constants";
 import { CitymapError } from "../errors";
 import type { Dir } from "../fixed/direction";
 import type { Pt } from "../fixed/polygon";
+import { TIERS, type Tier } from "../roads";
 import type { ShareRecord } from "../tree/tree";
 import { canonicalJson } from "./canonical";
 import { int, nat, parseJson, validate } from "./schema";
@@ -23,6 +24,8 @@ export interface CutRecord {
   capRight: number;
   /** A twin's cut: a river with bridges instead of a road. */
   river?: true;
+  /** An archipelago's cut: a canal with bridges instead of a road. */
+  canal?: true;
 }
 
 /** A remembered radial layout: core item, start angle step, ring order, sector bounds, core scale (‰) and caps. */
@@ -61,6 +64,12 @@ export interface TownPlat {
   forms: Record<string, Form>;
   radial: Record<string, RadialRecord>;
   addresses: Record<string, string>;
+  /** The town's tier, with tiers on. */
+  tier?: Tier;
+  /** Per archipelago folder, the packages of each island, in age order; present while it holds any. */
+  islands?: Record<string, string[][]>;
+  /** Per folder, the members of each quarter, in age order; present while it holds any. */
+  quarters?: Record<string, string[][]>;
 }
 
 export interface OldTown {
@@ -116,6 +125,7 @@ const townPlatSchema = v.strictObject({
       capLeft: nat,
       capRight: nat,
       river: v.exactOptional(v.literal(true)),
+      canal: v.exactOptional(v.literal(true)),
     }),
   ),
   grids: v.record(
@@ -147,6 +157,9 @@ const townPlatSchema = v.strictObject({
     }),
   ),
   addresses: v.record(v.string(), v.string()),
+  tier: v.exactOptional(v.picklist(TIERS)),
+  islands: v.exactOptional(v.record(v.string(), v.array(strings))),
+  quarters: v.exactOptional(v.record(v.string(), v.array(strings))),
 });
 
 const platSchema = v.strictObject({

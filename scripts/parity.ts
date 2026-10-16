@@ -91,11 +91,11 @@ function compare(repo: string, source: string, mode: Mode, dir: string): Result 
     const out = join(dir, `${side}-out`);
     mkdirSync(out);
     if (mode === "resume") {
-      const saved = run([...cli, ...saveArgs(clone, savePoint(clone).commit)]);
+      const saved = run([...cli, ...saveArgs(clone, savePoint(clone).commit, settings.toggles)]);
       if (saved.code !== 0)
         throw new Error(`parity/cli-failed side=${side} repo=${repo} mode=save ${saved.stderr.split("\n", 1)[0]}`);
     }
-    const laid = run([...cli, ...cliArgs(clone, out, mode)]);
+    const laid = run([...cli, ...cliArgs(clone, out, mode, settings.toggles)]);
     if (laid.code !== 0)
       throw new Error(`parity/cli-failed side=${side} repo=${repo} mode=${mode} ${laid.stderr.split("\n", 1)[0]}`);
     writeFileSync(join(out, "log.txt"), withoutTimings(laid.stdout));

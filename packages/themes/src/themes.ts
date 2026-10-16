@@ -15,6 +15,9 @@ export interface Theme {
   readonly plaza: string;
   readonly water: string;
   readonly waterline: string;
+  /** An archipelago's canals: a deeper, more saturated blue than the water, so no district tint matches them. */
+  readonly canal: string;
+  readonly canalline: string;
   readonly casing: string;
   readonly road: string;
   readonly text: string;
@@ -37,11 +40,21 @@ export const hueOf = (district: number) => {
   return h >= 95 ? h + 70 : h;
 };
 
-const FORM_HUE: Readonly<Record<DistrictForm, number>> = { radial: 55, twin: 235, polycentric: 15 };
+const FORM_HUE: Readonly<Record<DistrictForm, number>> = {
+  radial: 55,
+  twin: 235,
+  polycentric: 15,
+  corridor: 95,
+  archipelago: 200,
+  quarters: 300,
+};
 const FORM_ACCENT: Readonly<Record<DistrictForm, string>> = {
   radial: "#FFB86C",
   twin: "#8BE9FD",
   polycentric: "#FF79C6",
+  corridor: "#F1FA8C",
+  archipelago: "#6272A4",
+  quarters: "#BD93F9",
 };
 
 // Dracula (draculatheme.com): background, current line, foreground, comment and the seven accents.
@@ -74,6 +87,8 @@ export const THEMES: Readonly<Record<ThemeName, Theme>> = {
     plaza: "#E9DFCB",
     water: "#A9CCE3",
     waterline: "#7FAFD0",
+    canal: oklch(0.66, 0.1, 235),
+    canalline: oklch(0.52, 0.1, 235),
     casing: "#C3BBAC",
     road: "#FFFFFF",
     text: "#1E1E24",
@@ -97,6 +112,8 @@ export const THEMES: Readonly<Record<ThemeName, Theme>> = {
     plaza: "#2A303A",
     water: "#22384D",
     waterline: "#34536F",
+    canal: oklch(0.38, 0.1, 240),
+    canalline: oklch(0.5, 0.11, 240),
     casing: "#0D1117",
     road: "#59606B",
     text: "#ECEAE4",
@@ -120,6 +137,8 @@ export const THEMES: Readonly<Record<ThemeName, Theme>> = {
     plaza: "#F7F7F2",
     water: "#B9DCF2",
     waterline: "#B9DCF2",
+    canal: oklch(0.52, 0.14, 245),
+    canalline: oklch(0.4, 0.12, 245),
     casing: "#FFFFFF",
     road: "#FFFFFF",
     text: "#10141A",
@@ -143,6 +162,8 @@ export const THEMES: Readonly<Record<ThemeName, Theme>> = {
     plaza: "#F4F1EA",
     water: "#CFCBC2",
     waterline: "#B3AEA4",
+    canal: oklch(0.68, 0.04, 235),
+    canalline: oklch(0.55, 0.05, 235),
     casing: "#F4F1EA",
     road: "#F4F1EA",
     text: "#111111",
@@ -166,6 +187,8 @@ export const THEMES: Readonly<Record<ThemeName, Theme>> = {
     plaza: mix(DRACULA.background, DRACULA.foreground, 0.16),
     water: mix(DRACULA.background, "#8BE9FD", 0.3),
     waterline: mix(DRACULA.background, "#8BE9FD", 0.6),
+    canal: mix(DRACULA.background, "#8BE9FD", 0.5),
+    canalline: mix(DRACULA.background, "#8BE9FD", 0.8),
     casing: DRACULA.deep,
     road: DRACULA.line,
     text: DRACULA.foreground,
