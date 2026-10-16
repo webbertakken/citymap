@@ -202,7 +202,9 @@ export function layCity(
     rootForms: { ...state.plat.rootForms },
   };
   const { useOf, groups, memberFolders, live } = derive(snapshot);
-  const last: Record<string, Town> = { ...state.last };
+  // The towns this lay lays, and nothing else: a town not laid now (it has no land) stood as nothing, so a later switch
+  // freezes nothing for it, and laying the same commit again rebuilds this record exactly.
+  const last: Record<string, Town> = {};
   const events: PlatEvent[] = [];
   const split = options.split ?? DEFAULT_SPLIT;
   const isSplit = (group: string) => split.includes(group) || split.includes(group.slice(group.lastIndexOf("/") + 1));
@@ -240,7 +242,7 @@ export function layCity(
     const previous = plat.rootForms[part.key];
     const rootForm: Form = classifyNode(whole, previous);
     plat.rootForms[part.key] = rootForm;
-    const before = last[part.key];
+    const before = state.last[part.key];
     const switched = previous !== undefined && rootForm !== previous && !(isFlat(previous) && isFlat(rootForm));
     if (switched && before) {
       // A town laid before has its plat.

@@ -250,7 +250,10 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
     if (cut <= 0) return;
     const commits = [...parseRawLog(pending.slice(0, cut))];
     // The manifests these commits need, read in one pass before their snapshots are built.
-    const texts = await blobs.readAll(workspaces.wanted(commits, index, laid));
+    const wanted = await blobs.readAll(workspaces.wanted(commits, index, laid));
+    // A manifest blob it cannot read sends it back through that manifest's older blobs, read in one more pass.
+    const older = await blobs.readAll(workspaces.fallbacks(commits, index, laid, wanted));
+    const texts = new Map([...wanted, ...older]);
     for (const commit of commits) {
       if (apply(state, folders, workspaces, commit, index, onEvent)) [files, folderMap] = [null, null];
       if (laid(index)) {

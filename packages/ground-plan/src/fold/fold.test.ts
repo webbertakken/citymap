@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_LAND_USES } from "../land-use/land-use";
 import { canonicalJson } from "../plat/canonical";
-import { layCity, type Options } from "../region/compose";
+import { parseLock, serialiseLock } from "../plat/lock";
+import { layCity, type FoldState, type Options } from "../region/compose";
 import type { FileEntry, Snapshot } from "../snapshot/snapshot";
-import { snapshotOf } from "../testing/fixtures";
+import { files, snapshotOf } from "../testing/fixtures";
 import { initialState } from "./fold";
 
 /** A deterministic history: files arrive in folders (new folders too) and some are deleted, commit by commit. */
@@ -85,5 +86,70 @@ describe("locality", () => {
     }
     expect(moved).toEqual([]);
     expect(checked).toBeGreaterThan(5);
+  });
+});
+
+/**
+ * The state with its plat read back from a lockfile: the same records, in the lock's (sorted) key order. Its towns as
+ * last laid stay; its locality cache starts afresh, as a resumed fold's does (an entry recorded against another plat
+ * would replay lots whose addresses that plat never issued).
+ */
+const readBack = (state: FoldState, snapshot: Snapshot): FoldState => ({
+  ...initialState(
+    OPTIONS,
+    parseLock(serialiseLock({ commit: "0".repeat(40), index: snapshot.index, plat: state.plat })).plat,
+  ),
+  last: state.last,
+});
+
+describe("a resumed fold", () => {
+  it("lays the same city from a plat read back from a lockfile, whatever order its records were made in", () => {
+    let state = initialState(OPTIONS);
+    for (const snapshot of history(40)) {
+      const laid = layCity(snapshot, state, OPTIONS);
+      const again = layCity(snapshot, readBack(state, snapshot), OPTIONS);
+      expect(canonicalJson(again.city)).toBe(canonicalJson(laid.city));
+      expect(canonicalJson(again.state.plat)).toBe(canonicalJson(laid.state.plat));
+      state = laid.state;
+    }
+  });
+
+  it("lays the lock's own commit again into the same city and plat, from a plat read back from a lockfile", () => {
+    let state = initialState(OPTIONS);
+    for (const snapshot of history(40)) {
+      const laid = layCity(snapshot, state, OPTIONS);
+      state = laid.state;
+      const again = layCity(snapshot, readBack(state, snapshot), OPTIONS);
+      expect(canonicalJson(again.city)).toBe(canonicalJson(laid.city));
+      expect(canonicalJson(again.state.plat)).toBe(canonicalJson(state.plat));
+    }
+  });
+
+  it("writes the same lock as the uninterrupted fold, from a lock saved at any commit", () => {
+    const steps = history(30);
+    const states: FoldState[] = [];
+    let state = initialState(OPTIONS);
+    for (const snapshot of steps) states.push((state = layCity(snapshot, state, OPTIONS).state));
+    const end = serialiseLock({ commit: "0".repeat(40), index: 29, plat: state.plat });
+    for (const saved of [3, 9, 16, 22, 27]) {
+      // As the CLI resumes: the lock's plat, its own commit laid again, then the rest of the history.
+      const lock = parseLock(serialiseLock({ commit: "0".repeat(40), index: saved, plat: states[saved]!.plat }));
+      let resumed = initialState(OPTIONS, lock.plat);
+      for (const snapshot of steps.slice(saved)) resumed = layCity(snapshot, resumed, OPTIONS).state;
+      expect(serialiseLock({ commit: "0".repeat(40), index: 29, plat: resumed.plat })).toBe(end);
+    }
+  });
+});
+
+describe("the towns as last laid", () => {
+  it("hold only the towns the last lay laid, so a re-laid commit rebuilds them exactly", () => {
+    const source = files("src", 12);
+    const tests = files("test", 12, 0, "test.ts");
+    const first = layCity({ ...snapshotOf([...source, ...tests]), index: 0 }, initialState(OPTIONS), OPTIONS);
+    expect(Object.keys(first.state.last)).toEqual(["demo"]);
+    // Only tests are left: they take no land, so the town has none and is not laid.
+    const second = layCity({ ...snapshotOf(tests), index: 1 }, first.state, OPTIONS);
+    expect(second.city.towns).toEqual([]);
+    expect(second.state.last).toEqual({});
   });
 });

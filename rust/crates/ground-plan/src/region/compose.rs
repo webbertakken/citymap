@@ -765,6 +765,9 @@ pub fn lay(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -> Res
         last.insert(part.key.clone(), last_town);
         towns.push(part.key);
     }
+    // The towns this lay laid, and nothing else: a town not laid now (it has no land) stood as nothing, so a later switch
+    // freezes nothing for it, and laying the same commit again rebuilds this record exactly.
+    last.retain(|key, _| towns.contains(key));
     check_outlines(&outlines)?;
     if let Some(cache) = cache.as_mut() {
         cache.derived = Some(derived);

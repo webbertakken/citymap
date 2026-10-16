@@ -83,6 +83,8 @@ each window. A batch of births lays well, where thousands of small steps wear th
 - A fold that resumes from a lockfile lays the lock's commit again, then the commits after it on the schedule of the
   whole history up to its target; it never folds a commit up to the lock's again. Its windows are those of the history
   as it stood when each part was folded, so it may differ from a fresh fold of the same target.
+- A lock saved part way through a fold (the CLI saves one every 1,000 laid snapshots) resumes to exactly the fold it was
+  cut from: the resumed fold ends with the same plat and city as the fold left uninterrupted, byte for byte.
 - The schedule is not a setting: both CLIs always fold on it, and offer no flag to fold every commit. Folding every
   commit stays a library value, for tests, the bench and measurements.
 
@@ -209,8 +211,9 @@ Edges carry meaning:
 
 - Workspace members come from the repository's root workspace manifests: `package.json` workspaces,
   `pnpm-workspace.yaml`, `lerna.json`, Cargo's `[workspace]` members, `go.work`, uv's `[tool.uv.workspace]` and
-  `deno.json` workspaces, their globs matched against the tree. Without such a manifest (or when one cannot be read), a
-  member is a folder, other than the root, that directly holds a package manifest, read from paths alone.
+  `deno.json` workspaces, their globs matched against the tree. Without such a manifest (or when no version of it since
+  it was added can be read), a member is a folder, other than the root, that directly holds a package manifest, read
+  from paths alone.
 - A workspace group is a folder holding two or more members whose land is mostly source.
 - A repository is one cohesive city. Each workspace group becomes its own town, sized by its land, its members as
   districts, joined to the main town by a highway across open country.
@@ -226,9 +229,9 @@ Edges carry meaning:
 ## Deletion
 
 - A deleted file leaves a vacant lot; nothing moves.
-- A neighbourhood whose remembered lots are more than half vacant, or a folder whose direct children are, is renewed:
-  its own vacant lots and wholly vacant child land clears, and its land is re-laid. Renewal is local; it never cascades
-  into child folders.
+- A neighbourhood whose remembered lots (those whose slot its grid still holds) are more than half vacant, or a folder
+  whose direct children are, is renewed: its own vacant lots and wholly vacant child land clears, and its land is
+  re-laid. Renewal is local; it never cascades into child folders.
 
 ## Archetype switch
 
@@ -267,5 +270,10 @@ warp. It never feeds back into the plat.
 ## Invariants
 
 - Determinism: the same repository and commit give the same plat and city, bit for bit, in every implementation.
-- Integer core: the plat uses integer arithmetic and sorted iteration only.
+- Integer core: the plat uses integer arithmetic and sorted iteration only; no rule reads the plat's records in the
+  order they were made, which a lockfile does not keep.
+- Settled lays: laying a commit again on the plat its lay produced decides nothing and draws the same city; a lay leaves
+  no decision pending for the next.
+- Resumption: a fold resumed from a lock it saved part way equals the uninterrupted fold, byte for byte, in every
+  implementation.
 - Locality: a laid commit or window changes the city only in the folders its commits touch and their reserves.

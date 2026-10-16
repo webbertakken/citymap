@@ -1,13 +1,17 @@
 // Parity: both CLIs on the same repositories, their files compared byte for byte, their timings side by side.
+import { foldSchedule } from "@citymap/history";
 
 /** The reference repositories every parity run covers. */
 export const PARITY = ["takken.io", "redux", "studio-worker", "game-ci-cli", "livediagram", "react"] as const;
 /** Added by `--long`: a fold of tens of thousands of commits. */
 export const LONG = ["next.js"] as const;
 
-/** A single state (`--no-history`), or the whole history folded with a lock. */
-export type Mode = "state" | "fold";
-export const MODES: readonly Mode[] = ["state", "fold"];
+/**
+ * A single state (`--no-history`); the whole history folded with a lock; or the same fold resumed from a lock saved part
+ * way, which must also match the uninterrupted fold of the same CLI.
+ */
+export type Mode = "state" | "fold" | "resume";
+export const MODES: readonly Mode[] = ["state", "fold", "resume"];
 
 export interface Settings {
   readonly repos: readonly string[];
@@ -20,19 +24,23 @@ export interface Settings {
 export const OUTPUTS: Readonly<Record<Mode, readonly string[]>> = {
   state: ["city.json", "city.svg", "log.txt"],
   fold: ["city.json", "city.svg", "citymap.lock.json", "log.txt"],
+  resume: ["city.json", "city.svg", "citymap.lock.json", "log.txt"],
 };
+
+/** The outputs a resumed fold shares with the uninterrupted one; their logs differ by the resume itself. */
+export const RESUMED: readonly string[] = ["city.json", "city.svg", "citymap.lock.json"];
 
 /** A comma-separated list, empty items dropped. */
 const list = (text: string | undefined) => text?.split(",").filter((item) => item !== "");
 
 const isMode = (value: string): value is Mode => MODES.some((mode) => mode === value);
 
-/** `--long` adds next.js, `--repos=a,b` names the repositories, `--modes=state,fold` the modes, `--features=a` the Rust build. */
+/** `--long` adds next.js, `--repos=a,b` names the repositories, `--modes=state,fold,resume` the modes, `--features=a` the Rust build. */
 export function parseSettings(argv: readonly string[]): Settings {
   const value = (name: string) => argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
   const modes = list(value("modes")) ?? [...MODES];
   const bad = modes.find((mode) => !isMode(mode));
-  if (bad !== undefined) throw new Error(`parity/usage: --modes takes state and fold, not ${bad}`);
+  if (bad !== undefined) throw new Error(`parity/usage: --modes takes state, fold and resume, not ${bad}`);
   const repos = list(value("repos")) ?? [...PARITY, ...(argv.includes("--long") ? LONG : [])];
   return { repos, modes: modes.filter(isMode), features: list(value("features")) ?? [] };
 }
@@ -53,8 +61,32 @@ export const cliArgs = (clone: string, out: string, mode: Mode): string[] => [
   clone,
   `--out=${out}/city.json`,
   `--svg=${out}/city.svg`,
-  mode === "fold" ? "--lock" : "--no-history",
+  mode === "state" ? "--no-history" : "--lock",
 ];
+
+/** The CLI arguments that save a lock part way: a fold to `commit`, writing nothing but the lock. */
+export const saveArgs = (clone: string, commit: string): string[] => [clone, `--to=${commit}`, "--lock"];
+
+/**
+ * The index to save a lock at, for a history of `commits`: halfway through the commits whose fold lays the same
+ * windows as the whole history's, so the lock is one the uninterrupted fold could have saved along the way.
+ */
+export function resumePoint(commits: number): number {
+  const whole = foldSchedule(commits);
+  const same = (count: number) => {
+    const part = foldSchedule(count);
+    return part.coarseEnd === whole.coarseEnd && part.tailStart === whole.tailStart;
+  };
+  let first = commits;
+  while (first > 1 && same(first - 1)) first--;
+  return Math.floor((first - 1 + commits - 1) / 2);
+}
+
+/** One log line for a resumed fold against the uninterrupted one: the same, or the sides and files that differ. */
+export const resumeVerdict = (repo: string, saved: number, differs: readonly string[]): string =>
+  differs.length === 0
+    ? `parity/resumed repo=${repo} saved=${saved} same`
+    : `parity/resume-differs repo=${repo} saved=${saved} files=${differs.join(",")}`;
 
 /** A CLI's log without its timings: the summary's `ms=` is the only field that may differ. */
 export const withoutTimings = (log: string) => log.replace(/ ms=\d+$/gm, " ms=…");

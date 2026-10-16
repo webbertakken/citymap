@@ -4,6 +4,9 @@ import {
   PARITY,
   buildArgs,
   cliArgs,
+  resumePoint,
+  resumeVerdict,
+  saveArgs,
   parseSettings,
   table,
   verdict,
@@ -13,7 +16,7 @@ import {
 
 describe("parseSettings", () => {
   it("covers the parity repositories in both modes by default, and next.js with --long", () => {
-    expect(parseSettings([])).toEqual({ repos: [...PARITY], modes: ["state", "fold"], features: [] });
+    expect(parseSettings([])).toEqual({ repos: [...PARITY], modes: ["state", "fold", "resume"], features: [] });
     expect(parseSettings(["--long"]).repos).toEqual([...PARITY, ...LONG]);
   });
 
@@ -28,7 +31,7 @@ describe("parseSettings", () => {
 
   it("rejects a mode it does not know", () => {
     expect(() => parseSettings(["--modes=state,quick"])).toThrow(
-      "parity/usage: --modes takes state and fold, not quick",
+      "parity/usage: --modes takes state, fold and resume, not quick",
     );
   });
 });
@@ -49,6 +52,38 @@ describe("cliArgs", () => {
       "--no-history",
     ]);
     expect(cliArgs("/c/redux", "/o", "fold").at(-1)).toBe("--lock");
+    expect(cliArgs("/c/redux", "/o", "resume").at(-1)).toBe("--lock");
+  });
+});
+
+describe("saveArgs", () => {
+  it("folds to the save point and writes its lock, and nothing else", () => {
+    expect(saveArgs("/c/redux", "abc")).toEqual(["/c/redux", "--to=abc", "--lock"]);
+  });
+});
+
+describe("resumePoint", () => {
+  it("halves a history that folds every commit", () => {
+    expect(resumePoint(239)).toBe(119);
+    expect(resumePoint(1999)).toBe(999);
+    expect(resumePoint(1)).toBe(0);
+  });
+
+  it("saves where a fold to that commit lays the same windows as the whole history", () => {
+    // 14,967 commits: windows up to 13,000; a fold of 14,000 to 14,967 commits lays the same ones.
+    expect(resumePoint(14_967)).toBe(14_482);
+    expect(resumePoint(2262)).toBe(2130);
+    // A count on a boundary: only the last commit folds the same windows, so the resume lays it again.
+    expect(resumePoint(14_000)).toBe(13_999);
+  });
+});
+
+describe("resumeVerdict", () => {
+  it("names a resumed fold that matches the uninterrupted one, and the sides and files of one that does not", () => {
+    expect(resumeVerdict("redux", 2130, [])).toBe("parity/resumed repo=redux saved=2130 same");
+    expect(resumeVerdict("redux", 2130, ["ts:citymap.lock.json", "rs:citymap.lock.json"])).toBe(
+      "parity/resume-differs repo=redux saved=2130 files=ts:citymap.lock.json,rs:citymap.lock.json",
+    );
   });
 });
 

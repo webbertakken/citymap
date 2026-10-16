@@ -2,16 +2,22 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use citymap_ground_plan::Result;
 use citymap_ground_plan::fixed::compare_keys;
 use citymap_ground_plan::snapshot::folder_of;
 
 use crate::manifests::{Patterns, is_manifest, patterns_of, resolve_workspaces};
 use crate::read::HistoryEvent;
 
+/// Blob texts by blob id; none for a blob the repository does not hold.
+pub type Texts = HashMap<String, Option<String>>;
+
 #[derive(Default)]
 pub struct Workspaces {
     /// Root manifests changed since the last snapshot: the new blob, or none when the manifest went.
     pending: HashMap<String, Option<String>>,
+    /// Each root manifest's blobs since it was last added, oldest first.
+    chains: HashMap<String, Vec<String>>,
     /// The patterns of each root manifest read so far (none: it declares none).
     known: HashMap<String, Option<Patterns>>,
     /// Folders other than the root holding files, and how many files are beneath each.
@@ -32,6 +38,12 @@ impl Workspaces {
     pub fn touch(&mut self, path: &str, blob: Option<&str>) {
         if is_manifest(path) {
             self.pending.insert(path.to_owned(), blob.map(str::to_owned));
+            match blob {
+                None => {
+                    self.chains.remove(path);
+                }
+                Some(blob) => self.chains.entry(path.to_owned()).or_default().push(blob.to_owned()),
+            }
         }
     }
 
@@ -77,29 +89,44 @@ impl Workspaces {
         pending.into_values().flatten().collect()
     }
 
-    /// The declared members at commit `index`, from the manifests changed since the last call; none: none declared.
+    /// The declared members at commit `index`, from the manifests changed since the last call; none: none declared. A
+    /// manifest whose blob cannot be read is known by its newest blob the repository holds since it was last added
+    /// (`read_more` reads them), so what a read knows depends on the history alone, never on the commit it began at.
     pub fn resolve(
         &mut self,
-        texts: &HashMap<String, Option<String>>,
+        texts: &Texts,
         index: i64,
         on_event: &mut dyn FnMut(HistoryEvent),
-    ) -> Option<Arc<Vec<String>>> {
+        read_more: &mut dyn FnMut(&[String]) -> Result<Texts>,
+    ) -> Result<Option<Arc<Vec<String>>>> {
         let mut changed = false;
         let mut pending: Vec<(String, Option<String>)> = self.pending.drain().collect();
         pending.sort_by(|a, b| compare_keys(&a.0, &b.0));
         for (path, blob) in pending {
+            changed = true;
             let Some(blob) = blob else {
                 self.known.remove(&path);
-                changed = true;
                 continue;
             };
-            match texts.get(&blob) {
-                Some(Some(text)) => {
-                    let patterns = patterns_of(&path, text);
+            let mut text = texts.get(&blob).cloned().flatten();
+            if text.is_none() {
+                on_event(HistoryEvent::ManifestUnavailable {
+                    path: path.clone(),
+                    index,
+                });
+                let chain = self.chains.get(&path).map_or(&[][..], Vec::as_slice);
+                let older: Vec<String> = chain[..chain.len().saturating_sub(1)].iter().rev().cloned().collect();
+                let more = read_more(&older)?;
+                text = older.iter().find_map(|b| more.get(b).cloned().flatten());
+            }
+            match text {
+                Some(text) => {
+                    let patterns = patterns_of(&path, &text);
                     self.known.insert(path, patterns);
-                    changed = true;
                 }
-                _ => on_event(HistoryEvent::ManifestUnavailable { path, index }),
+                None => {
+                    self.known.remove(&path);
+                }
             }
         }
         let patterns: Vec<Patterns> = self.known.values().flatten().cloned().collect();
@@ -113,6 +140,6 @@ impl Workspaces {
             )));
         }
         self.folders_changed = false;
-        self.current.clone()
+        Ok(self.current.clone())
     }
 }

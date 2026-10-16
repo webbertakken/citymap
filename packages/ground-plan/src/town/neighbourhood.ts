@@ -2,6 +2,7 @@ import type { FlatForm } from "../archetype/forms";
 import { BLOCK_LONG, BLOCK_SHORT, MODULE, PAVEMENT, ROAD_WIDTH, U } from "../constants";
 import { floorDiv, mulDiv, roundDiv } from "../fixed/arithmetic";
 import { DIRECTION, negate, normalise, perp, type Dir } from "../fixed/direction";
+import { compareKeys } from "../fixed/hash";
 import {
   area2,
   centroid,
@@ -298,18 +299,22 @@ export function neighbourhood(
           .map((x) => x.s);
   const slotIndex = new Map(slots.map((s, i) => [s.id, i]));
   const live = new Set(lots.map((l) => l.key));
-  // Renewal: when most remembered lots are vacant, the neighbourhood is re-laid in order.
-  const remembered = Object.keys(g.slots);
-  const vacant = remembered.filter((k) => !live.has(k)).length;
-  if (remembered.length > 0 && vacant * 2 > remembered.length) {
-    emit(ctx, "plat/renew", { key, vacant, remembered: remembered.length });
-    g.slots = {};
-  }
+  // Remembered lots keep their slots while the grid still holds them. Records are read in key order, never in the order
+  // they were made: a plat read back from a lockfile holds the same records in another order.
   const taken = new Map<number, string>();
-  for (const [lotKey, id] of Object.entries(g.slots)) {
+  for (const [lotKey, id] of Object.entries(g.slots).toSorted(([a], [b]) => compareKeys(a, b))) {
     const i = slotIndex.get(id);
     if (i !== undefined && !taken.has(i)) taken.set(i, lotKey);
     else delete g.slots[lotKey];
+  }
+  // Renewal: when most remembered lots are vacant, the neighbourhood is re-laid in order. It is judged on the lots that
+  // keep their slots, so a lay leaves no renewal pending and laying the same commit again changes nothing.
+  const remembered = taken.size;
+  const vacant = [...taken.values()].filter((k) => !live.has(k)).length;
+  if (remembered > 0 && vacant * 2 > remembered) {
+    emit(ctx, "plat/renew", { key, vacant, remembered });
+    g.slots = {};
+    taken.clear();
   }
   // Newcomers and displaced lots take the first free slot after their folder's last lot, else the first free one.
   const lastOfFolder = new Map<string, number>();
@@ -347,7 +352,7 @@ export function neighbourhood(
     ctx.lotArea2 += area2(slot.pts);
     placed++;
   }
-  for (const [i, lotKey] of taken) {
+  for (const [i, lotKey] of [...taken].toSorted(([a], [b]) => a - b)) {
     if (live.has(lotKey)) continue;
     const slot = slots[i]!;
     cells[slot.cell]!.used = true;

@@ -125,4 +125,68 @@ describe("readHistory workspaces", () => {
       { code: "history/manifest-unavailable", detail: { path: "package.json", index: 1 } },
     ]);
   });
+
+  it("knows the newest manifest it holds when it resumes, as a read from the root does", async () => {
+    const source = repo();
+    write(source, "package.json", JSON.stringify({ workspaces: ["apps/*"] }));
+    write(source, "apps/web/index.ts", "w");
+    commit(source, "apps");
+    write(source, "package.json", JSON.stringify({ workspaces: ["apps/*", "packages/*"] }));
+    write(source, "packages/p/index.ts", "p");
+    commit(source, "packages");
+    write(source, "README.md", "r");
+    commit(source, "readme");
+    write(source, "package.json", JSON.stringify({ workspaces: ["packages/*"] }));
+    commit(source, "packages only");
+    remove(source, "package.json");
+    commit(source, "manifest goes");
+    write(source, "package.json", JSON.stringify({ workspaces: ["apps/*", "tools/*"] }));
+    commit(source, "manifest returns");
+    const clone = blobless(source);
+    // Only the first manifest is put back; every later one is missing.
+    write(clone, "first.json", JSON.stringify({ workspaces: ["apps/*"] }));
+    git(clone, "hash-object", "-w", "first.json");
+    const whole = await collect(clone);
+    // The first manifest stands until the manifest goes; the one that returns cannot be read, and nothing is known.
+    expect(whole.map((s) => s.workspaces)).toEqual([
+      ["apps/web"],
+      ["apps/web"],
+      ["apps/web"],
+      ["apps/web"],
+      undefined,
+      undefined,
+    ]);
+    const resumed = await Promise.all(
+      [1, 2, 3, 4, 5].map(async (from) => [from, await collect(clone, undefined, from)] as const),
+    );
+    for (const [from, snaps] of resumed)
+      expect(snaps.map((s) => s.workspaces)).toEqual(whole.slice(from).map((s) => s.workspaces));
+  });
+
+  it("looks back past a manifest blob a full clone has lost", async () => {
+    const dir = repo();
+    write(dir, "package.json", JSON.stringify({ workspaces: ["apps/*"] }));
+    write(dir, "apps/web/index.ts", "w");
+    commit(dir, "apps");
+    const second = JSON.stringify({ workspaces: ["packages/*"] });
+    write(dir, "package.json", second);
+    write(dir, "packages/p/index.ts", "p");
+    commit(dir, "packages");
+    const lost = execFileSync("git", ["-C", dir, "hash-object", "--stdin"], { input: second, encoding: "utf8" }).trim();
+    rmSync(join(dir, ".git/objects", lost.slice(0, 2), lost.slice(2)));
+    const events: HistoryEvent[] = [];
+    expect((await collect(dir, events, 1)).map((s) => s.workspaces)).toEqual([["apps/web"]]);
+    expect(events).toContainEqual({ code: "history/manifest-unavailable", detail: { path: "package.json", index: 1 } });
+  });
 });
+
+/** A blob-less clone of `source` with no checkout: it holds no blobs at all, and never fetches one. */
+function blobless(source: string): string {
+  const clone = mkdtempSync(join(tmpdir(), "citymap-manifests-clone-"));
+  repos.push(clone);
+  git(source, "config", "uploadpack.allowFilter", "true");
+  execFileSync("git", ["clone", "-q", "--filter=blob:none", "--no-checkout", `file://${source}`, clone], {
+    env: gitEnvironment(),
+  });
+  return clone;
+}
