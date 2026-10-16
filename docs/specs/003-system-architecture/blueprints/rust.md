@@ -172,6 +172,7 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
 - The fold schedule is `schedule.rs` (`Strides`, `FOLD_STRIDES`, `fold_schedule`, `is_laid`, `laid_count`), the same
   arithmetic and rejections as `schedule.ts`; `read_history` resolves the target and counts its commits
   (`count_commits`) before the log, sends `HistoryEvent::Schedule` first, and builds a snapshot only for a laid commit.
+  `run_lay` takes the strides for its tests; `main` passes `FOLD_STRIDES`, and no flag changes them.
 - The tree state is a `BTreeMap` by path, so the sorted file list is its iteration.
 - Manifest blobs are read through one `git cat-file --batch` per reader, one blob at a time as each commit asks for them
   (the blobs `Workspaces::wanted` names before the commit applies), the partial clone's held blobs listed once, a

@@ -50,7 +50,8 @@ Branch `feat/fold-schedule` in the worktree `../citymap-stride`.
 
 ## Phase 4: finish
 
-- [ ] Surface the design fork: whether the per-commit fold stays reachable from the CLI
+- [x] Surface the design fork: whether the per-commit fold stays reachable from the CLI (Webber: library only,
+      `EVERY_COMMIT`; no CLI flag), recorded in the spec and blueprints
 - [ ] README: fold times and history
 - [ ] Fold-back: spec reconciled to what shipped, blueprint re-derived, every symbol, file and reference verified
 - [ ] Commit, push, open the pull request (not merged)

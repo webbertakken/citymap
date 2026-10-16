@@ -103,7 +103,8 @@ function countCommits(dir: string, commit: string): Promise<number>; // ancestry
 - `countCommits` runs `git rev-list --first-parent --count <commit> --` and returns the number it prints; a failure is
   `history/git-failed`.
 - `readHistory` builds the schedule with `options.strides ?? FOLD_STRIDES`, emits `history/schedule` before the first
-  snapshot, and lays `isLaid(schedule, index, from)`. `strides` is an option for tests and measurements; `EVERY_COMMIT`
+  snapshot, and lays `isLaid(schedule, index, from)`. `strides` is an option for tests and measurements, never a CLI
+  flag (the CLIs pass `FOLD_STRIDES`, so a lock never mixes schedules and needs no setting key for it); `EVERY_COMMIT`
   (a tail and coarse zone of `Number.MAX_SAFE_INTEGER`, strides and grain 1) folds every commit.
 - Snapshot indices are commit indices: a window's snapshot has its last commit's index and commit id, and its files keep
   the indices of the commits they first appeared at.
@@ -138,8 +139,9 @@ counts the commits the run folded (from the first laid index to the last, inclus
 
 - Budgets on the development machine, measured by `bun run bench` (growth checks, not absolute ceilings in CI): lay one
   HEAD snapshot of next.js (~30 k files) under 400 ms; home-assistant under 600 ms; a 1,200-commit react fold under 20 s
-  with the locality cache; linux HEAD under 5 s and its full fold cached incrementally on disk; the rest of the scale
-  corpus at HEAD, vscode (~20 k files) under 800 ms and godot (~14 k files) under 400 ms.
+  with the locality cache, laid commit by commit (`EVERY_COMMIT`) so it times the lay machinery, not the schedule; linux
+  HEAD under 5 s and its full fold cached incrementally on disk; the rest of the scale corpus at HEAD, vscode (~20 k
+  files) under 800 ms and godot (~14 k files) under 400 ms.
 - Incremental lays: the history reader hands over the same `files` array and `folderFirstSeen` map while a commit only
   edits files (snapshots are immutable). `layCity` keeps, per file list (a `WeakMap`), its land uses, workspace groups
   and members, and live identities, and per file list, tree options, input shares and folder map, its built tree; layout
@@ -161,8 +163,9 @@ counts the commits the run folded (from the first laid index to the last, inclus
   `scripts/bench/baseline.json`: any rise fails the bench (`bench/ratchet worse=…`); `bun run bench --rebase` records
   the run's totals as the new baseline, deliberately, in the commit that earns it.
 - `bun run bench --folds` also folds the fast reference repositories (`FOLDS`: takken.io, redux, studio-worker,
-  game-ci-cli, livediagram) in full, logging each fold's files without a lot beside a fresh lay of the same tree
-  (`bench/fold repo commits overflow fresh`), and ratchets the folded total against `scripts/bench/fold-baseline.json`.
+  game-ci-cli, livediagram) in full on the fold schedule, logging each fold's files without a lot beside a fresh lay of
+  the same tree (`bench/fold repo commits overflow fresh`), and ratchets the folded total against
+  `scripts/bench/fold-baseline.json`.
 - With `--lock`, the CLI saves the lock every `LOCK_EVERY` (1,000) laid snapshots as well as at the end, logging
   `lock/saved`, so a long fold cut short resumes near where it stopped.
 - Limits: `MAX_FILES` (2,000,000) files per snapshot, checked by `layCity` (`snapshot/too-large`); `MAX_PATH_BYTES`
@@ -194,5 +197,7 @@ Every spec rule maps to a test, named after the rule (traceability table in the 
   folder leaves every other folder's lots in place); no lot overlaps another (sampled point-in-polygon).
 - **Golden**: `toMatchFileSnapshot` city JSON for three small fixtures (hamlet, twin, radial) and the takken.io HEAD
   snapshot, outside the formatter.
-- **Corpus** (local, not in CI): the reference repositories' HEAD stats and stability (per-commit and deleting-commit
-  movement) within the prototype's numbers in `variants/README.md`.
+- **Corpus** (local, not in CI): the reference repositories' HEAD stats and stability (per-step and deleting-step
+  movement) within the prototype's numbers in `variants/README.md`. `bun scripts/stability.ts <repo> [from] [count]`
+  lays the fold schedule from `from` (a fresh plat there, or the root's fold at 0); `--lock=<file>` starts from a
+  lockfile's commit and plat instead, so the last commits of a real fold can be measured one by one.

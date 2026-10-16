@@ -83,6 +83,8 @@ each window. A batch of births lays well, where thousands of small steps wear th
 - A fold that resumes from a lockfile lays the lock's commit again, then the commits after it on the schedule of the
   whole history up to its target; it never folds a commit up to the lock's again. Its windows are those of the history
   as it stood when each part was folded, so it may differ from a fresh fold of the same target.
+- The schedule is not a setting: both CLIs always fold on it, and offer no flag to fold every commit. Folding every
+  commit stays a library value, for tests, the bench and measurements.
 
 ## Land use and mass
 
