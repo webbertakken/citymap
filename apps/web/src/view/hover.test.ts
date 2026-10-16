@@ -43,11 +43,11 @@ const city: City = {
 const viewport = { width: 1000, height: 800 };
 
 describe("hitAt", () => {
-  it("finds a lot where its top is drawn in dimetric, and the ground elsewhere", () => {
-    const view: View = { mode: "dimetric", centre: { x: 50, z: -50 }, zoom: 8 };
+  it("finds the lot under the pointer, and the block or nothing elsewhere", () => {
+    const view: View = { centre: { x: 50, z: -50 }, zoom: 8 };
     const index = pickIndex(city);
-    const lotTop = project(view, viewport, { x: 1440 / 64, y: 0.15, z: -1440 / 64 });
-    expect(hitAt(index, view, viewport, lotTop)).toMatchObject({ kind: "lot", path: "src/a.ts" });
+    const lot = project(view, viewport, { x: 1440 / 64, y: 0, z: -1440 / 64 });
+    expect(hitAt(index, view, viewport, lot)).toMatchObject({ kind: "lot", path: "src/a.ts" });
     const block = project(view, viewport, { x: 700 / 64, y: 0, z: -700 / 64 });
     expect(hitAt(index, view, viewport, block)).toMatchObject({ kind: "block", block: "built" });
     expect(hitAt(index, view, viewport, { x: 0, y: 0 })).toBeNull();

@@ -117,15 +117,15 @@ export const read = () => screen.getByTestId("canvas").textContent;
 
 /** The view the stub canvas was last given. */
 export const currentView = (): View => {
-  const [mode, zoom, centre] = (read() ?? "").split(" ");
+  const [zoom, centre] = (read() ?? "").split(" ");
   const [x, z] = centre!.split(",").map(Number);
-  return { mode: mode === "plan" ? "plan" : "dimetric", zoom: Number(zoom), centre: { x: x!, z: z! } };
+  return { zoom: Number(zoom), centre: { x: x!, z: z! } };
 };
 
 export function StubCanvas({ view, theme }: CanvasProps) {
   return (
     <p data-testid="canvas">
-      {view.mode} {view.zoom} {view.centre.x},{view.centre.z} {theme.label}
+      {view.zoom} {view.centre.x},{view.centre.z} {theme.label}
     </p>
   );
 }

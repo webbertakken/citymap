@@ -26,7 +26,7 @@ function Mesh({ layer }: { readonly layer: Layer }) {
 
 /** The city in WebGL: an orthographic camera from the view, drawn only when something changes. */
 export default function CityCanvas({ scene, view, theme }: CanvasProps) {
-  const b = basis(view.mode);
+  const b = basis();
   const distance = 2000;
   return (
     <Canvas className="canvas" frameloop="demand" dpr={[1, 2]} linear flat aria-hidden="true">

@@ -1,13 +1,10 @@
 // What the pointer is over, and the words that say so.
-import { LOT_TOP, pick, type Hit, type PickIndex } from "@citymap/scene";
+import { pick, type Hit, type PickIndex } from "@citymap/scene";
 import { unproject, type View, type Viewport } from "./view";
 
-/** The topmost thing under a screen point: lots where their tops are drawn, the rest on the ground. */
+/** The topmost thing under a screen point: in plan view a lot's top lies over its footprint, so the ground answers. */
 export function hitAt(index: PickIndex, view: View, viewport: Viewport, screen: { x: number; y: number }): Hit | null {
-  const top = unproject(view, viewport, screen, LOT_TOP);
-  const lot = pick(index, top.x, top.z);
-  if (lot?.kind === "lot") return lot;
-  const ground = unproject(view, viewport, screen, 0);
+  const ground = unproject(view, viewport, screen);
   return pick(index, ground.x, ground.z);
 }
 

@@ -353,7 +353,8 @@ warp. It never feeds back into the plat.
 - Themes ship beside it: Beck schematic, Nolli noir and Dracula (the Dracula palette: background ground, current-line
   streets, its seven accents as district tints).
 - Phones are a target: the same city with lighter effects.
-- The default camera is plan view (straight down); the 2:1 dimetric view (30° elevation, 45° yaw) is one switch away.
+- The default camera is plan view (straight down); the SVG export also draws the 2:1 dimetric view (30° elevation, 45°
+  yaw). The viewer shows plan view only.
 
 ## Invariants
 

@@ -90,6 +90,8 @@ test("answers every interaction within 200 ms on a slowed phone", async ({ page,
   await expect(page.getByRole("switch", { name: "Quarters" })).toBeChecked();
   await page.keyboard.press("Escape");
   await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Theme" }).tap();
+  await page.getByRole("radio", { name: "Dracula" }).tap();
   await page.getByRole("searchbox").tap();
   await page.keyboard.type("palette");
   await page.keyboard.press("Enter");

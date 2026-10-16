@@ -48,17 +48,11 @@ test("starts in Night atlas and a dark interface because the system prefers dark
   expect(ink).toBe("rgb(238, 241, 245)");
 });
 
-test("switches city, view and theme", async ({ page, isMobile }) => {
+test("switches city and theme, in plan view only", async ({ page }) => {
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("button", { name: /^redux/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("redux");
-  // A phone shows plan view only.
-  if (isMobile) await expect(page.getByRole("button", { name: "3D" })).toBeHidden();
-  else {
-    await expect(page.getByRole("button", { name: "Plan" })).toHaveAttribute("aria-pressed", "true");
-    await page.getByRole("button", { name: "3D" }).click();
-    await expect(page.getByRole("button", { name: "3D" })).toHaveAttribute("aria-pressed", "true");
-  }
+  await expect(page.getByRole("button", { name: "3D" })).toHaveCount(0);
   await chooseTheme(page, "Dracula");
   await expect(page.locator("main")).toHaveAttribute("data-theme", "dracula");
   await expect(page.getByRole("radio", { name: "Dracula" })).toBeHidden();
@@ -141,7 +135,7 @@ test("reaches every control and the map by keyboard, and moves the map with keys
   const reached = await tabThrough(page, 9);
   expect(reached.join(" | ")).toMatch(/Map of takken.io/);
   expect(reached.join(" | ")).toMatch(/Search files and folders/);
-  expect(reached.join(" | ")).toMatch(/3D/);
+  expect(reached.join(" | ")).toMatch(/Theme/);
   expect(reached.join(" | ")).toMatch(/Layout/);
   expect(reached.join(" | ")).toMatch(/More/);
   await page.keyboard.press("/");

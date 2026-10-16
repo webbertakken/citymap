@@ -74,8 +74,8 @@ keeps the name to your own screen.
 
   ![linux, vscode and godot at HEAD](docs/img/scale.png)
 
-- **Themes and views.** Five themes (Paper atlas, Night atlas, Beck, Nolli, Dracula), plan view or 2:1 dimetric 3D, and
-  optional Voronoi district regions.
+- **Themes and views.** Five themes (Paper atlas, Night atlas, Beck, Nolli, Dracula), plan view, or 2:1 dimetric 3D in
+  the SVG export, and optional Voronoi district regions.
 
   ![react in five themes](docs/img/themes.png)
 

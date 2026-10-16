@@ -358,7 +358,7 @@ mark {
   background: none;
 }
 
-/* Top right: view, theme, more. */
+/* Top right: theme, more. */
 .controls {
   position: absolute;
   top: var(--gap);
@@ -366,27 +366,6 @@ mark {
   z-index: 20;
   display: flex;
   gap: 8px;
-}
-.segmented {
-  display: flex;
-  gap: 4px;
-  padding: 3px;
-}
-.segmented button {
-  min-width: 56px;
-  height: calc(var(--control) - 8px + 2px);
-  padding: 0 16px;
-  background: none;
-  border: 0;
-  border-radius: var(--radius-control);
-  transition: background-color var(--motion);
-}
-.segmented button:hover {
-  background: var(--hover);
-}
-.segmented button[aria-pressed="true"] {
-  color: var(--accent-ink);
-  background: var(--accent);
 }
 .popover-root {
   position: relative;
@@ -900,8 +879,7 @@ mark {
   :root {
     --gap: 8px;
   }
-  /* The viewer shows plan view only on a phone (the spec drops the view switch everywhere), so the title takes the row's
-     width left of the three 48 px buttons, with gaps: 152 px on a touch screen. */
+  /* The title takes the row's width left of the controls: three 48 px buttons with gaps, 152 px on a touch screen. */
   .card-title {
     right: calc(2 * var(--gap) + 152px);
     width: auto;
@@ -912,9 +890,6 @@ mark {
   }
   .controls {
     gap: 4px;
-  }
-  .controls .segmented {
-    display: none;
   }
   .search {
     top: calc(var(--gap) + 68px + 8px);

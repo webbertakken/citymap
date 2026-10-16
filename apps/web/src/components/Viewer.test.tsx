@@ -44,18 +44,16 @@ describe("Viewer", () => {
     expect(screen.getByRole("region", { name: "Legend" }).textContent).toContain("Park: documentation");
   });
 
-  it("switches city from More, view from the switch and theme from its menu", async () => {
+  it("switches city from More and theme from its menu, and shows plan view only", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("button", { name: "alpha 1 lots" }).getAttribute("aria-current")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "beta 1 lots" }));
     expect(await screen.findByRole("heading", { level: 1, name: "beta" })).toBeTruthy();
-    // Plan view is the default; the switch goes to 3D and back.
-    expect(screen.getByRole("button", { name: "Plan" }).getAttribute("aria-pressed")).toBe("true");
-    expect(read()).toMatch(/^plan /);
-    fireEvent.click(screen.getByRole("button", { name: "3D" }));
-    expect(read()).toMatch(/^dimetric /);
+    // The map is plan view only: no view switch.
+    expect(screen.queryByRole("button", { name: "3D" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Plan" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Theme" }));
     fireEvent.click(screen.getByRole("radio", { name: "Dracula" }));
     expect(read()).toMatch(/Dracula$/);
@@ -260,13 +258,10 @@ describe("Viewer, rendered elsewhere", () => {
     expect(html).toContain('data-theme="paper-atlas"');
   });
 
-  it("fetches from the browser by default, and switches back to plan", async () => {
+  it("fetches from the browser by default", async () => {
     vi.stubGlobal("fetch", fetcher);
     render(<Viewer Canvas={StubCanvas} />);
-    await screen.findByRole("heading", { level: 1, name: "alpha" });
-    fireEvent.click(screen.getByRole("button", { name: "3D" }));
-    fireEvent.click(screen.getByRole("button", { name: "Plan" }));
-    expect(read()).toMatch(/^plan /);
+    expect(await screen.findByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
   });
 });
 

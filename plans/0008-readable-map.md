@@ -15,7 +15,7 @@ Plan view only, hover cards that say what things are and never cut their text, a
 
 ## Phase 2: plan view only
 
-- [ ] Remove the view switch from the viewer (tests first: no "3D" control; the map stays plan); keep `basis` and `fit`
+- [x] Remove the view switch from the viewer (tests first: no "3D" control; the map stays plan); keep `basis` and `fit`
       for plan; drop the dimetric camera from the web app where nothing else uses it
 - [ ] End-to-end and vitals journeys without the switch; README and spec pictures without "3D"
 
