@@ -744,6 +744,83 @@ fn logs_a_manifest_it_cannot_read_and_keeps_what_it_knew() {
     );
 }
 
+/// A blob-less clone of `source` with no checkout: it holds no blobs at all, and never fetches one.
+fn blobless(source: &Repo) -> Repo {
+    source.git(&["config", "uploadpack.allowFilter", "true"]);
+    let clone = Repo::new();
+    std::fs::remove_dir_all(clone.path()).expect("an empty place");
+    let url = format!("file://{}", source.path().display());
+    let cloned = Command::new("git")
+        .args(["clone", "-q", "--filter=blob:none", "--no-checkout", &url])
+        .arg(clone.path())
+        .env_remove("GIT_DIR")
+        .output()
+        .expect("git runs");
+    assert!(cloned.status.success(), "{}", String::from_utf8_lossy(&cloned.stderr));
+    clone
+}
+
+#[test]
+fn knows_the_newest_manifest_it_holds_when_it_resumes_as_a_read_from_the_root_does() {
+    let source = Repo::new();
+    source.write("package.json", r#"{"workspaces":["apps/*"]}"#);
+    source.write("apps/web/index.ts", "w");
+    source.commit("apps");
+    source.write("package.json", r#"{"workspaces":["apps/*","packages/*"]}"#);
+    source.write("packages/p/index.ts", "p");
+    source.commit("packages");
+    source.write("README.md", "r");
+    source.commit("readme");
+    source.write("package.json", r#"{"workspaces":["packages/*"]}"#);
+    source.commit("packages only");
+    std::fs::remove_file(source.path().join("package.json")).expect("a manifest");
+    source.commit("manifest goes");
+    source.write("package.json", r#"{"workspaces":["apps/*","tools/*"]}"#);
+    source.commit("manifest returns");
+    let clone = blobless(&source);
+    // Only the first manifest is put back; every later one is missing.
+    clone.write("first.json", r#"{"workspaces":["apps/*"]}"#);
+    clone.git(&["hash-object", "-w", "first.json"]);
+    let (whole, _) = collect(clone.path(), 0);
+    // The first manifest stands until the manifest goes; the one that returns cannot be read, and nothing is known.
+    let web = list(&["apps/web"]);
+    assert_eq!(
+        whole.iter().map(members).collect::<Vec<_>>(),
+        [web.clone(), web.clone(), web.clone(), web, None, None]
+    );
+    for from in 1..=5 {
+        let (resumed, _) = collect(clone.path(), from);
+        let tail: Vec<_> = whole[usize::try_from(from).expect("an index")..]
+            .iter()
+            .map(members)
+            .collect();
+        assert_eq!(
+            resumed.iter().map(members).collect::<Vec<_>>(),
+            tail,
+            "resumed at {from}"
+        );
+    }
+}
+
+#[test]
+fn looks_back_past_a_manifest_blob_a_full_clone_has_lost() {
+    let repo = Repo::new();
+    repo.write("package.json", r#"{"workspaces":["apps/*"]}"#);
+    repo.write("apps/web/index.ts", "w");
+    repo.commit("apps");
+    repo.write("package.json", r#"{"workspaces":["packages/*"]}"#);
+    repo.write("packages/p/index.ts", "p");
+    repo.commit("packages");
+    let lost = repo.git(&["hash-object", "package.json"]);
+    std::fs::remove_file(repo.path().join(".git/objects").join(&lost[..2]).join(&lost[2..])).expect("a loose blob");
+    let (snaps, events) = collect(repo.path(), 1);
+    assert_eq!(snaps.iter().map(members).collect::<Vec<_>>(), [list(&["apps/web"])]);
+    assert!(events.contains(&HistoryEvent::ManifestUnavailable {
+        path: "package.json".into(),
+        index: 1
+    }));
+}
+
 #[test]
 fn tells_whether_one_commit_is_in_another_s_history_counts_and_resolves_refs() {
     let repo = Repo::new();

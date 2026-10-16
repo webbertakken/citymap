@@ -113,8 +113,9 @@ JavaScript's orders are reproduced exactly:
 | `toSorted`, `sort` (stable)                         | `sort_by` (stable) with the same comparator                                                     |
 | `find`, `some`, `reduce` choosing the first or last | the same scan direction and tie rule                                                            |
 
-The records whose order shows in the output are a grid's `slots` (vacant lots are drawn in slot insertion order) and a
-town's `shares` (an old town's member map). A plat parsed from JSON inserts keys in text order, as `JSON.parse` does.
+No record's insertion order shows in the plat or the city: a plat parsed from JSON inserts keys in text order (sorted),
+as `JSON.parse` does, so a rule reads a record in `compare_keys` order (a grid's `slots` claims) or by index (vacant
+lots in slot order), never in the order it was made. A town's `shares` and an old town's member map are only looked up.
 
 ## JSON
 
@@ -177,7 +178,8 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
 - Manifest blobs are read through one `git cat-file --batch` per reader, one blob at a time as each commit asks for them
   (the blobs `Workspaces::wanted` names before the commit applies), the partial clone's held blobs listed once, a
   process that ends mid-answer replaced for the next blob, as in TypeScript. Commits that change no root manifest read
-  nothing.
+  nothing. A blob that cannot be read sends `resolve` back through the manifest's older blobs, newest first, read
+  through `read_more` (TypeScript reads them per chunk, `Workspaces.fallbacks`); the answer is the same.
 
 ## Security and observability
 
@@ -203,9 +205,15 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   studio-worker, game-ci-cli, livediagram, react; next.js with `--long`) runs both CLIs with `--no-history` and with a
   full fold, each writing `--out`, `--svg` and `--lock` (the fold) into its own temporary folder, and compares the files
   with `cmp`: city, SVG, lockfile, and the log with the summary's `ms=` blanked (`withoutTimings`).
+- The `resume` mode saves a lock part way and resumes from it, in both CLIs: each folds its clone to the commit
+  `resumePoint` names (`--to=<commit> --lock`), then folds on to HEAD with `--lock`. `resumePoint(commits)` is halfway
+  through the commits whose fold lays the same windows as the whole history (`foldSchedule` zones equal), so the lock is
+  one the uninterrupted fold could have saved. The CLIs' resumed outputs are compared with each other, and each CLI's
+  city, SVG and lock with its own `fold` outputs: `parity/resumed repo=… saved=… same` or
+  `parity/resume-differs repo=… saved=… files=<side>:<file>,…` (exit 1).
 - One line per run: `parity/same repo=… mode=… ts-ms=… rs-ms=…` or `parity/differs repo=… mode=… files=… …` (exit 1),
-  the second followed by `parity/kept … dir=…` where both runs' outputs stay; a missing repository is
-  `parity/skipped reason=no-repository`. The run ends with a Markdown table of outputs and timings.
+  the second followed by `parity/kept repo=… dir=…` where every mode's outputs for the repository stay; a missing
+  repository is `parity/skipped reason=no-repository`. The run ends with a Markdown table of outputs and timings.
 - A lockfile the TypeScript engine wrote checks a long fold without running TypeScript again: the Rust CLI folds a
   shared clone to the lock's commit with `--lock`, and its lockfile must be the same bytes.
 - The CLIs read and write `citymap.lock.json` at the repository root, so each run gets its own

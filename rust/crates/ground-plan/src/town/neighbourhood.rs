@@ -8,8 +8,8 @@ use crate::archetype::Form;
 use crate::city::BlockKind;
 use crate::constants::{BLOCK_LONG, BLOCK_SHORT, MODULE, PAVEMENT, RoadClass, U};
 use crate::fixed::{
-    DIRECTION, Dir, Poly, Pt, Rounding, area2, centroid, chord, clip, extent, floor_div, inset, longest_edge, mul_div,
-    negate, normalise, offset_for, perp, round_div,
+    DIRECTION, Dir, Poly, Pt, Rounding, area2, centroid, chord, clip, compare_keys, extent, floor_div, inset,
+    longest_edge, mul_div, negate, normalise, offset_for, perp, round_div,
 };
 use crate::land_use::LandUse;
 use crate::plat::{GridRecord, ParkLine, Slots};
@@ -459,7 +459,25 @@ pub fn neighbourhood(
     }
     let slot_index: HashMap<&str, usize> = slots.iter().enumerate().map(|(i, s)| (s.id.as_str(), i)).collect();
     let live: std::collections::HashSet<&str> = lots.iter().map(|l| &*l.key).collect();
-    // Renewal: when most remembered lots are vacant, the neighbourhood is re-laid in order.
+    // Remembered lots keep their slots while the grid still holds them. Records are read in key order, never in the order
+    // they were made: a plat read back from a lockfile holds the same records in another order.
+    let mut taken: Vec<Option<Arc<str>>> = vec![None; slots.len()];
+    let mut claims: Vec<(&Arc<str>, &String)> = g.slots.iter().collect();
+    claims.sort_by(|a, b| compare_keys(a.0, b.0));
+    for (lot_key, id) in claims {
+        if let Some(&i) = slot_index.get(id.as_str())
+            && taken[i].is_none()
+        {
+            taken[i] = Some(lot_key.clone());
+        }
+    }
+    g.slots.retain(|lot_key, id| {
+        slot_index
+            .get(id.as_str())
+            .is_some_and(|&i| taken[i].as_ref() == Some(lot_key))
+    });
+    // Renewal: when most remembered lots are vacant, the neighbourhood is re-laid in order. It is judged on the lots that
+    // keep their slots, so a lay leaves no renewal pending and laying the same commit again changes nothing.
     let remembered = g.slots.len();
     let vacant = g.slots.keys().filter(|k| !live.contains(&***k)).count();
     if remembered > 0 && vacant * 2 > remembered {
@@ -472,18 +490,8 @@ pub fn neighbourhood(
             ],
         );
         g.slots = Slots::new();
+        taken.fill(None);
     }
-    // Slot index to lot key, and the order the slots were taken in.
-    let mut taken: Vec<Option<Arc<str>>> = vec![None; slots.len()];
-    let mut taken_order: Vec<usize> = Vec::new();
-    g.slots.retain(|lot_key, id| match slot_index.get(id.as_str()) {
-        Some(&i) if taken[i].is_none() => {
-            taken[i] = Some(lot_key.clone());
-            taken_order.push(i);
-            true
-        }
-        _ => false,
-    });
     // Newcomers and displaced lots take the first free slot after their folder's last lot, else the first free one.
     let mut last_of_folder: HashMap<&str, i64> = HashMap::new();
     for lot in lots {
@@ -513,7 +521,6 @@ pub fn neighbourhood(
                 continue;
             }
             taken[i] = Some(lot.key.clone());
-            taken_order.push(i);
             g.slots.insert(lot.key.clone(), slots[i].id.clone());
             let entry = last_of_folder.entry(folder).or_insert(-1);
             *entry = (*entry).max(count_of(i));
@@ -538,8 +545,11 @@ pub fn neighbourhood(
         ctx.lot_area2 += area2(&slot.pts);
         placed += 1;
     }
-    for &i in &taken_order {
-        let lot_key = taken[i].as_ref().expect("a taken slot holds its lot");
+    // Vacant lots in slot order.
+    for (i, lot_key) in taken.iter().enumerate() {
+        let Some(lot_key) = lot_key else {
+            continue;
+        };
         if live.contains(&**lot_key) {
             continue;
         }

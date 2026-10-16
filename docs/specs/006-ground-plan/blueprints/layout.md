@@ -155,12 +155,15 @@ recurse as `path>L`, `path>R` with their own district seeds.
    hold fewer than the lots and a fresh grid on today's land holds more, the grid record is dropped and the
    neighbourhood lays afresh, logging `plat/regrid` (key). Nothing is drawn until this is settled.
 8. Street village order: slots by row distance from `high`, then serpentine index.
-9. Renewal: when remembered keys that are vacant are more than half of all remembered, log `plat/renew` and clear the
-   slots.
-10. Remembered lots keep their slots (a slot gone frees its lot); newcomers take the first free slot after their
-    folder's last lot, else the first free slot; none free is overflow. Vacant remembered lots draw as vacant.
-11. Blocks: `green` for the green cell, `built` for used cells, `reserve` otherwise.
-12. Address: issued at first placement as `${key}:${r}.${c}.${h}.${k}` (row, block, side, index along it) into
+9. Remembered lots keep their slots: the `slots` record is read in `compareKeys` order of its lot keys, and a lot whose
+   slot is gone, or already claimed by a lot earlier in that order, loses its record (it places as a newcomer).
+10. Renewal: when the vacant lots among those that kept their slots are more than half of them, log `plat/renew` and
+    clear the slots. It is judged after step 9, so a lay leaves no renewal pending: laying the same commit again on the
+    plat it produced renews nothing.
+11. Newcomers take the first free slot after their folder's last lot, else the first free slot; none free is overflow.
+    Vacant remembered lots draw as vacant, in slot order.
+12. Blocks: `green` for the green cell, `built` for used cells, `reserve` otherwise.
+13. Address: issued at first placement as `${key}:${r}.${c}.${h}.${k}` (row, block, side, index along it) into
     `plat.addresses[lotKey]`, never changed after.
 
 ## Park, reserve, wards

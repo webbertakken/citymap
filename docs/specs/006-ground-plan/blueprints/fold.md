@@ -16,6 +16,13 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
 - `foldHistory` lays every snapshot it is given in order and returns the last city; which commits become snapshots is
   the reader's fold schedule. With `start` (a lockfile), the first snapshot must be the lockfile's commit; it is laid
   once to restore runtime state (`last` towns) before folding on.
+- **Resumption is exact**: the lockfile carries every record of the plat but not the order the records were made in
+  (canonical JSON sorts keys; a parsed plat holds them sorted), and the runtime state (`last` towns, the locality cache)
+  is rebuilt by laying the lock's commit again. Both are exact only because no rule reads a plat record in insertion
+  order (records are read in `compareKeys` order, or by slot index) and every lay is settled: laying a snapshot again on
+  the plat its lay produced decides nothing and draws the same city, and `last` holds only the towns the last lay laid.
+  A rule that judges the plat must judge it as the lay leaves it (renewal is judged after slots that are gone are
+  dropped).
 - **Locality cache**: a fold carries, per town, the last result of laying out each folder: the folder's content digest
   (a 64-bit hash of its lots, docs and children's digests), its land polygon and widths, its district seed, and the
   town's constants (options, land area, root). When all match on the next lay, and the folder's own plat record (its
@@ -46,8 +53,12 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
   patterns parsed: JSON `workspaces` (array or `{ packages }`), `packages` in pnpm and Lerna, `[workspace] members` and
   `exclude`, `go.work` `use`, `[tool.uv.workspace] members` and `exclude`, Deno `workspace`. Patterns are globs (`*`,
   `**`, `!` negation) matched against the folders of the tree; `snapshot.workspaces` lists the matching folders that
-  hold files, sorted. A blob that cannot be read (a blob-less clone never fetches) logs `history/manifest-unavailable`
-  and leaves the patterns as they were; no manifest at all leaves `workspaces` out.
+  hold files, sorted. A blob that cannot be read (a blob-less clone never fetches) logs `history/manifest-unavailable`,
+  and the manifest is known by its newest blob the repository holds since the manifest was last added (`Workspaces`
+  keeps each manifest's blob ids since then; `fallbacks` names the older blobs of a manifest whose wanted blob could not
+  be read, the chunk reads them in one more pass, and `resolve` takes the newest that reads); when it holds none, the
+  manifest declares nothing. What a read knows is thus a function of the history alone, and a read that begins at a
+  lock's commit knows what a read from the root knows. No manifest at all leaves `workspaces` out.
 - Manifest blobs are read through one `git cat-file --batch`, pipelined: each chunk of the log asks for the blobs its
   snapshots need (`Workspaces.wanted` takes the schedule's `isLaid`; a manifest changed twice between two snapshots is
   read once, at its later blob, and one changed inside a window is resolved at the window's end). In a partial clone,
@@ -195,6 +206,11 @@ Every spec rule maps to a test, named after the rule (traceability table in the 
   a window, a resume, and `history/schedule`.
 - **Property**: determinism (lay twice, compare serialised output); plat round-trip; locality (a commit touching one
   folder leaves every other folder's lots in place); no lot overlaps another (sampled point-in-polygon).
+- **Resumption** (`fold.test.ts`, ported to Rust): on a synthetic history with deletions, renewals and a root switch, a
+  lay from a plat read back from a lockfile (sorted records, fresh locality cache) draws the same city and plat as from
+  the plat it was written from; laying each commit again on the plat its lay produced changes nothing; and a fold
+  resumed from a lock saved at several commits writes the uninterrupted fold's lock. On the corpus, `bun run parity`
+  resumes each fold from a lock saved part way, in both CLIs (Rust blueprint § Parity).
 - **Golden**: `toMatchFileSnapshot` city JSON for three small fixtures (hamlet, twin, radial) and the takken.io HEAD
   snapshot, outside the formatter.
 - **Corpus** (local, not in CI): the reference repositories' HEAD stats and stability (per-step and deleting-step

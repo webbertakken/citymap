@@ -9,9 +9,16 @@ export interface ManifestUnavailable {
 
 const folderOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")));
 
+/** A commit's changed paths, as `wanted` and `fallbacks` read them. */
+interface Changes {
+  readonly entries: readonly { readonly path: string; readonly blob: string; readonly status: string }[];
+}
+
 export class Workspaces {
   /** Root manifests changed since the last snapshot: the new blob, or null when the manifest went. */
   private readonly pending = new Map<string, string | null>();
+  /** Each root manifest's blobs since it was last added, oldest first. */
+  private readonly chains = new Map<string, string[]>();
   /** The patterns of each root manifest read so far (null: it declares none). */
   private readonly known = new Map<string, Patterns | null>();
   /** Folders other than the root holding files, and how many files are beneath each. */
@@ -21,7 +28,10 @@ export class Workspaces {
 
   /** Notes a changed path: a root manifest's new blob, or null when it was deleted. */
   touch(path: string, blob: string | null) {
-    if (isManifest(path)) this.pending.set(path, blob);
+    if (!isManifest(path)) return;
+    this.pending.set(path, blob);
+    if (blob === null) this.chains.delete(path);
+    else this.chains.set(path, [...(this.chains.get(path) ?? []), blob]);
   }
 
   /** Counts a file that arrived at `path`. */
@@ -48,13 +58,7 @@ export class Workspaces {
    * The manifest blobs that `resolve` will read over these commits (the first at `index`), given that only the laid ones
    * are resolved: a manifest changed twice between two of them is read once, at its later blob.
    */
-  wanted(
-    commits: readonly {
-      readonly entries: readonly { readonly path: string; readonly blob: string; readonly status: string }[];
-    }[],
-    index: number,
-    laid: (index: number) => boolean,
-  ): string[] {
+  wanted(commits: readonly Changes[], index: number, laid: (index: number) => boolean): string[] {
     const pending = new Map(this.pending);
     const blobs = new Set<string>();
     commits.forEach((commit, i) => {
@@ -67,7 +71,41 @@ export class Workspaces {
     return [...blobs];
   }
 
-  /** The declared members at commit `index`, from the manifests changed since the last call; undefined: none. */
+  /**
+   * The older blobs `resolve` may look back to over these commits: every earlier blob, since the manifest was last added,
+   * of a manifest whose wanted blob cannot be read (`texts`), and that `texts` does not hold yet.
+   */
+  fallbacks(
+    commits: readonly Changes[],
+    index: number,
+    laid: (index: number) => boolean,
+    texts: ReadonlyMap<string, string | null>,
+  ): string[] {
+    const pending = new Map(this.pending);
+    const chains = new Map(this.chains);
+    const blobs = new Set<string>();
+    commits.forEach((commit, i) => {
+      for (const entry of commit.entries) {
+        if (!isManifest(entry.path)) continue;
+        const blob = entry.status === "D" ? null : entry.blob;
+        pending.set(entry.path, blob);
+        if (blob === null) chains.delete(entry.path);
+        else chains.set(entry.path, [...(chains.get(entry.path) ?? []), blob]);
+      }
+      if (!laid(index + i)) return;
+      for (const [path, blob] of pending)
+        if (blob !== null && typeof texts.get(blob) !== "string")
+          for (const older of chains.get(path)!.slice(0, -1)) if (!texts.has(older)) blobs.add(older);
+      pending.clear();
+    });
+    return [...blobs];
+  }
+
+  /**
+   * The declared members at commit `index`, from the manifests changed since the last call; undefined: none. A manifest
+   * whose blob cannot be read is known by its newest blob the repository holds since it was last added (`texts` holds
+   * the `fallbacks`), so what a read knows depends on the history alone, never on the commit it began at.
+   */
   resolve(
     texts: ReadonlyMap<string, string | null>,
     index: number,
@@ -75,17 +113,23 @@ export class Workspaces {
   ): readonly string[] | undefined {
     let changed = false;
     for (const [path, blob] of [...this.pending].toSorted(([a], [b]) => compareKeys(a, b))) {
+      changed = true;
       if (blob === null) {
         this.known.delete(path);
-        changed = true;
         continue;
       }
-      const text = texts.get(blob);
-      if (typeof text !== "string") onEvent({ code: "history/manifest-unavailable", detail: { path, index } });
-      else {
-        this.known.set(path, patternsOf(path, text));
-        changed = true;
+      let text = texts.get(blob);
+      if (typeof text !== "string") {
+        onEvent({ code: "history/manifest-unavailable", detail: { path, index } });
+        text = this.chains
+          .get(path)!
+          .slice(0, -1)
+          .toReversed()
+          .map((older) => texts.get(older))
+          .find((older) => typeof older === "string");
       }
+      if (typeof text === "string") this.known.set(path, patternsOf(path, text));
+      else this.known.delete(path);
     }
     this.pending.clear();
     const patterns = [...this.known.values()].filter((p): p is Patterns => p !== null);

@@ -47,13 +47,15 @@ Reference: `docs/research/city-layout/variants/region.ts`. Module: `packages/gro
 
 ## Archetype switch and old towns
 
-- On a switch, the part's last laid town (`plat.last[key]`, the warped geometry) is frozen as an old town where it
-  stood: name `"${name} old town"` (then `old town 2`, …), key made the same way from the part's key, `old: true`. Its
-  member map holds, per lot key, the lot's share members (or the key itself).
+- On a switch, the part's town as the previous lay laid it (`state.last[key]`, the warped geometry) is frozen as an old
+  town where it stood: name `"${name} old town"` (then `old town 2`, …), key made the same way from the part's key,
+  `old: true`. Its member map holds, per lot key, the lot's share members (or the key itself).
 - Every town in a city has a key of its own; `parseCity` rejects a repeated key (`city/bad-shape` at `/towns`).
 - The part's `TownPlat` is reset to empty; its tree is rebuilt without the old towns' files.
 - Each frame, an old town's lot is vacant unless one of its members is alive.
-- `plat.last` is runtime state: it is not serialised. The lockfile stores old towns whole.
+- `state.last` is runtime state: it is not serialised. It holds the towns the last lay laid and nothing else, so a part
+  that had no land then (not laid) freezes nothing on a switch, and laying the same commit again rebuilds it exactly.
+  The lockfile stores old towns whole.
 
 ## Stats
 

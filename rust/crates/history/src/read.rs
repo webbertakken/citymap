@@ -433,7 +433,9 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
             tree.folder_map = None;
         }
         let snapshot = if laid(*index) {
-            let workspaces = tree.workspaces.resolve(&texts, *index, &mut on_event);
+            let workspaces = tree
+                .workspaces
+                .resolve(&texts, *index, &mut on_event, &mut |older| blobs.read_all(older))?;
             Some(Snapshot {
                 repository: repository.to_owned(),
                 commit: commit.sha,
