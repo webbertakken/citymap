@@ -47,14 +47,16 @@ touches the fold and the plat: rebase onto main when it merges.
 
 - [x] Port options, tree, classify, tiers, decide, corridor, waterway, archipelago, quarters, plat, city, themes, SVG
 - [x] Rust tests ported; `bun run rust:check`
-- [ ] `bun run parity` with the defaults, each toggle alone, and none
-- [ ] Commit
+- [x] `bun run parity` with the defaults, each toggle alone, and none
+- [x] Commit
 
 ## Phase 4: bundled variants
 
-- [ ] `scripts/bundle/bundle.ts` (combinations, names, index) test-first; `scripts/bundle-cities.ts` lays all sixteen
-- [ ] Lay the six bundled cities; measure the size on GitHub Pages (raw and gzip); surface the trade-off if unreasonable
-- [ ] Commit
+- [x] `scripts/bundle/bundle.ts` (combinations, names, index) test-first; `scripts/bundle-cities.ts` lays all sixteen
+- [x] Lay the six bundled cities; measure the size on GitHub Pages (raw and gzip); surface the trade-off if unreasonable
+      (96 variants: 62.2 MB raw, 10.0 MB gzipped, 1.7 MB in a git pack; one variant at a time, 35 to 320 kB gzipped:
+      reasonable, no question)
+- [x] Commit
 
 ## Phase 5: viewer
 
