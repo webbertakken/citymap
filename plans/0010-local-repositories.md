@@ -7,9 +7,9 @@ Spec: [local repositories](../docs/specs/007-local-repositories/local-repositori
 
 - [x] Webber's choice: picking a folder only; the companion is held (mkcert, should it come)
 - [x] Spec: opening one, what is read, the city, failures, privacy, what is not now
-- [ ] Research: folder access in Chromium, Firefox and Safari as shipped today; git index versions and extensions in the
+- [x] Research: folder access in Chromium, Firefox and Safari as shipped today; git index versions and extensions in the
       wild (the reference corpus clones); `.gitignore` matching libraries (licence, size, correctness)
-- [ ] Blueprint: the git index reader (versions 2 to 4, extensions skipped or refused by name), the folder reader per
+- [x] Blueprint: the git index reader (versions 2 to 4, extensions skipped or refused by name), the folder reader per
       browser, the remembered folder, the `.gitignore` path, the snapshot builder (`stateSnapshot`), error codes, logs;
       defaults and completeness
 
