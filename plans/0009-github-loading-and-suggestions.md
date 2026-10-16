@@ -9,7 +9,7 @@ A progress card over the map while anything loads, and repository suggestions af
       (source, ranking, shape, caching, the shared hourly allowance, failures)
 - [x] Blueprint: the progress model (phases, weights, monotonic fraction, estimate), its events from the reader, the
       worker and the scene; the suggestion sources and their requests; error codes; defaults and completeness
-- [ ] Measure the phases on linux, next.js, react and takken.io (requests, folders, files, worker and scene times on a
+- [x] Measure the phases on linux, next.js, react and takken.io (requests, folders, files, worker and scene times on a
       laptop and a 4x slowed phone), to set the weights
 
 ## Phase 2: progress at its sources
@@ -20,7 +20,7 @@ A progress card over the map while anything loads, and repository suggestions af
       (byte-identical lay; Rust parity unaffected, the callback is TypeScript only or mirrored as a no-op)
 - [x] The layout worker posts progress at most every 100 ms and can be ended
 - [x] Bundled city and file loads report bytes of bytes
-- [ ] Building the scene for linux: measure; move it to the worker if it blocks the main thread for over 200 ms
+- [x] Building the scene for linux: measure; move it to the worker if it blocks the main thread for over 200 ms
 
 ## Phase 3: the progress card
 
