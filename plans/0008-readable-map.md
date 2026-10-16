@@ -41,7 +41,7 @@ Plan view only, hover cards that say what things are and never cut their text, a
 
 ## Phase 6: proof
 
-- [ ] Unit tests at 100 %; `bun run check`
+- [x] Unit tests at 100 %; `bun run check`
 - [x] End-to-end: cards at all four map edges with a long path (none clipped, all inside the map), axe light and dark
       with a card shown, vitals, card overlap at every width
 - [x] Screenshots of each card kind, light and dark, on linux and takken.io
