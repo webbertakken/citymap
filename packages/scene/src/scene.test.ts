@@ -134,6 +134,12 @@ describe("buildScene", () => {
       expect(Math.max(...layer.indices)).toBeLessThan(layer.positions.length / 3);
     }
     expect(scene.labels[0]).toMatchObject({ text: "DEMO", size: "town" });
+    // A label knows how much land it names: the smaller side of its town's or district's bounding box.
+    const xs = city.towns[0]!.outline.map((p) => p.x);
+    const ys = city.towns[0]!.outline.map((p) => p.y);
+    const side = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 64;
+    expect(scene.labels[0]!.extent).toBeCloseTo(side, 9);
+    expect(scene.labels.every((l) => l.extent > 0)).toBe(true);
     expect(scene.bounds.max.x).toBeGreaterThan(scene.bounds.min.x);
   });
 

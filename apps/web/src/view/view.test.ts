@@ -86,16 +86,40 @@ describe("declutter", () => {
     const view: View = { mode: "plan", centre: { x: 0, z: 0 }, zoom: 10 };
     const kept = declutter(
       [
-        { text: "TOWN", x: 0, z: 0, size: "town" },
-        { text: "CLASH", x: 0.5, z: 0, size: "district" },
-        { text: "east", x: 30, z: 0, size: "minor" },
-        { text: "far", x: 900, z: 0, size: "minor" },
+        { text: "TOWN", x: 0, z: 0, size: "town", extent: 40 },
+        { text: "CLASH", x: 0.5, z: 0, size: "district", extent: 40 },
+        { text: "east", x: 30, z: 0, size: "minor", extent: 40 },
+        { text: "far", x: 900, z: 0, size: "minor", extent: 40 },
       ],
       view,
       viewport,
     );
     expect(kept.map((l) => l.text)).toEqual(["TOWN", "east"]);
     expect(kept[0]).toMatchObject({ left: 500, top: 250 });
+  });
+
+  it("names a district only when its land on screen is wide enough for the name", () => {
+    // "WIDE" is 4 characters of 13 px: about 32 px of text at the fit share; its district spans 10 u, 100 px.
+    const view: View = { mode: "plan", centre: { x: 0, z: 0 }, zoom: 10 };
+    const labels = [
+      { text: "WIDE", x: -20, z: 0, size: "district", extent: 10 },
+      { text: "narrow-and-long", x: 2, z: 0, size: "minor", extent: 2 },
+      { text: "SMALL TOWN", x: 0, z: 15, size: "town", extent: 0.5 },
+    ] as const;
+    expect(declutter(labels, view, viewport).map((l) => l.text)).toEqual(["WIDE", "SMALL TOWN"]);
+    // Zoomed in fivefold, the narrow district has room for its name.
+    expect(declutter(labels, { ...view, zoom: 50 }, viewport).map((l) => l.text)).toContain("narrow-and-long");
+  });
+
+  it("does not repeat a name close to where it is already shown", () => {
+    const view: View = { mode: "plan", centre: { x: 0, z: 0 }, zoom: 10 };
+    const labels = [
+      { text: "TEMPLATES", x: 0, z: 0, size: "district", extent: 20 },
+      { text: "TEMPLATES", x: 10, z: 10, size: "district", extent: 20 },
+      { text: "TEMPLATES", x: 40, z: 0, size: "district", extent: 20 },
+    ] as const;
+    // The second sits about 141 px from the first, inside the 240 px reach; the third, 400 px away, is shown.
+    expect(declutter(labels, view, viewport).map((l) => l.left)).toEqual([500, 900]);
   });
 });
 

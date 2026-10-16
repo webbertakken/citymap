@@ -131,16 +131,27 @@ export interface Placed extends Label {
 
 const FONT: Readonly<Record<Label["size"], number>> = { town: 20, district: 13, minor: 11 };
 
-/** The labels that fit, in order: each kept only if it lies inside the viewport and clear of every one kept before. */
+/** A district's name shows once its land on screen is at least this share of the name's width. */
+export const LABEL_FIT = 0.6;
+/** A name is not shown again within this many pixels of where it already is. */
+export const REPEAT_PX = 240;
+
+/**
+ * The labels that fit, in order: each kept only if it lies inside the viewport, a district's land is wide enough on
+ * screen for its name, the same name is not already shown nearby, and it is clear of every one kept before.
+ */
 export function declutter(labels: readonly Label[], view: View, viewport: Viewport): Placed[] {
   const kept: Placed[] = [];
   const boxes: [number, number, number, number][] = [];
   for (const label of labels) {
     const at = project(view, viewport, { x: label.x, y: 0, z: label.z });
     const size = FONT[label.size];
-    const half = (label.text.length * size * 0.62 + 8) / 2;
+    const width = label.text.length * size * 0.62;
+    const half = (width + 8) / 2;
     const box: [number, number, number, number] = [at.x - half, at.y - size / 2 - 3, at.x + half, at.y + size / 2 + 3];
     if (box[0] < 0 || box[1] < 0 || box[2] > viewport.width || box[3] > viewport.height) continue;
+    if (label.size !== "town" && label.extent * view.zoom < width * LABEL_FIT) continue;
+    if (kept.some((k) => k.text === label.text && Math.hypot(k.left - at.x, k.top - at.y) < REPEAT_PX)) continue;
     if (boxes.some((b) => b[0] < box[2] && box[0] < b[2] && b[1] < box[3] && box[1] < b[3])) continue;
     boxes.push(box);
     kept.push({ ...label, left: at.x, top: at.y });
