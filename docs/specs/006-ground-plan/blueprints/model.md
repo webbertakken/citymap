@@ -153,7 +153,7 @@ interface OldTown {
   `migrate<N>` functions (each from version N to N + 1), each tested on a stored fixture. Version 1 has none.
 - **Lockfile**: `citymap.lock.json` at the repository root holds `{ commit, plat }`; when present and its commit is an
   ancestor-or-equal of the laid commit, the fold starts from it instead of commit 0. It is written at the end of a fold
-  and every 1,000 laid commits along the way.
+  and every 1,000 laid snapshots along the way.
 
 ## City model (output)
 

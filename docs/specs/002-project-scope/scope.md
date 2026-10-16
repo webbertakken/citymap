@@ -7,8 +7,8 @@ The first deliverable is the **ground plan**: the city without buildings, as def
 
 - **Input**: a git repository, read as its first-parent history plus its current tree.
 - **Ground plan**: districts, streets, blocks, lots, islands, water, parks and plazas, derived deterministically.
-- **Stability**: the plan is folded over history, so each commit changes the city only where the commit changed the
-  tree.
+- **Stability**: the plan is folded over history, recent commits one by one and older ones in windows, so each step
+  changes the city only where its commits changed the tree.
 - **Archetypes**: each folder picks an urban form and a tier from its shape, with hysteresis.
 - **Rendering**: one 3D scene in Three.js with an orthographic camera (plan view by default, 2:1 dimetric on demand) in
   the Paper atlas style, plus SVG export from the same model. Themes: Paper atlas, Night atlas, Beck schematic, Nolli

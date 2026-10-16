@@ -45,9 +45,9 @@ Each TypeScript module has one Rust module of the same name (snake case); functi
 | `fold/`                                                                    | `fold.rs`                                                                                                   |
 | `organic/` (delaunay, regions)                                             | `organic/` (same names)                                                                                     |
 
-`packages/history/src/{read,tree,blobs,manifests,workspaces,ancestry,env}.ts` map to `citymap-history`'s modules of the
-same names; `packages/themes/src/{themes,colour}.ts` to `citymap-themes`; `packages/svg/src/render.ts` to `citymap-svg`;
-`apps/cli/src/{args,run,main,bin}.ts` to `citymap-cli`'s `args.rs`, `run.rs` and `main.rs`.
+`packages/history/src/{read,schedule,tree,blobs,manifests,workspaces,ancestry,env}.ts` map to `citymap-history`'s
+modules of the same names; `packages/themes/src/{themes,colour}.ts` to `citymap-themes`; `packages/svg/src/render.ts` to
+`citymap-svg`; `apps/cli/src/{args,run,main,bin}.ts` to `citymap-cli`'s `args.rs`, `run.rs` and `main.rs`.
 
 ## Types
 
@@ -169,6 +169,9 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
 - `read_history` runs `git log` on a reader thread that parses commits, applies them to the tree state and sends
   snapshots over a bounded channel (`SNAPSHOT_QUEUE` = 64); the fold lays them in order on the calling thread. A
   snapshot shares its file list and folder map (`Arc`) with the previous one while a commit only edits files.
+- The fold schedule is `schedule.rs` (`Strides`, `FOLD_STRIDES`, `fold_schedule`, `is_laid`, `laid_count`), the same
+  arithmetic and rejections as `schedule.ts`; `read_history` resolves the target and counts its commits
+  (`count_commits`) before the log, sends `HistoryEvent::Schedule` first, and builds a snapshot only for a laid commit.
 - The tree state is a `BTreeMap` by path, so the sorted file list is its iteration.
 - Manifest blobs are read through one `git cat-file --batch` per reader, one blob at a time as each commit asks for them
   (the blobs `Workspaces::wanted` names before the commit applies), the partial clone's held blobs listed once, a
@@ -190,7 +193,7 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   Messages and the usage text are the TypeScript ones.
 - `run.rs` takes an `Io` trait (read file, write file, log, clock) as `Io` is injected in TypeScript.
 - Exit codes: 0 success, 2 usage (with the usage on standard error), 1 any other failure. The summary line is
-  `fold/done repository=… commits=… lots=… overflow=… ms=…`.
+  `fold/done repository=… commits=… laid=… lots=… overflow=… ms=…`.
 
 ## Parity
 

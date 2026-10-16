@@ -1,6 +1,6 @@
 # Fold, history and operations
 
-Derived from [ground plan](../ground-plan.md) § Input, Deletion, Invariants and
+Derived from [ground plan](../ground-plan.md) § Input, Fold schedule, Deletion, Invariants and
 [architecture](../../003-system-architecture/architecture.md). Modules: `packages/ground-plan/src/fold/`,
 `packages/history/src/`.
 
@@ -13,8 +13,9 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
 
 - `layCity` is pure: it copies the plat (structural sharing allowed, never mutation of the input) and returns the new
   one. Same inputs, same outputs, bit for bit.
-- `foldHistory` lays every snapshot in order and returns the last city. With `start` (a lockfile), the first snapshot
-  must be the lockfile's commit; it is laid once to restore runtime state (`last` towns) before folding on.
+- `foldHistory` lays every snapshot it is given in order and returns the last city; which commits become snapshots is
+  the reader's fold schedule. With `start` (a lockfile), the first snapshot must be the lockfile's commit; it is laid
+  once to restore runtime state (`last` towns) before folding on.
 - **Locality cache**: a fold carries, per town, the last result of laying out each folder: the folder's content digest
   (a 64-bit hash of its lots, docs and children's digests), its land polygon and widths, its district seed, and the
   town's constants (options, land area, root). When all match on the next lay, and the folder's own plat record (its
@@ -28,9 +29,13 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
 
 ## History (`packages/history`)
 
-- `readHistory(repoDir, { from?, to = "HEAD" })` yields snapshots, oldest first, from **one** streaming process:
-  `git -c core.quotepath=off log --first-parent --reverse --diff-merges=first-parent --raw -z --no-renames --no-abbrev --format=%x00%H%x00%ct <to>`.
-  Arguments are an array; `repoDir` must be an existing directory (`history/not-a-repo`).
+- `readHistory(repoDir, { from?, to = "HEAD", strides? })` yields snapshots, oldest first, of the commits the fold
+  schedule lays (§ Fold schedule), from **one** streaming process:
+  `git -c core.quotepath=off log --first-parent --reverse --diff-merges=first-parent --raw -z --no-renames --no-abbrev --format=%x01%H <commit> --`.
+  Arguments are an array; `repoDir` must be an existing directory (`history/not-a-repo`). Before the log, `to` is
+  resolved to its commit (`resolveCommit`) and the commits are counted on that commit (`countCommits`), so the count and
+  the log walk the same history even when a ref moves.
+- Every commit applies to the tree state; a commit the schedule does not lay builds no snapshot.
 - The tree state is a sorted map path → { blob, identity, firstSeen }; each commit's raw entries apply in order: `A`
   adds (identity `${path}@${index}`), `D` deletes, `M`/`T` keep identity. Exact renames: within one commit, deleted and
   added paths with equal blob ids pair up in `compareKeys` order of the added path; the added path takes the deleted
@@ -44,10 +49,11 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
   hold files, sorted. A blob that cannot be read (a blob-less clone never fetches) logs `history/manifest-unavailable`
   and leaves the patterns as they were; no manifest at all leaves `workspaces` out.
 - Manifest blobs are read through one `git cat-file --batch`, pipelined: each chunk of the log asks for the blobs its
-  snapshots need (a manifest changed twice between two snapshots is read once). In a partial clone, where asking for a
-  missing blob costs git seconds, the blobs it holds are listed once (`--batch-all-objects`) and only those are asked
-  for. A batch process that exits mid-answer (git before 2.44 on a failed fetch) marks that blob unavailable and the
-  rest go to a fresh one.
+  snapshots need (`Workspaces.wanted` takes the schedule's `isLaid`; a manifest changed twice between two snapshots is
+  read once, at its later blob, and one changed inside a window is resolved at the window's end). In a partial clone,
+  where asking for a missing blob costs git seconds, the blobs it holds are listed once (`--batch-all-objects`) and only
+  those are asked for. A batch process that exits mid-answer (git before 2.44 on a failed fetch) marks that blob
+  unavailable and the rest go to a fresh one.
 - A single state: `readTree(dir, commit)` reads one commit's tree (`git ls-tree -r`) as a snapshot at index 0, every
   file and folder born at 0 (`identity = path@0`), submodules skipped, members from its root manifests. The CLI's
   `--no-history` lays it once instead of folding (no lock): the scale corpus is shown this way.
@@ -55,30 +61,78 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
   so a blob-less clone never fetches.
 - Every git call clears the variables a git hook sets (`GIT_DIR`, `GIT_INDEX_FILE` and the like), so a fold run from a
   hook reads the folder it was given.
-- Failures: `history/git-failed` (exit code, stderr's first line), `history/parse` (offset).
+- Failures: `history/git-failed` (exit code, stderr's first line), `history/parse` (offset), `history/bad-schedule` (a
+  count or strides the schedule cannot use).
+
+## Fold schedule
+
+Module: `packages/history/src/schedule.ts`; spec: [ground plan](../ground-plan.md) § Fold schedule.
+
+```ts
+interface Strides {
+  readonly tail: number; // TAIL_COMMITS: the tail holds at least this many commits
+  readonly window: number; // WINDOW: the stride before the tail
+  readonly coarseAfter: number; // COARSE_AFTER: commits older than the last this many take the coarse stride
+  readonly coarseWindow: number; // COARSE_WINDOW: the stride of the oldest commits
+  readonly grain: number; // ZONE_GRAIN: zone boundaries are multiples of it
+}
+const FOLD_STRIDES: Strides; // { tail: 1000, window: 100, coarseAfter: 10_000, coarseWindow: 1000, grain: 1000 }
+interface FoldSchedule {
+  readonly commits: number;
+  readonly coarseEnd: number;
+  readonly tailStart: number;
+  readonly strides: Strides;
+}
+function foldSchedule(commits: number, strides?: Strides): FoldSchedule;
+function isLaid(schedule: FoldSchedule, index: number, from?: number): boolean;
+function laidCount(schedule: FoldSchedule, from?: number): number;
+function countCommits(dir: string, commit: string): Promise<number>; // ancestry.ts
+```
+
+- `foldSchedule` is pure. `tailStart = max(0, floor((commits - tail) / grain) * grain)` and
+  `coarseEnd = max(0, floor((commits - coarseAfter) / grain) * grain)`; `coarseEnd <= tailStart` holds whenever
+  `coarseAfter >= tail`.
+- `isLaid(schedule, index, from = 0)`: `index === from`, or `index > from` and either `index >= tailStart` or
+  `(index + 1) % stride === 0`, where the stride is `coarseWindow` below `coarseEnd` and `window` otherwise. The first
+  laid index (the lock's commit on a resume, or 0) is always laid; every index from `tailStart` on is laid, so the last
+  commit is too, and so is any commit beyond the count.
+- `laidCount(schedule, from = 0)`: how many indices from `from` to `commits - 1` are laid; 0 when `from >= commits`.
+- Rejections, all `history/bad-schedule` with the offending field: `commits` not a non-negative safe integer; a stride
+  field not a positive safe integer; `grain` not a multiple of `window` and of `coarseWindow` (a window would straddle a
+  zone boundary); `coarseAfter` below `tail`.
+- `countCommits` runs `git rev-list --first-parent --count <commit> --` and returns the number it prints; a failure is
+  `history/git-failed`.
+- `readHistory` builds the schedule with `options.strides ?? FOLD_STRIDES`, emits `history/schedule` before the first
+  snapshot, and lays `isLaid(schedule, index, from)`. `strides` is an option for tests and measurements; a stride larger
+  than the history (`tail` at `Number.MAX_SAFE_INTEGER`) folds every commit.
+- Snapshot indices are commit indices: a window's snapshot has its last commit's index and commit id, and its files keep
+  the indices of the commits they first appeared at.
 
 ## Observability
 
 Every decision point emits a structured event, collected in `events` and printed by the CLI with `--verbose`; the
 fingerprint is the first token:
 
-| Event                    | When                                                             |
-| ------------------------ | ---------------------------------------------------------------- |
-| `plat/switch`            | a folder's form changes (path, from, to, mass)                   |
-| `plat/recut`             | a remembered cut moves (key, reason, demands, caps)              |
-| `plat/radial-resector`   | a radial layout re-sectors (path)                                |
-| `plat/renew`             | a neighbourhood renews (key, vacant, remembered)                 |
-| `plat/narrow`            | a neighbourhood narrows its lot class (key, from, to)            |
-| `plat/regrid`            | a neighbourhood lays its grid afresh (key)                       |
-| `plat/reclass`           | a laid road changes class with its land's tier (key, from, to)   |
-| `plat/repark`            | a neighbourhood lays its park line afresh to seat its lots (key) |
-| `plat/grow`              | a town's outline grows (key, from, to)                           |
-| `plat/old-town`          | an archetype switch freezes an old town (key, from, to, lots)    |
-| `plat/forget`            | remembered records are dropped (key, count)                      |
-| `town/overflow`          | lots without room (key, count)                                   |
-| `history/skip-submodule` | a submodule entry is skipped (path)                              |
+| Event                          | When                                                                 |
+| ------------------------------ | -------------------------------------------------------------------- |
+| `plat/switch`                  | a folder's form changes (path, from, to, mass)                       |
+| `plat/recut`                   | a remembered cut moves (key, reason, demands, caps)                  |
+| `plat/radial-resector`         | a radial layout re-sectors (path)                                    |
+| `plat/renew`                   | a neighbourhood renews (key, vacant, remembered)                     |
+| `plat/narrow`                  | a neighbourhood narrows its lot class (key, from, to)                |
+| `plat/regrid`                  | a neighbourhood lays its grid afresh (key)                           |
+| `plat/reclass`                 | a laid road changes class with its land's tier (key, from, to)       |
+| `plat/repark`                  | a neighbourhood lays its park line afresh to seat its lots (key)     |
+| `plat/grow`                    | a town's outline grows (key, from, to)                               |
+| `plat/old-town`                | an archetype switch freezes an old town (key, from, to, lots)        |
+| `plat/forget`                  | remembered records are dropped (key, count)                          |
+| `town/overflow`                | lots without room (key, count)                                       |
+| `history/skip-submodule`       | a submodule entry is skipped (path)                                  |
+| `history/manifest-unavailable` | a root manifest blob cannot be read (path, index)                    |
+| `history/schedule`             | the fold schedule, once per read (commits, coarse, tail, from, laid) |
 
-Each run ends with one summary line: `fold/done repository=… commits=… lots=… overflow=… ms=…`.
+Each run ends with one summary line: `fold/done repository=… commits=… laid=… lots=… overflow=… ms=…`, where `commits`
+counts the commits the run folded (from the first laid index to the last, inclusive) and `laid` the snapshots it laid.
 
 ## Performance and limits
 
@@ -109,7 +163,7 @@ Each run ends with one summary line: `fold/done repository=… commits=… lots=
 - `bun run bench --folds` also folds the fast reference repositories (`FOLDS`: takken.io, redux, studio-worker,
   game-ci-cli, livediagram) in full, logging each fold's files without a lot beside a fresh lay of the same tree
   (`bench/fold repo commits overflow fresh`), and ratchets the folded total against `scripts/bench/fold-baseline.json`.
-- With `--lock`, the CLI saves the lock every `LOCK_EVERY` (1,000) laid commits as well as at the end, logging
+- With `--lock`, the CLI saves the lock every `LOCK_EVERY` (1,000) laid snapshots as well as at the end, logging
   `lock/saved`, so a long fold cut short resumes near where it stopped.
 - Limits: `MAX_FILES` (2,000,000) files per snapshot, checked by `layCity` (`snapshot/too-large`); `MAX_PATH_BYTES`
   (4,096 UTF-8 bytes) per path, checked as the reader admits a path (`snapshot/bad-path`), which also bounds a path's
@@ -131,6 +185,11 @@ Every spec rule maps to a test, named after the rule (traceability table in the 
   collapse, classify (every threshold and band), decide (fresh, remembered, recut, empty side), pinwheel guards, radial
   (decline cases, re-sector), twin, neighbourhood (green, high street, span, renewal, newcomers), placement, highways,
   old towns.
+- **Fold schedule**: zones and anchoring for the real strides (1,999 commits fold every commit; 2,000 and 77,277 take
+  windows), each window inside one zone, a fresh fold of one more commit adding one laid commit except at a boundary,
+  resumes, `laidCount` against a brute-force count, every rejection; the reader on small strides: laid indices, renames
+  chained inside a window, a file born and deleted inside one, births keeping their own index, a manifest changed inside
+  a window, a resume, and `history/schedule`.
 - **Property**: determinism (lay twice, compare serialised output); plat round-trip; locality (a commit touching one
   folder leaves every other folder's lots in place); no lot overlaps another (sampled point-in-polygon).
 - **Golden**: `toMatchFileSnapshot` city JSON for three small fixtures (hamlet, twin, radial) and the takken.io HEAD
