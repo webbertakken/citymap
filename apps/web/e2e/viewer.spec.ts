@@ -72,6 +72,9 @@ test("finds a file, flies to it and selects it", async ({ page, isMobile }, info
   );
   await page.keyboard.press("Enter");
   await expect(page.locator(".marker")).toBeVisible();
+  // The marker rings the place without hiding its name: names stack above it.
+  const layer = (selector: string) => page.locator(selector).evaluate((e) => Number(getComputedStyle(e).zIndex));
+  expect(await layer(".marker")).toBeLessThan(await layer(".labels"));
   await openDetails(page, isMobile);
   await expect(page.getByRole("region", { name: "Selected" })).toContainText(name);
   await page.screenshot({ path: info.outputPath("found.png") });

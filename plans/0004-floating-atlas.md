@@ -41,4 +41,4 @@ Rework the viewer's interface into the floating atlas, following the system's li
 ## Phase 7: ship
 
 - [x] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
-- [ ] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`
+- [x] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`

@@ -60,7 +60,8 @@ Every control meets measurable rules:
 - Spacing on a 4 px grid (4, 8, 12, 16, 24, 32, 48).
 - Feedback within 100 ms of input; transitions 150 to 400 ms; none under reduced motion.
 - No layout shift: notices float, controls keep their box.
-- Layers, bottom to top: the map, its labels, the cards and controls, menus and the hover card, notices.
+- Layers, bottom to top: the map, the marker of a found place, the map's names, the cards and controls, menus and the
+  hover card, notices.
 - Fonts and icons are self-hosted; nothing loads from a third party but GitHub's API.
 
 ## A GitHub repository, live
