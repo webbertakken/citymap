@@ -42,11 +42,11 @@ Plan view only, hover cards that say what things are and never cut their text, a
 ## Phase 6: proof
 
 - [ ] Unit tests at 100 %; `bun run check`
-- [ ] End-to-end: cards at all four map edges with a long path (none clipped, all inside the map), axe light and dark
+- [x] End-to-end: cards at all four map edges with a long path (none clipped, all inside the map), axe light and dark
       with a card shown, vitals, card overlap at every width
-- [ ] Screenshots of each card kind, light and dark, on linux and takken.io
+- [x] Screenshots of each card kind, light and dark, on linux and takken.io
 
 ## Phase 7: ship
 
-- [ ] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
+- [x] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
 - [ ] PR with before and after pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`

@@ -425,16 +425,22 @@ One description of a hit feeds the hover card and the drawer's selection, so bot
 - Address in words (`addressWords(address)`): the address `{folder}:{row}.{block}.{side}.{index}` reads "No. {index + 1}
   on {folder}" ("the top folder" when the folder is empty; `#lots` dropped), with the note "Block {row}.{block}, side
   {side + 1}; kept for life". An address that does not parse is shown as it is, without a note.
-- `CardBody` (`components/CardBody.tsx`) draws a card: a head (a 32 px icon chip, `aria-hidden`, then the eyebrow at 12
-  px, the title at 15 px bold, and the place at 12 px, its names joined by " › "), then the meaning at 13 px, then the
-  rows as a `<dl>` (label 12 px muted on the left, 88 px; value 13 px; a note under the value at 12 px muted). Every
+- `CardBody` (`components/CardBody.tsx`, classes `hit-*`) draws a card: a head (a 32 px icon chip, `aria-hidden`, one
+  lucide icon per kind: file `FileCode`, vacant `SquareDashed`, park `Trees`, plaza `Square`, green `Sprout`, reserve
+  `Fence`, block `LayoutGrid`, road `Route`, highway `Waypoints`, folder `Folder`, town `Building2`; then the eyebrow at
+  12 px, the title at 15 px bold, and the place at 12 px, its names joined by " › "), then the meaning at 13 px, then
+  the rows as a `<dl>` (label 12 px muted on the left, 88 px; value 13 px; a note under the value at 12 px muted). Every
   text wraps: `overflow-wrap: anywhere`, and a `<wbr>` after every slash and dot of a path or name, so long paths break
   after a slash first. Nothing is cut or hidden.
 - `HoverCard` (`components/HoverCard.tsx`, `role="tooltip"`, `data-kind`): `CardBody`, then a hint at the foot: "Click
-  to select", followed by what the selection offers ("; then show only this town, copy the path or open it on GitHub").
-  `min-width` 280 px, `max-width` 360 px (never more than the map less 16 px), width by its content; 12 px padding; 8 px
-  between parts; radius 12 px; solid glass. It is measured after each render (`useLayoutEffect`, its
-  `offsetWidth`/`offsetHeight`) and placed before paint.
+  to select", followed by what the selection offers ("; then show only this town, copy the path or open it on GitHub"):
+  `hintFor(offersFor(hit, card, { focused, github }))`, where `offersFor` (`card/describe.ts`) offers the town unless
+  one is shown alone or the hit has none (a highway), the path when the target's path is not empty, and GitHub when the
+  city came from there and the hit has a target. `min-width` 280 px, `max-width` 360 px (never more than the map less 16
+  px), width by its content; 12 px padding; 8 px between parts; radius 12 px; solid glass. Its words (the card, the hint
+  and the map's size) key an inner component that measures itself once when they first show (`useLayoutEffect`,
+  `offsetWidth`/`offsetHeight`; until then `FIRST_SIZE` 280 by 160 px) and is placed again before paint; it then follows
+  the pointer at that size.
 - `placeCard(pointer, size, map)` (`card/place.ts`, pure): right of and below the pointer by `CARD_GAP` 16 px; flipped
   to the left when it would cross the right edge less `CARD_MARGIN` 8 px, above when it would cross the bottom; then
   nudged inside the margins on both axes; then, if it covers the pointer (its box grown by `CARD_GAP` / 2), moved to
@@ -446,8 +452,8 @@ One description of a hit feeds the hover card and the drawer's selection, so bot
   copied"); "Open on GitHub" when the city came from GitHub and has a target: a link
   (`target="_blank" rel="noopener noreferrer"`) to `https://github.com/{owner}/{name}/{blob|tree}/{commit}/{path}`, each
   path segment URI-encoded, the town's root (`tree/{commit}`) when the path is empty.
-- The viewer keeps `origin` (`{ owner, name }` or null): set when a GitHub repository is laid, cleared when anything
-  else opens; the commit is the city's.
+- A city came from GitHub when the viewer's `origin` is live via GitHub: its name ("owner/name") and the city's commit
+  make the drawer's `github` (`card/github.ts`, `GitHubSource`), and `githubUrl(github, target)` makes the link.
 - Logs: `viewer/copy-path kind`, `viewer/copy-failed reason`, `viewer/github-open kind`.
 
 ## Observability
@@ -465,12 +471,13 @@ One description of a hit feeds the hover card and the drawer's selection, so bot
 Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_SHARE`, `KEY_ZOOM`, `FIT_SHARE`,
 `LABEL_FIT`, `REPEAT_PX` (in `view/view.ts`), `FLY_SHARE`, `FLY_MIN_EXTENT`, `FLY_MS` (in `view/fly.ts`), `NARROW`,
 `MEDIUM` and the card sizes (in `view/insets.ts`), `CLICK_SLOP`, `WHEEL_ZOOM` (in `MapView.tsx`), `CARD_GAP`,
-`CARD_MARGIN` (in `card/place.ts`), `COPIED_MS` (in `Actions.tsx`), `MIN_QUERY`, `MAX_HITS` (in `search/search.ts`),
-`SETTLE_MS` and `CITY_WITH_SUGGESTIONS` (in `SearchBox.tsx`), `SUGGEST_MS` (in `github/useSuggestions.ts`), `IN_FLIGHT`
-(in `github/read.ts`), `FILE_CHUNK` (in `cities.ts`), `FRAME_WAIT_MS` (in `load/paint.ts`), `TOWNS_SHOWN` (in
-`Drawer.tsx`), `PHASE_WEIGHTS`, `ESTIMATE_FROM` and `STEADY_MS` (in `load/progress.ts`), `SHOW_AFTER_MS`, `HOLD_MS` and
-`TICK_MS` (in `load/useLoading.ts`), `POST_MS` (in `lay/worker.ts`), `OWNER_TTL_MS` (in `github/owners.ts`), the
-tooltip's width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in `packages/scene`).
+`CARD_MARGIN` (in `card/place.ts`), `COPIED_MS` (in `Actions.tsx`), `FIRST_SIZE` (in `HoverCard.tsx`), `MIN_QUERY`,
+`MAX_HITS` (in `search/search.ts`), `SETTLE_MS` and `CITY_WITH_SUGGESTIONS` (in `SearchBox.tsx`), `SUGGEST_MS` (in
+`github/useSuggestions.ts`), `IN_FLIGHT` (in `github/read.ts`), `FILE_CHUNK` (in `cities.ts`), `FRAME_WAIT_MS` (in
+`load/paint.ts`), `TOWNS_SHOWN` (in `Drawer.tsx`), `PHASE_WEIGHTS`, `ESTIMATE_FROM` and `STEADY_MS` (in
+`load/progress.ts`), `SHOW_AFTER_MS`, `HOLD_MS` and `TICK_MS` (in `load/useLoading.ts`), `POST_MS` (in `lay/worker.ts`),
+`OWNER_TTL_MS` (in `github/owners.ts`), the tooltip's width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in
+`packages/scene`).
 
 ## Web experience
 
@@ -490,11 +497,13 @@ tooltip's width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in `packages/scene
 - INP under 200 ms on a phone: the view while fitted is derived from the scene (`fit(scene.bounds, viewport, insets)`),
   never built twice; the whole city's scene and pick index stay built while one town is shown, so going back costs
   nothing. Measured on a Pixel 7 profile with the processor slowed fourfold (CDP `Emulation.setCPUThrottlingRate`), over
-  taps, keys, a theme change, a search and a drill.
+  taps, keys, a theme change, a search and a drill. A theme change is a transition (`startTransition`): the menu closes
+  in the next frame and the scene is rebuilt in its new colours after it, so the tap answers within the budget.
 - Laying a large repository: the worker lays and builds the scene, so on that phone profile linux's longest main-thread
-  task fell from 2.25 s to 0.83 s, of which the pick index takes 0.70 s and the search index 0.09 s (both still on the
-  main thread, after the card says "Drawing the map"; the card's sweep runs on the compositor meanwhile). The loading
-  card shifts nothing and its Cancel answers within the budget (`vitals.spec.ts`).
+  task fell from 2.25 s to 0.83 s, most of it the pick index (which appends to its cells rather than copying them: about
+  100 ms for linux on a desktop) and the search index 0.09 s (both still on the main thread, after the card says
+  "Drawing the map"; the card's sweep runs on the compositor meanwhile). The loading card shifts nothing and its Cancel
+  answers within the budget (`vitals.spec.ts`).
 - `e2e/vitals.spec.ts` runs in its own projects (`vitals-desktop`, `vitals-phone`) once the journeys are done, so no
   other test draws at the same time; it reports the slowest interaction as an annotation. It records
   `largest-contentful-paint`, `layout-shift` and `event` entries (from 16 ms) through `PerformanceObserver` before the

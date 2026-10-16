@@ -81,7 +81,8 @@ keeps the name to your own screen.
 
 - **A viewer.** The map fills the page and every control floats over it, light or dark as your system prefers. Search
   for any file or folder and the map flies to it; pan, zoom, hover over anything to learn what it is and what it means,
-  click to select it, copy its path or open it on GitHub, and drill into one town. Press `/` to search from anywhere.
+  click to select it and copy its path (or, for a city from GitHub, open it there), and drill into one town. Press `/`
+  to search from anywhere.
 
   ![The viewer over livediagram: searching for "palette" in light, and in dark a hover card saying what a file is](docs/img/viewer.png)
 
