@@ -42,13 +42,14 @@ Branch `fix/resume-matches-fold` in the worktree `../citymap-resume`.
 ## Phase 2: proof and measurements
 
 - [x] Probe on the corpus at every laid step (takken.io to rust): no differences in the engine
-- [ ] `bun run parity --long` (state, fold, resume): identical, resumed folds equal uninterrupted ones
-- [ ] The six large repositories, Rust CLI: a fold resumed at the parity resume point equals the uninterrupted fold
-- [ ] Lock size before and after; files without a lot and fold times, against `origin/main`
-- [ ] Bench and fold ratchet; rebased only where explained
-- [ ] Commit
+- [x] `bun run parity --long` (state, fold, resume): identical, resumed folds equal uninterrupted ones
+- [x] The six large repositories, Rust CLI: a fold resumed at the parity resume point equals the uninterrupted fold
+      (next.js differed on `main` and on the first fixes; equal with the reader fix)
+- [x] Lock size before and after (no new field; within 0.3 %); files without a lot and fold times, against `origin/main`
+- [x] Bench and fold ratchet: both held (962/555/4, 19); nothing rebased
+- [x] Commit
 
 ## Phase 3: finish
 
-- [ ] Fold-back: spec reconciled to what shipped, blueprints re-derived, every symbol and reference verified
+- [x] Fold-back: spec reconciled to what shipped, blueprints re-derived, every symbol and reference verified
 - [ ] Commit, push, open the pull request (not merged)

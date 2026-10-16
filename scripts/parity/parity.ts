@@ -35,7 +35,7 @@ const list = (text: string | undefined) => text?.split(",").filter((item) => ite
 
 const isMode = (value: string): value is Mode => MODES.some((mode) => mode === value);
 
-/** `--long` adds next.js, `--repos=a,b` names the repositories, `--modes=state,fold` the modes, `--features=a` the Rust build. */
+/** `--long` adds next.js, `--repos=a,b` names the repositories, `--modes=state,fold,resume` the modes, `--features=a` the Rust build. */
 export function parseSettings(argv: readonly string[]): Settings {
   const value = (name: string) => argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
   const modes = list(value("modes")) ?? [...MODES];
