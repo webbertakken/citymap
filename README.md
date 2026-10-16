@@ -80,10 +80,10 @@ keeps the name to your own screen.
   ![react in five themes](docs/img/themes.png)
 
 - **A viewer.** The map fills the page and every control floats over it, light or dark as your system prefers. Search
-  for any file or folder and the map flies to it; pan, zoom, hover to name anything, click to select, and drill into one
-  town. Press `/` to search from anywhere.
+  for any file or folder and the map flies to it; pan, zoom, hover over anything to learn what it is and what it means,
+  click to select it, copy its path or open it on GitHub, and drill into one town. Press `/` to search from anywhere.
 
-  ![The viewer over livediagram: searching for "palette" in light, and arriving there in dark](docs/img/viewer.png)
+  ![The viewer over livediagram: searching for "palette" in light, and in dark a hover card saying what a file is](docs/img/viewer.png)
 
   On a phone the details fold into a sheet:
 
