@@ -35,10 +35,10 @@ Rework the viewer's interface into the floating atlas, following the system's li
 
 - [x] Unit tests at 100 % coverage; `bun run check`
 - [x] End-to-end: journeys, axe in light and dark, vitals, phone layout
-- [ ] Screenshots: desktop and phone, light and dark, search open
-- [ ] README pictures and text updated
+- [x] Screenshots: desktop and phone, light and dark, search open
+- [x] README pictures and text updated
 
 ## Phase 7: ship
 
-- [ ] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
+- [x] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
 - [ ] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`

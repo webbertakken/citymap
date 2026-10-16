@@ -29,7 +29,8 @@ stays clear for the city.
 - **Right, the drawer**: what is selected, then the towns (seven, then "Show all"), each with "Show only this town". It
   can be closed to give the map the whole page. On a phone it becomes a sheet at the bottom, closed at first.
 - **Bottom right, zoom**: in, out, and fit.
-- **Bottom left, the legend**: what the colours mean.
+- **Bottom left, the legend**: what the colours mean. Hidden on a phone.
+- A city fitted to the map, or a place flown to, lands in the part the cards leave free.
 - Empty state: no city loaded says how to make one (`citymap <repository> --out=city.json`) or to type a repository.
 - Loading state: the status line says what is happening ("reading the tree…", "laying out…").
 - Error state: one sentence in a notice that floats above the map and never moves anything; the last good city stays.
@@ -37,10 +38,12 @@ stays clear for the city.
 ## Search
 
 - Typing two or more characters lists matches as they are typed: folders first, then files, each with its path, the
-  matched text marked. At most seven show; a line says how many more there are.
-- A GitHub repository typed as `owner/name` or its URL is offered as the first choice: "Lay owner/name from GitHub".
-- Arrow keys move through the list, Enter picks, Escape closes it. Picking a folder or a file flies the map to it,
-  selects it and shows it in the drawer.
+  matched text marked. At most seven choices show; a line says how many match in all.
+- A GitHub repository typed as `owner/name` or its URL is offered too, "Lay owner/name from GitHub": first when nothing
+  in the city matches, else after the matches.
+- Enter picks the first choice; ArrowDown moves into the list and the arrows move through it; Escape steps back to the
+  field, closes the list, then clears the text. Picking a folder or a file flies the map to it, selects it and shows it
+  in the drawer.
 
 ## Light and dark
 
@@ -62,8 +65,8 @@ Every control meets measurable rules:
 
 ## A GitHub repository, live
 
-- The repository field takes `owner/name` or a GitHub URL; pressing Enter or "Lay" lays it. The page address gains
-  `?repo=owner/name`, and opening such an address lays that repository at once.
+- The search box takes `owner/name` or a GitHub URL and offers to lay it; picking that offer lays it. The page address
+  gains `?repo=owner/name`, and opening such an address lays that repository at once.
 - The city is the repository's single state at its default branch: its tree, every file laid at once, workspace members
   from its root manifests. It is not folded over history, so it is not stable from one commit to the next; the status
   line says so ("single state, not folded").
@@ -85,9 +88,9 @@ Every control meets measurable rules:
 
 ## Drill down
 
-- Every town can be drilled into: the panel offers it on each town, and so does the selection of anything in a town. The
-  map then shows that town alone, fitted to the window, with its own districts labelled and listed.
-- A breadcrumb in the bar ("city › town") leads back to the whole city; Escape does too when nothing is selected.
+- Every town can be drilled into: each town's name in the drawer does it, and so does the selection of anything in a
+  town. The map then shows that town alone, fitted to the window, with its own districts labelled and listed.
+- A breadcrumb in the title card ("city › town") leads back to the whole city; Escape does too when nothing is selected.
 
 ## Hover and select
 
@@ -113,10 +116,11 @@ Every control meets measurable rules:
 ## Web experience
 
 - The page is a static export: no server work at request time.
-- Largest Contentful Paint is text of the bar or the panel, painted before the scene loads; once the scene is drawn a
-  town's label may become the largest, well within 2.5 s.
-- Nothing shifts once painted: the bar and the map have fixed sizes from the first paint, and the controls keep their
-  place whatever the city's name and status say (Cumulative Layout Shift 0).
+- Largest Contentful Paint is text of a card (or the search's placeholder), painted before the scene loads; once the
+  scene is drawn a town's label may become the largest, well within 2.5 s.
+- Nothing shifts once painted: the map and every card have fixed sizes from the first paint, the controls keep their
+  place whatever the city's name and status say, the empty state waits until no city is on its way, and the interface
+  font arrives with a matched fallback (Cumulative Layout Shift 0).
 - Interactions answer within one frame of input; the scene is drawn as a few merged meshes per town, not one object per
   lot (Interaction to Next Paint under 200 ms on a phone).
 - Phones draw at a device pixel ratio of at most 2.

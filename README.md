@@ -10,8 +10,8 @@ stable as the code grows, so the place you knew yesterday is still there today.
 ## Try it live
 
 Open **[webbertakken.github.io/citymap](https://webbertakken.github.io/citymap/)** and type any public GitHub repository
-(`owner/name`) into the bar. Its current state is read from GitHub and laid in your browser, in a second or two for most
-repositories (linux: 96,000 files in about 14 seconds). A link such as
+(`owner/name`) into the search box. Its current state is read from GitHub and laid in your browser, in a second or two
+for most repositories (linux: 96,000 files in about 14 seconds). A link such as
 [?repo=facebook/react](https://webbertakken.github.io/citymap/?repo=facebook/react) opens one directly.
 
 The live page shows a single state; folding the whole history, which keeps the map stable over time, runs with the CLI.
@@ -37,14 +37,20 @@ GitHub allows about 60 requests an hour without signing in: most repositories ta
 
   ![linux, vscode and godot at HEAD](docs/img/scale.png)
 
-- **Themes and views.** Five themes (Paper atlas, Night atlas, Beck, Nolli, Dracula), plan or 2:1 dimetric, and optional
-  Voronoi district regions.
+- **Themes and views.** Five themes (Paper atlas, Night atlas, Beck, Nolli, Dracula), plan view or 2:1 dimetric 3D, and
+  optional Voronoi district regions.
 
   ![react in five themes](docs/img/themes.png)
 
-- **A viewer.** Pan, zoom, hover to name anything, click to select, and drill into one town.
+- **A viewer.** The map fills the page and every control floats over it, light or dark as your system prefers. Search
+  for any file or folder and the map flies to it; pan, zoom, hover to name anything, click to select, and drill into one
+  town. Press `/` to search from anywhere.
 
-  ![The viewer, drilled into livediagram's apps/live](docs/img/viewer-drill.png)
+  ![The viewer over livediagram: searching for "palette" in light, and arriving there in dark](docs/img/viewer.png)
+
+  On a phone the details fold into a sheet:
+
+  ![The viewer on a phone: the map, the details sheet, and a search](docs/img/viewer-phone.png)
 
 ## Quick start
 
