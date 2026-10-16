@@ -14,7 +14,7 @@ export interface PermissionHandle extends DirectoryHandle {
 }
 
 /** The browser's own handles; elsewhere (tests) a guard of the caller's. */
-const isBrowserHandle = (value: unknown): value is DirectoryHandle =>
+const isBrowserHandle = (value: unknown): value is PermissionHandle =>
   typeof FileSystemDirectoryHandle === "function" && value instanceof FileSystemDirectoryHandle;
 
 /** A request's result, or its error. */
@@ -44,8 +44,8 @@ export async function rememberFolder(handle: unknown, factory: IDBFactory = inde
 /** The last folder kept, or null when there is none (or what is kept is not a folder's handle). */
 export async function recallFolder(
   factory: IDBFactory = indexedDB,
-  isHandle: (value: unknown) => value is DirectoryHandle = isBrowserHandle,
-): Promise<DirectoryHandle | null> {
+  isHandle: (value: unknown) => value is PermissionHandle = isBrowserHandle,
+): Promise<PermissionHandle | null> {
   const { database, store: local } = await store(factory, "readonly");
   try {
     const value: unknown = await settled(local.get(KEY));

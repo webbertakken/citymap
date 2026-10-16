@@ -24,9 +24,9 @@ Spec: [local repositories](../docs/specs/007-local-repositories/local-repositori
 
 ## Phase 3: in the viewer
 
-- [ ] More: "Open a local repository…" with its line of explanation; not offered on a phone
-- [ ] Phases into the Loading card (plan 0009), or the status line until that card exists
-- [ ] Failures named, shown in the notice and logged (`viewer/local-…`)
+- [x] More: "Open a local repository…" with its line of explanation; not offered on a phone
+- [x] Phases into the Loading card (plan 0009), or the status line until that card exists
+- [x] Failures named, shown in the notice and logged (`viewer/local-…`)
 
 ## Phase 4: proof
 

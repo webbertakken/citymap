@@ -41,7 +41,7 @@ export interface ListedFile extends Readable {
 const named = (error: unknown, name: string) => error instanceof DOMException && error.name === name;
 
 /** The browser's refusals and a file gone from under the reader as local failures; any other error as it was. */
-function localised(error: unknown, path: string): unknown {
+export function localised(error: unknown, path: string): unknown {
   if (named(error, "NotAllowedError") || named(error, "SecurityError"))
     return new LocalError("local/denied", "the browser did not allow reading the folder", { path });
   if (named(error, "NotFoundError") || named(error, "NotReadableError"))

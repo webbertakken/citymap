@@ -1,11 +1,10 @@
 import { IDBFactory } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
-import type { DirectoryHandle } from "./folder";
 import { DATABASE, mayRead, recallFolder, rememberFolder, type PermissionHandle } from "./remember";
 import { fakeHandle } from "./testing/folders";
 
 // A directory handle survives structured cloning in Chromium; a fake one keeps only its data, so the guard checks that.
-const handleLike = (value: unknown): value is DirectoryHandle =>
+const handleLike = (value: unknown): value is PermissionHandle =>
   typeof value === "object" && value !== null && Reflect.get(value, "kind") === "directory";
 const stored = { kind: "directory", name: "repo" } as const;
 
