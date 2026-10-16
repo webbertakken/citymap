@@ -57,8 +57,29 @@ export function project(view: View, viewport: Viewport, p: { x: number; y: numbe
   };
 }
 
-/** The view that centres the city and fills nine tenths of the viewport with it. */
-export function fit(bounds: Scene["bounds"], mode: Mode, viewport: Viewport): View {
+/** How far, in pixels, the cards over the map reach in from each edge. */
+export interface Insets {
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly left: number;
+}
+
+export const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/** The part of the map the cards leave free. */
+const freeOf = (viewport: Viewport, insets: Insets): Viewport => ({
+  width: Math.max(1, viewport.width - insets.left - insets.right),
+  height: Math.max(1, viewport.height - insets.top - insets.bottom),
+});
+
+/** A view shifted so what was at the viewport's centre sits at the centre of the free part. */
+export const framed = (view: View, insets: Insets): View =>
+  pan(view, (insets.right - insets.left) / 2, (insets.top - insets.bottom) / 2);
+
+/** The view that centres the city in the map the cards leave free, and fills nine tenths of it. */
+export function fit(bounds: Scene["bounds"], mode: Mode, whole: Viewport, insets: Insets = NO_INSETS): View {
+  const viewport = freeOf(whole, insets);
   const centre = { x: (bounds.min.x + bounds.max.x) / 2, z: (bounds.min.z + bounds.max.z) / 2 };
   const b = basis(mode);
   let wide = 0;
@@ -73,7 +94,7 @@ export function fit(bounds: Scene["bounds"], mode: Mode, viewport: Viewport): Vi
     wide === 0 && tall === 0
       ? 1
       : FIT_SHARE * Math.min(viewport.width / (wide || tall), viewport.height / (tall || wide));
-  return { mode, centre, zoom };
+  return framed({ mode, centre, zoom }, insets);
 }
 
 /** A view moved along the ground by a screen distance in pixels (right and up). */
@@ -101,7 +122,13 @@ export const KEY_ZOOM = 1.25;
 export const FIT_SHARE = 0.9;
 
 /** The view after a key: arrows pan by `PAN_SHARE`, + and - zoom by `KEY_ZOOM`, 0 fits; null for any other key. */
-export function onKey(key: string, view: View, viewport: Viewport, bounds: Scene["bounds"]): View | null {
+export function onKey(
+  key: string,
+  view: View,
+  viewport: Viewport,
+  bounds: Scene["bounds"],
+  insets: Insets = NO_INSETS,
+): View | null {
   switch (key) {
     case "ArrowRight":
       return pan(view, viewport.width * PAN_SHARE, 0);
@@ -117,7 +144,7 @@ export function onKey(key: string, view: View, viewport: Viewport, bounds: Scene
     case "-":
       return { ...view, zoom: view.zoom / KEY_ZOOM };
     case "0":
-      return fit(bounds, view.mode, viewport);
+      return fit(bounds, view.mode, viewport, insets);
     default:
       return null;
   }
@@ -130,17 +157,30 @@ export interface Placed extends Label {
 }
 
 const FONT: Readonly<Record<Label["size"], number>> = { town: 20, district: 13, minor: 11 };
+/** A character's width in ems: the face's average, plus the label's letter spacing (globals.css). */
+const ADVANCE: Readonly<Record<Label["size"], number>> = { town: 0.62 + 0.15, district: 0.62 + 0.08, minor: 0.62 };
 
-/** The labels that fit, in order: each kept only if it lies inside the viewport and clear of every one kept before. */
+/** A district's name shows once its land on screen is at least this share of the name's width. */
+export const LABEL_FIT = 0.6;
+/** A name is not shown again within this many pixels of where it already is. */
+export const REPEAT_PX = 240;
+
+/**
+ * The labels that fit, in order: each kept only if it lies inside the viewport, a district's land is wide enough on
+ * screen for its name, the same name is not already shown nearby, and it is clear of every one kept before.
+ */
 export function declutter(labels: readonly Label[], view: View, viewport: Viewport): Placed[] {
   const kept: Placed[] = [];
   const boxes: [number, number, number, number][] = [];
   for (const label of labels) {
     const at = project(view, viewport, { x: label.x, y: 0, z: label.z });
     const size = FONT[label.size];
-    const half = (label.text.length * size * 0.62 + 8) / 2;
+    const width = label.text.length * size * ADVANCE[label.size];
+    const half = (width + 8) / 2;
     const box: [number, number, number, number] = [at.x - half, at.y - size / 2 - 3, at.x + half, at.y + size / 2 + 3];
     if (box[0] < 0 || box[1] < 0 || box[2] > viewport.width || box[3] > viewport.height) continue;
+    if (label.size !== "town" && label.extent * view.zoom < width * LABEL_FIT) continue;
+    if (kept.some((k) => k.text === label.text && Math.hypot(k.left - at.x, k.top - at.y) < REPEAT_PX)) continue;
     if (boxes.some((b) => b[0] < box[2] && box[0] < b[2] && b[1] < box[3] && box[1] < b[3])) continue;
     boxes.push(box);
     kept.push({ ...label, left: at.x, top: at.y });

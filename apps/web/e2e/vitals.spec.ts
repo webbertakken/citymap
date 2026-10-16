@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 // shifts, and every interaction answers within 200 ms on a phone (here with its processor slowed fourfold).
 
 interface Vitals {
-  readonly paints: { readonly tag: string; readonly time: number }[];
+  readonly paints: { readonly tag: string; readonly url: string; readonly time: number }[];
   shift: number;
   readonly events: { readonly name: string; readonly target: string; readonly duration: number }[];
 }
@@ -18,7 +18,11 @@ async function record(page: Page) {
       for (const e of list.getEntries()) {
         const element: unknown = Reflect.get(e, "element");
         const tag = element instanceof Element ? element.tagName : "";
-        seen.paints.push({ tag, time: Number(Reflect.get(e, "renderTime")) || e.startTime });
+        seen.paints.push({
+          tag,
+          url: String(Reflect.get(e, "url")),
+          time: Number(Reflect.get(e, "renderTime")) || e.startTime,
+        });
       }
     }).observe({ type: "largest-contentful-paint", buffered: true });
     new PerformanceObserver((list) => {
@@ -50,11 +54,14 @@ test("paints text as its largest content before the scene, and shifts nothing as
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
   await page.waitForTimeout(500);
   const { paints } = await vitals(page);
-  // The first largest paint is text of the bar or the panel; a town's label may outgrow it once drawn.
-  expect(["P", "H1", "H2"]).toContain(paints[0]?.tag);
+  // The first largest paint is text of a card (or the search's placeholder, drawn inside the field, so it names no
+  // element); never an image. A town's label may outgrow it once drawn.
+  expect(["P", "H1", "H2", "SPAN", ""]).toContain(paints[0]?.tag);
+  expect(paints[0]?.url).toBe("");
   expect(paints.at(-1)!.time).toBeLessThan(2500);
-  // A city chosen from the select is an input: its shifts are the person's own. Wait past the input window.
-  await page.getByLabel("City", { exact: true }).selectOption("livediagram.json");
+  // A city chosen from More is an input: its shifts are the person's own. Wait past the input window.
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: /^livediagram/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("livediagram");
   await page.waitForTimeout(800);
   expect((await vitals(page)).shift).toBe(0);
@@ -64,7 +71,8 @@ test("answers every interaction within 200 ms on a slowed phone", async ({ page,
   test.skip(!isMobile, "the phone budget");
   await record(page);
   await page.goto("/");
-  await page.getByLabel("City", { exact: true }).selectOption("livediagram.json");
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: /^livediagram/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("livediagram");
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
@@ -76,12 +84,21 @@ test("answers every interaction within 200 ms on a slowed phone", async ({ page,
   await page.keyboard.press("+");
   await page.keyboard.press("-");
   await page.keyboard.press("0");
+  await page.getByRole("button", { name: "3D" }).tap();
   await page.getByRole("button", { name: "Plan" }).tap();
-  await page.getByRole("button", { name: "Towns and districts" }).tap();
-  await page.getByRole("button", { name: "Show only this town: apps/live", exact: true }).tap();
+  await page.getByRole("searchbox").tap();
+  await page.keyboard.type("palette");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Details", exact: true }).tap();
+  await page.getByRole("region", { name: "Towns" }).getByRole("button", { name: "apps/live", exact: true }).tap();
   await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("button").tap();
   await page.waitForTimeout(500);
   const { events } = await vitals(page);
   expect(events.length).toBeGreaterThan(0);
+  // The slowest answer, in the report, so the margin under the budget stays visible.
+  const slowest = events.toSorted((a, b) => b.duration - a.duration)[0]!;
+  test
+    .info()
+    .annotations.push({ type: "slowest", description: `${slowest.name} ${slowest.target}: ${slowest.duration} ms` });
   expect(events.filter((e) => e.duration >= 200)).toEqual([]);
 });

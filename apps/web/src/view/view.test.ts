@@ -81,21 +81,72 @@ describe("onKey", () => {
   });
 });
 
+describe("fit within insets", () => {
+  it("fits the city to the map the cards leave free, and centres it there", () => {
+    const insets = { top: 100, right: 300, bottom: 0, left: 100 };
+    for (const mode of ["plan", "dimetric"] as const) {
+      const view = fit(bounds, mode, viewport, insets);
+      expect(view.zoom).toBeCloseTo(fit(bounds, mode, { width: 600, height: 400 }).zoom, 9);
+      const centre = project(view, viewport, { x: 0, y: 0, z: 0 });
+      expect(centre.x).toBeCloseTo(100 + 600 / 2, 6);
+      expect(centre.y).toBeCloseTo(100 + 400 / 2, 6);
+    }
+  });
+
+  it("fits within the same insets from the keyboard", () => {
+    const insets = { top: 0, right: 200, bottom: 0, left: 0 };
+    const view: View = { mode: "plan", centre: { x: 9, z: 9 }, zoom: 3 };
+    expect(onKey("0", view, viewport, bounds, insets)).toEqual(fit(bounds, "plan", viewport, insets));
+  });
+});
+
 describe("declutter", () => {
   it("keeps labels in order and drops those that would overlap or fall outside", () => {
     const view: View = { mode: "plan", centre: { x: 0, z: 0 }, zoom: 10 };
     const kept = declutter(
       [
-        { text: "TOWN", x: 0, z: 0, size: "town" },
-        { text: "CLASH", x: 0.5, z: 0, size: "district" },
-        { text: "east", x: 30, z: 0, size: "minor" },
-        { text: "far", x: 900, z: 0, size: "minor" },
+        { text: "TOWN", x: 0, z: 0, size: "town", extent: 40 },
+        { text: "CLASH", x: 0.5, z: 0, size: "district", extent: 40 },
+        { text: "east", x: 30, z: 0, size: "minor", extent: 40 },
+        { text: "far", x: 900, z: 0, size: "minor", extent: 40 },
       ],
       view,
       viewport,
     );
     expect(kept.map((l) => l.text)).toEqual(["TOWN", "east"]);
     expect(kept[0]).toMatchObject({ left: 500, top: 250 });
+  });
+
+  it("names a district only when its land on screen is wide enough for the name", () => {
+    // "WIDE" is 4 characters of 13 px: about 32 px of text at the fit share; its district spans 10 u, 100 px.
+    const view: View = { mode: "plan", centre: { x: 0, z: 0 }, zoom: 10 };
+    const labels = [
+      { text: "WIDE", x: -20, z: 0, size: "district", extent: 10 },
+      { text: "narrow-and-long", x: 2, z: 0, size: "minor", extent: 2 },
+      { text: "SMALL TOWN", x: 0, z: 15, size: "town", extent: 0.5 },
+    ] as const;
+    expect(declutter(labels, view, viewport).map((l) => l.text)).toEqual(["WIDE", "SMALL TOWN"]);
+    // Zoomed in fivefold, the narrow district has room for its name.
+    expect(declutter(labels, { ...view, zoom: 50 }, viewport).map((l) => l.text)).toContain("narrow-and-long");
+  });
+
+  it("counts a town name's letter spacing, so a wide name near the edge is left out rather than cut", () => {
+    // 18 characters of 20 px with 0.15 em spacing: about 277 px; centred 130 px from the right edge, it does not fit.
+    const view: View = { mode: "plan", centre: { x: 0, z: 0 }, zoom: 10 };
+    const label = { text: "TAKKEN.IO OLD TOWN", x: 37, z: 0, size: "town", extent: 40 } as const;
+    expect(declutter([label], view, viewport)).toEqual([]);
+    expect(declutter([{ ...label, x: 25 }], view, viewport)).toHaveLength(1);
+  });
+
+  it("does not repeat a name close to where it is already shown", () => {
+    const view: View = { mode: "plan", centre: { x: 0, z: 0 }, zoom: 10 };
+    const labels = [
+      { text: "TEMPLATES", x: 0, z: 0, size: "district", extent: 20 },
+      { text: "TEMPLATES", x: 10, z: 10, size: "district", extent: 20 },
+      { text: "TEMPLATES", x: 40, z: 0, size: "district", extent: 20 },
+    ] as const;
+    // The second sits about 141 px from the first, inside the 240 px reach; the third, 400 px away, is shown.
+    expect(declutter(labels, view, viewport).map((l) => l.left)).toEqual([500, 900]);
   });
 });
 

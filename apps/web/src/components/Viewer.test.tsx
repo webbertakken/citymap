@@ -1,127 +1,129 @@
-import { serialiseCity, type City } from "@citymap/ground-plan";
+import { serialiseCity } from "@citymap/ground-plan";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Fetcher } from "../github/read";
 import { layHere } from "../lay/lay";
-import { project, type View } from "../view/view";
-import type { CanvasProps } from "./MapView";
+import { project } from "../view/view";
+import {
+  StubCanvas,
+  city,
+  currentView,
+  fetcher,
+  files,
+  fromMore,
+  index,
+  read,
+  searchField,
+  townButton,
+  towns,
+  twinFetcher,
+  type,
+} from "./testing/fixtures";
 import { Viewer } from "./Viewer";
 
-afterEach(cleanup);
-
-const square = (x: number, s: number) => [
-  { x, y: 0 },
-  { x: x + s, y: 0 },
-  { x: x + s, y: s },
-  { x, y: s },
-];
-const city = (name: string): City => ({
-  repository: name,
-  commit: "worktree",
-  highways: [],
-  towns: [
-    {
-      key: name,
-      name,
-      form: "polycentric",
-      old: false,
-      outline: square(0, 6400),
-      water: [],
-      roads: [],
-      blocks: [],
-      lots: [{ pts: square(64, 64), key: "a", address: "a", vacant: false, path: "a.ts", use: "source", district: 1 }],
-      districts: [
-        { pts: square(0, 3200), path: "src", name: "src", depth: 1, massMille: 2000, ward: false },
-        { pts: square(3200, 3200), path: "lib", name: "lib", depth: 1, massMille: 1000, ward: false },
-        // A ward around both, named after its largest member: a grouping on the map, not a district of its own.
-        { pts: square(0, 6400), path: "#ward", name: "src", depth: 1, massMille: 3000, ward: true },
-      ],
-      stats: { lots: 1, overflow: 0, offLand: 0, docs: 0, lotArea2: 0, landArea2: 0 },
-    },
-  ],
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
-const index = [
-  { name: "alpha", file: "alpha.json", lots: 1 },
-  { name: "beta", file: "beta.json", lots: 1 },
-];
-const files: Record<string, string> = {
-  "/cities/index.json": JSON.stringify(index),
-  "/cities/alpha.json": serialiseCity(city("alpha")),
-  "/cities/beta.json": serialiseCity(city("beta")),
-};
-const fetcher = async (url: string) => new Response(files[url] ?? "", { status: url in files ? 200 : 404 });
+
 const broken = async () => new Response("", { status: 500 });
 const half = async (url: string) =>
   new Response(url === "/cities/index.json" ? JSON.stringify(index) : "", {
     status: url === "/cities/index.json" ? 200 : 404,
   });
-
-const read = () => screen.getByTestId("canvas").textContent;
 const empty = async (url: string) => new Response(url === "/cities/index.json" ? "[]" : "", { status: 200 });
 
-/** The view the stub canvas was last given. */
-const currentView = (): View => {
-  const [mode, zoom, centre] = (read() ?? "").split(" ");
-  const [x, z] = centre!.split(",").map(Number);
-  return { mode: mode === "plan" ? "plan" : "dimetric", zoom: Number(zoom), centre: { x: x!, z: z! } };
-};
-
-function StubCanvas({ view, theme }: CanvasProps) {
-  return (
-    <p data-testid="canvas">
-      {view.mode} {view.zoom} {view.centre.x},{view.centre.z} {theme.label}
-    </p>
-  );
-}
-
 describe("Viewer", () => {
-  it("opens the first bundled city and lists its towns and districts", async () => {
+  it("opens the first bundled city and lists its towns", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     expect(await screen.findByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
     expect(screen.getByText("1 towns · 1 lots")).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 2, name: /alpha/ })).toBeTruthy();
-    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["src", "lib"]);
+    expect(towns()).toEqual(["alpha"]);
     expect(screen.getByRole("application", { name: /Map of alpha/ })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Legend" }).textContent).toContain("Park: documentation");
   });
 
-  it("switches city, view and theme from the bar", async () => {
+  it("switches city from More, view from the switch and theme from its menu", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });
-    fireEvent.change(screen.getByLabelText("City"), { target: { value: "beta.json" } });
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.getByRole("button", { name: "alpha 1 lots" }).getAttribute("aria-current")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "beta 1 lots" }));
     expect(await screen.findByRole("heading", { level: 1, name: "beta" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Plan" }));
+    // Plan view is the default; the switch goes to 3D and back.
     expect(screen.getByRole("button", { name: "Plan" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByTestId("canvas").textContent).toMatch(/^plan /);
-    fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dracula" } });
-    expect(screen.getByTestId("canvas").textContent).toMatch(/Dracula$/);
+    expect(read()).toMatch(/^plan /);
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
+    expect(read()).toMatch(/^dimetric /);
+    fireEvent.click(screen.getByRole("button", { name: "Theme" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Dracula" }));
+    expect(read()).toMatch(/Dracula$/);
+    // A pick closes the menu and hands focus back to its button.
+    expect(screen.getByRole("button", { name: "Theme" }).getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Theme" }));
   });
 
-  it("pans and zooms with the keyboard, and fits with 0", async () => {
+  it("closes a menu with Escape or a press elsewhere", async () => {
+    render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    const theme = screen.getByRole("button", { name: "Theme" });
+    fireEvent.click(theme);
+    expect(theme.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.keyDown(screen.getByRole("radio", { name: "Paper atlas" }), { key: "Escape" });
+    expect(theme.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(theme);
+    fireEvent.click(theme);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(theme.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.pointerDown(screen.getByRole("application"));
+    expect(theme.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(theme);
+    fireEvent.click(theme);
+    expect(theme.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("pans and zooms with the keyboard and the zoom buttons, and fits with 0", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     const map = await screen.findByRole("application");
-    const before = screen.getByTestId("canvas").textContent;
+    const before = read();
     fireEvent.keyDown(map, { key: "+" });
-    expect(screen.getByTestId("canvas").textContent).not.toBe(before);
+    expect(read()).not.toBe(before);
     fireEvent.keyDown(map, { key: "0" });
-    expect(screen.getByTestId("canvas").textContent).toBe(before);
+    expect(read()).toBe(before);
     fireEvent.keyDown(map, { key: "ArrowRight" });
-    expect(screen.getByTestId("canvas").textContent).not.toBe(before);
+    expect(read()).not.toBe(before);
     fireEvent.keyDown(map, { key: "q" });
+    fireEvent.click(screen.getByRole("button", { name: "Fit the city" }));
+    expect(read()).toBe(before);
+    const fitted = currentView().zoom;
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(currentView().zoom).toBeCloseTo(fitted * 1.25, 9);
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(currentView().zoom).toBeCloseTo(fitted / 1.25, 9);
   });
 
   it("opens a picked city file, and says why a bad one is not a city while keeping the last", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });
-    const input = screen.getByLabelText("City file");
+    const input = screen.getByLabelText<HTMLInputElement>("City file");
+    let clicked = false;
+    input.addEventListener("click", () => {
+      clicked = true;
+    });
+    fromMore("Open a city file…");
+    expect(clicked).toBe(true);
     fireEvent.change(input, { target: { files: [new File([serialiseCity(city("gamma"))], "gamma.json")] } });
     expect(await screen.findByRole("heading", { level: 1, name: "gamma" })).toBeTruthy();
-    expect(screen.getByRole<HTMLSelectElement>("combobox", { name: "City" }).selectedOptions[0]?.textContent).toBe(
-      "gamma.json (file)",
-    );
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.getByRole("button", { name: "alpha 1 lots" }).getAttribute("aria-current")).toBeNull();
     fireEvent.change(input, { target: { files: [new File(["{"], "bad.json")] } });
     expect((await screen.findByRole("alert")).textContent).toMatch(/^That file is not a city: city\/bad-json/);
     expect(screen.getByRole("heading", { level: 1, name: "gamma" })).toBeTruthy();
     fireEvent.change(input, { target: { files: [] } });
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("opens a dropped city file anywhere on the page", async () => {
@@ -167,9 +169,21 @@ describe("Viewer", () => {
     expect(asked).toEqual(["/citymap/cities/index.json", "/citymap/cities/alpha.json"]);
   });
 
+  it("says nothing of an empty city while the first one is still on its way", async () => {
+    let arrive: ((response: Response) => void) | undefined;
+    const slow = async (url: string) =>
+      url === "/cities/index.json" ? fetcher(url) : new Promise<Response>((done) => (arrive = done));
+    render(<Viewer Canvas={StubCanvas} fetcher={slow} />);
+    expect(await screen.findByText("alpha: laying out…")).toBeTruthy();
+    expect(screen.queryByText(/No city yet/)).toBeNull();
+    await act(async () => arrive!(await fetcher("/cities/alpha.json")));
+    expect(await screen.findByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
+  });
+
   it("shows the empty state, and a failed index, by name", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={empty} />);
     expect(await screen.findByText(/No city yet/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Zoom in" })).toBeNull();
     cleanup();
     render(<Viewer Canvas={StubCanvas} fetcher={broken} />);
     expect((await screen.findByRole("alert")).textContent).toBe(
@@ -192,31 +206,49 @@ describe("Viewer", () => {
     }));
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });
-    expect(screen.getByTestId("canvas").textContent).toMatch(/Night atlas$/);
-    vi.unstubAllGlobals();
+    expect(read()).toMatch(/Night atlas$/);
   });
 
-  it("keeps the city and theme when a select offers an unknown value, and opens the file picker", async () => {
+  it("hides the drawer to give the map the page, and brings it back", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });
-    fireEvent.change(screen.getByLabelText("City"), { target: { value: "nowhere.json" } });
-    fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "neon" } });
-    expect(screen.getByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
-    expect(read()).toMatch(/Paper atlas$/);
-    const input = screen.getByLabelText<HTMLInputElement>("City file");
-    let clicked = false;
-    input.addEventListener("click", () => {
-      clicked = true;
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Open a city file…" }));
-    expect(clicked).toBe(true);
+    const drawer = screen.getByRole("complementary", { name: "Details" });
+    expect(drawer.dataset["open"]).toBe("auto");
+    const fitted = read();
+    fireEvent.click(screen.getByRole("button", { name: "Hide details" }));
+    expect(drawer.dataset["open"]).toBe("false");
+    // The city refits to the map the drawer gave back.
+    expect(read()).not.toBe(fitted);
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(drawer.dataset["open"]).toBe("true");
+    expect(read()).toBe(fitted);
+    expect(info.mock.calls.map(([line]) => line).filter((l) => String(l).startsWith("viewer/drawer"))).toEqual([
+      "viewer/drawer open=closed",
+      "viewer/drawer open=open",
+    ]);
   });
 
-  it("folds the panel behind a disclosure on narrow screens", async () => {
+  it("lists seven towns by size, then all of them on request", async () => {
+    const many = { ...city("many"), towns: [] as ReturnType<typeof city>["towns"][number][] };
+    for (let i = 0; i < 9; i++)
+      many.towns.push({
+        ...city(`t${i}`).towns[0]!,
+        key: `t${i}`,
+        outline: city("x").towns[0]!.outline.map((p) => ({ x: p.x + i * 12800, y: p.y })),
+        stats: { lots: 10 + i, overflow: 0, offLand: 0, docs: 0, lotArea2: 0, landArea2: 0 },
+      });
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
-    const toggle = await screen.findByRole("button", { name: "Towns and districts" });
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    fireEvent.change(screen.getByLabelText("City file"), {
+      target: { files: [new File([serialiseCity(many)], "many.json")] },
+    });
+    await screen.findByRole("heading", { level: 1, name: "many" });
+    expect(towns()).toEqual(["t8", "t7", "t6", "t5", "t4", "t3", "t2"]);
+    fireEvent.click(screen.getByRole("button", { name: "Show all 9 towns" }));
+    expect(towns()).toHaveLength(9);
+    fireEvent.click(screen.getByRole("button", { name: "Show fewer towns" }));
+    expect(towns()).toHaveLength(7);
   });
 });
 
@@ -228,34 +260,32 @@ describe("Viewer, rendered elsewhere", () => {
     expect(html).toContain('data-theme="paper-atlas"');
   });
 
-  it("fetches from the browser by default, and switches back to dimetric", async () => {
+  it("fetches from the browser by default, and switches back to plan", async () => {
     vi.stubGlobal("fetch", fetcher);
     render(<Viewer Canvas={StubCanvas} />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
     fireEvent.click(screen.getByRole("button", { name: "Plan" }));
-    fireEvent.click(screen.getByRole("button", { name: "Dimetric" }));
-    expect(read()).toMatch(/^dimetric /);
-    vi.unstubAllGlobals();
+    expect(read()).toMatch(/^plan /);
   });
 });
 
 describe("Viewer fitting", () => {
   it("keeps a new city fitted to the map as it is measured, until the person moves it", async () => {
-    let width = 800;
-    const box = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => width);
+    let width = 1600;
+    // From the wide layout to the medium one, where the search sits under the title and the city refits below it.
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => width);
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     const map = await screen.findByRole("application");
     const first = read();
-    width = 1600;
+    width = 1000;
     fireEvent(window, new Event("resize"));
-    const wider = read();
-    expect(wider).not.toBe(first);
+    expect(read()).not.toBe(first);
     fireEvent.keyDown(map, { key: "ArrowRight" });
     const moved = read();
-    width = 400;
+    width = 1600;
     fireEvent(window, new Event("resize"));
     expect(read()).toBe(moved);
-    box.mockRestore();
   });
 });
 
@@ -280,13 +310,14 @@ describe("Viewer hover and select", () => {
   it("drops the card when the pointer leaves, and does not select after a drag", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     const map = await screen.findByRole("application");
-    fireEvent.pointerMove(map, { pointerId: 1, clientX: 400, clientY: 300 });
+    const middle = project(currentView(), viewport, { x: 50, y: 0, z: -50 });
+    fireEvent.pointerMove(map, { pointerId: 1, clientX: middle.x, clientY: middle.y });
     expect(screen.getByRole("tooltip")).toBeTruthy();
     fireEvent.pointerLeave(map);
     expect(screen.queryByRole("tooltip")).toBeNull();
-    fireEvent.pointerDown(map, { pointerId: 1, clientX: 400, clientY: 300 });
-    fireEvent.pointerMove(map, { pointerId: 1, clientX: 450, clientY: 300 });
-    fireEvent.pointerUp(map, { pointerId: 1, clientX: 450, clientY: 300 });
+    fireEvent.pointerDown(map, { pointerId: 1, clientX: middle.x, clientY: middle.y });
+    fireEvent.pointerMove(map, { pointerId: 1, clientX: middle.x + 50, clientY: middle.y });
+    fireEvent.pointerUp(map, { pointerId: 1, clientX: middle.x + 50, clientY: middle.y });
     expect(screen.getByRole("region", { name: "Selected" }).textContent).toContain("Nothing yet");
     fireEvent.pointerMove(map, { pointerId: 2, clientX: -500, clientY: -500 });
     expect(screen.queryByRole("tooltip")).toBeNull();
@@ -295,6 +326,8 @@ describe("Viewer hover and select", () => {
   it("keeps the card on the map beside the pointer, flipping at the far edges", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     const map = await screen.findByRole("application");
+    // Without the drawer the town sits near the map's middle; close up, the whole map is town.
+    fireEvent.click(screen.getByRole("button", { name: "Hide details" }));
     for (let i = 0; i < 12; i++) fireEvent.keyDown(map, { key: "+" });
     fireEvent.pointerMove(map, { pointerId: 1, clientX: 790, clientY: 590 });
     const card = screen.getByRole("tooltip");
@@ -305,58 +338,21 @@ describe("Viewer hover and select", () => {
   });
 });
 
-/** The towns the panel lists, by name. */
-const towns = () =>
-  Array.from(screen.getByRole("region", { name: "Towns and districts" }).querySelectorAll("h2"), (h) =>
-    h.firstChild?.textContent?.trim(),
-  );
-
 describe("Viewer drill down", () => {
   const viewport = { width: 800, height: 600 };
-  // The city of alpha with a second town, apps/web, east of it across a highway.
-  const base = city("alpha");
-  const web = {
-    ...base.towns[0]!,
-    key: "alpha/apps/web",
-    name: "apps/web",
-    outline: square(12800, 6400),
-    lots: [{ ...base.towns[0]!.lots[0]!, pts: square(12864, 64), path: "apps/web/page.tsx" }],
-    districts: [
-      { pts: square(12800, 3200), path: "apps/web/src", name: "src", depth: 1, massMille: 1000, ward: false },
-    ],
-  };
-  const twin: City = {
-    ...base,
-    towns: [base.towns[0]!, web],
-    highways: [
-      {
-        pts: [
-          { x: 6400, y: 3200 },
-          { x: 12800, y: 3200 },
-        ],
-        cls: "highway",
-      },
-    ],
-  };
-  const twinFiles: Record<string, string> = {
-    "/cities/index.json": JSON.stringify([{ name: "alpha", file: "alpha.json", lots: 2 }]),
-    "/cities/alpha.json": serialiseCity(twin),
-  };
-  const twinFetcher = async (url: string) =>
-    new Response(twinFiles[url] ?? "", { status: url in twinFiles ? 200 : 404 });
 
-  it("shows one town from the panel, fitted, and the whole city again from the breadcrumb", async () => {
+  it("shows one town from the drawer, fitted, and the whole city again from the breadcrumb", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={twinFetcher} />);
     await screen.findByRole("application");
     expect(towns()).toEqual(["alpha", "apps/web"]);
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
     const whole = read();
-    fireEvent.click(screen.getByRole("button", { name: "Show only this town: apps/web" }));
+    fireEvent.click(townButton("apps/web"));
     expect(towns()).toEqual(["apps/web"]);
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(crumbs.textContent).toBe("alphaapps/web");
     expect(crumbs.querySelector("[aria-current=page]")?.textContent).toBe("apps/web");
-    expect(screen.queryByRole("button", { name: /^Show only this town/ })).toBeNull();
+    expect(within(screen.getByRole("region", { name: "Towns" })).queryByRole("button")).toBeNull();
     expect(currentView().centre.x).toBeGreaterThan(200);
     expect(read()).not.toBe(whole);
     fireEvent.click(screen.getByRole("button", { name: "alpha" }));
@@ -399,7 +395,7 @@ describe("Viewer drill down", () => {
     const selected = screen.getByRole("region", { name: "Selected" });
     expect(selected.textContent).toContain("Highway");
     expect(within(selected).queryByRole("button")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Show only this town: apps/web" }));
+    fireEvent.click(townButton("apps/web"));
     const file = new File([serialiseCity(city("beta"))], "beta.json", { type: "application/json" });
     fireEvent.change(screen.getByLabelText("City file"), { target: { files: [file] } });
     await screen.findByRole("heading", { level: 1, name: "beta" });
@@ -416,7 +412,7 @@ describe("Viewer log", () => {
     await screen.findByRole("heading", { level: 1, name: "alpha" });
     fireEvent.change(screen.getByLabelText("City file"), { target: { files: [new File(["{"], "bad.json")] } });
     await screen.findByRole("alert");
-    fireEvent.click(screen.getByRole("button", { name: "Show only this town: alpha" }));
+    fireEvent.click(townButton("alpha"));
     fireEvent.click(screen.getByRole("navigation", { name: "Breadcrumb" }).querySelector("button")!);
     expect(info.mock.calls.map(([line]) => line)).toEqual([
       "viewer/index cities=2",
@@ -425,7 +421,6 @@ describe("Viewer log", () => {
       "viewer/city",
     ]);
     expect(error.mock.calls.map(([line]) => line)).toEqual(["viewer/file-rejected file=bad.json reason=city/bad-json"]);
-    vi.restoreAllMocks();
   });
 });
 
@@ -447,31 +442,47 @@ describe("Viewer and a GitHub repository", () => {
   };
   afterEach(() => window.history.replaceState(null, "", "/"));
 
-  it("lays a named repository's single state, says so, and puts it in the address", async () => {
+  it("lays a named repository's single state from the search, says so, and puts it in the address", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     render(<Viewer Canvas={StubCanvas} fetcher={github()} lay={layHere} />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });
-    fireEvent.change(screen.getByLabelText("GitHub repository"), {
-      target: { value: "https://github.com/acme/widgets" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Lay" }));
+    type("https://github.com/acme/widgets");
+    // Nothing in alpha matches, so laying the repository is the first choice, and Enter picks it.
+    expect(screen.getAllByRole("button", { name: /from GitHub/ }).map((b) => b.textContent)).toEqual([
+      "Lay acme/widgets from GitHub Reads its tree and lays it here",
+    ]);
+    fireEvent.keyDown(searchField(), { key: "Enter" });
     expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
     expect(await screen.findByText(/^1 towns · 12 lots · single state, not folded$/)).toBeTruthy();
     expect(window.location.search).toBe("?repo=acme/widgets");
-    // The picker and the field both name what is shown.
-    const picker = screen.getByRole<HTMLSelectElement>("combobox", { name: "City" });
-    expect(picker.selectedOptions[0]?.textContent).toBe("acme/widgets (GitHub)");
-    expect(screen.getByLabelText("GitHub repository")).toHaveProperty("value", "acme/widgets");
+    expect(searchField()).toHaveProperty("value", "");
     expect(info.mock.calls.map(([line]) => String(line)).find((l) => l.startsWith("viewer/github-read"))).toMatch(
       /^viewer\/github-read repo=acme\/widgets requests=2 files=12 ms=\d+$/,
     );
-    vi.restoreAllMocks();
+    // Its files are found by the search; the repository is offered after the matches when the text names one too.
+    type("src/f1");
+    const options = within(screen.getByRole("list", { name: "Matches" })).getAllByRole("button");
+    expect(options.map((b) => b.textContent)).toEqual([
+      "File f1.ts src/f1.ts",
+      "File f10.ts src/f10.ts",
+      "File f11.ts src/f11.ts",
+      "Lay src/f1 from GitHub Reads its tree and lays it here",
+    ]);
+    type("src");
+    expect(screen.getByText(/^12 matches; the first 7 are shown, type more to narrow them$/)).toBeTruthy();
   });
 
-  it("lays the repository an address names, instead of the first bundled city", async () => {
+  it("lays the repository an address names, instead of the first bundled city, and says why a bad one cannot", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     window.history.replaceState(null, "", "/?repo=acme/widgets");
     render(<Viewer Canvas={StubCanvas} fetcher={github()} lay={layHere} />);
     expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
+    cleanup();
+    window.history.replaceState(null, "", "/?repo=not%20a%20repository");
+    render(<Viewer Canvas={StubCanvas} fetcher={github()} lay={layHere} />);
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      '"not a repository" is not a GitHub repository: use owner/name.',
+    );
   });
 
   it("says in one sentence why a repository cannot be laid, and keeps the last city", async () => {
@@ -485,21 +496,14 @@ describe("Viewer and a GitHub repository", () => {
     });
     render(<Viewer Canvas={StubCanvas} fetcher={limited} lay={layHere} />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });
-    const field = screen.getByLabelText("GitHub repository");
-    fireEvent.change(field, { target: { value: "not a repository" } });
-    fireEvent.click(screen.getByRole("button", { name: "Lay" }));
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      '"not a repository" is not a GitHub repository: use owner/name.',
-    );
-    fireEvent.change(field, { target: { value: "acme/widgets" } });
-    fireEvent.click(screen.getByRole("button", { name: "Lay" }));
+    type("acme/widgets");
+    fireEvent.keyDown(searchField(), { key: "Enter" });
     expect(
       await screen.findByText(/^GitHub's hourly limit for this browser is reached; it resets at \d\d:\d\d\.$/),
     ).toBeTruthy();
-    fireEvent.change(field, { target: { value: "acme/missing" } });
-    fireEvent.click(screen.getByRole("button", { name: "Lay" }));
+    type("acme/missing");
+    fireEvent.click(screen.getByRole("button", { name: /^Lay acme\/missing from GitHub/ }));
     expect(await screen.findByText("acme/missing does not exist or is private.")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
-    vi.restoreAllMocks();
   });
 });

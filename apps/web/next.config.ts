@@ -12,6 +12,8 @@ const config: NextConfig = {
   transpilePackages: ["@citymap/ground-plan", "@citymap/history", "@citymap/scene", "@citymap/themes"],
   // The repository's gate type-checks every project with TypeScript 7 (tsc --build); Next's own pass would repeat it.
   typescript: { ignoreBuildErrors: true },
+  // The React Compiler memoises components and props, so moving the map re-renders only what the view feeds.
+  reactCompiler: true,
 };
 
 export default config;

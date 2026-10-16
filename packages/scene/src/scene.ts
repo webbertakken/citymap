@@ -14,7 +14,16 @@ export interface Label {
   readonly x: number;
   readonly z: number;
   readonly size: "town" | "district" | "minor";
+  /** The land it names, in scene units: the smaller side of its town's or district's bounding box. */
+  readonly extent: number;
 }
+
+/** The smaller side of a polygon's bounding box, in scene units. */
+const extentOf = (pts: readonly Pt[]) => {
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  return Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / UNIT;
+};
 
 export interface Scene {
   readonly layers: readonly Layer[];
@@ -191,7 +200,13 @@ export function buildScene(city: City, theme: Theme): Scene {
       );
     }
     const heart = centroid(town.outline);
-    labels.push({ text: town.name.toUpperCase(), x: heart.x / UNIT, z: 0 - heart.y / UNIT, size: "town" });
+    labels.push({
+      text: town.name.toUpperCase(),
+      x: heart.x / UNIT,
+      z: 0 - heart.y / UNIT,
+      size: "town",
+      extent: extentOf(town.outline),
+    });
   }
   for (const r of roadsOf) {
     for (const quad of roadRibbon(r.pts, roadWidth(r) + CASING)) casings.flat(quad, theme.casing, HEIGHT.casings);
@@ -210,6 +225,7 @@ export function buildScene(city: City, theme: Theme): Scene {
       x: at.x / UNIT,
       z: 0 - at.y / UNIT,
       size: major ? "district" : "minor",
+      extent: extentOf(d.pts),
     });
   }
   const outline = city.towns.flatMap((t) => t.outline);
