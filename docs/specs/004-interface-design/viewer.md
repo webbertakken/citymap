@@ -10,29 +10,32 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
 2. They switch between bundled cities, or open a city file of their own (a JSON file the CLI wrote), by picking it or
    dropping it on the page.
 3. Or they name any public GitHub repository (`owner/name`, or its URL) and see its city at its default branch, laid in
-   their browser in seconds; a link carries the repository, so it can be shared.
-4. They look around: pan, zoom, and switch between the plan view, where they start, and the 2:1 dimetric view.
-5. They change the theme; the viewer starts in Paper atlas, or in Night atlas when the system prefers dark.
-6. They read the city: town and district names on the map, and the same names as a list beside it.
+   their browser in seconds; after `owner/` the viewer suggests that owner's public repositories. A link carries the
+   repository, so it can be shared. A large repository shows its progress over the map while it loads.
+4. Or they open a repository on their own machine (see
+   [local repositories](../007-local-repositories/local-repositories.md)).
+5. They look around in plan view: pan and zoom. Hovering names anything on the map and says what it means.
+6. They change the theme; the viewer starts in Paper atlas, or in Night atlas when the system prefers dark.
+7. They read the city: town and district names on the map, and the same names as a list beside it.
 
 ## Layout
 
 The map fills the whole page; every control floats over it on translucent ("glass") cards at the edges, so the centre
 stays clear for the city.
 
-- **Top left, the title card**: the city's name, a line of status (towns, lots, how it was laid), and the breadcrumb
-  when one town is shown.
+- **Top left, the title card**: the city's name, its status (towns, lots, how it was laid), and the breadcrumb when one
+  town is shown. The status wraps to a second line rather than being cut; it is never truncated.
 - **Top centre, the search box**: finds folders and files of the city shown, and lays a GitHub repository when the text
   is `owner/name` or a GitHub URL. `/` puts the cursor in it from anywhere.
-- **Top right, three controls**: the view switch (Plan, 3D), the theme menu, and More (the bundled cities, opening a
-  city file).
+- **Top right, two controls**: the theme menu, and More (the bundled cities, opening a city file, opening a local
+  repository). The viewer shows plan view only; the 2:1 dimetric view stays in the CLI's SVG export (`--camera`).
 - **Right, the drawer**: what is selected, then the towns (seven, then "Show all"), each with "Show only this town". It
   can be closed to give the map the whole page. On a phone it becomes a sheet at the bottom, closed at first.
 - **Bottom right, zoom**: in, out, and fit.
 - **Bottom left, the legend**: what the colours mean. Hidden on a phone.
 - A city fitted to the map, or a place flown to, lands in the part the cards leave free.
 - Empty state: no city loaded says how to make one (`citymap <repository> --out=city.json`) or to type a repository.
-- Loading state: the status line says what is happening ("reading the tree…", "laying out…").
+- Loading state: a progress card over the map (see Loading); the status line names the phase too.
 - Error state: one sentence in a notice that floats above the map and never moves anything; the last good city stays.
 
 ## Search
@@ -41,9 +44,47 @@ stays clear for the city.
   matched text marked. At most seven choices show; a line says how many match in all.
 - A GitHub repository typed as `owner/name` or its URL is offered too, "Lay owner/name from GitHub": first when nothing
   in the city matches, else after the matches.
+- After `owner/` (or a GitHub URL up to the owner), the list also suggests that owner's public repositories (see
+  Repository suggestions).
 - Enter picks the first choice; ArrowDown moves into the list and the arrows move through it; Escape steps back to the
   field, closes the list, then clears the text. Picking a folder or a file flies the map to it, selects it and shows it
   in the drawer.
+
+## Repository suggestions
+
+- Once the text is `owner/` followed by nothing or the start of a name, the viewer asks GitHub for that owner's public
+  repositories (a user's or an organisation's) and suggests those whose name starts with, then contains, what follows
+  the slash, case-insensitively; ties go to the most starred.
+- Each suggestion shows the repository's name with the typed part marked, its description on one line (shortened with an
+  ellipsis, the whole in its accessible name), its stars, its main language, and "fork" or "archived" where true.
+  Picking one lays it, as typing its full name would.
+- Suggestions sit under a heading "On GitHub", after the city's own matches; with suggestions shown, the city keeps at
+  most three places, so seven choices at most in all.
+- An owner's list is asked for once per owner and kept for ten minutes in the tab. Typing more after the slash filters
+  it without asking again; for an owner with more repositories than one answer holds, a name not among them is looked up
+  with GitHub's repository search instead.
+- GitHub's hourly allowance is shared with laying: the list's summary says how many requests remain this hour. When the
+  allowance is spent, or the owner does not exist, one line says so ("No GitHub user or organisation named x", "GitHub's
+  hourly limit is reached; it resets at 14:05"), and laying the typed name stays on offer.
+- Only public repositories exist here: nothing is signed in.
+
+## Loading
+
+- Opening anything that takes longer than 300 ms (a bundled city, a city file, a GitHub repository, a local repository)
+  shows a progress card over the centre of the free map; once shown it stays at least 400 ms, so it never flickers.
+- The card names what is opening and the phase it is in, in words a person knows: "Asking GitHub for the latest commit",
+  "Reading the file tree", "Reading workspace manifests", "Laying out 96,000 files", "Drawing the map"; for a bundled
+  city or a file, "Downloading" and "Reading the city".
+- One bar runs through all phases and never moves backwards. It is determinate wherever a count is known (folders read
+  of folders known, files laid of files, bytes of bytes) and shows the count beside it ("1,204 of 2,610 folders · 27
+  requests"); where nothing can be counted, a gentle sweep, and a still bar under reduced motion. Once the pace is
+  steady it estimates the time left ("about 12 s left"), and it always shows the time spent.
+- "Cancel" (and Escape) stops the work: requests are aborted, the layout worker ends, and the last city stays as it was.
+  The last city stays visible, dimmed, under the card while the next one loads; search, the menus and the drawer stay
+  usable.
+- A failure removes the card and says why in the notice, as elsewhere.
+- The card floats: it moves nothing (CLS 0), and its progress is a `progressbar` with its value and phase as text; only
+  phase changes are announced, not every step.
 
 ## Light and dark
 
@@ -80,11 +121,11 @@ Every control meets measurable rules:
 ## Map
 
 - One scene: town grounds, blocks, roads (casing and fill), water, parks and plazas flat; lots as low plinths.
-- The camera is orthographic. Plan, the default: straight down. Dimetric: 30° elevation, 45° yaw. Switching keeps the
-  centre and the zoom.
+- The camera is orthographic and looks straight down (plan view).
 - Pan by dragging or the arrow keys; zoom by the wheel, a pinch, or `+` and `-`; `0` fits the city to the window.
 - Town names and the largest district names float over the map as text, never as images, and never overlap. A name shown
-  once is not repeated nearby, and smaller names appear only as the map is zoomed in far enough to read them.
+  once is not repeated nearby, whatever its letter case (`NET` and `net` are the same name), and smaller names appear
+  only as the map is zoomed in far enough to read them.
 - Styles are the five themes of the ground plan; the viewer and the SVG export share their colours.
 
 ## Drill down
@@ -95,15 +136,36 @@ Every control meets measurable rules:
 
 ## Hover and select
 
-- Everything on the map answers to the pointer. Hovering shows a small card beside the pointer naming what is there:
-  - a lot: its file path, its land use and its address, or "vacant" for the lot of a deleted file;
-  - a block: park, plaza, green or reserve (room to grow), with its district;
-  - a road: its class;
-  - the ground of a town: the town, and the district under the pointer.
+Everything on the map answers to the pointer. Hovering shows a card beside the pointer that names what is there and says
+what it means, so a person who has never read this spec understands the map.
+
+- **Shape of the card**: an icon for the kind of thing; its name as the title (a file's name, not its whole path); a
+  line saying where it is (town › folder › subfolder); then labelled rows, plain words, one fact each. Nothing is
+  repeated: a folder named "Documentation" is shown once, as the folder, never again as a description.
+- **Long text**: the card is 280 to 360 px wide and grows downwards; every text wraps (paths break after a slash) and
+  none is cut off or hidden. The card is placed beside the pointer by its measured size, flipped and then nudged so it
+  always lies wholly inside the map, and never under the pointer.
+- **What each card says**:
+  - a file's lot: the file's name; where it is; what kind of file it is ("Source", "Test", "Documentation" and so on,
+    with a short meaning, e.g. "Tests are kept off the map unless asked for"); its folder with how many files the folder
+    holds; its address in words ("No. 3 on drivers/phy/intel"), with the note that a lot keeps its address for life;
+  - a vacant lot: "Empty lot", and why: a file was deleted here, and the lot stays free so its neighbours never move,
+    until the neighbourhood renews;
+  - a park: "Park", and what it is: open land for the documentation of its folder (each document gives its folder half a
+    lot of park), the folder named once, with how many documents it holds where known;
+  - a plaza: a square where a long road changes direction; a green: the open centre of a small settlement; a reserve
+    plot: land kept free for the folder's future files;
+  - a road: its class with its meaning (a lane inside a neighbourhood, a street, a collector or avenue between
+    districts, the boulevard through a city, a highway between towns), and for a highway the towns it joins;
+  - a folder's ground: the folder, its path, how many files and folders it holds;
+  - a town: its name, its lots and districts, and its form in words (e.g. "a radial town: districts round a centre").
+- **A hint at the foot**: "Click to select" on a pointer; what selecting offers.
 - The card follows the pointer, never covers it, and goes with Escape or when the pointer leaves the map.
-- A click (or a tap) selects what is under the pointer: the panel shows the same details under "Selected", where
-  keyboard and screen-reader users read them; Escape clears the selection.
+- A click (or a tap) selects what is under the pointer: the drawer shows the same details under "Selected", where
+  keyboard and screen-reader users read them, with actions: "Show only this town", "Copy path", and "Open on GitHub" for
+  a file or folder when the city came from a GitHub repository. Escape clears the selection.
 - Lots sit above blocks, blocks above roads, roads above the ground: the card names the topmost.
+- The legend uses the same words as the cards ("Park: land for a folder's documentation").
 
 ## Accessibility (WCAG 2.2 AA)
 
