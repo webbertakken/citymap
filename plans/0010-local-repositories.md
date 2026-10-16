@@ -1,48 +1,42 @@
 # Plan 0010: open a repository on your own machine
 
-Pick a folder in the page for its single state, or run the companion for its folded history. Spec:
-[local repositories](../docs/specs/007-local-repositories/local-repositories.md).
+Pick a repository's folder in the page and see its single state; nothing is installed and nothing leaves the machine.
+Spec: [local repositories](../docs/specs/007-local-repositories/local-repositories.md).
 
-## Phase 1: decide and spec
+## Phase 1: spec and blueprint
 
-- [ ] Webber's choice of the ways in (pick a folder, the companion, both, or an extension), then the spec follows it
-- [ ] Webber's choice of how the companion serves HTTPS on loopback (a certificate the machine trusts)
-- [x] Spec: the two ways, privacy, failures, what was not chosen
-- [ ] Blueprint: the git index reader (versions 2 to 4, extensions skipped or refused by name), the folder access per
-      browser, the companion's server (routes, token, host check, events stream, watching), its packaging in both CLIs;
-      error codes; defaults and completeness
-- [ ] Research: Chromium, Firefox and Safari folder access as shipped today; reading `.git/index` versions in the wild
-      (the reference corpus); how other tools bundle a web page in a Rust and a Bun binary
+- [x] Webber's choice: picking a folder only; the companion is held (mkcert, should it come)
+- [x] Spec: opening one, what is read, the city, failures, privacy, what is not now
+- [ ] Research: folder access in Chromium, Firefox and Safari as shipped today; git index versions and extensions in the
+      wild (the reference corpus clones); `.gitignore` matching libraries (licence, size, correctness)
+- [ ] Blueprint: the git index reader (versions 2 to 4, extensions skipped or refused by name), the folder reader per
+      browser, the remembered folder, the `.gitignore` path, the snapshot builder (`stateSnapshot`), error codes, logs;
+      defaults and completeness
 
-## Phase 2: pick a folder
+## Phase 2: reading a folder
 
 - [ ] `readIndex`: the git index to tracked paths, test-first against indexes written by git (v2, v3, v4, with and
       without extensions), refusing split and sparse indexes by name
 - [ ] The folder reader: Chromium's directory handle (reads only the index and manifests), the folder input elsewhere;
-      `.gitignore` for a folder without git; a remembered folder in Chromium
+      `.gitignore` for a folder without git; the remembered folder in Chromium
 - [ ] Equal to the CLI: the snapshot from a picked folder equals `citymap --no-history`'s on a clean checkout, on the
       reference corpus
-- [ ] More: "Open a local repository…" with both ways explained; not offered on a phone
-- [ ] Failures named and logged (`viewer/local-…`)
 
-## Phase 3: the companion
+## Phase 3: in the viewer
 
-- [ ] `citymap open [path]` in the TypeScript CLI: fold with the lock, serve the bundled viewer on `127.0.0.1`, token
-      and host checks, open the browser, stop on Ctrl-C or a minute after the page closes (tests first)
-- [ ] The page loads its city from the companion and streams the fold's progress into the Loading card
-- [ ] Watching: a new commit is folded and the map updates in place
-- [ ] The same in the Rust CLI, byte for byte in what it serves; parity extended
-- [ ] Security review of the companion: other websites, other local users, DNS rebinding, path traversal
+- [ ] More: "Open a local repository…" with its line of explanation; not offered on a phone
+- [ ] Phases into the Loading card (plan 0009), or the status line until that card exists
+- [ ] Failures named, shown in the notice and logged (`viewer/local-…`)
 
 ## Phase 4: proof
 
-- [ ] Unit tests at 100 %; `bun run check`; parity
-- [ ] End-to-end: pick a fixture folder (Chromium handle and folder input), the companion on a fixture repository with a
-      commit made during the test, axe light and dark, vitals
-- [ ] Measured: linux by folder pick, react by companion (first open and reopen), a commit's update time
+- [ ] Unit tests at 100 %; `bun run check`
+- [ ] End-to-end: pick a fixture folder (Chromium handle and folder input), a folder without git, each failure; axe
+      light and dark; vitals
+- [ ] Measured: linux, next.js and takken.io by folder pick, in Chromium and Firefox
 
 ## Phase 5: ship
 
-- [ ] README: both ways, with pictures
+- [ ] README: opening a local repository, with pictures
 - [ ] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
 - [ ] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`

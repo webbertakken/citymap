@@ -12,7 +12,7 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
 3. Or they name any public GitHub repository (`owner/name`, or its URL) and see its city at its default branch, laid in
    their browser in seconds; after `owner/` the viewer suggests that owner's public repositories. A link carries the
    repository, so it can be shared. A large repository shows its progress over the map while it loads.
-4. Or they open a repository on their own machine (see
+4. Or they pick a repository's folder on their own machine (see
    [local repositories](../007-local-repositories/local-repositories.md)).
 5. They look around in plan view: pan and zoom. Hovering names anything on the map and says what it means.
 6. They change the theme; the viewer starts in Paper atlas, or in Night atlas when the system prefers dark.
