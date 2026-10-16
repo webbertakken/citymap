@@ -37,6 +37,13 @@ export async function isAncestor(dir: string, ancestor: string, commit: string):
   return failed(args, result);
 }
 
+/** How many commits the first-parent history of `commit` holds, the commit included: the fold schedule's count. */
+export async function countCommits(dir: string, commit: string): Promise<number> {
+  const args = ["rev-list", "--first-parent", "--count", commit, "--"];
+  const result = await git(dir, args);
+  return result.code === 0 ? Number(result.stdout.trim()) : failed(args, result);
+}
+
 /** The commit id a ref names. */
 export async function resolveCommit(dir: string, ref: string): Promise<string> {
   const args = ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`];

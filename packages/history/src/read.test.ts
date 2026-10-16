@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { gitEnvironment } from "./env";
 import { parseRawLog, readHistory, type HistoryEvent } from "./read";
+import type { Strides } from "./schedule";
 
 const repos: string[] = [];
 afterEach(() => {
@@ -162,6 +163,123 @@ describe("readHistory", () => {
     await expect(collect(join(tmpdir(), "citymap-no-such-dir"))).rejects.toThrow("history/not-a-repo");
     const dir = repo();
     await expect(collect(dir)).rejects.toThrow("history/git-failed");
+  });
+
+  it("reports git log failing on a tree it cannot read", async () => {
+    const dir = repo();
+    write(dir, "a.ts", "a");
+    commit(dir, "one");
+    // The count reads commits only; the log needs the tree, and finds it gone.
+    const tree = git(dir, "rev-parse", "HEAD^{tree}").trim();
+    rmSync(join(dir, ".git/objects", tree.slice(0, 2), tree.slice(2)));
+    await expect(collect(dir)).rejects.toThrow("history/git-failed: git log exited with 128");
+  });
+});
+
+/** A history built in one `git fast-import`: each commit maps paths to contents, null deleting the path. */
+function history(commits: readonly Readonly<Record<string, string | null>>[]): string {
+  const dir = repo();
+  const stream = commits.map((changes, i) =>
+    [
+      "commit refs/heads/main",
+      `committer t <t@t> ${i} +0000`,
+      "data 0",
+      ...Object.entries(changes).flatMap(([path, text]) =>
+        text === null ? [`D ${path}`] : [`M 100644 inline ${path}`, `data ${Buffer.byteLength(text)}`, text],
+      ),
+      "",
+    ].join("\n"),
+  );
+  execFileSync("git", ["-C", dir, "fast-import", "--quiet"], { input: stream.join("\n"), env: gitEnvironment() });
+  return dir;
+}
+
+/** Small strides: windows of 4 below commit 4 of a 10-commit history, of 2 up to 8, then every commit. */
+const SMALL: Strides = { tail: 2, window: 2, coarseAfter: 4, coarseWindow: 4, grain: 4 };
+const workspaces = (patterns: string[]) => JSON.stringify({ workspaces: patterns });
+
+/** Renames chained in one window, a file born and deleted in one, manifests changed inside windows. */
+const WINDOWED = [
+  { "a.ts": "a", "keep.ts": "k" },
+  { "a.ts": null, "b.ts": "a", "x.ts": "x", "src/y.ts": "y" },
+  { "b.ts": null, "c.ts": "a", "x.ts": null },
+  { "z.ts": "z" },
+  { "package.json": workspaces(["pkgs/*"]), "pkgs/one/package.json": "{}" },
+  { "pkgs/one/index.ts": "1" },
+  { "package.json": workspaces(["nope/*"]) },
+  { "package.json": workspaces(["pkgs/*", "more/*"]), "more/two/index.ts": "2" },
+  { "keep.ts": "edited" },
+  { "z.ts": null },
+];
+
+/** The snapshots and events of one read. */
+async function read(dir: string, options: { from?: number; strides?: Strides } = {}) {
+  const events: HistoryEvent[] = [];
+  const snaps = [];
+  for await (const s of readHistory(dir, { ...options, onEvent: (e) => events.push(e) })) snaps.push(s);
+  return { snaps, events };
+}
+
+describe("readHistory on a fold schedule", () => {
+  it("lays only the ends of windows and the tail, each at its last commit", async () => {
+    const dir = history(WINDOWED);
+    const { snaps } = await read(dir, { strides: SMALL });
+    const shas = git(dir, "rev-list", "--first-parent", "--reverse", "HEAD").trim().split("\n");
+    expect(snaps.map((s) => s.index)).toEqual([3, 5, 7, 8, 9]);
+    expect(snaps.map((s) => s.commit)).toEqual([3, 5, 7, 8, 9].map((i) => shas[i]));
+  });
+
+  it("keeps identity through renames chained inside a window, and drops a file born and deleted in it", async () => {
+    const { snaps } = await read(history(WINDOWED), { strides: SMALL });
+    expect(snaps[0]?.files).toEqual([
+      { path: "c.ts", identity: "a.ts@0", firstSeen: 0 },
+      { path: "keep.ts", identity: "keep.ts@0", firstSeen: 0 },
+      { path: "src/y.ts", identity: "src/y.ts@1", firstSeen: 1 },
+      { path: "z.ts", identity: "z.ts@3", firstSeen: 3 },
+    ]);
+    expect(Object.fromEntries(snaps[0]?.folderFirstSeen ?? [])).toEqual({ "": 0, src: 1 });
+  });
+
+  it("resolves manifests changed inside a window at its end", async () => {
+    const { snaps } = await read(history(WINDOWED), { strides: SMALL });
+    expect(snaps.map((s) => s.workspaces)).toEqual([
+      undefined,
+      ["pkgs/one"],
+      ["more/two", "pkgs/one"],
+      ["more/two", "pkgs/one"],
+      ["more/two", "pkgs/one"],
+    ]);
+  });
+
+  it("logs the schedule once", async () => {
+    const { events } = await read(history(WINDOWED), { strides: SMALL });
+    expect(events).toEqual([
+      { code: "history/schedule", detail: { commits: 10, coarse: 4, tail: 8, from: 0, laid: 5 } },
+    ]);
+  });
+
+  it("resumes with the first index laid again, then the same schedule", async () => {
+    const dir = history(WINDOWED);
+    const resumed = await read(dir, { from: 6, strides: SMALL });
+    expect(resumed.snaps.map((s) => s.index)).toEqual([6, 7, 8, 9]);
+    expect(resumed.snaps[0]?.workspaces).toEqual([]);
+    expect(resumed.events).toContainEqual({
+      code: "history/schedule",
+      detail: { commits: 10, coarse: 4, tail: 8, from: 6, laid: 4 },
+    });
+    expect((await read(dir, { from: 1, strides: SMALL })).snaps.map((s) => s.index)).toEqual([1, 3, 5, 7, 8, 9]);
+  });
+
+  it("folds every commit of a short history on the default strides", async () => {
+    const { snaps, events } = await read(history(WINDOWED));
+    expect(snaps.map((s) => s.index)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(events).toEqual([
+      { code: "history/schedule", detail: { commits: 10, coarse: 0, tail: 0, from: 0, laid: 10 } },
+    ]);
+  });
+
+  it("rejects strides the schedule cannot use", async () => {
+    await expect(read(history(WINDOWED), { strides: { ...SMALL, grain: 3 } })).rejects.toThrow("history/bad-schedule");
   });
 });
 

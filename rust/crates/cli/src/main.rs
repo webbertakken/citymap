@@ -13,6 +13,7 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
+use citymap_history::FOLD_STRIDES;
 
 use crate::args::{Command, USAGE, parse_command_line};
 use crate::run::{Io, LOCK_EVERY, run_lay};
@@ -54,7 +55,7 @@ fn main_with(argv: &[String], io: &mut dyn Io, error: &mut dyn FnMut(&str)) -> u
             io.log(USAGE);
             return 0;
         }
-        Ok(Command::Lay(command)) => match run_lay(&command, io, LOCK_EVERY) {
+        Ok(Command::Lay(command)) => match run_lay(&command, io, LOCK_EVERY, FOLD_STRIDES) {
             Ok(_) => return 0,
             Err(failure) => failure,
         },

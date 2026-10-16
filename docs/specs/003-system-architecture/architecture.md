@@ -45,8 +45,8 @@ git repository ──history──▶ snapshots ──ground-plan fold──▶ 
 
 ## Rust implementation
 
-A second implementation of the `citymap` command, for speed: a full fold of a large history takes hours on the
-TypeScript engine, and a fold service needs it in minutes.
+A second implementation of the `citymap` command, for speed: a full fold of a large history takes up to a quarter of an
+hour on the TypeScript engine (linux), and a fold service needs it in a minute or two.
 
 - It lives in `rust/`, one Cargo workspace whose crates mirror the TypeScript workspaces they implement:
   `citymap-ground-plan`, `citymap-history`, `citymap-themes`, `citymap-svg` and `citymap-cli` (the `citymap` binary).

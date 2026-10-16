@@ -19,9 +19,9 @@ GitHub allows about 60 requests an hour without signing in: most repositories ta
 
 ## What it does
 
-- **Stable by design.** citymap folds a repository's whole first-parent history, commit by commit. Every cut, grid and
-  address it lays is remembered, so a commit only moves the folders it touches. Across the reference repositories about
-  one lot in a hundred moves per commit.
+- **Stable by design.** citymap folds a repository's whole first-parent history: the recent commits one by one, older
+  ones in windows. Every cut, grid and address it lays is remembered, so a commit only moves the folders it touches.
+  Across the reference repositories about one lot in a hundred moves per commit.
 
   ![takken.io at four points in its history](docs/img/growth.png)
 
@@ -94,9 +94,11 @@ bun apps/cli/src/bin.ts <repository> [options]
 | `--split=<groups>` | Which workspace groups become a town per member (default `apps`) |
 | `--help`           | Show every option                                                |
 
-A full fold takes seconds for small repositories, minutes for mid-sized ones (react, 15,000 commits: under 3 minutes)
-and up to an hour or more for the largest (next.js, 32,000 commits: about 40 minutes). `--lock` saves progress, so later
-runs fold only the new commits; `--no-history` lays any single state in seconds.
+A long history folds its last 1,000 to 1,999 commits one by one and older ones in windows of 100 commits (of 1,000
+beyond the last 10,000), so a full fold takes seconds for small repositories and minutes for the largest: react (15,000
+commits) in under a minute, next.js (32,000) in under 3 minutes, linux (77,000) in about 16. Histories under 2,000
+commits fold every commit. `--lock` saves progress, so later runs fold only the new commits; `--no-history` lays any
+single state in seconds.
 
 ## What is in here
 

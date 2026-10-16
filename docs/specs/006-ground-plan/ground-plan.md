@@ -43,17 +43,48 @@ Each concept has one name; the names in brackets are not used.
 | archetype       | A node's form and tier.                                                                            |
 | plat            | The persistent state of a city: orders, sides, reserves, lot classes, vacant lots, archetypes.     |
 | address         | A lot's stable identifier: street, side and index.                                                 |
+| window          | A run of consecutive commits folded as one step: the tree as it stands at the run's last commit.   |
+| stride          | The number of commits in a window; stride 1 lays every commit.                                     |
+| fold schedule   | The windows a history of a given length folds in.                                                  |
 
 ## Input
 
 - The input is a git repository: its first-parent history and its current tree.
-- The plat is the fold of the layout over first-parent history, oldest commit first. The same repository at the same
-  commit always yields the same plat and the same city.
+- The plat is the fold of the layout over first-parent history, oldest commit first, on the fold schedule. The same
+  repository at the same commit always yields the same plat and the same city.
 - A committed lockfile overrides the fold. A folder without git keeps its plat as local state.
 - The fold reads commits and trees, and the contents of the repository's root workspace manifests only, at the commits
   that change them; it never needs any other file's contents.
 - A file's identity follows exact renames: the fold carries it through every commit that moves a file unchanged (equal
   blob ids, no contents needed). A folder's identity is its path.
+
+## Fold schedule
+
+Long histories fold in windows: every commit is read and applied to the tree, but the layout runs only at the end of
+each window. A batch of births lays well, where thousands of small steps wear the plat and take hours.
+
+- Commits are counted from the root, which is commit 0. A history of N commits splits into three zones, their boundaries
+  on multiples of 1,000:
+  - the tail, from `floor((N - 1,000) / 1,000) * 1,000` (0 at the least) to the last commit, at stride 1;
+  - before the tail, windows of stride 100;
+  - when N is over 10,000, the commits before `floor((N - 10,000) / 1,000) * 1,000` in windows of stride 1,000.
+- Windows are anchored to the root: window k of stride s covers commits `k * s` to `k * s + s - 1`. Zone boundaries are
+  multiples of both strides, so every window lies in one zone.
+- The tail holds the last 1,000 to 1,999 commits, and the last commit is always laid. A history of 1,999 commits or
+  fewer folds every commit.
+- A fresh fold of one more commit lays the same windows and one more commit, except when N reaches a multiple of 1,000
+  from 2,000 on: then a zone boundary steps, and the commits that left the tail fold in windows from then on. A fresh
+  fold therefore changes shape once per 1,000 commits.
+- Inside a window:
+  - a file keeps the commit it first appeared at, so siblings still order by first appearance;
+  - identity follows exact renames commit by commit, so a file renamed several times in one window keeps its identity;
+  - a file born and deleted in one window never takes a lot;
+  - the files born in one window arrive at once, in the fold's usual order.
+- A fold that resumes from a lockfile lays the lock's commit again, then the commits after it on the schedule of the
+  whole history up to its target; it never folds a commit up to the lock's again. Its windows are those of the history
+  as it stood when each part was folded, so it may differ from a fresh fold of the same target.
+- The schedule is not a setting: both CLIs always fold on it, and offer no flag to fold every commit. Folding every
+  commit stays a library value, for tests, the bench and measurements.
 
 ## Land use and mass
 
@@ -237,4 +268,4 @@ warp. It never feeds back into the plat.
 
 - Determinism: the same repository and commit give the same plat and city, bit for bit, in every implementation.
 - Integer core: the plat uses integer arithmetic and sorted iteration only.
-- Locality: a commit changes the city only in the folders it touches and their reserves.
+- Locality: a laid commit or window changes the city only in the folders its commits touch and their reserves.

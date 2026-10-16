@@ -9,7 +9,7 @@ use citymap_ground_plan::region::compose::{FoldState, Options, current_city, lay
 use citymap_ground_plan::snapshot::Snapshot;
 use citymap_ground_plan::town::context::Order;
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
-use citymap_history::{HistoryItem, ReadOptions, is_ancestor, read_history, read_tree, resolve_commit};
+use citymap_history::{HistoryItem, ReadOptions, Strides, is_ancestor, read_history, read_tree, resolve_commit};
 use citymap_svg::{RenderOptions, render_city};
 
 use crate::args::LayCommand;
@@ -25,7 +25,7 @@ pub trait Io {
 }
 
 pub const LOCKFILE: &str = "citymap.lock.json";
-/// With `--lock`, the lock is also saved every this many laid commits, so a long fold cut short resumes near its end.
+/// With `--lock`, the lock is also saved every this many laid snapshots, so a long fold cut short resumes near its end.
 pub const LOCK_EVERY: usize = 1000;
 
 struct Lock {
@@ -66,7 +66,7 @@ fn save_lock(io: &mut dyn Io, repo: &Path, state: &FoldState, commit: &str, inde
 }
 
 /// Folds the repository's history into its city and writes what the command asks for. Returns the city.
-pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize) -> Result<City> {
+pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize, strides: Strides) -> Result<City> {
     let started = io.now();
     let repo: PathBuf = std::path::absolute(&command.repo).unwrap_or_else(|_| PathBuf::from(&command.repo));
     let mut land_uses = default_land_uses();
@@ -88,22 +88,22 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize) -> Resu
     } else {
         None
     };
-    let from = lock.as_ref().map_or(0, |l| l.index);
+    let from = lock.as_ref().map(|l| l.index);
     let mut state = lock.map_or_else(|| initial_state(&options, None, true), |l| l.state);
     let mut laid_any = false;
-    let (mut commits, mut index) = (0usize, 0i64);
+    let (mut laid_count, mut index) = (0usize, 0i64);
     let mut lay = |snapshot: Snapshot, io: &mut dyn Io, state: &mut FoldState| -> Result<()> {
         let events = lay(&snapshot, state, &options)?;
         laid_any = true;
         index = snapshot.index;
-        commits += 1;
+        laid_count += 1;
         // The lock's own commit is laid again to restore the towns as they stood; its decisions are in the plat.
         if command.verbose {
             for event in &events {
                 io.log(&event.line());
             }
         }
-        if command.lock && commits.is_multiple_of(lock_every) && snapshot.commit != target {
+        if command.lock && laid_count.is_multiple_of(lock_every) && snapshot.commit != target {
             save_lock(io, &repo, state, &snapshot.commit, index)?;
         }
         Ok(())
@@ -114,6 +114,7 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize) -> Resu
             ReadOptions {
                 to: target.clone(),
                 from,
+                strides,
                 repository: None,
             },
         )?;
@@ -163,8 +164,10 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize) -> Resu
     }
     #[allow(clippy::cast_possible_truncation)]
     let ms = (io.now() - started).round() as i64;
+    // The commits folded, the lock's own included; windows lay fewer of them.
+    let commits = index + 1 - from.unwrap_or(0);
     io.log(&format!(
-        "fold/done repository={} commits={commits} lots={lots} overflow={overflow} ms={ms}",
+        "fold/done repository={} commits={commits} laid={laid_count} lots={lots} overflow={overflow} ms={ms}",
         laid.repository
     ));
     Ok(laid)

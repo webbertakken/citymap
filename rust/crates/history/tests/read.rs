@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use citymap_ground_plan::ErrorCode;
 use citymap_ground_plan::snapshot::Snapshot;
 use citymap_history::read::parse_raw_log;
-use citymap_history::{HistoryEvent, HistoryItem, ReadOptions, read_history, read_tree};
+use citymap_history::{HistoryEvent, HistoryItem, ReadOptions, Strides, read_history, read_tree};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
@@ -78,7 +78,7 @@ fn collect(dir: &Path, from: i64) -> (Vec<Snapshot>, Vec<HistoryEvent>) {
     for item in read_history(
         dir,
         ReadOptions {
-            from,
+            from: Some(from),
             ..ReadOptions::default()
         },
     )
@@ -208,12 +208,21 @@ fn skips_submodules_reports_them_and_lays_a_file_that_replaces_one() {
     assert_eq!(identities(&snaps[1]), ["a.ts@0"]);
     assert_eq!(
         events,
-        [HistoryEvent::SkipSubmodule {
-            path: "sub".into(),
-            index: 1
-        }]
+        [
+            HistoryEvent::Schedule {
+                commits: 3,
+                coarse: 0,
+                tail: 0,
+                from: 0,
+                laid: 3
+            },
+            HistoryEvent::SkipSubmodule {
+                path: "sub".into(),
+                index: 1
+            }
+        ]
     );
-    assert_eq!(events[0].line(), "history/skip-submodule path=sub index=1");
+    assert_eq!(events[1].line(), "history/skip-submodule path=sub index=1");
     assert_eq!(identities(&snaps[2]), ["a.ts@0", "sub@2"]);
 }
 
@@ -257,6 +266,234 @@ fn rejects_a_folder_that_is_not_a_repository_and_a_failing_git() {
         .expect("a reader")
         .find_map(Result::err);
     assert_eq!(failure.map(|e| e.code), Some(ErrorCode::HistoryGitFailed));
+}
+
+#[test]
+fn reports_git_log_failing_on_a_tree_it_cannot_read() {
+    let repo = Repo::new();
+    repo.write("a.ts", "a");
+    repo.commit("one");
+    // The count reads commits only; the log needs the tree, and finds it gone.
+    let tree = repo.git(&["rev-parse", "HEAD^{tree}"]);
+    std::fs::remove_file(repo.path().join(".git/objects").join(&tree[..2]).join(&tree[2..])).expect("a loose tree");
+    let failure = read_history(repo.path(), ReadOptions::default())
+        .expect("a reader")
+        .find_map(Result::err)
+        .expect("a failure");
+    assert!(
+        failure
+            .to_string()
+            .starts_with("history/git-failed: git log exited with 128"),
+        "{failure}"
+    );
+}
+
+/// A history built in one `git fast-import`: each commit maps paths to contents, none deleting the path.
+fn history(commits: &[&[(&str, Option<&str>)]]) -> Repo {
+    use std::fmt::Write as _;
+    use std::io::Write as _;
+    let repo = Repo::new();
+    let mut stream = String::new();
+    for (i, changes) in commits.iter().enumerate() {
+        writeln!(stream, "commit refs/heads/main\ncommitter t <t@t> {i} +0000\ndata 0").expect("a string");
+        for (path, text) in *changes {
+            match text {
+                None => writeln!(stream, "D {path}"),
+                Some(text) => writeln!(stream, "M 100644 inline {path}\ndata {}\n{text}", text.len()),
+            }
+            .expect("a string");
+        }
+        stream.push('\n');
+    }
+    let mut child = Command::new("git")
+        .arg("-C")
+        .arg(repo.path())
+        .args(["fast-import", "--quiet"])
+        .env_remove("GIT_DIR")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .expect("git runs");
+    child
+        .stdin
+        .take()
+        .expect("piped")
+        .write_all(stream.as_bytes())
+        .expect("the stream");
+    assert!(child.wait().expect("git ends").success());
+    repo
+}
+
+/// Small strides: windows of 4 below commit 4 of a 10-commit history, of 2 up to 8, then every commit.
+const SMALL: Strides = Strides {
+    tail: 2,
+    window: 2,
+    coarse_after: 4,
+    coarse_window: 4,
+    grain: 4,
+};
+
+/// Renames chained in one window, a file born and deleted in one, manifests changed inside windows.
+fn windowed() -> Repo {
+    history(&[
+        &[("a.ts", Some("a")), ("keep.ts", Some("k"))],
+        &[
+            ("a.ts", None),
+            ("b.ts", Some("a")),
+            ("x.ts", Some("x")),
+            ("src/y.ts", Some("y")),
+        ],
+        &[("b.ts", None), ("c.ts", Some("a")), ("x.ts", None)],
+        &[("z.ts", Some("z"))],
+        &[
+            ("package.json", Some(r#"{"workspaces":["pkgs/*"]}"#)),
+            ("pkgs/one/package.json", Some("{}")),
+        ],
+        &[("pkgs/one/index.ts", Some("1"))],
+        &[("package.json", Some(r#"{"workspaces":["nope/*"]}"#))],
+        &[
+            ("package.json", Some(r#"{"workspaces":["pkgs/*","more/*"]}"#)),
+            ("more/two/index.ts", Some("2")),
+        ],
+        &[("keep.ts", Some("edited"))],
+        &[("z.ts", None)],
+    ])
+}
+
+/// The snapshots and events of one read on the given strides.
+fn read(dir: &Path, from: Option<i64>, strides: Strides) -> (Vec<Snapshot>, Vec<HistoryEvent>) {
+    let mut snapshots = Vec::new();
+    let mut events = Vec::new();
+    let options = ReadOptions {
+        from,
+        strides,
+        ..ReadOptions::default()
+    };
+    for item in read_history(dir, options).expect("a history") {
+        match item.expect("an item") {
+            HistoryItem::Snapshot(s) => snapshots.push(s),
+            HistoryItem::Event(e) => events.push(e),
+        }
+    }
+    (snapshots, events)
+}
+
+fn indices(snaps: &[Snapshot]) -> Vec<i64> {
+    snaps.iter().map(|s| s.index).collect()
+}
+
+#[test]
+fn lays_only_the_ends_of_windows_and_the_tail_each_at_its_last_commit() {
+    let repo = windowed();
+    let (snaps, _) = read(repo.path(), None, SMALL);
+    let shas: Vec<String> = repo
+        .git(&["rev-list", "--first-parent", "--reverse", "HEAD"])
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(indices(&snaps), [3, 5, 7, 8, 9]);
+    let commits: Vec<&str> = snaps.iter().map(|s| s.commit.as_str()).collect();
+    assert_eq!(commits, [3, 5, 7, 8, 9].map(|i| shas[i].as_str()));
+}
+
+#[test]
+fn keeps_identity_through_renames_chained_inside_a_window_and_drops_a_file_born_and_deleted_in_it() {
+    let (snaps, _) = read(windowed().path(), None, SMALL);
+    assert_eq!(
+        files(&snaps[0]),
+        [
+            ("c.ts".into(), "a.ts@0".into(), 0),
+            ("keep.ts".into(), "keep.ts@0".into(), 0),
+            ("src/y.ts".into(), "src/y.ts@1".into(), 1),
+            ("z.ts".into(), "z.ts@3".into(), 3)
+        ]
+    );
+    let mut folders: Vec<(String, i64)> = snaps[0]
+        .folder_first_seen
+        .iter()
+        .map(|(k, v)| (k.clone(), *v))
+        .collect();
+    folders.sort();
+    assert_eq!(folders, [(String::new(), 0), ("src".into(), 1)]);
+}
+
+#[test]
+fn resolves_manifests_changed_inside_a_window_at_its_end() {
+    let (snaps, _) = read(windowed().path(), None, SMALL);
+    assert_eq!(
+        snaps.iter().map(members).collect::<Vec<_>>(),
+        [
+            None,
+            list(&["pkgs/one"]),
+            list(&["more/two", "pkgs/one"]),
+            list(&["more/two", "pkgs/one"]),
+            list(&["more/two", "pkgs/one"])
+        ]
+    );
+}
+
+#[test]
+fn logs_the_schedule_once() {
+    let (_, events) = read(windowed().path(), None, SMALL);
+    assert_eq!(
+        events,
+        [HistoryEvent::Schedule {
+            commits: 10,
+            coarse: 4,
+            tail: 8,
+            from: 0,
+            laid: 5
+        }]
+    );
+    assert_eq!(
+        events[0].line(),
+        "history/schedule commits=10 coarse=4 tail=8 from=0 laid=5"
+    );
+}
+
+#[test]
+fn resumes_with_the_first_index_laid_again_then_the_same_schedule() {
+    let repo = windowed();
+    let (snaps, events) = read(repo.path(), Some(6), SMALL);
+    assert_eq!(indices(&snaps), [6, 7, 8, 9]);
+    assert_eq!(members(&snaps[0]), list(&[]));
+    assert!(events.contains(&HistoryEvent::Schedule {
+        commits: 10,
+        coarse: 4,
+        tail: 8,
+        from: 6,
+        laid: 4
+    }));
+    assert_eq!(indices(&read(repo.path(), Some(1), SMALL).0), [1, 3, 5, 7, 8, 9]);
+}
+
+#[test]
+fn folds_every_commit_of_a_short_history_on_the_default_strides() {
+    let (snaps, events) = read(windowed().path(), None, citymap_history::FOLD_STRIDES);
+    assert_eq!(indices(&snaps), (0..10).collect::<Vec<_>>());
+    assert_eq!(
+        events,
+        [HistoryEvent::Schedule {
+            commits: 10,
+            coarse: 0,
+            tail: 0,
+            from: 0,
+            laid: 10
+        }]
+    );
+}
+
+#[test]
+fn rejects_strides_the_schedule_cannot_use() {
+    let failure = read_history(
+        windowed().path(),
+        ReadOptions {
+            strides: Strides { grain: 3, ..SMALL },
+            ..ReadOptions::default()
+        },
+    )
+    .expect("a reader")
+    .find_map(Result::err);
+    assert_eq!(failure.map(|e| e.code), Some(ErrorCode::HistoryBadSchedule));
 }
 
 #[test]
@@ -479,10 +716,19 @@ fn logs_a_manifest_it_cannot_read_and_keeps_what_it_knew() {
     );
     assert_eq!(
         events,
-        [HistoryEvent::ManifestUnavailable {
-            path: "package.json".into(),
-            index: 1
-        }]
+        [
+            HistoryEvent::Schedule {
+                commits: 2,
+                coarse: 0,
+                tail: 0,
+                from: 0,
+                laid: 2
+            },
+            HistoryEvent::ManifestUnavailable {
+                path: "package.json".into(),
+                index: 1
+            }
+        ]
     );
     // A single state of the same clone logs the same, at index 0.
     let mut seen = Vec::new();
@@ -499,7 +745,7 @@ fn logs_a_manifest_it_cannot_read_and_keeps_what_it_knew() {
 }
 
 #[test]
-fn tells_whether_one_commit_is_in_another_s_history_and_resolves_refs() {
+fn tells_whether_one_commit_is_in_another_s_history_counts_and_resolves_refs() {
     let repo = Repo::new();
     repo.write("a", "a");
     repo.commit("a");
@@ -515,7 +761,31 @@ fn tells_whether_one_commit_is_in_another_s_history_and_resolves_refs() {
     assert_eq!(citymap_history::is_ancestor(repo.path(), &side, &second), Ok(false));
     let unknown = citymap_history::is_ancestor(repo.path(), &"0".repeat(40), &second).unwrap_err();
     assert_eq!(unknown.code, ErrorCode::HistoryGitFailed);
-    assert_eq!(citymap_history::resolve_commit(repo.path(), "main"), Ok(second));
+    assert_eq!(citymap_history::resolve_commit(repo.path(), "main"), Ok(second.clone()));
+    repo.git(&["checkout", "-q", "-b", "merged", &second]);
+    repo.git(&[
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "user.name=t",
+        "merge",
+        "-q",
+        "--no-ff",
+        "side",
+        "-m",
+        "merge",
+    ]);
+    let merged = repo.git(&["rev-parse", "HEAD"]);
+    assert_eq!(citymap_history::count_commits(repo.path(), &first), Ok(1));
+    assert_eq!(citymap_history::count_commits(repo.path(), &side), Ok(2));
+    assert_eq!(citymap_history::count_commits(repo.path(), &merged), Ok(3));
+    let uncounted = citymap_history::count_commits(repo.path(), &"f".repeat(40)).unwrap_err();
+    assert!(
+        uncounted
+            .to_string()
+            .starts_with("history/git-failed: git rev-list exited with 128"),
+        "{uncounted}"
+    );
     let missing = citymap_history::resolve_commit(repo.path(), "no-such-ref").unwrap_err();
     assert!(
         missing

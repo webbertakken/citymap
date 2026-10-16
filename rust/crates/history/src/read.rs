@@ -1,5 +1,6 @@
-//! Streams a repository's first-parent history, oldest first, as one snapshot per commit; reads no file contents but
-//! the root workspace manifests. Git runs on a reader thread, and snapshots cross to the fold over a bounded channel.
+//! Streams a repository's first-parent history, oldest first, as one snapshot per commit the fold schedule lays; every
+//! commit applies to the tree. Reads no file contents but the root workspace manifests. Git runs on a reader thread, and
+//! snapshots cross to the fold over a bounded channel.
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -12,8 +13,10 @@ use citymap_ground_plan::fixed::compare_keys;
 use citymap_ground_plan::snapshot::{FileEntry, MAX_PATH_BYTES, Snapshot, folder_of};
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
 
+use crate::ancestry::{count_commits, resolve_commit};
 use crate::blobs::BlobReader;
 use crate::env::git_command;
+use crate::schedule::{FOLD_STRIDES, Strides, fold_schedule, is_laid, laid_count};
 use crate::workspaces::{Change, Workspaces};
 
 /// How many snapshots the reader may run ahead of the fold.
@@ -27,6 +30,14 @@ pub enum HistoryEvent {
     SkipSubmodule { path: String, index: i64 },
     /// A root manifest's blob could not be read (a blob-less clone never fetches).
     ManifestUnavailable { path: String, index: i64 },
+    /// The fold schedule a read follows: the history's length, its zone boundaries, the first index and how many it lays.
+    Schedule {
+        commits: i64,
+        coarse: i64,
+        tail: i64,
+        from: i64,
+        laid: i64,
+    },
 }
 
 impl HistoryEvent {
@@ -35,14 +46,28 @@ impl HistoryEvent {
         match self {
             Self::SkipSubmodule { .. } => "history/skip-submodule",
             Self::ManifestUnavailable { .. } => "history/manifest-unavailable",
+            Self::Schedule { .. } => "history/schedule",
         }
     }
 
-    /// `code path=… index=…`, as the CLI logs it.
+    /// `code key=value …`, as the CLI logs it.
     #[must_use]
     pub fn line(&self) -> String {
-        let (Self::SkipSubmodule { path, index } | Self::ManifestUnavailable { path, index }) = self;
-        format!("{} path={path} index={index}", self.code())
+        match self {
+            Self::SkipSubmodule { path, index } | Self::ManifestUnavailable { path, index } => {
+                format!("{} path={path} index={index}", self.code())
+            }
+            Self::Schedule {
+                commits,
+                coarse,
+                tail,
+                from,
+                laid,
+            } => format!(
+                "{} commits={commits} coarse={coarse} tail={tail} from={from} laid={laid}",
+                self.code()
+            ),
+        }
     }
 }
 
@@ -242,8 +267,11 @@ pub enum HistoryItem {
 pub struct ReadOptions {
     /// The commit to read up to.
     pub to: String,
-    /// The first index to yield: earlier commits still apply to the tree, but build no snapshot.
-    pub from: i64,
+    /// A resume: the first index to yield, laid whatever the schedule; earlier commits still apply to the tree, but build
+    /// no snapshot, and later ones follow the schedule.
+    pub from: Option<i64>,
+    /// The fold schedule's strides; `FOLD_STRIDES` by default (tests and measurements choose others).
+    pub strides: Strides,
     /// The repository's display name; the folder name by default.
     pub repository: Option<String>,
 }
@@ -252,7 +280,8 @@ impl Default for ReadOptions {
     fn default() -> Self {
         Self {
             to: "HEAD".into(),
-            from: 0,
+            from: None,
+            strides: FOLD_STRIDES,
             repository: None,
         }
     }
@@ -292,7 +321,7 @@ pub(crate) fn locate(dir: &Path, repository: Option<&str>) -> (PathBuf, String) 
     (absolute, name)
 }
 
-/// Streams a repository's first-parent history, oldest first, as one snapshot per commit.
+/// Streams a repository's first-parent history, oldest first, as one snapshot per commit the fold schedule lays.
 pub fn read_history(dir: &Path, options: ReadOptions) -> Result<History> {
     let (dir, repository) = locate(dir, options.repository.as_deref());
     if !dir.is_dir() {
@@ -325,6 +354,21 @@ pub fn read_history(dir: &Path, options: ReadOptions) -> Result<History> {
 /// The reader thread: runs git, applies each commit as it completes, and sends what the fold needs. Stops quietly when
 /// the fold stops listening.
 fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<Result<HistoryItem>>) -> Result<()> {
+    // The count and the log walk the same commit, even when the ref moves between them.
+    let head = resolve_commit(dir, &options.to)?;
+    let schedule = fold_schedule(count_commits(dir, &head)?, options.strides)?;
+    let from = options.from;
+    let laid = |index: i64| is_laid(&schedule, index, from);
+    let chosen = HistoryEvent::Schedule {
+        commits: schedule.commits,
+        coarse: schedule.coarse_end,
+        tail: schedule.tail_start,
+        from: from.unwrap_or(0),
+        laid: laid_count(&schedule, from),
+    };
+    if send.send(Ok(HistoryItem::Event(chosen))).is_err() {
+        return Ok(());
+    }
     let args = [
         "-c",
         "core.quotepath=off",
@@ -339,7 +383,7 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
         "--no-renames",
         "--no-abbrev",
         "--format=%x01%H",
-        options.to.as_str(),
+        head.as_str(),
         "--",
     ];
     let mut child = git_command(dir, &args)
@@ -370,7 +414,7 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
         let mut events = Vec::new();
         let mut on_event = |e: HistoryEvent| events.push(e);
         // The manifests this commit needs, read before its snapshot is built.
-        let texts = if *index >= options.from {
+        let texts = if laid(*index) {
             let changes: Vec<Change> = commit
                 .entries
                 .iter()
@@ -388,7 +432,7 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
             tree.files = None;
             tree.folder_map = None;
         }
-        let snapshot = if *index >= options.from {
+        let snapshot = if laid(*index) {
             let workspaces = tree.workspaces.resolve(&texts, *index, &mut on_event);
             Some(Snapshot {
                 repository: repository.to_owned(),

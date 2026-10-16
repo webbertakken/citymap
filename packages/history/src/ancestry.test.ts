@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { isAncestor, resolveCommit } from "./ancestry";
+import { countCommits, isAncestor, resolveCommit } from "./ancestry";
 import { gitEnvironment } from "./env";
 
 const dir = mkdtempSync(join(tmpdir(), "citymap-ancestry-"));
@@ -21,6 +21,9 @@ const first = commit("a");
 const second = commit("b");
 git("checkout", "-q", "-b", "side", first);
 const side = commit("c");
+git("checkout", "-q", "-b", "merged", second);
+git("-c", "user.email=t@t", "-c", "user.name=t", "merge", "-q", "--no-ff", "side", "-m", "merge");
+const merged = git("rev-parse", "HEAD");
 
 describe("isAncestor", () => {
   it("tells whether one commit is in another's history", async () => {
@@ -50,5 +53,17 @@ describe("resolveCommit", () => {
   it("resolves a ref to its commit id", async () => {
     expect(await resolveCommit(dir, "main")).toBe(second);
     await expect(resolveCommit(dir, "no-such-ref")).rejects.toThrow("history/git-failed");
+  });
+});
+
+describe("countCommits", () => {
+  it("counts a commit's first-parent history, the commit included", async () => {
+    expect(await countCommits(dir, first)).toBe(1);
+    expect(await countCommits(dir, side)).toBe(2);
+    expect(await countCommits(dir, merged)).toBe(3);
+  });
+
+  it("rejects an unknown commit", async () => {
+    await expect(countCommits(dir, "f".repeat(40))).rejects.toThrow("history/git-failed: git rev-list exited with 128");
   });
 });

@@ -1,4 +1,5 @@
-//! Which commit a ref names, and whether one commit is in another's history.
+//! Which commit a ref names, how many commits its first-parent history holds, and whether one commit is in another's
+//! history.
 use std::path::Path;
 
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
@@ -47,6 +48,17 @@ pub fn is_ancestor(dir: &Path, ancestor: &str, commit: &str) -> Result<bool> {
         1 => Ok(false),
         _ => Err(failed(&args, &run)),
     }
+}
+
+/// How many commits the first-parent history of `commit` holds, the commit included: the fold schedule's count.
+pub fn count_commits(dir: &Path, commit: &str) -> Result<i64> {
+    let args = ["rev-list", "--first-parent", "--count", commit, "--"];
+    let run = git(dir, &args);
+    if run.code != 0 {
+        return Err(failed(&args, &run));
+    }
+    // A count git cannot print; the schedule names it as a bad count.
+    Ok(run.stdout.trim().parse().unwrap_or(-1))
 }
 
 /// The commit id a ref names.

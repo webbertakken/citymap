@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { gitEnvironment, readHistory } from "@citymap/history";
+import { EVERY_COMMIT, gitEnvironment, readHistory } from "@citymap/history";
 import { BUDGETS, bench, type Ports } from "./bench/bench.ts";
 import { CORPUS, corpus, parseTotals } from "./bench/corpus.ts";
 import { FOLDS, folds } from "./bench/folds.ts";
@@ -24,7 +24,8 @@ const ports: Ports = {
       .filter((entry) => entry.includes(" blob "))
       .map((entry) => entry.slice(entry.indexOf("\t") + 1));
   },
-  history: (repo) => readHistory(join(root, repo)),
+  // The fold budget times the lay machinery commit by commit, so it reads every commit rather than the fold schedule.
+  history: (repo) => readHistory(join(root, repo), { strides: EVERY_COMMIT }),
   now: () => performance.now(),
   log: (line) => console.log(line),
 };

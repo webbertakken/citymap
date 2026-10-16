@@ -45,22 +45,22 @@ export class Workspaces {
   }
 
   /**
-   * The manifest blobs that `resolve` will read over these commits, given that only commits from `from` on are
-   * resolved: a manifest changed twice between two of them is read once, at its later blob.
+   * The manifest blobs that `resolve` will read over these commits (the first at `index`), given that only the laid ones
+   * are resolved: a manifest changed twice between two of them is read once, at its later blob.
    */
   wanted(
     commits: readonly {
       readonly entries: readonly { readonly path: string; readonly blob: string; readonly status: string }[];
     }[],
     index: number,
-    from: number,
+    laid: (index: number) => boolean,
   ): string[] {
     const pending = new Map(this.pending);
     const blobs = new Set<string>();
     commits.forEach((commit, i) => {
       for (const entry of commit.entries)
         if (isManifest(entry.path)) pending.set(entry.path, entry.status === "D" ? null : entry.blob);
-      if (index + i < from) return;
+      if (!laid(index + i)) return;
       for (const blob of pending.values()) if (blob !== null) blobs.add(blob);
       pending.clear();
     });
