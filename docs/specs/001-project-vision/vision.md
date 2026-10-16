@@ -11,7 +11,7 @@ of a repository from them, so nobody can say "the parser is down by the harbour,
 
 - Developers who join, maintain or review a repository and want to grasp its shape at a glance.
 - Maintainers and teams who want to see how their codebase grows, decays and gets replaced over time.
-- Anyone with a folder: later, the same map for any local folder, not only repositories.
+- Anyone with a folder: the same map for a folder on their own machine, a repository or not, opened in the viewer.
 
 ## Value
 

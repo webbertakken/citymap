@@ -2,7 +2,7 @@
 
 Derived from [local repositories](../local-repositories.md); measurements in
 [local folders](../../../research/local-folders.md). Code: `apps/web/src/local/` (reading), the viewer's
-`components/useLocalRepository.ts` and `components/LocalMenu.tsx` (the surface). Nothing here is in the engine or the
+`components/useLocalRepository.tsx` and `components/LocalMenu.tsx` (the surface). Nothing here is in the engine or the
 CLI, so the Rust implementation is untouched.
 
 ## Domain and naming
@@ -20,6 +20,8 @@ CLI, so the Rust implementation is untouched.
 | remembered    | `rememberFolder`, `recallFolder` | the last handle, in IndexedDB (Chromium)                                             |
 | phase         | `LocalPhase`                     | `listing`, `index`, `folder`, `manifests`, `laying`, `drawing`                       |
 | local failure | `LocalError` with `LocalCode`    | a named rejection; never the engine's `CitymapError`, so the Rust code list is apart |
+| sentence      | `describeLocal(failure, name)`   | a failure in one sentence, naming the folder                                         |
+| ports         | `LocalPorts`, `browserPorts`     | the browser's side: support, the folder dialog, recall and remember; tests stand in  |
 
 ## Interfaces and contracts
 
@@ -41,8 +43,9 @@ interface Folder {
   `read` is `(await handle.getFile()).arrayBuffer()`. `list` iterates `entries()`.
 - `listedFolder(files)`: the name is the first segment of the first file's `webkitRelativePath`; every file is indexed
   by the rest of its path, and every folder above it is a directory. `list` and `kind` answer from that index.
-- DOM failures become local failures where they are named: `NotAllowedError` and `SecurityError` are `local/denied`;
-  `NotFoundError` while reading and `NotReadableError` are `local/vanished`. Any other error passes through unchanged.
+- DOM failures become local failures where they are named (`localised(error, path)`): `NotAllowedError` and
+  `SecurityError` are `local/denied`; `NotFoundError` while reading and `NotReadableError` are `local/vanished`. Any
+  other error passes through unchanged. The folder dialog's and the permission request's failures go through it too.
 
 ### `readIndex(bytes, idBytes)` (`local/git-index.ts`)
 
@@ -75,8 +78,9 @@ Returns `{ version: 2 | 3 | 4, paths: string[], submodules: number }`, `paths` i
 1. `.git` is a directory: the git data is `.git`.
 2. `.git` is a file: its `gitdir: <path>` line. An absolute path, or one that climbs out of the folder (`..` past the
    top), is `local/outside`; one inside is followed. A `.git` file without that line is `local/bad-git-file`.
-3. No `.git`, but `HEAD` is a file and `objects` and `refs` are directories: git's own data (a bare repository or the
-   `.git` folder itself) is `local/no-working-tree`.
+3. No `.git`, but `HEAD` is a file and either `objects` and `refs` are directories or `config` sets `bare = true` in
+   `[core]` (the folder input lists no empty folders, so a fresh bare repository shows neither): git's own data (a bare
+   repository or the `.git` folder itself) is `local/no-working-tree`.
 4. Otherwise `null`: a folder without git.
 
 - `idBytes`: 32 when `config` holds `objectformat = sha256` in its `[extensions]` section (case-insensitive, spaces
@@ -97,7 +101,9 @@ Returns `{ version: 2 | 3 | 4, paths: string[], submodules: number }`, `paths` i
 
 ### `readLocal(folder, onPhase)` (`local/read.ts`)
 
-Returns `{ snapshot, source: "index" | "walk", version?, submodules?, commitFrom?, unread: string[] }`.
+Returns
+`{ snapshot, source: "index" | "walk", index: { version, entries, submodules } | null, head: how | null, unread }`,
+`unread` naming the tracked root manifests the working tree lacks.
 
 1. `onPhase({ phase: "index" })`; `findGit`. With git data: the `config`, the index (`readIndex`), the commit. Without:
    `onPhase({ phase: "folder", files })` as the walk counts, and the commit is `"worktree"`.
@@ -124,11 +130,14 @@ viewer reads it through `useSyncExternalStore` with `"none"` while prerendering,
 
 ## Behaviour and state
 
-`useLocalRepository` (in the viewer) holds `remembered: { name, handle } | null` and a busy flag; the city, status and
-notice stay the viewer's.
+`useLocalRepository({ ports, lay, status, setStatus, setError, present })` holds the remembered handle, a busy flag and
+the status before an opening began; the city, status and notice stay the viewer's. It returns
+`{ support, busy, pick, again, input }`, `again` being `{ name, open }` or null. `Viewer` takes `folders?: LocalPorts`
+(the browser's by default) and hands the result to `ViewControls` (`local?: LocalRepository`), which renders `LocalMenu`
+in More.
 
 1. **Pick** (`"handle"`): the click closes More, then calls `showDirectoryPicker({ id: "citymap-local", mode: "read" })`
-   within the gesture. `AbortError` (the dialog closed) changes nothing.
+   within the gesture (`PICKER_ID`). `AbortError` (the dialog closed) changes nothing.
 2. **Pick** (`"input"`): the click closes More and clicks a hidden `<input type="file" webkitdirectory>` that lives
    outside the popover; the status becomes "Listing the folder's files…" (phase `listing`) until `change` or `cancel`;
    `cancel`, or a `change` with no files, puts the status back as it was.
@@ -139,16 +148,18 @@ notice stay the viewer's.
 5. **Shown**: the viewer's `show(city, name, "Local repository")`: the title card names the folder, the tab says "Local
    repository · citymap"; the status gains " · local, single state, not folded"; the bundled city selection is cleared;
    the address loses its query (`history.replaceState` to the bare path). Through a handle, it is remembered.
-6. **Failed**: the notice says the failure's sentence; the status empties as for GitHub; the last city stays.
+6. **Failed**: the notice says the failure's sentence; the last city stays, and the status goes back to what it said of
+   it.
 
-While a read runs, starting another is refused by the busy flag (the menu items are disabled).
+While a read runs, the menu's buttons are disabled, so no second opening starts.
 
 ## Presentation and UX
 
 - More, after "Open a city file…": a group headed "Local repository" (`popover-heading`):
   - `"handle"` and `"input"`: a button "Open a local repository…" (icon `FolderGit2`), described by the line "As it is
-    now, not folded over its history. For a folded city, run the CLI and open its file." (`aria-describedby`); with a
-    remembered folder, a second button "Open {name} again" (icon `History`).
+    now, not folded over its history. For a folded city, run `citymap <folder> --out=city.json`, then open the file."
+    (`aria-describedby`, `.menu-note`); with a remembered folder, a second button "Open {name} again" (icon
+    `FolderClock`).
   - `"safari"`: the line "Safari hides a folder's .git and .gitignore from pages: open a local repository in Chrome,
     Edge or Firefox, or run the CLI."
   - `"none"`: nothing.
@@ -171,7 +182,8 @@ While a read runs, starting another is refused by the busy flag (the menu items 
 | `local/long-path`       | {name} holds a path longer than 4,096 bytes.                                                                            |
 | `local/empty`           | There are no files to lay in {name}.                                                                                    |
 
-- Any other failure (the layout worker's) keeps the viewer's own sentence (`describeFailure`).
+- Any other failure (the layout worker's): "{name} could not be laid: {message}."; a failure before a folder is known
+  names it "the folder".
 
 ## Accessibility
 
@@ -210,6 +222,8 @@ While a read runs, starting another is refused by the busy flag (the menu items 
 - Through a handle, a read costs `HEAD`, a ref, `config`, the index (linux: 10 MB) and the root manifests.
 - Through the folder input, the browser's own listing dominates (linux: 3.4 to 3.6 s); finding the index then takes
   under 60 ms. The page cannot shorten the listing, only say that it runs.
+- Measured from the pick to the city shown (`apps/web/scripts/measure-local.ts`), on a loaded machine: takken.io 0.2 s
+  (Chromium) and 0.5 s (Firefox); next.js (34,000 files) 1.2 s and 3.0 s; linux (96,000 files) 4.0 s and 8.6 s.
 - `readIndex` is one pass over the bytes; the snapshot and the lay are the GitHub path's.
 
 ## Observability
@@ -218,8 +232,8 @@ Every line through `src/log.ts`: `viewer/local-pick how` (`handle`, `input`, `ag
 `viewer/local-listed entries`, `viewer/local-index version entries submodules`, `viewer/local-commit how`,
 `viewer/local-walk files`, `viewer/local-manifest-unread path`, `viewer/local-read source files ms`,
 `viewer/local-failed reason` (to `console.error`), `viewer/local-remember-failed reason`,
-`viewer/local-recall-failed reason`, `viewer/local-recalled`. No line carries the folder's name, except the viewer's own
-`viewer/open`.
+`viewer/local-recall-failed reason`, `viewer/local-recalled found`. `ms` runs from the start of the read to the city
+shown. No line carries the folder's name, except the viewer's own `viewer/open`.
 
 ## Constants and configuration
 
@@ -230,20 +244,23 @@ database name, version and key (in `local/remember.ts`); provenance in [DEFAULTS
 
 - `ignore` 7.0.12 (MIT, no dependencies), loaded only for a folder without git (a dynamic import).
 - `fake-indexeddb` 6.2.5 (Apache-2.0), in unit tests only.
+- Picture of the menu and a city opened from its own folder: `docs/img/local.png`, from the end-to-end staging.
 - Index fixtures in `apps/web/src/local/testing/indexes/`, written by git itself through
   `apps/web/scripts/index-fixtures.ts`, each beside git's own listing (`git ls-files --stage`).
 
 ## Testing
 
-| Spec rule                                               | Test                                                                                      |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| the files are what git tracks; versions 2 to 4; formats | `git-index.test.ts`: every fixture against git's listing, links kept, submodules out      |
-| split and sparse indexes, other kinds named             | `git-index.test.ts`: the `link` and `sdir` fixtures, and damaged bytes, each by code      |
-| worktrees, submodules, git's own data, no index         | `git-data.test.ts`, `read.test.ts` over `listedFolder` fixtures                           |
-| a folder without git honours `.gitignore`               | `walk.test.ts`: nesting, negation, anchoring, ignored folders never listed                |
-| equal to `citymap --no-history`                         | `scripts/local-equals-cli.ts` over the corpus, and over each index rewritten as v3 and v4 |
-| Chromium reads only what it needs                       | `folder.test.ts`: a recording handle; end to end through an origin private folder         |
-| remembered, permission asked again                      | `remember.test.ts` (fake IndexedDB); end to end after a reload                            |
-| not on a phone, not in Safari                           | `support.test.ts`; `LocalMenu` tests; the phone project end to end                        |
-| phases, the status, the failures shown and logged       | `useLocalRepository` tests through the viewer; end to end per failure                     |
-| privacy: no request, no address, no name in the title   | viewer tests (no fetch, `location.search` empty, `document.title`)                        |
+| Spec rule                                               | Test                                                                                        |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| the files are what git tracks; versions 2 to 4; formats | `git-index.test.ts`: every fixture against git's listing, links kept, submodules out        |
+| split and sparse indexes, other kinds named             | `git-index.test.ts`: the `link` and `sdir` fixtures, and damaged bytes, each by code        |
+| worktrees, submodules, git's own data, no index         | `git-data.test.ts`, `read.test.ts` over `listedFolder` fixtures                             |
+| a folder without git honours `.gitignore`               | `walk.test.ts`: nesting, negation, anchoring, ignored folders never listed                  |
+| equal to `citymap --no-history`                         | `scripts/local-equals-cli.ts` over the corpus, and over each index rewritten as v3 and v4   |
+| Chromium reads only what it needs                       | `folder.test.ts`: a recording handle; `e2e/local.spec.ts` through an origin private folder  |
+| remembered, permission asked again                      | `remember.test.ts` (fake IndexedDB); end to end after a reload                              |
+| not on a phone, not in Safari                           | `support.test.ts`; `LocalMenu` tests; the phone project end to end                          |
+| phases, the status, the failures shown and logged       | `ViewerLocal.test.tsx`; `e2e/local.spec.ts` per failure                                     |
+| privacy: no request, no address, no name in the title   | `ViewerLocal.test.tsx`; `e2e/local.spec.ts` watches every request                           |
+| the folder input path, axe light and dark               | `e2e/local.spec.ts`; `e2e/viewer.spec.ts` judges More with the group open                   |
+| the time it takes                                       | `scripts/measure-local.ts` (Firefox headed under `xvfb-run`: headless Firefox has no WebGL) |
