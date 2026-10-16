@@ -1,13 +1,15 @@
 import type { Form } from "../archetype/forms";
+import { toggleList } from "../archetype/toggles";
 import type { Town } from "../city/city";
 import { mulDiv } from "../fixed/arithmetic";
 import { fnv1a } from "../fixed/hash";
 import { area2, type Pt } from "../fixed/polygon";
 import { densify, memoised, warper } from "../fixed/warp";
 import type { TownPlat } from "../plat/plat";
+import { tierRule, townTier } from "../roads";
 import type { TreeNode } from "../tree/tree";
 import { loopConnectors } from "./connectors";
-import { tint, toPoly, type Ctx, type LayoutOptions, type PlatEvent, type TownCache } from "./context";
+import { emit, tint, toPoly, type Ctx, type LayoutOptions, type PlatEvent, type TownCache } from "./context";
 import { diameterOf } from "./cut";
 import { partition } from "./partition";
 
@@ -52,6 +54,7 @@ function warpTown(ctx: Ctx, key: string, outline: readonly Pt[]) {
     lots: ctx.lots.map((l) => ({ ...l, pts: l.pts.map(warp) })),
     districts: ctx.districts.map((d) => ({ ...d, pts: bend(d.pts, true, 80) })),
     water: ctx.water.map((w) => bend(w, true, 64)),
+    canals: ctx.canals.map((w) => bend(w, true, 64)),
   };
 }
 
@@ -66,17 +69,21 @@ export function layoutTown(
   rootForm?: Form,
   cache?: TownCache,
 ): LaidTown {
-  // A town's cached folders hold only while its constants do: its options, its land and its root.
+  // A town's cached folders hold only while its constants do: its options, its land, its root, its toggles and tier.
   const landArea2 = area2(outline);
-  const constants = `${options.order}|${options.jog}|${options.densityPct}|${landArea2}|${root.path}`;
+  const toggles = toggleList(options.toggles);
+  const tier = toggles.includes("tiers") ? townTier(root.massMille, plat.tier) : undefined;
+  const constants = `${options.order}|${options.jog}|${options.densityPct}|${landArea2}|${root.path}|toggles:${toggles.join(",")}|tier:${tier ?? ""}`;
   if (cache && cache.constants !== constants) {
     cache.constants = constants;
     cache.entries.clear();
   }
   const ctx: Ctx = {
     options,
+    toggles,
+    tier: tier === undefined ? undefined : tierRule(tier, root.massMille),
     // Layout never changes a town's shares (its tree made them): they are kept, and the rest copied.
-    plat: { ...structuredClone({ ...plat, shares: {} }), shares: plat.shares },
+    plat: { ...structuredClone({ ...plat, shares: {} }), shares: plat.shares, ...(tier === undefined ? {} : { tier }) },
     root,
     rootForm,
     events: [],
@@ -85,12 +92,15 @@ export function layoutTown(
     lots: [],
     districts: [],
     water: [],
+    canals: [],
     landArea2,
     cache,
     form: "neighbourhood",
     overflow: 0,
     lotArea2: 0,
   };
+  if (tier !== undefined && plat.tier !== undefined && plat.tier !== tier)
+    emit(ctx, "plat/tier", { key, from: plat.tier, to: tier });
   partition(ctx, root, toPoly(outline), "");
   // Dead ends near each other are joined by lanes through open ground only.
   if (options.loops ?? true)
@@ -106,6 +116,7 @@ export function layoutTown(
         lots: ctx.lots,
         districts: ctx.districts,
         water: ctx.water,
+        canals: ctx.canals,
       };
   const town: Town = {
     key,
@@ -114,6 +125,7 @@ export function layoutTown(
     old: false,
     outline: laid.outline,
     water: laid.water,
+    ...(laid.canals.length > 0 ? { canals: laid.canals } : {}),
     roads: laid.roads,
     blocks: laid.blocks.map((b) => ({ ...b, district: tint(b.district) })),
     lots: laid.lots.map((l) => ({ ...l, district: tint(l.district) })),

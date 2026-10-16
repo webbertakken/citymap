@@ -74,7 +74,8 @@ describe("layCity", () => {
     const first = layCity(at(0, files("", 26)), initialState(OPTIONS), OPTIONS);
     const grown = layCity(at(1, files("", 39)), first.state, OPTIONS);
     expect([first.city.towns[0]?.form, grown.city.towns[0]?.form]).toEqual(["neighbourhood", "neighbourhood"]);
-    expect(grown.events.map((e) => e.code)).toEqual(["plat/grow"]);
+    // 39 files pass the village threshold times 1.25: the town grows and moves up a tier.
+    expect(grown.events.map((e) => e.code)).toEqual(["plat/grow", "plat/tier"]);
     // Every lot keeps its slot; strips the old outline clipped may now extend into the new land.
     const slots = (s: typeof first.state) => s.plat.towns.demo?.grids[""]?.slots ?? {};
     for (const [lot, slot] of Object.entries(slots(first.state))) expect(slots(grown.state)[lot]).toBe(slot);
@@ -221,6 +222,11 @@ describe("foldHistory", () => {
   });
 });
 
+const big = (name: string, born: number) => [
+  manifest(`packages/${name}`, born),
+  ...files(`packages/${name}`, 150, born),
+];
+
 describe("split groups", () => {
   it("lays each app as its own town by default, and keeps packages one town", () => {
     const { city } = layCity(at(0, monorepo()), initialState(OPTIONS), OPTIONS);
@@ -252,13 +258,28 @@ describe("split groups", () => {
     expect(city.towns[0]?.lots.filter((l) => l.path.startsWith("apps/shared/"))).toHaveLength(20);
   });
 
-  it("names each setting of land and split, and rejects a plat laid for another", () => {
-    expect(settingKey(OPTIONS)).toBe(`${landKey(DEFAULT_LAND_USES)}|split:apps`);
-    expect(settingKey({ ...OPTIONS, split: ["packages", "apps"] })).toBe(
-      `${landKey(DEFAULT_LAND_USES)}|split:apps,packages`,
+  it("sets an archipelago town's canals down where the town stands, bent like its water", () => {
+    const options: Options = { ...OPTIONS, warp: true, toggles: ["archipelago"] };
+    const packages = monorepo([...big("c", 800), ...big("d", 1000)]);
+    const { city } = layCity(at(0, packages), initialState(options), options);
+    const town = city.towns.find((t) => t.key === "demo/packages")!;
+    expect(town.form).toBe("archipelago");
+    const xs = town.outline.map((p) => p.x);
+    const canal = town.canals![0]!;
+    expect(canal.length).toBeGreaterThan(4);
+    expect(canal.every((p) => p.x >= Math.min(...xs) && p.x <= Math.max(...xs))).toBe(true);
+  });
+
+  it("names each setting of land, split and toggles, and rejects a plat laid for another", () => {
+    expect(settingKey(OPTIONS)).toBe(`${landKey(DEFAULT_LAND_USES)}|split:apps|toggles:corridor,tiers`);
+    expect(settingKey({ ...OPTIONS, split: ["packages", "apps"], toggles: ["quarters", "archipelago"] })).toBe(
+      `${landKey(DEFAULT_LAND_USES)}|split:apps,packages|toggles:archipelago,quarters`,
     );
+    expect(settingKey({ ...OPTIONS, toggles: [] })).toBe(`${landKey(DEFAULT_LAND_USES)}|split:apps|toggles:`);
     const other = initialState({ ...OPTIONS, split: [] });
     expect(() => layCity(at(0, files("", 3)), other, OPTIONS)).toThrow("plat/setting-mismatch");
+    const untoggled = initialState({ ...OPTIONS, toggles: [] });
+    expect(() => layCity(at(0, files("", 3)), untoggled, OPTIONS)).toThrow("plat/setting-mismatch");
   });
 
   it("takes members from the manifests when the snapshot carries them", () => {

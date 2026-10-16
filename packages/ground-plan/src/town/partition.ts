@@ -1,22 +1,26 @@
 import { classifyNode, flatten } from "../archetype/classify";
 import { isFlat } from "../archetype/forms";
-import { LOT_AREA, PAVEMENT, ROAD_WIDTH, U, GROWTH_PCT } from "../constants";
+import { LOT_AREA, ROAD_WIDTH, GROWTH_PCT } from "../constants";
 import { floorDiv, isqrt, mulDiv, roundDiv } from "../fixed/arithmetic";
 import { DIRECTION, TURN, dir, negate, normalise } from "../fixed/direction";
 import { compareKeys, unitMille } from "../fixed/hash";
-import { area2, centroid, chord, clip, reach, type Poly, type Pt } from "../fixed/polygon";
+import { area2, centroid, clip, reach, type Poly, type Pt } from "../fixed/polygon";
 import { WEIGHT_MILLE } from "../land-use/land-use";
 import type { RadialRecord } from "../plat/plat";
+import { classOf } from "../roads";
 import { landFor, type TreeNode } from "../tree/tree";
+import { archipelago } from "./archipelago";
 import { demandOf, emit, forget, road, seedKey, toPoly, type Ctx, type Item } from "./context";
-import { cutClass, decide, place, reserve, split } from "./cut";
+import { corridor } from "./corridor";
+import { decide, place, reserve, split } from "./cut";
 import { neighbourhood } from "./neighbourhood";
+import { quarters } from "./quarters";
+import { RIVER, waterway } from "./waterway";
 
 /** A sector spans at most this many angle steps (0.95π). */
 const MAX_SPAN = 1946;
 /** A radial core reaches at most this share (‰) of the way to the edge, so the ring keeps room. */
 const RADIAL_MAX_SCALE = 950;
-const RIVER = (5 * U) / 2;
 
 /** Oldest in the middle, then alternately either side, so newcomers join the edges. */
 export function centreOut<T>(ordered: readonly T[]): T[] {
@@ -27,7 +31,7 @@ export function centreOut<T>(ordered: readonly T[]): T[] {
 }
 
 /** A folder's items: child folders, its own lots, its own park; by first appearance, then key. */
-function itemsOf(ctx: Ctx, node: TreeNode, district: string): Item[] {
+export function itemsOf(ctx: Ctx, node: TreeNode, district: string): Item[] {
   const items: Item[] = node.children.map((c) => ({
     kind: "folder" as const,
     key: c.path,
@@ -86,6 +90,7 @@ export function partition(ctx: Ctx, node: TreeNode, poly: Poly, district: string
     for (const l of hit.lots) ctx.lots.push({ ...l });
     ctx.districts.push(...hit.districts);
     ctx.water.push(...hit.water);
+    ctx.canals.push(...hit.canals);
     ctx.events.push(...hit.overflowEvents);
     ctx.overflow += hit.overflow;
     ctx.lotArea2 += hit.lotArea2;
@@ -97,6 +102,7 @@ export function partition(ctx: Ctx, node: TreeNode, poly: Poly, district: string
     lots: ctx.lots.length,
     districts: ctx.districts.length,
     water: ctx.water.length,
+    canals: ctx.canals.length,
     events: ctx.events.length,
     overflow: ctx.overflow,
     lotArea2: ctx.lotArea2,
@@ -109,6 +115,7 @@ export function partition(ctx: Ctx, node: TreeNode, poly: Poly, district: string
     lots: copies(ctx.lots.slice(before.lots)),
     districts: ctx.districts.slice(before.districts),
     water: ctx.water.slice(before.water),
+    canals: ctx.canals.slice(before.canals),
     overflow: ctx.overflow - before.overflow,
     lotArea2: ctx.lotArea2 - before.lotArea2,
     overflowEvents: ctx.events.slice(before.events).filter((e) => e.code === "town/overflow"),
@@ -118,7 +125,8 @@ export function partition(ctx: Ctx, node: TreeNode, poly: Poly, district: string
 /** Lays out a folder on its land: one neighbourhood when flat, else arranged by its district form. */
 function layFolder(ctx: Ctx, node: TreeNode, poly: Poly, district: string) {
   const previous = ctx.plat.forms[node.path];
-  const form = node === ctx.root && ctx.rootForm !== undefined ? ctx.rootForm : classifyNode(node, previous);
+  const form =
+    node === ctx.root && ctx.rootForm !== undefined ? ctx.rootForm : classifyNode(node, previous, ctx.toggles);
   if (previous !== undefined && previous !== form) {
     emit(ctx, "plat/switch", { path: node.path, from: previous, to: form, massMille: node.massMille });
     forget(ctx, node.path);
@@ -146,6 +154,9 @@ function layFolder(ctx: Ctx, node: TreeNode, poly: Poly, district: string) {
   }
   const items = itemsOf(ctx, node, district);
   const done =
+    (form === "corridor" && corridor(ctx, node, items, poly, district)) ||
+    (form === "archipelago" && archipelago(ctx, node, items, poly, district)) ||
+    (form === "quarters" && quarters(ctx, node, items, poly, district)) ||
     (form === "radial" && radial(ctx, node, items, poly, district)) ||
     (form === "twin" && twin(ctx, node, items, poly, district));
   if (!done)
@@ -264,8 +275,9 @@ export function radial(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, dist
     ctx.plat.radial[node.path] = rec;
   }
   const r = rec;
-  const ringClass = cutClass(node.massMille, true);
-  const spokeClass = cutClass(node.massMille, false);
+  // The ring is the folder's first road: under tiers, the town's first when the folder is the root.
+  const ringClass = classOf(node.massMille, true, node === ctx.root, ctx.tier);
+  const spokeClass = classOf(node.massMille, false, false, ctx.tier);
   const wRing = ROAD_WIDTH[ringClass];
   const wSpoke = ROAD_WIDTH[spokeClass];
   const spokes = r.bounds.slice(0, -1);
@@ -295,36 +307,12 @@ export function twin(ctx: Ctx, node: TreeNode, items: Item[], poly: Poly, distri
     (demandOf(left) <= demandOf(right) ? left : right).push(item);
   }
   // A switch to twin forgets the folder's cuts, so this decision is fresh: a river that crosses the land.
-  const decision = decide(ctx, items, poly, node.massMille, true, node.path, undefined, [left, right])!;
+  const decision = decide(ctx, items, poly, node.massMille, true, node.path, {
+    assign: [left, right],
+    water: "river",
+  })!;
   const { rec: r } = decision;
-  const seg = chord(poly.p, r.n, r.c)!;
-  const half = (RIVER / 2) * DIRECTION;
-  // The band holds the chord, so the water is never empty.
-  ctx.water.push([...clip(clip(poly, r.n, r.c + half, 0), negate(r.n), -(r.c - half), 0).p]);
-  const [a, b] = seg;
-  const length = isqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2);
-  const reachOut = RIVER / 2 + 2 * PAVEMENT;
-  for (const [num, den] of length > 12 * U
-    ? [
-        [1, 3],
-        [2, 3],
-      ]
-    : [[1, 2]]) {
-    const m = {
-      x: a.x + roundDiv((b.x - a.x) * num!, den!),
-      y: a.y + roundDiv((b.y - a.y) * num!, den!),
-    };
-    const dx = mulDiv(r.n[0], reachOut, DIRECTION, "round");
-    const dy = mulDiv(r.n[1], reachOut, DIRECTION, "round");
-    road(
-      ctx,
-      [
-        { x: m.x - dx, y: m.y - dy },
-        { x: m.x + dx, y: m.y + dy },
-      ],
-      "street",
-    );
-  }
+  waterway(ctx, poly, r, RIVER, ctx.water);
   const banks: [Item[], Poly, string][] = [
     [decision.left, clip(poly, r.n, r.c, RIVER), `${node.path}>L`],
     [decision.right, clip(poly, negate(r.n), -r.c, RIVER), `${node.path}>R`],

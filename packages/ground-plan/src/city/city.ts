@@ -59,6 +59,8 @@ export interface Town {
   readonly old: boolean;
   readonly outline: readonly Pt[];
   readonly water: readonly (readonly Pt[])[];
+  /** An archipelago's canals, drawn deeper than water; present only when the town has any. */
+  readonly canals?: readonly (readonly Pt[])[];
   readonly roads: readonly Road[];
   readonly blocks: readonly Block[];
   readonly lots: readonly Lot[];

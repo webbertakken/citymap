@@ -127,3 +127,28 @@ describe("buildTree", () => {
     expect(tree.lots.map((l) => l.path)).toEqual(["b.ts", "c.ts", "a.ts"]);
   });
 });
+
+describe("packages in the tree", () => {
+  it("marks workspace members, through a collapsed chain too, and sums source mass", () => {
+    const files = [
+      at("libs/a/package.json"),
+      at("libs/a/src/x.ts"),
+      at("libs/b/deep/src/y.ts"),
+      at("libs/b/deep/z.md"),
+    ];
+    const { tree } = buildTree(snapshot(files), { ...options, members: ["libs/a", "libs/b"] }, {});
+    const libs = find(tree, "libs")!;
+    const [a, b] = libs.children;
+    expect(a).toMatchObject({ path: "libs/a", member: true, sourceMille: 1000, massMille: 1500 });
+    // libs/b holds nothing of its own: it collapses into libs/b/deep, which carries its membership.
+    expect(b).toMatchObject({ path: "libs/b/deep", name: "b/deep", member: true, sourceMille: 1000 });
+    expect(libs).toMatchObject({ member: false, sourceMille: 2000 });
+  });
+
+  it("changes a folder's digest when its membership does", () => {
+    const files = [at("libs/a/x.ts")];
+    const plain = buildTree(snapshot(files), options, {}).tree;
+    const member = buildTree(snapshot(files), { ...options, members: ["libs/a"] }, {}).tree;
+    expect(find(member, "libs/a")?.digest).not.toBe(find(plain, "libs/a")?.digest);
+  });
+});

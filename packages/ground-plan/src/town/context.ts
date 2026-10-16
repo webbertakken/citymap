@@ -1,10 +1,12 @@
 import type { DistrictForm, Form } from "../archetype/forms";
+import type { Toggle } from "../archetype/toggles";
 import type { Block, District, Road } from "../city/city";
 import type { RoadClass } from "../constants";
 import { fnv1a } from "../fixed/hash";
 import type { Poly, Pt } from "../fixed/polygon";
 import type { LandUse } from "../land-use/land-use";
 import type { TownPlat } from "../plat/plat";
+import type { TierRule } from "../roads";
 import type { LotSeed, TreeNode } from "../tree/tree";
 
 /** A decision the layout made, for logs: a stable code and its detail. */
@@ -20,6 +22,8 @@ export interface LayoutOptions {
   readonly densityPct: number;
   /** Lanes joining nearby dead ends (on unless false). */
   readonly loops?: boolean;
+  /** The archetype toggles on; `DEFAULT_TOGGLES` when absent. */
+  readonly toggles?: readonly Toggle[];
 }
 
 /** What a folder's land is cut between: a child folder, the folder's own lots, or its own park. */
@@ -34,7 +38,11 @@ export type Item =
       lots: readonly LotSeed[];
       district: string;
     }
-  | { kind: "park"; key: string; demand: number; massMille: number; firstSeen: number; district: string };
+  | { kind: "park"; key: string; demand: number; massMille: number; firstSeen: number; district: string }
+  /** Items laid together: an archipelago's island of several packages, or its mainland. */
+  | { kind: "group"; key: string; demand: number; massMille: number; firstSeen: number; items: readonly Item[] }
+  /** A planned quarter of small folders, cut square to its own frame. */
+  | { kind: "quarter"; key: string; demand: number; massMille: number; firstSeen: number; items: readonly Item[] };
 
 /** A lot as laid, before tints are hashed. */
 export interface DraftLot {
@@ -63,6 +71,7 @@ export interface CacheEntry {
   readonly lots: readonly DraftLot[];
   readonly districts: readonly District[];
   readonly water: readonly Pt[][];
+  readonly canals: readonly Pt[][];
   readonly overflow: number;
   readonly lotArea2: number;
   readonly overflowEvents: readonly PlatEvent[];
@@ -78,6 +87,10 @@ export interface TownCache {
 /** The mutable state of laying out one town. */
 export interface Ctx {
   readonly options: LayoutOptions;
+  /** The archetype toggles on, in their own order. */
+  readonly toggles: readonly Toggle[];
+  /** The town's tier as its roads read it, when tiers are on. */
+  readonly tier: TierRule | undefined;
   readonly plat: TownPlat;
   readonly root: TreeNode;
   readonly rootForm: Form | undefined;
@@ -87,6 +100,7 @@ export interface Ctx {
   readonly lots: DraftLot[];
   readonly districts: District[];
   readonly water: Pt[][];
+  readonly canals: Pt[][];
   readonly landArea2: number;
   readonly cache: TownCache | undefined;
   form: Form;
@@ -111,15 +125,22 @@ export const seedKey = (key: string) => key.replaceAll(">", "");
 export const owned = (key: string, path: string) =>
   path === "" || key === path || key.startsWith(`${path}/`) || key.startsWith(`${path}>`) || key.startsWith(`${path}#`);
 
-/** Drops every remembered cut, grid and radial layout of the folder at path. */
+/** Drops every remembered cut, grid, radial layout, island and quarter of the folder at path. */
 export function forget(ctx: Ctx, path: string) {
   let count = 0;
-  for (const records of [ctx.plat.cuts, ctx.plat.grids, ctx.plat.radial] as Record<string, unknown>[])
-    for (const key of Object.keys(records))
+  const { plat } = ctx;
+  const records: Record<string, unknown>[] = [plat.cuts, plat.grids, plat.radial];
+  if (plat.islands) records.push(plat.islands);
+  if (plat.quarters) records.push(plat.quarters);
+  for (const record of records)
+    for (const key of Object.keys(record))
       if (owned(key, path)) {
-        delete records[key];
+        delete record[key];
         count++;
       }
+  // The toggles' records are present only while they hold something.
+  if (plat.islands && Object.keys(plat.islands).length === 0) delete plat.islands;
+  if (plat.quarters && Object.keys(plat.quarters).length === 0) delete plat.quarters;
   if (count > 0) emit(ctx, "plat/forget", { key: path, count });
 }
 

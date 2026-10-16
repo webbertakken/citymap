@@ -12,7 +12,8 @@ import { layoutTown } from "./layout";
 import { neighbourhood } from "./neighbourhood";
 import { sector } from "./partition";
 
-const OPTIONS: LayoutOptions = { order: "centre-out", jog: "top-level", warp: false, densityPct: 50 };
+// The forms that are always on; the toggles have tests of their own.
+const OPTIONS: LayoutOptions = { order: "centre-out", jog: "top-level", warp: false, densityPct: 50, toggles: [] };
 const lay = (tree: TreeNode, plat: TownPlat = emptyTownPlat(), options: Partial<LayoutOptions> = {}, landOf = tree) =>
   layoutTown("demo", "demo", tree, outlineFor(landOf.demand * 2, { x: 0, y: 0 }, "demo"), plat, {
     ...OPTIONS,

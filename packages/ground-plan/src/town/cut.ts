@@ -4,10 +4,11 @@ import { DIRECTION, negate, perp, rotate, type Dir } from "../fixed/direction";
 import { unitMille } from "../fixed/hash";
 import { area2, chord, clip, extent, inset, longestEdge, offsetFor, type Poly, type Pt } from "../fixed/polygon";
 import type { CutRecord } from "../plat/plat";
-import { cutClass, reclass, reserveFor } from "../roads";
+import { classOf, reclassOf, rightOfWayFor } from "../roads";
 import { demandOf, emit, forget, massOf, road, seedKey, type Ctx, type Item } from "./context";
 import { neighbourhood } from "./neighbourhood";
 import { partition } from "./partition";
+import { quarter } from "./quarters";
 
 export { cutClass, reclass } from "../roads";
 
@@ -19,7 +20,7 @@ const JOG = 3 * U;
 const MIN_JOG = 2 * U;
 export const PAVEMENT_INSET = 12;
 
-const grow = (demand: number) => roundDiv(demand * GROWTH_PCT, 100);
+export const grow = (demand: number) => roundDiv(demand * GROWTH_PCT, 100);
 
 /**
  * True when the land a remembered line leaves one side has fallen below its share of the demand, shrunk by the band,
@@ -70,7 +71,7 @@ export function carriageway(rec: { readonly cls: RoadClass; readonly row?: RoadC
   return ROAD_WIDTH[rec.cls] > room ? { cls: rec.cls, width: room } : { cls: rec.cls };
 }
 
-const isMajor = (cls: RoadClass) => cls !== "street" && cls !== "lane";
+export const isMajor = (cls: RoadClass) => cls !== "street" && cls !== "lane";
 
 export function park(ctx: Ctx, poly: Poly, district: string) {
   const p = inset(poly, PAVEMENT_INSET);
@@ -86,22 +87,31 @@ export function reserve(ctx: Ctx, poly: Poly, district: string) {
 export function place(ctx: Ctx, poly: Poly, item: Item, district: string) {
   if (item.kind === "folder") partition(ctx, item.node, poly, district);
   else if (item.kind === "lots") neighbourhood(ctx, poly, item.lots, 0, item.key, item.district, "neighbourhood");
-  else park(ctx, poly, item.district);
+  else if (item.kind === "park") park(ctx, poly, item.district);
+  else if (item.kind === "group") split(ctx, [...item.items], poly, item.massMille, false, item.key, district);
+  else quarter(ctx, poly, item, district);
 }
 
+type FolderItem = Extract<Item, { kind: "folder" }>;
+
+/** The folders of some items, those inside groups and quarters included. */
+const foldersOf = (items: readonly Item[]): FolderItem[] =>
+  items.flatMap((i) =>
+    i.kind === "folder" ? [i] : i.kind === "group" || i.kind === "quarter" ? foldersOf(i.items) : [],
+  );
+
+/** The heaviest folder among items (ties to the earlier), groups and quarters looked into. */
+export const heaviestFolder = (items: readonly Item[]) =>
+  foldersOf(items).reduce<FolderItem | undefined>((a, b) => (a && a.massMille >= b.massMille ? a : b), undefined);
+
 /** Land bounded by collectors or bigger roads: each side with two or more items records a ward. */
-function wards(ctx: Ctx, poly: Poly, rec: CutRecord, left: Item[], right: Item[], key: string) {
+export function wards(ctx: Ctx, poly: Poly, rec: CutRecord, left: Item[], right: Item[], key: string) {
   const sides: [Poly, Item[]][] = [
     [clip(poly, rec.n, rec.c, 0), left],
     [clip(poly, negate(rec.n), -rec.c, 0), right],
   ];
   for (const [side, part] of sides) {
-    const heaviest = part
-      .filter((i): i is Extract<Item, { kind: "folder" }> => i.kind === "folder")
-      .reduce<Extract<Item, { kind: "folder" }> | undefined>(
-        (a, b) => (a && a.massMille >= b.massMille ? a : b),
-        undefined,
-      );
+    const heaviest = heaviestFolder(part);
     if (heaviest && part.length > 1)
       ctx.districts.push({
         pts: [...side.p],
@@ -120,6 +130,15 @@ export interface Decision {
   readonly right: Item[];
 }
 
+/**
+ * When a side is left empty, the side that lends its land: the other side extends over the whole of it under its own
+ * key. Cuts and grids are absolute, so nothing already laid moves; the vacated land becomes room to grow.
+ */
+export function lent({ left, right }: Decision, key: string): [Item[], string] | null {
+  if (left.length > 0 && right.length > 0) return null;
+  return left.length > 0 ? [left, `${key}>L`] : [right, `${key}>R`];
+}
+
 /** A fresh cut's normal: across the land's longer extent, tilted by its seed. */
 function freshNormal(poly: Poly, key: string): Dir {
   const edge = longestEdge(poly.p);
@@ -129,9 +148,23 @@ function freshNormal(poly: Poly, key: string): Dir {
   return rotate(base, roundDiv((unitMille(`${seedKey(key)}#tilt`) - 500) * TILT, 500));
 }
 
+/** How a decision is made beyond the fresh rule. */
+export interface How {
+  /** A normal replacing the fresh rule (a pinwheel's cross cuts, a quarter's frame). */
+  readonly forced?: Dir;
+  /** Fixed sides: a twin's banks, a corridor's faubourg and destination. */
+  readonly assign?: readonly [Item[], Item[]];
+  /** The folder's land and demand, which a side short of its share recuts against. */
+  readonly share?: Share;
+  /** A fixed class instead of the class by mass: a quarter's streets. */
+  readonly fixed?: RoadClass;
+  /** Water instead of a road: a twin's river, an archipelago's canal. */
+  readonly water?: "river" | "canal";
+}
+
 /**
- * The remembered binary decision at a key: which items go to which side of which line. A forced normal replaces the
- * fresh rule; assign fixes the sides (a twin's banks). Null when one item is left and nothing is remembered.
+ * The remembered binary decision at a key: which items go to which side of which line, made as `how` says. Null when
+ * one item is left and nothing is remembered.
  */
 export function decide(
   ctx: Ctx,
@@ -140,10 +173,11 @@ export function decide(
   massMille: number,
   first: boolean,
   key: string,
-  forced?: Dir,
-  assign?: [Item[], Item[]],
-  share?: Share,
+  how: How = {},
 ): Decision | null {
+  const { forced, assign, share, fixed, water } = how;
+  // The town's first cut is the first cut of its root folder's land: under tiers, the one road of its top class.
+  const townFirst = first && key === ctx.root.path;
   let rec = ctx.plat.cuts[key];
   if (rec) {
     const known = rec;
@@ -172,22 +206,24 @@ export function decide(
     const left = assign ? assign[0] : items.slice(0, k);
     const right = assign ? assign[1] : items.slice(k);
     const n = forced ?? freshNormal(poly, key);
+    const cls = fixed ?? classOf(massMille, first, townFirst, ctx.tier);
     rec = {
       n,
       c: offsetFor(poly, n, demandOf(left), total),
-      cls: cutClass(massMille, first),
-      row: assign ? cutClass(massMille, first) : reserveFor(massMille, first),
+      cls,
+      row: water || fixed ? cls : rightOfWayFor(massMille, first, townFirst, ctx.tier),
       left: left.map((i) => i.key),
       right: right.map((i) => i.key),
       capLeft: grow(demandOf(left)),
       capRight: grow(demandOf(right)),
-      ...(assign ? { river: true as const } : {}),
+      ...(water === "river" ? { river: true as const } : {}),
+      ...(water === "canal" ? { canal: true as const } : {}),
     };
     ctx.plat.cuts[key] = rec;
   } else {
     const r = rec;
-    // A road follows its land's tier, within the band; a river stays a river.
-    const cls = r.river ? r.cls : reclass(r.cls, massMille, first);
+    // A road follows its land's tier, within the band; water stays water, and a fixed class stays.
+    const cls = r.river || r.canal || fixed ? r.cls : reclassOf(r.cls, massMille, first, townFirst, ctx.tier);
     if (cls !== r.cls) {
       emit(ctx, "plat/reclass", { key, from: r.cls, to: cls });
       r.cls = cls;
@@ -215,7 +251,7 @@ export function decide(
         });
         r.c = offsetFor(poly, r.n, dl, dl + dr);
         // Laid again: the road takes its class's width, and room for the land at the top of its new band.
-        r.row = r.river ? r.cls : reserveFor(massMille, first);
+        r.row = r.river || r.canal || fixed ? r.cls : rightOfWayFor(massMille, first, townFirst, ctx.tier);
         r.capLeft = grow(dl);
         r.capRight = grow(dr);
       } else {
@@ -246,15 +282,14 @@ export function split(
 ) {
   // A folder's top cut sets the share every cut below it is measured against.
   const share = first || !fair ? { land2: area2(poly.p), demand: demandOf(items) } : fair;
-  const decision = decide(ctx, items, poly, massMille, first, key, undefined, undefined, share);
+  const decision = decide(ctx, items, poly, massMille, first, key, { share });
   if (!decision) return place(ctx, poly, items[0]!, district);
   if (pinwheel(ctx, decision, poly, key, district, share)) return;
   const { rec: r, left, right } = decision;
   const major = isMajor(r.cls);
-  if (left.length === 0 || right.length === 0) {
-    // A side left empty lends its land: the other side extends over the whole of it under its own key. Cuts and
-    // grids are absolute, so nothing already laid moves; the vacated land becomes room to grow.
-    const [part, sub] = left.length > 0 ? [left, `${key}>L`] : [right, `${key}>R`];
+  const lender = lent(decision, key);
+  if (lender) {
+    const [part, sub] = lender;
     return split(ctx, part, poly, massOf(part), false, sub, major ? seedKey(sub) : district, share);
   }
   const drawn = carriageway(r);
@@ -324,18 +359,11 @@ function pinwheel(ctx: Ctx, decision: Decision, poly: Poly, key: string, distric
   if (length * 1000 < LONG_CUT_MILLE * diameterOf(ctx.landArea2)) return false;
   const m = perp(r.n);
   // Both sides hold two or more items, so both decide a cut.
-  const below = decide(ctx, left, clip(poly, r.n, r.c, 0), massOf(left), false, `${key}>L`, m, undefined, share)!;
-  const above = decide(
-    ctx,
-    right,
-    clip(poly, negate(r.n), -r.c, 0),
-    massOf(right),
-    false,
-    `${key}>R`,
-    m,
-    undefined,
+  const below = decide(ctx, left, clip(poly, r.n, r.c, 0), massOf(left), false, `${key}>L`, { forced: m, share })!;
+  const above = decide(ctx, right, clip(poly, negate(r.n), -r.c, 0), massOf(right), false, `${key}>R`, {
+    forced: m,
     share,
-  )!;
+  })!;
   // Square to the main cut: parallel to m within 0.01 % (compared with |m|², as table directions are not exactly DIRECTION long).
   const square = (rec: CutRecord) => (rec.n[0] * m[0] + rec.n[1] * m[1]) * 10_000 >= (m[0] * m[0] + m[1] * m[1]) * 9999;
   if (!square(below.rec) || !square(above.rec)) return false;

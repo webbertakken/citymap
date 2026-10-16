@@ -209,4 +209,28 @@ describe("buildScene colours", () => {
       ["a", "minor"],
     ]);
   });
+
+  it("draws canals in the water layer in the canal colour", () => {
+    const theme = THEMES["paper-atlas"];
+    const town = {
+      key: "t",
+      name: "t",
+      form: "archipelago" as const,
+      old: false,
+      outline: square,
+      water: [square],
+      canals: [square],
+      roads: [],
+      blocks: [],
+      lots: [],
+      districts: [],
+      stats: { lots: 0, overflow: 0, offLand: 0, docs: 0, lotArea2: 0, landArea2: 0 },
+    };
+    const scene = buildScene({ repository: "r", commit: "worktree", towns: [town], highways: [] }, theme);
+    const water = scene.layers.find((l) => l.name === "water")!;
+    const colourAt = (shape: number) =>
+      Array.from(water.colours.slice(shape * 12, shape * 12 + 3), (c) => Math.round(c * 255));
+    expect(colourAt(0)).toEqual(hex(theme.water));
+    expect(colourAt(1)).toEqual(hex(theme.canal));
+  });
 });

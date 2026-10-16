@@ -24,18 +24,18 @@ touches the fold and the plat: rebase onto main when it merges.
 
 ## Phase 1: TypeScript engine
 
-- [ ] Toggles in `Options`, `settingKey`, `LayoutOptions`, `Ctx.on`; cache constants
-- [ ] Tree: `member`, `sourceMille`, `TreeOptions.members`, `isPackage`; digest
-- [ ] Classify: features, the three rules with their bands and toggles
-- [ ] Tiers: `townTier`, `classOf`, `reclassOf`, `rightOfWayFor`; `decide`'s `how`; radial, high street
-- [ ] Corridor
-- [ ] Waterway (twin's river moved out), archipelago, island groups; `Town.canals`
-- [ ] Quarters and frame splits
-- [ ] Plat schema and city schema; forget; events
-- [ ] Themes (canal colours, form colours), SVG and scene canals
-- [ ] All toggles off lays the bytes of `origin/main` (golden towns, corpus `cmp`)
-- [ ] Gate: format, lint, typecheck, coverage
-- [ ] Commit
+- [x] Toggles in `Options`, `settingKey`, `LayoutOptions`, `Ctx.toggles`; cache constants
+- [x] Tree: `member`, `sourceMille`, `TreeOptions.members`, `isPackage`; digest
+- [x] Classify: features, the three rules with their bands and toggles
+- [x] Tiers: `townTier`, `classOf`, `reclassOf`, `rightOfWayFor`; `decide`'s `how`; radial, high street
+- [x] Corridor
+- [x] Waterway (twin's river moved out), archipelago, island groups; `Town.canals`
+- [x] Quarters and frame splits
+- [x] Plat schema and city schema; forget; events
+- [x] Themes (canal colours, form colours), SVG and scene canals
+- [x] All toggles off lays the bytes of `origin/main` (golden towns, corpus `cmp`)
+- [x] Gate: format, lint, typecheck, coverage
+- [x] Commit
 
 ## Phase 2: command line and scripts
 

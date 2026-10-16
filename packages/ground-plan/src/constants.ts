@@ -35,7 +35,7 @@ export const FLATTEN_LIMIT = FLATTEN_BLOCKS * (BLOCK_SHORT + U) * (BLOCK_LONG + 
 export const FLATTEN_HYSTERESIS_PCT = 150;
 /** A new cut, partition or town gives each side this share of its demand as room to grow, in per cent. */
 export const GROWTH_PCT = 135;
-/** Mass (‰ of a file) at which land enters the village, town and city tiers; each tier lifts its roads one class. */
-export const TIER_MASS_MILLE = [30_000, 300_000, 3_000_000] as const;
+/** Mass (‰ of a file) at which land enters the village, town, city and metropolis tiers. */
+export const TIER_MASS_MILLE = [30_000, 300_000, 3_000_000, 30_000_000] as const;
 /** A laid road moves up a tier at its threshold × this, and down below its threshold ÷ this, in per cent. */
 export const TIER_BAND_PCT = 125;

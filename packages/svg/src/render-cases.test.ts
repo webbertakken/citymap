@@ -62,4 +62,13 @@ describe("renderCity cases", () => {
     expect(svg).toContain(THEMES["paper-atlas"].form("polycentric", false));
     expect(svg).toContain(THEMES["paper-atlas"].form("polycentric", true));
   });
+
+  it("draws canals in the theme's canal colours after the water", () => {
+    const canals = { ...city, towns: [{ ...town, water: [square(0, 0, 10)], canals: [square(0, 0, 20)] }] };
+    const svg = renderCity(canals, { title: "t", subtitle: "s" });
+    const theme = THEMES["paper-atlas"];
+    expect(svg.indexOf(`fill="${theme.canal}" stroke="${theme.canalline}"`)).toBeGreaterThan(
+      svg.indexOf(`fill="${theme.water}"`),
+    );
+  });
 });

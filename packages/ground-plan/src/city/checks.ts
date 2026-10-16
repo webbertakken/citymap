@@ -19,6 +19,7 @@ export const townSchema = v.strictObject({
   old: v.boolean(),
   outline: ptsSchema,
   water: v.array(ptsSchema),
+  canals: v.exactOptional(v.array(ptsSchema)),
   roads: v.array(roadSchema),
   blocks: v.array(
     v.strictObject({

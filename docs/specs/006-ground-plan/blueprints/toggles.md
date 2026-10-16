@@ -28,8 +28,8 @@ Modules: `packages/ground-plan/src/archetype/`, `src/town/{corridor,archipelago,
   those named: one canonical order, duplicates gone.
 - `settingKey(options)` = `${landKey}|split:${groups}|toggles:${toggleList.join(",")}`; the default ends in
   `|toggles:corridor,tiers`, all off in `|toggles:`.
-- `LayoutOptions.toggles: readonly Toggle[]` (the canonical list); `layCity` hands it down. `Ctx.on(toggle)` tells a
-  rule whether it applies.
+- `LayoutOptions.toggles?: readonly Toggle[]`, resolved as `Options.toggles` is; `layoutTown` keeps the canonical list
+  in `Ctx.toggles`, which tells a rule whether it applies.
 - The CLIs (`--toggles=`), the bench, the stability script and the viewer build `Options` with it; the plat's `setting`
   carries it, so `readLock` sets aside a lock for other toggles (`lock/ignored reason=setting`) and folds afresh.
 - A town's locality cache constants gain `|toggles:${list}|tier:${tier}`, so a change of tier re-lays the town's

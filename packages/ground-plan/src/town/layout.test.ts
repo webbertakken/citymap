@@ -12,7 +12,8 @@ import { cutClass } from "./cut";
 import { layoutTown } from "./layout";
 import { centreOut } from "./partition";
 
-const OPTIONS: LayoutOptions = { order: "centre-out", jog: "top-level", warp: false, densityPct: 50 };
+// The forms that are always on; the toggles have tests of their own.
+const OPTIONS: LayoutOptions = { order: "centre-out", jog: "top-level", warp: false, densityPct: 50, toggles: [] };
 
 /** Lays a tree on an outline of its land times room/100, or on the outline of an earlier tree (as a town keeps it). */
 function lay(
