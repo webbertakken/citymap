@@ -95,5 +95,10 @@ test("answers every interaction within 200 ms on a slowed phone", async ({ page,
   await page.waitForTimeout(500);
   const { events } = await vitals(page);
   expect(events.length).toBeGreaterThan(0);
+  // The slowest answer, in the report, so the margin under the budget stays visible.
+  const slowest = events.toSorted((a, b) => b.duration - a.duration)[0]!;
+  test
+    .info()
+    .annotations.push({ type: "slowest", description: `${slowest.name} ${slowest.target}: ${slowest.duration} ms` });
   expect(events.filter((e) => e.duration >= 200)).toEqual([]);
 });

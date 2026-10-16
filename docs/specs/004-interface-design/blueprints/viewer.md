@@ -195,12 +195,20 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
   floats over the map; the empty state waits until nothing is on its way; the font comes with a size-matched fallback;
   so a longer name, status or error never moves anything. Shifts after input (a breadcrumb appearing) are the person's
   own and do not count.
+- The app is built with the React Compiler (`reactCompiler: true`, `babel-plugin-react-compiler`), so moving the map
+  re-renders what the view feeds and not the other cards. Against the bar-and-panel viewer, under the same machine load
+  at a fourfold slowdown, a key press on livediagram answers in a median 48 ms (was 40 ms), p90 64 ms (was 64 ms). Unit
+  tests render uncompiled; the end-to-end suite proves the compiled build. Nothing the compiler memoises reads a
+  property of a value that may be null during render: the search's context (`finder`) carries the scene's bounds and the
+  pick index, built only once the city is.
 - INP under 200 ms on a phone: the view while fitted is derived from the scene
   (`fit(scene.bounds, mode, viewport, insets)`), never built twice; the whole city's scene and pick index stay built
   while one town is shown, so going back costs nothing. Measured on a Pixel 7 profile with the processor slowed fourfold
   (CDP `Emulation.setCPUThrottlingRate`), over taps, keys, the view switch, a search and a drill.
-- `e2e/vitals.spec.ts` records `largest-contentful-paint`, `layout-shift` and `event` entries (from 16 ms) through
-  `PerformanceObserver` before the page's scripts run, and asserts the three budgets.
+- `e2e/vitals.spec.ts` runs in its own projects (`vitals-desktop`, `vitals-phone`) once the journeys are done, so no
+  other test draws at the same time; it reports the slowest interaction as an annotation. It records
+  `largest-contentful-paint`, `layout-shift` and `event` entries (from 16 ms) through `PerformanceObserver` before the
+  page's scripts run, and asserts the three budgets.
 
 ## Tests
 

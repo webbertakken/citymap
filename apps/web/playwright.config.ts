@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 // The static export served over HTTPS on loopback; dark mode throughout.
 const port = 5193;
+const desktop = { ...devices["Desktop Chrome"], viewport: { width: 1400, height: 900 } };
+const phone = devices["Pixel 7"];
 
 export default defineConfig({
   testDir: "e2e",
@@ -15,9 +17,12 @@ export default defineConfig({
     colorScheme: "dark",
     trace: "retain-on-failure",
   },
+  // The vitals are timed on their own, once the journeys are done, so other tests drawing at once never skew them.
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1400, height: 900 } } },
-    { name: "phone", use: { ...devices["Pixel 7"] } },
+    { name: "desktop", testIgnore: /vitals/, use: desktop },
+    { name: "phone", testIgnore: /vitals/, use: phone },
+    { name: "vitals-desktop", testMatch: /vitals/, dependencies: ["desktop", "phone"], use: desktop },
+    { name: "vitals-phone", testMatch: /vitals/, dependencies: ["desktop", "phone"], use: phone },
   ],
   webServer: {
     command: "bun scripts/serve.ts",

@@ -104,7 +104,14 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     setPickedHit(hit);
     setMarker(null);
   };
-  const finder = useMemo(() => (city ? searchIndex(city) : null), [city]);
+  // What a search needs: the whole city's folders and files, where they lie, and how to pick them.
+  const finder = useMemo(
+    () =>
+      city && wholeScene && wholeIndex
+        ? { search: searchIndex(city), bounds: wholeScene.bounds, picking: wholeIndex }
+        : null,
+    [city, wholeScene, wholeIndex],
+  );
   // A flight in progress: its animation frame, cancelled by any other move.
   const flight = useRef(0);
   const settle = (next: View) => {
@@ -138,10 +145,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     setFitted(true);
   };
   // A search hit: leave a town it is not in, fly to it, select it and mark it.
-  // Matches come from `finder`, built from the city shown, so the city's scene and index are there.
-  const goTo = (entry: SearchEntry) => {
-    const bounds = wholeScene!.bounds;
-    const picking = wholeIndex!;
+  const goTo = (entry: SearchEntry, { bounds, picking }: NonNullable<typeof finder>) => {
     const leaving = focus !== null && focus !== entry.townKey;
     if (leaving) setFocus(null);
     const whole = fit(bounds, mode, viewport, insets);
@@ -291,7 +295,12 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         town={town?.towns[0]!.name ?? null}
         onWhole={() => drill(null)}
       />
-      <SearchBox index={finder} onPick={goTo} onRepository={(name) => void openRepository(name)} />
+      <SearchBox
+        index={finder?.search ?? null}
+        // Matches come only from `finder`'s index, so `finder` is there whenever one is picked.
+        onPick={(entry) => goTo(entry, finder!)}
+        onRepository={(name) => void openRepository(name)}
+      />
       <ViewControls
         mode={mode}
         theme={theme}
