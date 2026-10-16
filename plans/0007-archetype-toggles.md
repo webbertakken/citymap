@@ -79,4 +79,5 @@ touches the fold and the plat: rebase onto main when it merges.
 - [x] README text and pictures (before and after)
 - [x] Rebase onto main if the resume work merged; resolve; gate and parity again
 - [x] Fold-back: spec reconciled to what shipped, blueprints re-derived, every symbol, file and reference verified
-- [ ] Commit, push, open the pull request with before and after pictures (not merged)
+- [x] Commit, push, open the pull request with before and after pictures (not merged): #34; main merged in twice (#32
+      local repositories, #33 loading and suggestions), gate, parity 144/144 and 65 end-to-end journeys again
