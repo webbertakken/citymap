@@ -93,7 +93,7 @@ Returns `{ version: 2 | 3 | 4, paths: string[], submodules: number }`, `paths` i
 ### The walk (`local/walk.ts`)
 
 - From `""`, `WALK_IN_FLIGHT` 8 directories listed at once. In each directory, a `.gitignore` file is read first and its
-  rules (`ignore` 7.0.12) apply to the paths beneath that directory, relative to it.
+  rules (`ignore` 7.0.12, case-sensitive) apply to the paths beneath that directory, relative to it.
 - An entry is ignored when the last rule that decides it, from the top folder's rules down to the deepest, ignores it;
   `test(path)` reports `ignored` or `unignored`, and a deeper decision replaces a shallower one. A directory is tested
   as `path/`, and an ignored directory is not listed. An entry named `.git` is always left out.
@@ -250,17 +250,17 @@ database name, version and key (in `local/remember.ts`); provenance in [DEFAULTS
 
 ## Testing
 
-| Spec rule                                               | Test                                                                                        |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| the files are what git tracks; versions 2 to 4; formats | `git-index.test.ts`: every fixture against git's listing, links kept, submodules out        |
-| split and sparse indexes, other kinds named             | `git-index.test.ts`: the `link` and `sdir` fixtures, and damaged bytes, each by code        |
-| worktrees, submodules, git's own data, no index         | `git-data.test.ts`, `read.test.ts` over `listedFolder` fixtures                             |
-| a folder without git honours `.gitignore`               | `walk.test.ts`: nesting, negation, anchoring, ignored folders never listed                  |
-| equal to `citymap --no-history`                         | `scripts/local-equals-cli.ts` over the corpus, and over each index rewritten as v3 and v4   |
-| Chromium reads only what it needs                       | `folder.test.ts`: a recording handle; `e2e/local.spec.ts` through an origin private folder  |
-| remembered, permission asked again                      | `remember.test.ts` (fake IndexedDB); end to end after a reload                              |
-| not on a phone, not in Safari                           | `support.test.ts`; `LocalMenu` tests; the phone project end to end                          |
-| phases, the status, the failures shown and logged       | `ViewerLocal.test.tsx`; `e2e/local.spec.ts` per failure                                     |
-| privacy: no request, no address, no name in the title   | `ViewerLocal.test.tsx`; `e2e/local.spec.ts` watches every request                           |
-| the folder input path, axe light and dark               | `e2e/local.spec.ts`; `e2e/viewer.spec.ts` judges More with the group open                   |
-| the time it takes                                       | `scripts/measure-local.ts` (Firefox headed under `xvfb-run`: headless Firefox has no WebGL) |
+| Spec rule                                               | Test                                                                                               |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| the files are what git tracks; versions 2 to 4; formats | `git-index.test.ts`: every fixture against git's listing, links kept, submodules out               |
+| split and sparse indexes, other kinds named             | `git-index.test.ts`: the `link` and `sdir` fixtures, and damaged bytes, each by code               |
+| worktrees, submodules, git's own data, no index         | `git-data.test.ts`, `read.test.ts` over `listedFolder` fixtures                                    |
+| a folder without git honours `.gitignore`               | `walk.test.ts`: nesting, negation, anchoring, ignored folders never listed                         |
+| equal to `citymap --no-history`                         | `apps/web/scripts/local-equals-cli.ts` over the corpus, and over each index rewritten as v3 and v4 |
+| Chromium reads only what it needs                       | `folder.test.ts`: a recording handle; `e2e/local.spec.ts` through an origin private folder         |
+| remembered, permission asked again                      | `remember.test.ts` (fake IndexedDB); end to end after a reload                                     |
+| not on a phone, not in Safari                           | `support.test.ts`; `ViewerLocal.test.tsx`; the phone project end to end                            |
+| phases, the status, the failures shown and logged       | `ViewerLocal.test.tsx`; `e2e/local.spec.ts` per failure                                            |
+| privacy: no request, no address, no name in the title   | `ViewerLocal.test.tsx`; `e2e/local.spec.ts` watches every request                                  |
+| the folder input path, axe light and dark               | `e2e/local.spec.ts`; `e2e/viewer.spec.ts` judges More with the group open                          |
+| the time it takes                                       | `scripts/measure-local.ts` (Firefox headed under `xvfb-run`: headless Firefox has no WebGL)        |

@@ -31,12 +31,12 @@ Spec: [local repositories](../docs/specs/007-local-repositories/local-repositori
 ## Phase 4: proof
 
 - [x] Unit tests at 100 %; `bun run check`
-- [ ] End-to-end: pick a fixture folder (Chromium handle and folder input), a folder without git, each failure; axe
+- [x] End-to-end: pick a fixture folder (Chromium handle and folder input), a folder without git, each failure; axe
       light and dark; vitals
 - [x] Measured: linux, next.js and takken.io by folder pick, in Chromium and Firefox
 
 ## Phase 5: ship
 
 - [x] README: opening a local repository, with pictures
-- [ ] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
+- [x] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
 - [ ] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`

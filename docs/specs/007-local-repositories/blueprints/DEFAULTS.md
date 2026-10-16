@@ -11,6 +11,7 @@ One row per value the local repositories spec leaves silent or qualitative.
 | Picker id                  | `citymap-local`, mode `read`                                 | Chromium reopens the dialog where the last pick was              | fixed        |
 | Remembered folders         | one, the last, keyed `last` in IndexedDB `citymap` / `local` | spec: the last folder                                            | fixed        |
 | Tab title                  | "Local repository · citymap"                                 | spec: the name shows only on the person's screen                 | fixed        |
+| Gitignore case             | case-sensitive (`ignorecase: false`)                         | git's default where `core.ignorecase` is unset                   | fixed        |
 | Gitignore matcher          | `ignore` 7.0.12                                              | research: closest to git, MIT, no dependencies                   | 7.x          |
 | Safari detection           | `navigator.vendor` is `Apple Computer, Inc.`                 | research: WebKit only; no feature tells hidden files apart       | fixed        |
 | Phone detection            | `(pointer: coarse)`                                          | the viewer's own touch rule                                      | fixed        |
