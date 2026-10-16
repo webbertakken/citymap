@@ -13,6 +13,8 @@ export interface Step {
   readonly of?: number;
   readonly count?: { readonly done: number; readonly of: number };
   readonly requests?: number;
+  /** The files a lay lays, for its words; kept from the step that brings it. */
+  readonly files?: number;
 }
 
 /** Hears each step of a load. */
