@@ -20,6 +20,7 @@ One row per value the viewer spec leaves silent or qualitative.
 | Search: shortest query    | `MIN_QUERY` 2 characters                                                                 | one character matches most of a city        | 1 to 3                    |
 | Search: hits shown        | `MAX_HITS` 7                                                                             | spec: at most seven choices                 | 5 to 7                    |
 | Fly to a hit              | `FLY_SHARE` 0.4 of the map's shorter side, over `FLY_MS` 300 ms                          | the hit stands out with its neighbours seen | 0.2 to 0.6; 150 to 400 ms |
+| Smallest place flown to   | `FLY_MIN_EXTENT` 6 u                                                                     | a block's short side, so neighbours show    | 4 to 12 u                 |
 | Towns in the drawer       | `TOWNS_SHOWN` 7, by lots                                                                 | spec: at most seven choices                 | 5 to 7                    |
 | Label must fit its land   | `LABEL_FIT` 0.6 of the text's width                                                      | a name may overhang its district a little   | 0.4 to 1                  |
 | Repeated name distance    | `REPEAT_PX` 240 px                                                                       | two same names a hand apart read as one     | 160 to 400 px             |

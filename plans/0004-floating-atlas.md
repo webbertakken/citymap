@@ -20,8 +20,8 @@ Rework the viewer's interface into the floating atlas, following the system's li
 
 ## Phase 4: search
 
-- [ ] `src/search/search.ts`: `searchIndex` and `search`, tested
-- [ ] `src/view/fly.ts`: the view to fly to, and the eased step, tested
+- [x] `src/search/search.ts`: `searchIndex` and `search`, tested
+- [x] `src/view/fly.ts`: the view to fly to, and the eased step, tested
 
 ## Phase 5: the interface
 

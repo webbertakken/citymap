@@ -112,9 +112,10 @@ cards do moves the map or each other.
   - ArrowDown and ArrowUp move the active option (wrapping), Enter picks it (or lays the text as a repository when it
     parses and nothing is active), Escape closes the list, then clears the text.
   - Picking a folder or file: the view flies to centre it, zoomed so its extent fills `FLY_SHARE` 0.4 of the shorter
-    side of the map (never further out than the fitted view), over `FLY_MS` 300 ms eased (`easeInOutCubic`), instantly
-    under `prefers-reduced-motion: reduce`; a picked file or folder of another town than the one shown leaves the town
-    first. It is then selected: a file as a lot hit, a folder as a district hit.
+    side of the map, a place smaller than `FLY_MIN_EXTENT` 6 u counted as 6 u (a block's worth, so its neighbours show),
+    never further out than the fitted view,, over `FLY_MS` 300 ms eased (`easeInOutCubic`), instantly under
+    `prefers-reduced-motion: reduce`; a picked file or folder of another town than the one shown leaves the town first.
+    It is then selected: a file as a lot hit, a folder as a district hit.
 - `ViewControls` (top right): a `<div role="group" aria-label="View">` of two `aria-pressed` buttons, "Plan" and "3D";
   then "Theme" (a disclosure button opening a popover `<fieldset>` of radio inputs, one per theme); then "More" (a
   disclosure opening a list: each bundled city as a button with its lot count, the current one `aria-current`, and "Open
@@ -153,8 +154,8 @@ cards do moves the map or each other.
 
 Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_SHARE`, `KEY_ZOOM`, `FIT_SHARE` (in
 `view/view.ts`), `CLICK_SLOP`, `WHEEL_ZOOM`, `CARD` (in `MapView.tsx`), `MIN_QUERY`, `MAX_HITS` (in `search/search.ts`),
-`FLY_SHARE`, `FLY_MS`, `LABEL_FIT`, `REPEAT_PX` (in `view/`), `TOWNS_SHOWN` (in `Drawer.tsx`), `LOT_TOP` and
-`LOT_HEIGHT` (in `packages/scene`).
+`FLY_SHARE`, `FLY_MIN_EXTENT`, `FLY_MS`, `LABEL_FIT`, `REPEAT_PX` (in `view/`), `TOWNS_SHOWN` (in `Drawer.tsx`),
+`LOT_TOP` and `LOT_HEIGHT` (in `packages/scene`).
 
 ## Web experience
 
