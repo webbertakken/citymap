@@ -229,9 +229,9 @@ test("names what is under the pointer, and selects it into the panel", async ({ 
   const box = (await page.locator(".label.town").first().boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await expect(page.getByRole("tooltip")).toBeVisible();
-  // The card's title is drawn, not squeezed away by the lines below it.
-  await expect(page.getByRole("tooltip").locator("strong")).toBeVisible();
-  const named = await page.getByRole("tooltip").locator("strong").textContent();
+  // The card's name is drawn, not squeezed away by the lines below it.
+  await expect(page.getByRole("tooltip").locator(".hit-name")).toBeVisible();
+  const named = await page.getByRole("tooltip").locator(".hit-name").textContent();
   await page.screenshot({ path: info.outputPath("hover.png") });
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await expect(page.getByRole("region", { name: "Selected" })).toContainText(named ?? "");
@@ -239,6 +239,68 @@ test("names what is under the pointer, and selects it into the panel", async ({ 
   await expect(page.getByRole("tooltip")).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Selected" })).toContainText("Nothing yet");
 });
+
+/** A move of the map by its arrow keys, and the edge it takes the found place to. */
+const EDGES: [string, string[]][] = [
+  ["the middle", []],
+  ["the right edge", Array<string>(4).fill("ArrowLeft")],
+  ["the left edge", Array<string>(4).fill("ArrowRight")],
+  ["the bottom edge", Array<string>(4).fill("ArrowUp")],
+  ["the top edge", Array<string>(4).fill("ArrowDown")],
+  ["the bottom right corner", [...Array<string>(4).fill("ArrowLeft"), ...Array<string>(4).fill("ArrowUp")]],
+  ["the top right corner", [...Array<string>(4).fill("ArrowLeft"), ...Array<string>(4).fill("ArrowDown")]],
+  // The legend holds the very corner, so the place stops just above it.
+  ["the bottom left corner", [...Array<string>(4).fill("ArrowRight"), ...Array<string>(3).fill("ArrowUp")]],
+  ["the top left corner", [...Array<string>(4).fill("ArrowRight"), ...Array<string>(4).fill("ArrowDown")]],
+];
+
+/** Presses the keys in order. */
+async function press(page: Page, keys: readonly string[]): Promise<void> {
+  const [first, ...rest] = keys;
+  if (first === undefined) return;
+  await page.keyboard.press(first);
+  await press(page, rest);
+}
+
+for (const [edge, keys] of EDGES)
+  test(`keeps a long path's card whole inside the map at ${edge}, clear of the pointer`, async ({
+    page,
+    isMobile,
+  }, info) => {
+    test.skip(isMobile, "hover is a pointer journey");
+    // Flights are instant, so the keys move the map from where the flight ends.
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.getByRole("button", { name: "Hide details" }).click();
+    const map = page.getByRole("application");
+    const bounds = (await map.boundingBox())!;
+    // The file with the longest path in takken.io, and a long name without a slash.
+    await page.getByRole("searchbox").fill("ZemismartZigbee");
+    await page.keyboard.press("Enter");
+    await map.focus();
+    await press(page, keys);
+    const ring = (await page.locator(".marker").boundingBox())!;
+    const pointer = { x: ring.x + ring.width / 2, y: ring.y + ring.height / 2 };
+    await page.mouse.move(pointer.x, pointer.y);
+    const card = page.getByRole("tooltip");
+    await expect(card).toHaveAttribute("data-kind", "file");
+    await expect(card.locator(".hit-name")).toHaveText("BlogPost-JayN-ZemismartZigbeeRollerShadeMotor.pdf");
+    const box = (await card.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+    expect(box.y).toBeGreaterThanOrEqual(bounds.y);
+    expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+    expect(box.y + box.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+    const covered =
+      pointer.x >= box.x && pointer.x <= box.x + box.width && pointer.y >= box.y && pointer.y <= box.y + box.height;
+    expect(covered, "the card is clear of the pointer").toBe(false);
+    // No text is cut: every element holds what it draws (but what is only for screen readers, which is clipped by design).
+    const clipped = await card.evaluate((element) =>
+      [element, ...element.querySelectorAll(":not(.visually-hidden, .visually-hidden *)")]
+        .filter((e) => e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1)
+        .map((e) => e.className),
+    );
+    expect(clipped).toEqual([]);
+    await page.screenshot({ path: info.outputPath("long-path.png") });
+  });
 
 test("shows one town alone, and the whole city again from the breadcrumb or Escape", async ({
   page,
@@ -264,13 +326,20 @@ test("shows one town alone, and the whole city again from the breadcrumb or Esca
   await expect(crumbs).toHaveCount(0);
 });
 
-/** Axe over the page with its menus and matches open, so every card is judged. */
+/** Axe over the page with its menus, matches and a hover card open, so every card is judged. */
 async function axeEverything(page: Page, isMobile: boolean) {
   const violations = async () =>
     (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations.map(
       (v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`,
     );
   expect(await violations()).toEqual([]);
+  if (!isMobile) {
+    const town = (await page.locator(".label.town").first().boundingBox())!;
+    await page.mouse.move(town.x + town.width / 2, town.y + town.height / 2);
+    await expect(page.getByRole("tooltip")).toBeVisible();
+    expect(await violations()).toEqual([]);
+    await page.mouse.move(1, 1);
+  }
   await page.getByRole("searchbox").fill("src");
   await expect(page.getByRole("list", { name: "Matches" })).toBeVisible();
   expect(await violations()).toEqual([]);
@@ -345,7 +414,10 @@ test("lays a GitHub repository in a worker, from the field and from the address"
   await page.getByRole("searchbox").fill("acme/widgets");
   await page.getByRole("button", { name: /^Lay acme\/widgets from GitHub/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("widgets");
-  await expect(page.locator(".status")).toHaveText(/towns · 80 lots · single state, not folded$/);
+  const status = page.locator(".status");
+  await expect(status).toHaveText(/towns · 80 lots · single state, not folded$/);
+  // The status wraps rather than being cut.
+  expect(await status.evaluate((e) => e.scrollWidth <= e.clientWidth && e.scrollHeight <= e.clientHeight)).toBe(true);
   await expect(page).toHaveURL(/\?repo=acme\/widgets$/);
   // Another layout lays the snapshot again, in the worker.
   await page.getByRole("button", { name: "Layout" }).click();
