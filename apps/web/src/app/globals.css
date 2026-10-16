@@ -873,12 +873,12 @@ mark {
   pointer-events: none;
 }
 /* A card's body, on the hover card and in the drawer: head, meaning, facts. Every text wraps; none is cut. */
-.card-head {
+.hit-head {
   display: flex;
   gap: 12px;
   align-items: flex-start;
 }
-.card-icon {
+.hit-icon {
   display: grid;
   flex: none;
   place-items: center;
@@ -888,12 +888,12 @@ mark {
   background: var(--hover);
   border-radius: 8px;
 }
-.card-names {
+.hit-names {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
-.card-eyebrow {
+.hit-kind {
   margin: 0;
   font-size: 12px;
   font-weight: 600;
@@ -902,26 +902,26 @@ mark {
   text-transform: uppercase;
   color: var(--ink-soft);
 }
-.card-title {
+.hit-name {
   margin: 0;
   font-size: 15px;
   font-weight: 700;
   line-height: 20px;
   color: var(--ink);
 }
-.card-place {
+.hit-place {
   margin: 4px 0 0;
   font-size: 12px;
   line-height: 16px;
   color: var(--ink-soft);
 }
-.card-meaning {
+.hit-meaning {
   margin: 0;
   font-size: 13px;
   line-height: 18px;
   color: var(--ink);
 }
-.card-rows {
+.hit-rows {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -929,29 +929,29 @@ mark {
   padding-top: 8px;
   border-top: 1px solid var(--glass-line);
 }
-.card-rows > div {
+.hit-rows > div {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);
   gap: 8px;
 }
-.card-rows dt {
+.hit-rows dt {
   font-size: 12px;
   line-height: 18px;
   color: var(--ink-soft);
 }
-.card-rows dd {
+.hit-rows dd {
   margin: 0;
   font-size: 13px;
   line-height: 18px;
   color: var(--ink);
 }
-.card-rows small {
+.hit-rows small {
   display: block;
   font-size: 12px;
   line-height: 16px;
   color: var(--ink-soft);
 }
-.card-hint {
+.hit-hint {
   display: flex;
   gap: 8px;
   align-items: center;
@@ -962,14 +962,14 @@ mark {
   color: var(--ink-soft);
   border-top: 1px solid var(--glass-line);
 }
-.card-hint svg {
+.hit-hint svg {
   flex: none;
 }
-.card-title,
-.card-place,
-.card-meaning,
-.card-rows dd,
-.card-hint {
+.hit-name,
+.hit-place,
+.hit-meaning,
+.hit-rows dd,
+.hit-hint {
   overflow-wrap: anywhere;
 }
 

@@ -41,7 +41,7 @@ const click = (x: number, y: number) => {
 
 /** The words of a card, its parts apart. */
 const parts = (card: HTMLElement) =>
-  Array.from(card.querySelectorAll(".card-eyebrow, .card-title, .card-place, .card-meaning, dt, dd, .card-hint"), (e) =>
+  Array.from(card.querySelectorAll(".hit-kind, .hit-name, .hit-place, .hit-meaning, dt, dd, .hit-hint"), (e) =>
     e.textContent?.trim(),
   );
 

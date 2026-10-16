@@ -40,7 +40,7 @@ function Placed({ card, hint, pointer, map }: PlacedProps) {
   return (
     <div ref={box} className="hover-card" role="tooltip" data-kind={card.kind} style={{ left: at.left, top: at.top }}>
       <CardBody card={card} />
-      <p className="card-hint">
+      <p className="hit-hint">
         <MousePointerClick size={16} aria-hidden="true" />
         <span>{hint}</span>
       </p>

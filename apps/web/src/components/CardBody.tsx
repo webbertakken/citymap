@@ -55,24 +55,24 @@ export function CardBody({ card, titleAs: Title = "p" }: CardBodyProps) {
   const Icon = ICON[card.kind];
   return (
     <>
-      <div className="card-head">
-        <span className="card-icon" aria-hidden="true">
+      <div className="hit-head">
+        <span className="hit-icon" aria-hidden="true">
           <Icon size={20} />
         </span>
-        <div className="card-names">
-          {card.eyebrow !== null && <p className="card-eyebrow">{card.eyebrow}</p>}
-          <Title className="card-title">
+        <div className="hit-names">
+          {card.eyebrow !== null && <p className="hit-kind">{card.eyebrow}</p>}
+          <Title className="hit-name">
             <Breakable text={card.title} />
           </Title>
           {card.place.length > 0 && (
-            <p className="card-place">
+            <p className="hit-place">
               <span className="visually-hidden">In </span>
               {card.place.map((name, i) => (
                 // A place may repeat a name (src › lib › src); its depth tells them apart.
                 // oxlint-disable-next-line react/no-array-index-key
                 <Fragment key={i}>
                   {i > 0 && <span aria-hidden="true"> › </span>}
-                  <span className="card-place-name">
+                  <span className="hit-place-name">
                     <Breakable text={name} />
                   </span>
                 </Fragment>
@@ -81,9 +81,9 @@ export function CardBody({ card, titleAs: Title = "p" }: CardBodyProps) {
           )}
         </div>
       </div>
-      {card.meaning !== null && <p className="card-meaning">{card.meaning}</p>}
+      {card.meaning !== null && <p className="hit-meaning">{card.meaning}</p>}
       {card.rows.length > 0 && (
-        <dl className="card-rows">
+        <dl className="hit-rows">
           {card.rows.map((row) => (
             <div key={row.label}>
               <dt>{row.label}</dt>
