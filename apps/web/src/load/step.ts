@@ -3,11 +3,15 @@
 /** Every phase a load passes through, across its sources. */
 export type Phase = "commit" | "tree" | "manifests" | "lay" | "download" | "parse" | "draw";
 
-/** One report: the phase, `done` of `of` in the phase's unit where known, and the API requests so far. */
+/**
+ * One report: the phase, `done` of `of` in the phase's unit where known, and the API requests so far. `count` is what the
+ * words count when it differs from the bar's measure (lots placed, while the bar counts placing and shaping).
+ */
 export interface Step {
   readonly phase: Phase;
   readonly done?: number;
   readonly of?: number;
+  readonly count?: { readonly done: number; readonly of: number };
   readonly requests?: number;
 }
 

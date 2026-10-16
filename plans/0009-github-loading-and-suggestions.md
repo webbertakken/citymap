@@ -18,7 +18,7 @@ A progress card over the map while anything loads, and repository suggestions af
       first)
 - [x] The engine reports laying progress (files placed of files) through a callback, without changing its output
       (byte-identical lay; Rust parity unaffected, the callback is TypeScript only or mirrored as a no-op)
-- [ ] The layout worker posts progress at most every 100 ms and can be ended
+- [x] The layout worker posts progress at most every 100 ms and can be ended
 - [ ] Bundled city and file loads report bytes of bytes
 - [ ] Building the scene for linux: measure; move it to the worker if it blocks the main thread for over 200 ms
 

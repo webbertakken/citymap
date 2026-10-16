@@ -1,17 +1,38 @@
 // Lays in a module Web Worker, one per city; the snapshot and city cross by structured clone (maps included).
 import type { City } from "@citymap/ground-plan";
+import type { Step } from "../load/step";
 import type { Lay } from "./lay";
 
-export const layInWorker: Lay = (snapshot) =>
+type Message = { readonly step: Step } | { readonly city: City } | { readonly error: string };
+
+export const layInWorker: Lay = (snapshot, { signal, onProgress } = {}) =>
   new Promise<City>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
     const worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
-    worker.addEventListener("message", (event: MessageEvent<{ city?: City; error?: string }>) => {
+    // Aborting ends the worker where it is; nothing it was laying arrives.
+    const abort = () => {
       worker.terminate();
-      if (event.data.city) resolve(event.data.city);
-      else reject(new Error(event.data.error ?? "the layout worker failed"));
+      reject(signal?.reason);
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    const end = () => {
+      worker.terminate();
+      signal?.removeEventListener("abort", abort);
+    };
+    worker.addEventListener("message", (event: MessageEvent<Message>) => {
+      const data = event.data;
+      if ("step" in data) onProgress?.(data.step);
+      else {
+        end();
+        if ("city" in data) resolve(data.city);
+        else reject(new Error(data.error));
+      }
     });
     worker.addEventListener("error", (event) => {
-      worker.terminate();
+      end();
       reject(new Error(event.message || "the layout worker failed"));
     });
     worker.postMessage(snapshot, { transfer: [] });
