@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { statusOf } from "./phases";
+import { localStep } from "./phases";
 
-describe("statusOf", () => {
+describe("localStep", () => {
   it.each([
-    [{ phase: "listing" }, "Listing the folder's files…"],
-    [{ phase: "index" }, "repo: reading the git index…"],
-    [{ phase: "folder", files: 12_345 }, "repo: reading the folder… (12,345 files)"],
-    [{ phase: "manifests" }, "repo: reading workspace manifests…"],
-    [{ phase: "laying", files: 96_000 }, "repo: laying out 96,000 files…"],
-    [{ phase: "drawing" }, "repo: drawing the map…"],
-  ] as const)("says %j as a person reads it", (phase, text) => {
-    expect(statusOf("repo", phase)).toBe(text);
+    [{ phase: "index" }, { phase: "index" }],
+    [
+      { phase: "folder", files: 12_345 },
+      { phase: "folder", done: 12_345 },
+    ],
+    [{ phase: "manifests" }, { phase: "manifests" }],
+    [
+      { phase: "laying", files: 96_000 },
+      { phase: "lay", files: 96_000 },
+    ],
+    [{ phase: "drawing" }, { phase: "draw" }],
+  ] as const)("takes %j to the card as %j", (phase, step) => {
+    expect(localStep(phase)).toEqual(step);
   });
 });

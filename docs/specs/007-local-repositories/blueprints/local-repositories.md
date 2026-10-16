@@ -18,7 +18,7 @@ CLI, so the Rust implementation is untouched.
 | local read    | `readLocal(folder, onPhase)`     | the folder to a snapshot: `stateSnapshot(name, commit, paths, members)`              |
 | support       | `localSupport()`                 | `"handle"`, `"input"`, `"safari"` or `"none"` (a phone, or no folder access at all)  |
 | remembered    | `rememberFolder`, `recallFolder` | the last handle, in IndexedDB (Chromium)                                             |
-| phase         | `LocalPhase`                     | `listing`, `index`, `folder`, `manifests`, `laying`, `drawing`                       |
+| phase         | `LocalPhase`                     | `index`, `folder`, `manifests`, `laying`, `drawing` (`LISTING` comes before)         |
 | local failure | `LocalError` with `LocalCode`    | a named rejection; never the engine's `CitymapError`, so the Rust code list is apart |
 | sentence      | `describeLocal(failure, name)`   | a failure in one sentence, naming the folder                                         |
 | ports         | `LocalPorts`, `browserPorts`     | the browser's side: support, the folder dialog, recall and remember; tests stand in  |
@@ -130,26 +130,31 @@ viewer reads it through `useSyncExternalStore` with `"none"` while prerendering,
 
 ## Behaviour and state
 
-`useLocalRepository({ ports, lay, status, setStatus, setError, present })` holds the remembered handle, a busy flag and
-the status before an opening began; the city, status and notice stay the viewer's. It returns
-`{ support, busy, pick, again, input }`, `again` being `{ name, open }` or null. `Viewer` takes `folders?: LocalPorts`
-(the browser's by default) and hands the result to `ViewControls` (`local?: LocalRepository`), which renders `LocalMenu`
-in More.
+`useLocalRepository({ ports, lay, theme, begin, status, setStatus, setError, present })` holds the remembered handle, a
+busy flag and the status before an opening began; the city, status, notice and loading card stay the viewer's. It
+returns `{ support, busy, pick, again, input }`, `again` being `{ name, open }` or null. `Viewer` takes
+`folders?: LocalPorts` (the browser's by default) and hands the result to `ViewControls` (`local?: LocalRepository`),
+which renders `LocalMenu` in More.
 
 1. **Pick** (`"handle"`): the click closes More, then calls `showDirectoryPicker({ id: "citymap-local", mode: "read" })`
    within the gesture (`PICKER_ID`). `AbortError` (the dialog closed) changes nothing.
 2. **Pick** (`"input"`): the click closes More and clicks a hidden `<input type="file" webkitdirectory>` that lives
-   outside the popover; the status becomes "Listing the folder's files…" (phase `listing`) until `change` or `cancel`;
-   `cancel`, or a `change` with no files, puts the status back as it was.
+   outside the popover; the status becomes `LISTING` "Listing the folder's files…" until `change` or `cancel`; `cancel`,
+   or a `change` with no files, puts the status back as it was.
 3. **Again**: as above, through the remembered handle and its permission.
-4. **Read**: the status names each phase: "{name}: reading the git index…", "{name}: reading the folder… ({n} files)",
-   "{name}: reading workspace manifests…", "{name}: laying out {n} files…", "{name}: drawing the map…". The snapshot is
-   laid by the viewer's `lay` (the layout worker).
-5. **Shown**: the viewer's `show(city, name, "Local repository")`: the title card names the folder, the tab says "Local
-   repository · citymap"; the status gains " · local, single state, not folded"; the bundled city selection is cleared;
-   the address loses its query (`history.replaceState` to the bare path). Through a handle, it is remembered.
-6. **Failed**: the notice says the failure's sentence; the last city stays, and the status goes back to what it said of
-   it.
+4. **Read**: a load begins on the viewer's loading card (`begin("local", name)`, source `local`; see the
+   [viewer blueprint](../../004-interface-design/blueprints/viewer.md) § Loading), and the status under it is the last
+   city's again. `localStep` takes each phase to the card: `index` "Reading the git index", `folder` "Reading the
+   folder" ("{n} files found"), `manifests` "Reading workspace manifests", `lay` "Laying out {n} files", `draw` "Drawing
+   the map"; the status line says the same ("{name}: reading the git index…"). A read cannot be stopped part way: one
+   cancelled is dropped once it ends. The snapshot is laid by the viewer's `lay` (the layout worker, with the job's
+   signal, its progress and the map's theme).
+5. **Shown**: the viewer's `present(job, laid, name)` draws it as every load ends (`draw`, titled "Local repository"):
+   the title card names the folder, the tab says "Local repository · citymap"; the status gains " · local, single state,
+   not folded"; the bundled city selection is cleared; the address loses its query (`history.replaceState` to the bare
+   path). Through a handle, it is remembered.
+6. **Failed**: the card goes, the notice says the failure's sentence; the last city stays, and the status goes back to
+   what it said of it. **Cancelled** (the card's Cancel or Escape): nothing is shown, logged or remembered.
 
 While a read runs, the menu's buttons are disabled, so no second opening starts.
 
@@ -189,8 +194,8 @@ While a read runs, the menu's buttons are disabled, so no second opening starts.
 
 - Both buttons are native buttons in the menu's list, reachable by keyboard in order, with the menu's focus ring; the
   explanation is the first button's description, and the Safari line is plain text in the list.
-- The phases are the status line's text (`aria-live="polite"`), so each phase is announced once; a failure is the
-  notice's `role="alert"`.
+- The phases are the loading card's and the status line's text (`aria-live="polite"`, the card announcing nothing), so
+  each phase is announced once; a failure is the notice's `role="alert"`.
 - The hidden folder input carries `aria-label="Repository folder"` and is never focusable (`hidden`).
 
 ## Web experience

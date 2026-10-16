@@ -75,6 +75,15 @@ export interface TownCache {
   hits: number;
 }
 
+/** Who hears how far a lay has come, in lot seeds: placed by a neighbourhood, then shaped by the warp. */
+export interface LayHooks {
+  readonly placed: (seeds: number) => void;
+  readonly shaped: (seeds: number) => void;
+}
+
+/** The lot seeds of a folder and everything in it. */
+export const seedsOf = (node: TreeNode): number => node.children.reduce((sum, c) => sum + seedsOf(c), node.lots.length);
+
 /** The mutable state of laying out one town. */
 export interface Ctx {
   readonly options: LayoutOptions;
@@ -89,6 +98,7 @@ export interface Ctx {
   readonly water: Pt[][];
   readonly landArea2: number;
   readonly cache: TownCache | undefined;
+  readonly hooks: LayHooks | undefined;
   form: Form;
   overflow: number;
   lotArea2: number;

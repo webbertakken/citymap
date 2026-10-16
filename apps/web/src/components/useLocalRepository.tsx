@@ -1,7 +1,7 @@
 "use client";
 // Opening a repository on the person's machine: the folder dialog (Chromium) or the folder input (Firefox), the read,
 // the lay, and the remembered folder. The city, its status and the notice stay the viewer's.
-import type { City } from "@citymap/ground-plan";
+import type { ThemeName } from "@citymap/themes";
 import {
   useEffect,
   useRef,
@@ -12,11 +12,13 @@ import {
   type ReactElement,
   type SetStateAction,
 } from "react";
-import type { Lay } from "../lay/lay";
+import type { Lay, Laid } from "../lay/lay";
+import type { Source } from "../load/progress";
+import type { Job } from "../load/useLoading";
 import { describeLocal } from "../local/describe";
 import { LocalError } from "../local/errors";
 import { handleFolder, listedFolder, localised, type Folder } from "../local/folder";
-import { statusOf } from "../local/phases";
+import { LISTING, localStep } from "../local/phases";
 import { browserPorts, type LocalPorts } from "../local/ports";
 import { readLocal } from "../local/read";
 import { mayRead, type PermissionHandle } from "../local/remember";
@@ -31,11 +33,15 @@ export const LOCAL_STATUS = "local, single state, not folded";
 export interface LocalOptions {
   readonly ports?: LocalPorts;
   readonly lay: Lay;
+  /** The map theme the worker builds the scene in. */
+  readonly theme: ThemeName;
+  /** Begins a load on the loading card, ending any other. */
+  readonly begin: (source: Source, name: string) => Job;
   readonly status: string;
   readonly setStatus: Dispatch<SetStateAction<string>>;
   readonly setError: (message: string) => void;
-  /** Shows the laid city under the folder's name. */
-  readonly present: (city: City, name: string) => void;
+  /** Draws the laid city under the folder's name, and ends the load. */
+  readonly present: (job: Job, laid: Laid, name: string) => Promise<void>;
 }
 
 export interface LocalRepository {
@@ -51,10 +57,15 @@ export interface LocalRepository {
 
 const never = () => () => {};
 const aborted = (failure: unknown) => failure instanceof DOMException && failure.name === "AbortError";
+/** True for a load the person cancelled or replaced: never a failure to show. */
+const ended = (failure: unknown) =>
+  typeof failure === "object" && failure !== null && "name" in failure && failure.name === "AbortError";
 
 export function useLocalRepository({
   ports = browserPorts,
   lay,
+  theme,
+  begin,
   status,
   setStatus,
   setError,
@@ -88,17 +99,21 @@ export function useLocalRepository({
     const started = performance.now();
     const { name } = folder;
     setBusy(true);
+    // The card names each phase from here; the status underneath is the last city's again.
+    const job = begin("local", name);
+    setStatus(before.current);
     try {
-      const read = await readLocal(folder, (phase) => setStatus(statusOf(name, phase)));
+      const read = await readLocal(folder, (phase) => job.step(localStep(phase)));
+      // A read cannot be stopped part way; one the person cancelled is dropped here.
+      job.signal.throwIfAborted();
       const files = read.snapshot.files.length;
       if (read.index) log.info("viewer/local-index", read.index);
       if (read.head) log.info("viewer/local-commit", { how: read.head });
       if (read.source === "walk") log.info("viewer/local-walk", { files });
       for (const path of read.unread) log.info("viewer/local-manifest-unread", { path });
-      setStatus(statusOf(name, { phase: "laying", files }));
-      const city = await lay(read.snapshot);
-      setStatus(statusOf(name, { phase: "drawing" }));
-      present(city, name);
+      job.step({ phase: "lay", files });
+      const laid = await lay(read.snapshot, { signal: job.signal, onProgress: job.step, theme });
+      await present(job, laid, name);
       // Nothing about a local repository goes in the address; a GitHub repository named there before goes.
       window.history.replaceState(null, "", window.location.pathname);
       log.info("viewer/local-read", { source: read.source, files, ms: Math.round(performance.now() - started) });
@@ -108,6 +123,8 @@ export function useLocalRepository({
           (failure: unknown) => log.error("viewer/local-remember-failed", { reason: reasonOf(failure) }),
         );
     } catch (failure) {
+      if (ended(failure)) return;
+      job.failed();
       failed(failure, name);
     } finally {
       setBusy(false);
@@ -129,7 +146,7 @@ export function useLocalRepository({
       return;
     }
     log.info("viewer/local-pick", { how: "input" });
-    setStatus(statusOf("", { phase: "listing" }));
+    setStatus(LISTING);
     input.current?.click();
   };
 

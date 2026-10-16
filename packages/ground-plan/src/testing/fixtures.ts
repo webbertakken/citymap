@@ -55,6 +55,7 @@ export function emptyCtx(root: TreeNode = treeOf([]), landArea2 = 0): Ctx {
     water: [],
     landArea2,
     cache: undefined,
+    hooks: undefined,
     form: "neighbourhood",
     overflow: 0,
     lotArea2: 0,

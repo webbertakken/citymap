@@ -62,31 +62,160 @@ in `BufferGeometry`.
 
 - `parseRepository(input)`: `owner/name`, or a `https://github.com/owner/name[/…]` URL (an optional `.git` dropped),
   into `{ owner, name }`; owner `[A-Za-z0-9-]{1,39}`, name `[A-Za-z0-9._-]{1,100}`; anything else is `github/bad-name`.
-- `readRepository(fetcher, repo, onRequest)`, every call through the injected fetcher (tests stub it), JSON from
-  `https://api.github.com` with `Accept: application/vnd.github+json`:
-  1. `GET /repos/{owner}/{name}/commits/HEAD`: the commit `sha` and its `commit.tree.sha` (the default branch).
+- `getJson(fetcher, url, notFound, signal)` (`github/api.ts`): every API call, through the injected fetcher (tests stub
+  it) with the signal, JSON from `https://api.github.com` with `Accept: application/vnd.github+json`. Rejections
+  (`CitymapError`): 404 the caller's `notFound`; 403 or 429 with `x-ratelimit-remaining: 0` `github/rate-limited`
+  (detail `reset`, the epoch second from `x-ratelimit-reset`); any other failure status `github/failed` (detail
+  `status`); a fetch that throws `github/offline`; an aborted signal rejects with its reason (an `AbortError`), never as
+  offline.
+- `readRepository(fetcher, repo, { signal, onStep })`; `onStep` hears a `ReadStep` (a `Step` that always carries
+  `requests`; see Loading) before the commit, after each tree answer, and as each manifest is read:
+  1. `GET /repos/{owner}/{name}/commits/HEAD`: the commit `sha` and its `commit.tree.sha` (the default branch); a 404
+     anywhere is `github/not-found` "{owner}/{name} does not exist or is private".
   2. `GET /repos/{owner}/{name}/git/trees/{tree}?recursive=1`. When `truncated`, the tree is read folder by folder
      instead: a folder's tree without `recursive` lists its entries; each subtree is then read with `recursive=1`, and
-     any still truncated is split the same way. At most four requests are in flight.
+     any still truncated is split the same way. At most `IN_FLIGHT` 4 requests are in flight.
   3. Entries: `blob` is a file (path joined from its folder), `commit` a submodule (skipped), `tree` a folder.
   4. Root workspace manifests (`isManifest`) are read from
-     `https://raw.githubusercontent.com/{owner}/{name}/{sha}/{path}` (not counted against the API limit), parsed with
-     `patternsOf` and resolved with `resolveWorkspaces`.
+     `https://raw.githubusercontent.com/{owner}/{name}/{sha}/{path}` with the signal (not counted against the API
+     limit), parsed with `patternsOf` and resolved with `resolveWorkspaces`; one that cannot be read is left out.
   5. The snapshot is `stateSnapshot(name, sha, paths, workspaces)` from `@citymap/ground-plan`, the same builder the
      CLI's `--no-history` and the bench use, so the browser lays exactly what `citymap --no-history` lays.
-- Rejections (`CitymapError`): 404 `github/not-found`; 403 or 429 with `x-ratelimit-remaining: 0` `github/rate-limited`
-  (detail `reset`, the epoch second from `x-ratelimit-reset`); any other failure status `github/failed` (detail
-  `status`); a fetch that throws `github/offline`.
-- Laying: `lay.worker.ts` (a module Web Worker) receives the snapshot (its map as entries) and returns
-  `layCity(snapshot, initialState(OPTIONS), OPTIONS).city` with the CLI's default options; `Viewer` takes a `lay`
-  function (the worker by default, a direct call in tests).
-- A repository is laid from the search box (below). The status reads "{name}: reading the tree… ({n} requests)", then
-  "{name}: laying out…", then "{towns} towns · {lots} lots · single state, not folded". On success the address becomes
+- Laying (`lay/`): `Lay = (snapshot, { signal, onProgress, theme }) => Promise<Laid>`, `Laid = { city, scene }`.
+  `layHere` lays on the calling thread, `layCity(snapshot, initialState(LIVE_OPTIONS), LIVE_OPTIONS, onProgress)` with
+  the CLI's default options, and, given a `theme`, posts a `draw` step and builds the scene there too
+  (`scene: { theme, scene }`, else null). `layInWorker` (the default; `layHere` in tests) runs it in a module Web Worker
+  (`lay/worker.ts`) sent `{ snapshot, theme }`; the scene's buffers come back transferred (`buffersOf`), not copied. See
+  Loading for the progress it posts and how it ends.
+- `Viewer` keeps the worker's scene (`drawn`: the city, the theme, the scene) and uses it while that city is shown in
+  that theme; any other city or theme builds its scene on the main thread as before.
+- A repository is laid from the search box (below). While it loads, the status line names the phase ("{name}: {phase}…";
+  see Loading); then "{towns} towns · {lots} lots · single state, not folded". On success the address becomes
   `?repo=owner/name` (`history.replaceState`); on load, a `repo` parameter is laid instead of the first bundled city.
 - Hosting: `next.config` takes `basePath` from `CITYMAP_BASE_PATH` (`/citymap` on GitHub Pages, empty locally); every
   fetch of bundled files is prefixed with it. `.github/workflows/pages.yml` builds the export on every push to main and
   deploys it with `actions/upload-pages-artifact` and `actions/deploy-pages`.
+- Every API answer passes through `meter(fetcher, onAllowance)` (`github/allowance.ts`), which reads
+  `x-ratelimit-remaining` and `x-ratelimit-reset` from answers whose `x-ratelimit-resource` is `core` (or absent), so
+  laying and the suggestions share one `Allowance` (`{ remaining, reset }`, null until GitHub has answered once);
+  `spent(allowance, now)` is true while none is left and the reset is still to come.
 - Logs: `viewer/github-read repo requests files ms` and `viewer/github-failed repo reason`.
+
+## Loading (`apps/web/src/load`, `components/LoadingCard.tsx`)
+
+- Sources and their phases, in order (`Phase` ids, then the words the card and the status show):
+  - `github`: `commit` "Asking GitHub for the latest commit", `tree` "Reading the file tree", `manifests` "Reading
+    workspace manifests", `lay` "Laying out {files} files" ("the files" until the count is known), `draw` "Drawing the
+    map";
+  - `bundled`: `download` "Downloading", `parse` "Reading the city", `draw`;
+  - `file`: `download` "Reading the file", `parse` "Reading the city", `draw`;
+  - `local`: `index` "Reading the git index" (or `folder` "Reading the folder", "{n} files found", for a folder without
+    git), `manifests`, `lay`, `draw`, from `localStep` (see
+    [local repositories](../../007-local-repositories/blueprints/local-repositories.md)).
+- `PHASE_WEIGHTS` (`load/progress.ts`) give each phase its share of the one bar, per source, summing to 1 (see
+  `DEFAULTS.md`); a phase's segment starts where the earlier phases' weights end.
+- `Step` (`load/step.ts`, what a source reports): `{ phase, done?, of?, count?, requests?, files? }`; `done` of `of`
+  counts the phase's unit (folders for `tree`, manifests for `manifests`, lot steps for `lay`, bytes for `download`);
+  `count` is what the words count when it differs from the bar's measure (lots placed of lots); `requests` the API
+  requests so far; `files` the files a lay lays, kept from the step that brings it.
+- `Progress` (pure, `load/progress.ts`): `startProgress(source, name, now)`; `advance(progress, step)` moves to the
+  step's phase and sets `fraction` = max(the previous fraction, the phase's start + its weight × min(1, done / of)), so
+  the bar never moves backwards: a step of an earlier phase, or of a phase the source does not have, changes nothing; a
+  phase change jumps to the phase's start; a step without counts holds the bar. `finish(progress)` sets it to 1.
+  `determinate` is true while the current step has a total above zero.
+- Words (`load/progress.ts`): `phaseWords(progress)`; `countWords(progress)`: "1,204 of 2,610 folders · 27 requests" ("1
+  request"), "2 of 3 manifests", "31,200 of 75,123 lots", "4.1 of 12.3 MB" or "51 of 900 kB" (both in the unit of the
+  larger, 1,000-based; "4.1 MB" when the total is unknown); `spentWords(ms)`: "0 s", "12 s", "1 min 4 s";
+  `estimateWords(progress, now)`: null until steady (fraction at least `ESTIMATE_FROM` 0.1 and `STEADY_MS` 2,000 ms
+  spent) and once done, then the time left at the pace so far, `spent × (1 − fraction) / fraction`: "a few seconds left"
+  under 5 s, "about {n} s left" (whole seconds; to 5 s from 20 s) under 60 s, "about {n} min left" above.
+- `useLoading()` (`load/useLoading.ts`): one load at a time. `begin(source, name)` ends any load in flight (logged
+  `why=replaced`) and returns a `Job`, `{ signal, step, done, failed }`; `cancel()` ends the current one (`why=cancel`).
+  It holds `progress` (null when idle), `shown`, and `now`: the card shows `SHOW_AFTER_MS` 300 ms after `begin` if still
+  loading, and once shown stays at least `HOLD_MS` 400 ms (the bar full meanwhile); a load done before 300 ms shows
+  nothing; a failure removes it at once. A clock ticks every `TICK_MS` 250 ms while the card shows. A job's reports
+  after it ended change nothing; leaving the page aborts the load in flight.
+- The viewer's loads report through it: the index's first city and More
+  (`loadCity(fetcher, entry, base, { signal, onStep })`: the body read as a stream, `content-length` the total unless
+  `content-encoding` is set, then `parseCity`), a city file (`readCityFile(file, { signal, onStep })`, read in
+  `FILE_CHUNK` 1 MB slices, `file.size` the total), and a GitHub repository (`readRepository`, then the worker). Before
+  parsing and before showing the city, `afterPaint()` (`load/paint.ts`) waits for a frame, or `FRAME_WAIT_MS` 100 ms in
+  a hidden tab, so the phase is seen before the main thread is busy.
+- `draw` (`Viewer`'s `draw(job, city, name, file, scene)`): the phase is said, a frame passes, the city is shown (and
+  More's current city set), a frame passes, and the job is done.
+- `ReadStep`s from `readRepository`: `commit` before the first request; `tree` on entering the phase and after each tree
+  answer, with `done` the folders whose entries are in hand and `of` the folders known (the root, and every `tree` entry
+  seen in any answer, the truncated first answer included); `manifests` with `done` of `of` root manifests read.
+- The engine: `layCity(snapshot, state, options, onProgress?)` calls `onProgress({ placed, shaped, lots })`
+  (`LayProgress`) once at the start and after each change: `lots` the lot seeds of every town it lays (known once their
+  trees are built), `placed` the seeds laid so far (at each neighbourhood, and a whole cached folder at once), `shaped`
+  the seeds of towns whose warp is done (a quarter of a town's seeds after each of its roads, blocks, lots, and
+  districts with water; all at once unwarped). Its hooks (`LayHooks` in the town's `Ctx`) read nothing back, so the city
+  is byte-identical with or without a listener; the Rust engine has no callback (parity compares bytes).
+- `layStep` makes it a `lay` step, `done` = `placed + shaped` of `of` = `2 × lots`, `count` lots placed of lots. The
+  worker posts `{ step }` at once on a phase change and at most every `POST_MS` 100 ms within a phase (`throttled`,
+  flushed before the city), then `{ city, scene }` or `{ error }`. Aborting the signal terminates the worker and rejects
+  with the signal's reason.
+- Cancel: "Cancel" on the card, or Escape anywhere but in the search box or an open menu (a capturing `keydown` listener
+  on `window` while the card shows, which stops the key there), calls `cancel()`: requests abort (the fetcher gets the
+  signal), the worker ends, and the last city, the address and the selection stay. An `AbortError` is never shown as a
+  failure.
+- `LoadingCard` (`<section aria-label="Loading">`, `.glass.loading`, 360 px wide at most, in `.loading-place`: the free
+  map as `insetsFor` reckons it, in CSS (top 100 px, 156 px from 1,100 px down; right 352 px unless the drawer is
+  closed; on a phone top 140 px and bottom 64 px, or half the height with the sheet open), centred, `z-index` 10,
+  beneath the search, menus and notices): "Opening {name}" (`<h2>`, with a turning `LoaderCircle`), the phase as text, a
+  native `<progress>` (`value` the whole percentage of the bar, `max` 100, labelled by the phase, `aria-valuetext`
+  "{phase}: {count}" or "{phase}: {n} %"), the count, "{spent} spent · {estimate}", and a "Cancel" button. The fill
+  eases over 150 ms; where the phase has no total, a 30 % band sweeps over the bar in 1.4 s (`transform`, so it moves
+  while the main thread is busy), held still under `prefers-reduced-motion: reduce`. The card announces nothing: the
+  title card's status (`aria-live="polite"`) names the phase, so a phase change is heard once and a step is not.
+- While the card shows the map is dimmed (`.viewer[data-loading="true"] .map`, opacity 0.45) and stays live; the card is
+  the only thing added, floating, so nothing moves (CLS 0).
+- Logs: `viewer/load-phase source name phase ms` (at `begin` and on each phase change, `ms` since `begin`),
+  `viewer/load-cancelled source name phase ms why`, `viewer/load-done source name ms`; failures keep their own logs.
+
+## Repository suggestions (`apps/web/src/github`)
+
+- `ownerQuery(text)` (`suggest.ts`, pure): the text trimmed, a leading `https://`, `www.` and `github.com/` dropped;
+  `{ owner, prefix }` when it is `owner/` followed by nothing or the start of a name (an owner of `[A-Za-z0-9-]{1,39}`,
+  a prefix of at most 100 of `[A-Za-z0-9._-]`), or a GitHub URL that stops at the owner; else null.
+- `GitHubRepository`: `{ name, description, stars, language, fork, archived }` (`description` and `language` may be
+  null), read by `repositoriesOf` from GitHub's `name`, `description`, `stargazers_count`, `language`, `fork`,
+  `archived`; an entry of another shape is left out.
+- `rankRepositories(repos, prefix)` (pure): those whose name starts with the prefix (case-insensitively), then those
+  that contain it, each group by stars (most first), then name (`compareKeys`); an empty prefix keeps them all.
+- `createSuggester(fetcher, now)` (`owners.ts`), one per viewer, its cache living as long as the tab:
+  - `ownerRepositories(owner)`: `GET /users/{owner}/repos?sort=pushed&per_page=100` (users and organisations alike),
+    kept per owner (case-insensitively) for `OWNER_TTL_MS` 10 minutes, `cached(owner)` the kept answer; one request in
+    flight per owner is shared; the answer is `{ repos, more }`, `more` when the `link` header has `rel="next"`.
+  - `searchRepositories(owner, prefix)`:
+    `GET /search/repositories?q={prefix} in:name user:{owner}&sort=stars&per_page=20`, kept per owner and prefix for the
+    same ten minutes (`cachedSearch`); its allowance is the search API's, so the meter leaves it out.
+  - Rejections (`CitymapError`, via `getJson`): 404 `github/not-found` with detail `owner`, kept like an answer;
+    `github/rate-limited`, `github/failed` and `github/offline`, forgotten so they are asked again.
+  - `suggestionFailure(failure, owner)`: "No GitHub user or organisation named {owner}", "GitHub's hourly limit is
+    reached; it resets at 14:05", "GitHub could not be reached", "GitHub answered {status}".
+- `useSuggestions(suggester, allowance, text)` (`useSuggestions.ts`): `idle` without an owner query; `asking` until the
+  owner's answer; `failed` with its line; `ready` with the ranked repositories. The owner's list is asked `SUGGEST_MS`
+  250 ms after the text rests (a kept answer at once, logged as cached), so typing a name costs one request per owner;
+  while the allowance is `spent`, nothing is asked and the limit's line shows. For an owner with `more`, a non-empty
+  prefix is also searched after the same rest; its finds join the list (by name, once), and a failed search is only
+  logged. An answer for an owner or prefix the text has left is dropped.
+- `SearchBox` takes `suggester` and `allowance`. A text whose owner is a folder of the city shown
+  (`holdsFolder(index, owner)`, `search/search.ts`) is a path in the city: no suggester is used for it.
+- The list (`.choices`): the city's matches in `<ul aria-label="Matches">` (at most `CITY_WITH_SUGGESTIONS` 3 while
+  suggestions show), then a heading "On GitHub" (`<p class="group">`) and `<ul aria-labelledby>` it of the suggestions,
+  then "Lay owner/name from GitHub" when the text names a repository that no suggestion is; seven choices in all
+  (`MAX_HITS`). Without suggestions the list is as before. Each suggestion is a button: a `BookMarked` icon, "GitHub
+  repository" (visually hidden), "{owner}/{name}" with the typed prefix marked, its description (one line,
+  `text-overflow: ellipsis`, the whole text in the button's name), and a line of facts: "★ 12.3k" (compact, `en-GB`,
+  read as "12.3k stars"), the language, "fork", "archived". Picking one calls `onRepository("owner/name")`. The arrow
+  keys move through every button of both lists.
+- The summary: the city's line when it has matches or nothing is asked of GitHub; then "Asking GitHub for {owner}'s
+  repositories…", "{n} of {owner}'s repositories match" ("None of …"), or the failure's line; and " · {remaining} GitHub
+  requests left this hour" once the allowance is known. The lay offer stays on a failure.
+- Logs: `viewer/suggest owner repos more ms` (an answer from GitHub), `viewer/suggest-cached owner`,
+  `viewer/suggest-search owner prefix repos`, `viewer/suggest-failed owner [prefix] reason`, `viewer/suggest-pick repo`.
 
 ## Floating atlas (`apps/web/src/components`)
 
@@ -175,17 +304,21 @@ phone), so nothing the cards do moves the map or each other.
 
 - `src/log.ts` writes one line per decision point or failure, fingerprinted by its first token: `viewer/index cities`,
   `viewer/open name towns lots`, `viewer/town key`, `viewer/city`, `viewer/search length hits` (when a query settles),
-  `viewer/search-pick kind path`, `viewer/drawer open` (to `console.info`); `viewer/index-failed reason`,
-  `viewer/open-failed name reason`, `viewer/file-rejected file reason` (to `console.error`). A reason is the engine's
-  code (`city/bad-json`) or the error's text. Every failure also reaches the person as `role="alert"` text.
+  `viewer/search-pick kind path`, `viewer/drawer open`, the loading and suggestion events above (to `console.info`);
+  `viewer/index-failed reason`, `viewer/open-failed name reason`, `viewer/file-rejected file reason`,
+  `viewer/suggest-failed owner reason` (to `console.error`). A reason is the engine's code (`city/bad-json`) or the
+  error's text. Every failure also reaches the person as `role="alert"` text.
 
 ## Constants
 
 Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_SHARE`, `KEY_ZOOM`, `FIT_SHARE`,
 `LABEL_FIT`, `REPEAT_PX` (in `view/view.ts`), `FLY_SHARE`, `FLY_MIN_EXTENT`, `FLY_MS` (in `view/fly.ts`), `NARROW`,
 `MEDIUM` and the card sizes (in `view/insets.ts`), `CLICK_SLOP`, `WHEEL_ZOOM`, `CARD` (in `MapView.tsx`), `MIN_QUERY`,
-`MAX_HITS` (in `search/search.ts`), `SETTLE_MS` (in `SearchBox.tsx`), `TOWNS_SHOWN` (in `Drawer.tsx`), `LOT_TOP` and
-`LOT_HEIGHT` (in `packages/scene`).
+`MAX_HITS` (in `search/search.ts`), `SETTLE_MS` and `CITY_WITH_SUGGESTIONS` (in `SearchBox.tsx`), `SUGGEST_MS` (in
+`github/useSuggestions.ts`), `IN_FLIGHT` (in `github/read.ts`), `FILE_CHUNK` (in `cities.ts`), `FRAME_WAIT_MS` (in
+`load/paint.ts`), `TOWNS_SHOWN` (in `Drawer.tsx`), `PHASE_WEIGHTS`, `ESTIMATE_FROM` and `STEADY_MS` (in
+`load/progress.ts`), `SHOW_AFTER_MS`, `HOLD_MS` and `TICK_MS` (in `load/useLoading.ts`), `POST_MS` (in `lay/worker.ts`),
+`OWNER_TTL_MS` (in `github/owners.ts`), `LOT_TOP` and `LOT_HEIGHT` (in `packages/scene`).
 
 ## Web experience
 
@@ -206,6 +339,10 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
   (`fit(scene.bounds, mode, viewport, insets)`), never built twice; the whole city's scene and pick index stay built
   while one town is shown, so going back costs nothing. Measured on a Pixel 7 profile with the processor slowed fourfold
   (CDP `Emulation.setCPUThrottlingRate`), over taps, keys, the view switch, a search and a drill.
+- Laying a large repository: the worker lays and builds the scene, so on that phone profile linux's longest main-thread
+  task fell from 2.25 s to 0.83 s, of which the pick index takes 0.70 s and the search index 0.09 s (both still on the
+  main thread, after the card says "Drawing the map"; the card's sweep runs on the compositor meanwhile). The loading
+  card shifts nothing and its Cancel answers within the budget (`vitals.spec.ts`).
 - `e2e/vitals.spec.ts` runs in its own projects (`vitals-desktop`, `vitals-phone`) once the journeys are done, so no
   other test draws at the same time; it reports the slowest interaction as an annotation. It records
   `largest-contentful-paint`, `layout-shift` and `event` entries (from 16 ms) through `PerformanceObserver` before the
@@ -219,4 +356,11 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
   mode with one light run: loads, switches city, theme and view, searches and flies, opens a file, shows an error for a
   bad file, reaches every control by keyboard, keeps every card clear of the others at widths from 1,400 to 360 px, and
   passes axe (WCAG 2.2 AA rules) with no violations, with the menus, the matches and the drawer open, in light and dark;
-  a screenshot per theme for review.
+  a screenshot per theme for review. `e2e/github.spec.ts` holds the GitHub journeys, every API call answered from
+  fixtures (anything unanswered is a 404, so nothing reaches the real GitHub).
+- Loading and suggestions: the progress model, the meter, the suggester and the ranking in Node with a stubbed clock and
+  fetcher; the card's thresholds with fake timers; cancel by button and by Escape, keeping the last city; the engine's
+  progress against the same lay without it (equal output, `placed` and `shaped` reaching `lots`). End-to-end, GitHub
+  answered from fixtures: a truncated tree read folder by folder shows the card with a count, Cancel keeps the last
+  city; an owner's suggestions, picked by keyboard; an unknown owner and the limit reached; axe with the card and the
+  suggestions open, light and dark; the vitals with the card shown.

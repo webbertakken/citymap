@@ -1,29 +1,27 @@
-// The phases of opening a local repository, and how the status line says them.
+// The phases of opening a local repository, and how the loading card takes them.
+import type { Step } from "../load/step";
 
+/** The phases of reading a picked folder; listing it through the folder input comes before, as `LISTING`. */
 export type LocalPhase =
-  | { readonly phase: "listing" }
   | { readonly phase: "index" }
   | { readonly phase: "folder"; readonly files: number }
   | { readonly phase: "manifests" }
   | { readonly phase: "laying"; readonly files: number }
   | { readonly phase: "drawing" };
 
-const count = (n: number) => n.toLocaleString("en-GB");
+/** The status while the browser lists a folder picked through the folder input, before anything is read. */
+export const LISTING = "Listing the folder's files…";
 
-/** The status line for a phase; the folder's name once it is known. */
-export function statusOf(name: string, phase: LocalPhase): string {
+/** A phase as the loading card's step. */
+export function localStep(phase: LocalPhase): Step {
   switch (phase.phase) {
-    case "listing":
-      return "Listing the folder's files…";
-    case "index":
-      return `${name}: reading the git index…`;
     case "folder":
-      return `${name}: reading the folder… (${count(phase.files)} files)`;
-    case "manifests":
-      return `${name}: reading workspace manifests…`;
+      return { phase: "folder", done: phase.files };
     case "laying":
-      return `${name}: laying out ${count(phase.files)} files…`;
+      return { phase: "lay", files: phase.files };
+    case "drawing":
+      return { phase: "draw" };
     default:
-      return `${name}: drawing the map…`;
+      return { phase: phase.phase };
   }
 }
