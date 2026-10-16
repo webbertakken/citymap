@@ -5,6 +5,8 @@ paper-atlas	park		#BFD8A6
 paper-atlas	plaza		#E9DFCB
 paper-atlas	water		#A9CCE3
 paper-atlas	waterline		#7FAFD0
+paper-atlas	canal		#4d9cc7
+paper-atlas	canalline		#1c719a
 paper-atlas	casing		#C3BBAC
 paper-atlas	road		#FFFFFF
 paper-atlas	text		#1E1E24
@@ -1473,6 +1475,12 @@ paper-atlas	form-block	twin	#d2e8f6
 paper-atlas	form-lot	twin	#90cdf1
 paper-atlas	form-block	polycentric	#f8ddde
 paper-atlas	form-lot	polycentric	#f3afb3
+paper-atlas	form-block	corridor	#ebe5cf
+paper-atlas	form-lot	corridor	#d4c488
+paper-atlas	form-block	archipelago	#cfebec
+paper-atlas	form-lot	archipelago	#83d4d8
+paper-atlas	form-block	quarters	#e7e1f6
+paper-atlas	form-lot	quarters	#ccb9f1
 night-atlas	country		#11151C
 night-atlas	ground		#1B212B
 night-atlas	outline		#2C3440
@@ -1480,6 +1488,8 @@ night-atlas	park		#2f442a
 night-atlas	plaza		#2A303A
 night-atlas	water		#22384D
 night-atlas	waterline		#34536F
+night-atlas	canal		#004771
+night-atlas	canalline		#0e6a9b
 night-atlas	casing		#0D1117
 night-atlas	road		#59606B
 night-atlas	text		#ECEAE4
@@ -2948,6 +2958,12 @@ night-atlas	form-block	twin	#152631
 night-atlas	form-lot	twin	#0f5c80
 night-atlas	form-block	polycentric	#311e1f
 night-atlas	form-lot	polycentric	#7f3e45
+night-atlas	form-block	corridor	#282413
+night-atlas	form-lot	corridor	#655406
+night-atlas	form-block	archipelago	#10282a
+night-atlas	form-lot	archipelago	#006469
+night-atlas	form-block	quarters	#262131
+night-atlas	form-lot	quarters	#5d4980
 beck	country		#FFFFFF
 beck	ground		#F7F7F2
 beck	outline		#E2E2DC
@@ -2955,6 +2971,8 @@ beck	park		#C7E3B5
 beck	plaza		#F7F7F2
 beck	water		#B9DCF2
 beck	waterline		#B9DCF2
+beck	canal		#006eb3
+beck	canalline		#004b83
 beck	casing		#FFFFFF
 beck	road		#FFFFFF
 beck	text		#10141A
@@ -4423,6 +4441,12 @@ beck	form-block	twin	#e8fbff
 beck	form-lot	twin	#aef0fe
 beck	form-block	polycentric	#ffe4f4
 beck	form-lot	polycentric	#ffa1d7
+beck	form-block	corridor	#fcfee8
+beck	form-lot	corridor	#f5fcaf
+beck	form-block	archipelago	#e0e3ed
+beck	form-lot	archipelago	#919cbf
+beck	form-block	quarters	#f2e9fe
+beck	form-lot	quarters	#d1b3fb
 nolli	country		#E9E5DC
 nolli	ground		#F4F1EA
 nolli	outline		#2A2A2A
@@ -4430,6 +4454,8 @@ nolli	park		#D9D6CF
 nolli	plaza		#F4F1EA
 nolli	water		#CFCBC2
 nolli	waterline		#B3AEA4
+nolli	canal		#819dae
+nolli	canalline		#55778b
 nolli	casing		#F4F1EA
 nolli	road		#F4F1EA
 nolli	text		#111111
@@ -5898,6 +5924,12 @@ nolli	form-block	twin	#F4F1EA
 nolli	form-lot	twin	#3c5d64
 nolli	form-block	polycentric	#F4F1EA
 nolli	form-lot	polycentric	#643550
+nolli	form-block	corridor	#F4F1EA
+nolli	form-lot	corridor	#5f633c
+nolli	form-block	archipelago	#F4F1EA
+nolli	form-lot	archipelago	#2d3344
+nolli	form-block	quarters	#F4F1EA
+nolli	form-lot	quarters	#4d3f62
 dracula	country		#1E1F29
 dracula	ground		#282A36
 dracula	outline		#44475A
@@ -5905,6 +5937,8 @@ dracula	park		#336449
 dracula	plaza		#494b54
 dracula	water		#466372
 dracula	waterline		#639dad
+dracula	canal		#5a8a9a
+dracula	canalline		#77c3d5
 dracula	casing		#191A21
 dracula	road		#44475A
 dracula	text		#F8F8F2
@@ -7373,3 +7407,9 @@ dracula	form-block	twin	#34414e
 dracula	form-lot	twin	#5a8a9a
 dracula	form-block	polycentric	#423347
 dracula	form-lot	polycentric	#94527e
+dracula	form-block	corridor	#404340
+dracula	form-lot	corridor	#8d9261
+dracula	form-block	archipelago	#2f3343
+dracula	form-lot	archipelago	#454e6d
+dracula	form-block	quarters	#3a374d
+dracula	form-lot	quarters	#735f98

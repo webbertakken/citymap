@@ -39,9 +39,9 @@ touches the fold and the plat: rebase onto main when it merges.
 
 ## Phase 2: command line and scripts
 
-- [ ] `--toggles=` in the TypeScript CLI (usage, validation), stability script, parity script `--toggles=`
-- [ ] Parity fixtures regenerated
-- [ ] Commit
+- [x] `--toggles=` in the TypeScript CLI (usage, validation), stability script, parity script `--toggles=`
+- [x] Parity fixtures regenerated
+- [x] Commit
 
 ## Phase 3: Rust
 

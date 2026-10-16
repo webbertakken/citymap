@@ -5,6 +5,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   DEFAULT_LAND_USES,
+  DEFAULT_TOGGLES,
+  DISTRICT_FORMS,
+  TOGGLES,
   canonicalJson,
   classifyLandUse,
   fnv1a,
@@ -14,6 +17,7 @@ import {
   type FileEntry,
   type Options,
   type Snapshot,
+  type Toggle,
 } from "@citymap/ground-plan";
 import { renderCity } from "@citymap/svg";
 import { THEMES, THEME_NAMES } from "@citymap/themes";
@@ -115,7 +119,7 @@ const born = (path: string, at: number): FileEntry => ({ path, identity: `${path
 const many = (folder: string, n: number, at: number, ext = "ts") =>
   Array.from({ length: n }, (_, i) => born(`${folder}/f${String(i).padStart(4, "0")}.${ext}`, at));
 
-function history(): Snapshot[] {
+function history(toggled: boolean): Snapshot[] {
   const steps: FileEntry[][] = [];
   let files: FileEntry[] = [
     ...many("src", 60, 0),
@@ -151,6 +155,26 @@ function history(): Snapshot[] {
   steps.push(files);
   files = files.filter((f) => !f.path.startsWith("src/feature/"));
   steps.push(files);
+  if (toggled) {
+    // For the toggles: the core holds nearly all the main town (a corridor), an app grows sixteen like plugins (a
+    // corridor to quarters), and the packages grow to four (an archipelago).
+    files = [
+      ...files,
+      ...Array.from({ length: 16 }, (_, p) => many(`apps/web/plugins/p${String(p).padStart(2, "0")}`, 15, 8)).flat(),
+      born("packages/c/package.json", 8),
+      ...many("packages/c/src", 220, 8),
+      born("packages/d/package.json", 8),
+      ...many("packages/d/src", 220, 8),
+    ];
+    steps.push(files);
+    files = [
+      ...files,
+      ...many("apps/web/plugins/p16", 15, 9),
+      ...many("packages/e/src", 4, 9),
+      born("packages/e/package.json", 9),
+    ];
+    steps.push(files);
+  }
   return steps.map((list, index) => {
     const sorted = list.toSorted((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
     const folderFirstSeen = new Map<string, number>();
@@ -173,42 +197,54 @@ function history(): Snapshot[] {
   });
 }
 
-const foldOptions: Options = {
-  densityPct: 50,
-  landUses: DEFAULT_LAND_USES,
-  order: "centre-out",
-  jog: "top-level",
-  warp: true,
-  loops: true,
-  split: ["apps"],
-};
-const snapshots = history();
-let state = initialState(foldOptions);
-const events: string[][] = [];
-let last = "";
-for (const snapshot of snapshots) {
-  const laid = layCity(snapshot, state, foldOptions);
-  state = laid.state;
-  events.push(
-    laid.events.map(
-      (e) =>
-        `${e.code} ${Object.entries(e.detail)
-          .map(([k, v]) => `${k}=${v}`)
-          .join(" ")}`,
-    ),
+/** Folds the synthetic history under some toggles into the fixture Rust replays. */
+async function foldFixture(file: string, toggles: readonly Toggle[], toggled: boolean) {
+  const foldOptions: Options = {
+    densityPct: 50,
+    landUses: DEFAULT_LAND_USES,
+    order: "centre-out",
+    jog: "top-level",
+    warp: true,
+    loops: true,
+    split: ["apps"],
+    toggles,
+  };
+  const snapshots = history(toggled);
+  let state = initialState(foldOptions);
+  const events: string[][] = [];
+  let last = "";
+  for (const snapshot of snapshots) {
+    const laid = layCity(snapshot, state, foldOptions);
+    state = laid.state;
+    events.push(
+      laid.events.map(
+        (e) =>
+          `${e.code} ${Object.entries(e.detail)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(" ")}`,
+      ),
+    );
+    last = canonicalJson(laid.city);
+  }
+  const fold = {
+    snapshots: snapshots.map((s) => ({ ...s, folderFirstSeen: Object.fromEntries(s.folderFirstSeen) })),
+    events,
+    city: last,
+    plat: canonicalJson(state.plat),
+  };
+  await Bun.write(out(file), `${JSON.stringify(fold)}\n`);
+  const towns = parseCity(last).towns;
+  const forms = [...new Set([...towns.map((t) => t.form), ...towns.flatMap((t) => t.districts.map((d) => d.form))])];
+  console.log(
+    `[parity-fixtures] ${file}: ${snapshots.length} snapshots, ${events.flat().length} events, old towns ${Object.keys(state.plat.old).length}, forms ${forms.filter(Boolean).join(",")}`,
   );
-  last = canonicalJson(laid.city);
+  return fold;
 }
-const fold = {
-  snapshots: snapshots.map((s) => ({ ...s, folderFirstSeen: Object.fromEntries(s.folderFirstSeen) })),
-  events,
-  city: last,
-  plat: canonicalJson(state.plat),
-};
-await Bun.write(out("fold.json"), `${JSON.stringify(fold)}\n`);
-console.log(
-  `[parity-fixtures] fold.json: ${snapshots.length} snapshots, ${events.flat().length} events, old towns ${Object.keys(state.plat.old).length}`,
-);
+
+// Every toggle off is the engine as it was before the toggles; then the defaults; then all four.
+const fold = await foldFixture("fold.json", [], false);
+await foldFixture("fold-defaults.json", DEFAULT_TOGGLES, true);
+await foldFixture("fold-all.json", TOGGLES, true);
 
 // Every colour a theme can give: its fixed colours, and per district class (every hue, every accent) and form.
 
@@ -224,6 +260,8 @@ for (const name of THEME_NAMES) {
     "plaza",
     "water",
     "waterline",
+    "canal",
+    "canalline",
     "casing",
     "road",
     "text",
@@ -240,7 +278,7 @@ for (const name of THEME_NAMES) {
     colours.push(`${name}\tplinth\t${d}\t${theme.plinth(d)}`);
     colours.push(`${name}\treserve\t${d}\t${theme.reserve(d).join(" ")}`);
   }
-  for (const form of ["radial", "twin", "polycentric"] as const) {
+  for (const form of DISTRICT_FORMS) {
     colours.push(`${name}\tform-block\t${form}\t${theme.form(form, false)}`);
     colours.push(`${name}\tform-lot\t${form}\t${theme.form(form, true)}`);
   }

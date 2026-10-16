@@ -21,6 +21,7 @@ describe("parseCommandLine", () => {
       voronoi: false,
       history: true,
       split: ["apps"],
+      toggles: ["corridor", "tiers"],
     });
   });
 
@@ -42,6 +43,7 @@ describe("parseCommandLine", () => {
       "--no-loops",
       "--voronoi",
       "--split=apps,packages",
+      "--toggles=tiers,archipelago",
     ]);
     expect(parsed).toMatchObject({
       to: "main",
@@ -58,9 +60,17 @@ describe("parseCommandLine", () => {
       loops: false,
       voronoi: true,
       split: ["apps", "packages"],
+      toggles: ["archipelago", "tiers"],
     });
+    expect(parseCommandLine(["repo", "--toggles="])).toMatchObject({ toggles: [] });
     expect(parseCommandLine(["repo", "--split="])).toMatchObject({ split: [] });
     expect(parseCommandLine(["repo", "--no-history"])).toMatchObject({ history: false });
+  });
+
+  it("rejects a toggle it does not know", () => {
+    expect(() => parseCommandLine(["repo", "--toggles=corridor,gridiron"])).toThrow(
+      "--toggles takes corridor, archipelago, quarters and tiers, not gridiron",
+    );
   });
 
   it("answers help with the usage", () => {

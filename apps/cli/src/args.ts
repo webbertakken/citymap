@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util";
-import { CitymapError } from "@citymap/ground-plan";
+import { CitymapError, TOGGLES, isToggle, toggleList, type Toggle } from "@citymap/ground-plan";
 import type { Camera } from "@citymap/svg";
 import { THEME_NAMES } from "@citymap/themes";
 
@@ -23,6 +23,8 @@ export interface LayCommand {
   readonly history: boolean;
   /** Workspace groups whose members each become a town. */
   readonly split: readonly string[];
+  /** The archetype toggles on, in their own order. */
+  readonly toggles: readonly Toggle[];
 }
 
 export type Command = LayCommand | { readonly kind: "help" };
@@ -42,6 +44,8 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --jog=<cuts>        off, top-level or all (default top-level)
   --split=<groups>    workspace groups whose members each become a town, comma-separated (default apps;
                       --split=apps,packages splits packages too; --split= splits none)
+  --toggles=<forms>   archetype toggles on, comma-separated: corridor, archipelago, quarters, tiers
+                      (default corridor,tiers; --toggles= turns all off)
   --no-warp           draw the plan without its organic warp
   --no-loops          leave dead ends unjoined (default: nearby dead ends are joined by lanes)
   --no-history        lay the tree at --to once, every file at once, without folding its history (no --lock)
@@ -56,6 +60,15 @@ const usage = (message: string): never => {
 function oneOf<T extends string>(name: string, value: string, options: readonly T[]): T {
   const found = options.find((option) => option === value);
   return found ?? usage(`--${name} is one of ${options.join(", ")}, not ${value}`);
+}
+
+/** The toggles a comma-separated list names, each one known. */
+function togglesOf(text: string): Toggle[] {
+  const names = text.split(",").filter((name) => name !== "");
+  const unknown = names.find((name) => !isToggle(name));
+  if (unknown !== undefined)
+    usage(`--toggles takes ${TOGGLES.slice(0, -1).join(", ")} and ${TOGGLES.at(-1)}, not ${unknown}`);
+  return toggleList(names.filter(isToggle));
 }
 
 /** The command a command line asks for, or a named rejection. */
@@ -91,6 +104,7 @@ export function parseCommandLine(argv: readonly string[]): Command {
     voronoi: values.voronoi,
     history: !values["no-history"],
     split: values.split.split(",").filter((group) => group !== ""),
+    toggles: togglesOf(values.toggles),
   };
 }
 
@@ -115,6 +129,7 @@ function parse(argv: readonly string[]) {
       voronoi: { type: "boolean", default: false },
       "no-history": { type: "boolean", default: false },
       split: { type: "string", default: "apps" },
+      toggles: { type: "string", default: "corridor,tiers" },
       help: { type: "boolean", default: false },
     },
   });
