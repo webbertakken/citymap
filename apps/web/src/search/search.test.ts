@@ -1,6 +1,6 @@
 import type { City, Lot, Pt, Town } from "@citymap/ground-plan";
 import { describe, expect, it } from "vitest";
-import { MAX_HITS, search, searchIndex } from "./search";
+import { MAX_HITS, search, searchIndex, holdsFolder } from "./search";
 
 const box = (x0: number, y0: number, x1: number, y1: number): Pt[] => [
   { x: x0, y: y0 },
@@ -145,5 +145,14 @@ describe("search", () => {
     expect(found.total).toBe(12);
     expect(found.hits).toHaveLength(MAX_HITS);
     expect(found.hits[0]!.path).toBe("src/file00.ts");
+  });
+});
+
+describe("holdsFolder", () => {
+  it("is true for a folder of the city in any letter case, and false for a name that only appears inside a path", () => {
+    const index = searchIndex(city);
+    const first = index.entries[0]!.path.split("/")[0]!;
+    expect(holdsFolder(index, first.toUpperCase())).toBe(true);
+    expect(holdsFolder(index, "no-such-owner")).toBe(false);
   });
 });

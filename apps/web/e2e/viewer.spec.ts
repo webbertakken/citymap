@@ -327,6 +327,10 @@ for (const [theme, label] of [
 }
 
 test("lays a GitHub repository in a worker, from the field and from the address", async ({ page }) => {
+  // Nothing reaches the real GitHub: the owner's suggestions are unknown here.
+  await page.route("https://api.github.com/**", (route) =>
+    route.fulfill({ status: 404, json: {}, headers: { "access-control-allow-origin": "*" } }),
+  );
   // GitHub, answered from fixtures: a repository of three folders.
   const tree = ["lib", "src", "docs"].flatMap((folder) =>
     Array.from({ length: 40 }, (_, i) => ({

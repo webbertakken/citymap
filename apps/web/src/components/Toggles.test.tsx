@@ -1,8 +1,8 @@
-import { DEFAULT_TOGGLES, type Snapshot, type Toggle } from "@citymap/ground-plan";
+import { DEFAULT_TOGGLES, type Toggle } from "@citymap/ground-plan";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Fetcher } from "../github/read";
-import { layHere } from "../lay/lay";
+import { layHere, type Lay } from "../lay/lay";
 import { StubCanvas, fetcher, files, fromMore, townButton } from "./testing/fixtures";
 import { TOOLTIPS } from "./Toggles";
 import { Viewer } from "./Viewer";
@@ -173,12 +173,18 @@ describe("the layout toggles", () => {
         new Response(JSON.stringify({ tree: [{ path: "src/f0.ts", type: "blob", sha: "s0" }] })),
     };
     const github: Fetcher = async (url) => (routes[url] ?? (() => fetcher(url)))();
-    const laid: (readonly Toggle[])[] = [];
+    const laid: (readonly Toggle[] | undefined)[] = [];
     let failing = false;
-    const lay = async (snapshot: Snapshot, toggles: readonly Toggle[]) => {
-      laid.push(toggles);
+    let hanging = false;
+    const lay: Lay = async (snapshot, options) => {
+      laid.push(options?.toggles);
       if (failing) throw new Error("the layout worker failed");
-      return layHere(snapshot, toggles);
+      // A lay that waits for its signal: the next change of layout replaces it.
+      if (hanging)
+        return new Promise((_, reject) =>
+          options?.signal?.addEventListener("abort", () => reject(options.signal?.reason)),
+        );
+      return layHere(snapshot, options);
     };
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     window.history.replaceState(null, "", "/?repo=acme/widgets");
@@ -197,5 +203,16 @@ describe("the layout toggles", () => {
     expect(error.mock.calls.map(([line]) => String(line))).toContain(
       'viewer/variant-failed name=acme/widgets reason="Error: the layout worker failed"',
     );
+    // A layout replaced by the next before it is laid is not a failure.
+    failing = false;
+    hanging = true;
+    error.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    await act(async () => fireEvent.click(switchFor("Archipelago")));
+    hanging = false;
+    await act(async () => fireEvent.click(switchFor("Archipelago")));
+    expect(await screen.findByText(/single state, not folded/)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(error.mock.calls).toEqual([]);
   });
 });

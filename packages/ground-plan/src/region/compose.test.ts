@@ -9,7 +9,15 @@ import { emptyPlat } from "../plat/plat";
 import { MAX_FILES, type FileEntry, type Snapshot } from "../snapshot/snapshot";
 import { files, snapshotOf } from "../testing/fixtures";
 import { LOOP_REACH } from "../town/connectors";
-import { COORD_LIMIT, checkExtent, layCity, settingKey, translateTown, type Options } from "./compose";
+import {
+  COORD_LIMIT,
+  checkExtent,
+  layCity,
+  settingKey,
+  translateTown,
+  type LayProgress,
+  type Options,
+} from "./compose";
 
 const OPTIONS: Options = {
   densityPct: 50,
@@ -67,6 +75,27 @@ describe("layCity", () => {
     expect(canonicalJson(a.city)).toBe(canonicalJson(b.city));
     expect(state.plat).toEqual(emptyPlat(state.plat.setting));
     expect(a.city.highways[0]?.pts.length).toBeGreaterThan(2);
+  });
+
+  it("reports its progress without changing what it lays, warped or not, cached or not", () => {
+    for (const options of [OPTIONS, { ...OPTIONS, warp: true }]) {
+      const quiet = layCity(at(0, monorepo()), initialState(options), options);
+      const heard: LayProgress[] = [];
+      const state = initialState(options);
+      const told = layCity(at(0, monorepo()), state, options, (p) => heard.push(p));
+      expect(canonicalJson(told.city)).toBe(canonicalJson(quiet.city));
+      expect(canonicalJson(told.state.plat)).toBe(canonicalJson(quiet.state.plat));
+      const lots = heard[0]!.lots;
+      expect(lots).toBe(quiet.city.towns.reduce((sum, t) => sum + t.stats.lots, 0));
+      expect(heard.every((p) => p.lots === lots && p.placed <= lots && p.shaped <= p.placed)).toBe(true);
+      expect(heard.at(-1)).toEqual({ placed: lots, shaped: lots, lots });
+      const steps = heard.map((p) => p.placed + p.shaped);
+      expect(steps).toEqual(steps.toSorted((a, b) => a - b));
+      // Laid again on the same state, every folder but the roots comes from the cache, and still counts.
+      const again: LayProgress[] = [];
+      layCity(at(0, monorepo()), told.state, options, (p) => again.push(p));
+      expect(again.at(-1)).toEqual({ placed: lots, shaped: lots, lots });
+    }
   });
 
   it("grows a town outward about its centre without moving its lots", () => {

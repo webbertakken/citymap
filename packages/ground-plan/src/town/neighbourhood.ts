@@ -193,6 +193,7 @@ export function neighbourhood(
   district: string,
   form: FlatForm,
 ) {
+  ctx.hooks?.placed(lots.length);
   let grid: GridRecord | undefined = ctx.plat.grids[key];
   // A remembered park line is kept while it crosses the land; one that no longer does is laid afresh.
   const rememberedPark = grid?.park && chord(raw.p, grid.park.n, grid.park.c) ? grid.park : null;

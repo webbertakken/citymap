@@ -183,6 +183,8 @@ describe("Viewer search", () => {
     vi.spyOn(performance, "now").mockImplementation(() => now);
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     const map = await screen.findByRole("application");
+    // The frames the load waited for are past; from here every frame is the flight's.
+    frames.splice(0);
     const start = currentView();
     type("a.t");
     fireEvent.keyDown(searchField(), { key: "Enter" });

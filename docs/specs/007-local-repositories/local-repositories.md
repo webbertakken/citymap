@@ -41,9 +41,8 @@ installing anything, and without anything about the repository leaving the machi
 - The single state, laid in the layout worker with the CLI's default options: the same city as `citymap --no-history`
   when the working tree matches the last commit, the commit it names included. The status says "local, single state, not
   folded".
-- The status line, and the Loading card where the viewer has it, shows its phases: "Listing the folder's files"
-  (Firefox), "Reading the git index" (or "Reading the folder" without git), "Reading workspace manifests", "Laying out N
-  files", "Drawing the map".
+- The Loading card, and the status line, show its phases: "Listing the folder's files" (Firefox), "Reading the git
+  index" (or "Reading the folder" without git), "Reading workspace manifests", "Laying out N files", "Drawing the map".
 - The city's name is the folder's name.
 
 ## Failures

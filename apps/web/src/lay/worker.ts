@@ -1,10 +1,40 @@
-// The Web Worker that lays a snapshot off the main thread, so the page answers while a large repository is laid.
+// The Web Worker that lays a snapshot off the main thread, and builds its scene there too, so the page answers while a
+// large repository is laid; the scene's buffers are handed over without a copy.
 import type { Snapshot, Toggle } from "@citymap/ground-plan";
-import { layHere } from "./lay";
+import type { ThemeName } from "@citymap/themes";
+import type { Step } from "../load/step";
+import { buffersOf, layHere, throttled } from "./lay";
 
-self.addEventListener("message", (event: MessageEvent<{ snapshot: Snapshot; toggles: readonly Toggle[] }>) => {
-  layHere(event.data.snapshot, event.data.toggles).then(
-    (city) => self.postMessage({ city }, { transfer: [] }),
+/** The least time between two progress posts, in milliseconds. */
+const POST_MS = 100;
+
+type Request = { snapshot: Snapshot; theme?: ThemeName; toggles?: readonly Toggle[] };
+
+self.addEventListener("message", (event: MessageEvent<Request>) => {
+  const post = throttled(
+    (step: Step) => self.postMessage({ step }, { transfer: [] }),
+    POST_MS,
+    () => performance.now(),
+  );
+  const { snapshot, theme, toggles } = event.data;
+  // Each step posts as it comes when its phase changes; within a phase, at most one per POST_MS.
+  let phase = "";
+  const onProgress = (step: Step) => {
+    if (step.phase !== phase) {
+      post.flush();
+      phase = step.phase;
+      self.postMessage({ step }, { transfer: [] });
+    } else post(step);
+  };
+  layHere(snapshot, {
+    onProgress,
+    ...(theme === undefined ? {} : { theme }),
+    ...(toggles === undefined ? {} : { toggles }),
+  }).then(
+    ({ city, scene }) => {
+      post.flush();
+      self.postMessage({ city, scene }, { transfer: scene ? buffersOf(scene.scene) : [] });
+    },
     (error: unknown) =>
       self.postMessage({ error: error instanceof Error ? error.message : String(error) }, { transfer: [] }),
   );

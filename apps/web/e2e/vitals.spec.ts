@@ -106,3 +106,29 @@ test("answers every interaction within 200 ms on a slowed phone", async ({ page,
     .annotations.push({ type: "slowest", description: `${slowest.name} ${slowest.target}: ${slowest.duration} ms` });
   expect(events.filter((e) => e.duration >= 200)).toEqual([]);
 });
+
+test("shifts nothing as the loading card comes, and answers its Cancel within 200 ms", async ({ page, isMobile }) => {
+  await record(page);
+  // A repository whose tree never answers, opened from the address, so the card comes without any input.
+  const headers = { "access-control-allow-origin": "*" };
+  await page.route("https://api.github.com/**", (route) =>
+    route.request().url().endsWith("/commits/HEAD")
+      ? route.fulfill({ json: { sha: "c1", commit: { tree: { sha: "t1" } } }, headers })
+      : undefined,
+  );
+  await page.goto("/?repo=acme/slow");
+  const card = page.getByRole("region", { name: "Loading" });
+  await expect(card).toBeVisible();
+  await page.waitForTimeout(800);
+  expect((await vitals(page)).shift).toBe(0);
+  if (isMobile) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  }
+  await card.getByRole("button", { name: "Cancel" }).click();
+  await expect(card).toHaveCount(0);
+  await page.waitForTimeout(500);
+  const { events } = await vitals(page);
+  expect(events.length).toBeGreaterThan(0);
+  expect(events.filter((e) => e.duration >= 200)).toEqual([]);
+});

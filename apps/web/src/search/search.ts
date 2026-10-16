@@ -56,6 +56,12 @@ export function searchIndex(city: City): SearchIndex {
   return { entries };
 }
 
+/** True when the city has a folder of that path (any letter case): a text starting with it is a path in the city. */
+export function holdsFolder(index: SearchIndex, folder: string): boolean {
+  const path = folder.toLowerCase();
+  return index.entries.some((e) => e.lowerPath === path || e.lowerPath.startsWith(`${path}/`));
+}
+
 /** How well an entry matches: 0 its name is the query, 1 its name starts with it, 2 its name holds it, 3 its path does. */
 const rankOf = (entry: SearchEntry, query: string) => {
   if (entry.lowerName === query) return 0;

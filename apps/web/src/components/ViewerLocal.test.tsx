@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { City, Snapshot } from "@citymap/ground-plan";
+import type { Snapshot } from "@citymap/ground-plan";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { layHere, type Lay } from "../lay/lay";
+import { layHere, type Laid, type Lay } from "../lay/lay";
 import type { LocalPorts } from "../local/ports";
 import type { PermissionHandle } from "../local/remember";
 import { fakeHandle, listedFiles, type Tree } from "../local/testing/folders";
@@ -37,15 +37,16 @@ const lines = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map(([li
 const opened = async (folders: LocalPorts, lay: Lay = layHere) => {
   const counted = vi.fn<typeof fetcher>(fetcher);
   render(<Viewer Canvas={StubCanvas} fetcher={counted} lay={lay} folders={folders} />);
-  await screen.findByRole("heading", { level: 1, name: "alpha" });
+  // The first city is drawn and its load done, so the status is its own.
+  await screen.findByText("1 towns · 1 lots");
   return counted;
 };
 /** A lay that waits until it is let go, to see the phases on the way. */
 const held = () => {
   let release: (() => Promise<void>) | null = null;
-  const lay: Lay = (snapshot: Snapshot, toggles) =>
-    new Promise<City>((resolve) => {
-      release = async () => resolve(await layHere(snapshot, toggles));
+  const lay: Lay = (snapshot: Snapshot, options) =>
+    new Promise<Laid>((resolve, reject) => {
+      release = () => layHere(snapshot, options).then(resolve, reject);
     });
   return {
     lay,
@@ -71,7 +72,7 @@ describe("Viewer, a local repository", () => {
     expect(screen.getByRole("button", { name: PICK })).toHaveProperty("disabled", true);
     await release();
     expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
-    expect(screen.getByText(/^\d+ towns · \d+ lots · local, single state, not folded$/)).toBeTruthy();
+    expect(await screen.findByText(/^\d+ towns · \d+ lots · local, single state, not folded$/)).toBeTruthy();
     expect(document.title).toBe("Local repository · citymap");
     expect(window.location.search).toBe("");
     expect(counted.mock.calls.length).toBe(asked);
@@ -92,9 +93,9 @@ describe("Viewer, a local repository", () => {
 
   it("lays the folder again with other layout toggles, keeping it private", async () => {
     const laid: unknown[] = [];
-    const counting: Lay = async (snapshot, toggles) => {
-      laid.push(toggles);
-      return layHere(snapshot, toggles);
+    const counting: Lay = async (snapshot, options) => {
+      laid.push(options?.toggles);
+      return layHere(snapshot, options);
     };
     await opened(ports(), counting);
     fromMore(PICK);
@@ -109,6 +110,29 @@ describe("Viewer, a local repository", () => {
     );
     expect(await screen.findByText(/^\d+ towns · \d+ lots · local, single state, not folded$/)).toBeTruthy();
     expect(document.title).toBe("Local repository · citymap");
+  });
+
+  it("shows the loading card while a picked folder is laid, and Cancel keeps the last city", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const { lay, release } = held();
+    await opened(ports(), lay);
+    fromMore(PICK);
+    const card = await screen.findByRole("region", { name: "Loading" });
+    expect(card.querySelector("h2")?.textContent).toBe("Opening widgets");
+    expect(screen.getByRole("progressbar", { name: "Laying out 10 files" })).toBeTruthy();
+    expect(screen.getByText("widgets: laying out 10 files…")).toBeTruthy();
+    expect(lines(info)).toContain("viewer/load-phase source=local name=widgets phase=index ms=0");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("region", { name: "Loading" })).toBeNull();
+    await release();
+    await act(() => new Promise((done) => setTimeout(done, 250)));
+    expect(screen.getByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
+    expect(screen.getByText("1 towns · 1 lots")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(lines(info).find((l) => l.startsWith("viewer/load-cancelled"))).toMatch(
+      /^viewer\/load-cancelled source=local name=widgets phase=lay ms=\d+ why=cancel$/,
+    );
+    expect(lines(info).some((l) => l.startsWith("viewer/local-read"))).toBe(false);
   });
 
   it("changes nothing when the folder dialog closes without a folder", async () => {
@@ -235,7 +259,7 @@ describe("Viewer, a local repository", () => {
     fromMore(PICK);
     fireEvent.change(input, { target: { files: listedFiles("widgets", repo()) } });
     expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
-    expect(screen.getByText(/local, single state, not folded$/)).toBeTruthy();
+    expect(await screen.findByText(/local, single state, not folded$/)).toBeTruthy();
     expect(lines(info)).toContain("viewer/local-listed entries=4");
     expect(lines(info).filter((l) => l === "viewer/local-cancelled how=input")).toHaveLength(3);
   });

@@ -10,7 +10,7 @@ import type { RadialRecord } from "../plat/plat";
 import { classOf } from "../roads";
 import { landFor, type TreeNode } from "../tree/tree";
 import { archipelago } from "./archipelago";
-import { demandOf, emit, forget, road, seedKey, toPoly, type Ctx, type Item } from "./context";
+import { demandOf, emit, forget, road, seedKey, seedsOf, toPoly, type Ctx, type Item } from "./context";
 import { corridor } from "./corridor";
 import { decide, place, reserve, split } from "./cut";
 import { neighbourhood } from "./neighbourhood";
@@ -85,6 +85,7 @@ export function partition(ctx: Ctx, node: TreeNode, poly: Poly, district: string
   const hit = cache.entries.get(node.path);
   if (hit && hit.key === key && recorded(ctx, node.path)) {
     cache.hits++;
+    ctx.hooks?.placed(seedsOf(node));
     ctx.roads.push(...hit.roads);
     for (const b of hit.blocks) ctx.blocks.push({ ...b });
     for (const l of hit.lots) ctx.lots.push({ ...l });

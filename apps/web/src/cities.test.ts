@@ -2,13 +2,25 @@ import { CitymapError, DEFAULT_TOGGLES, serialiseCity, type City } from "@cityma
 import { describe, expect, it } from "vitest";
 import { describeFailure, loadCity, loadIndex, readCityFile, variantOf } from "./cities";
 import { entryOf } from "./components/testing/fixtures";
+import type { Step } from "./load/step";
 
 const city: City = { repository: "demo", commit: "worktree", towns: [], highways: [] };
-const fetcher = (files: Record<string, string>) => async (url: string) => ({
-  ok: url in files,
-  status: url in files ? 200 : 404,
-  text: async () => files[url] ?? "",
-});
+const fetcher = (files: Record<string, string>) => async (url: string) =>
+  new Response(files[url] ?? "", { status: url in files ? 200 : 404 });
+/** A body in two chunks, with the headers given. */
+const chunked = (text: string, headers: Record<string, string>) => async () => {
+  const bytes = new TextEncoder().encode(text);
+  const half = Math.floor(bytes.length / 2);
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes.slice(0, half));
+      controller.enqueue(bytes.slice(half));
+      controller.close();
+    },
+  });
+  return new Response(body, { headers });
+};
+const entry = entryOf("demo", 0);
 
 describe("loadIndex", () => {
   it("reads the bundled cities, each with its sixteen variants", async () => {
@@ -53,6 +65,67 @@ describe("loadCity and readCityFile", () => {
     const files = { "/cities/demo/quarters.json": serialiseCity(city) };
     expect(await loadCity(fetcher(files), entryOf("demo", 0), ["quarters"])).toEqual(city);
     expect(await readCityFile(new Blob([serialiseCity(city)]))).toEqual(city);
+  });
+
+  it("count the bytes as they arrive, of the length when it is known, then say they read the city", async () => {
+    const body = serialiseCity(city);
+    const length = String(new TextEncoder().encode(body).length);
+    const steps: Step[] = [];
+    expect(
+      await loadCity(chunked(body, { "content-length": length }), entry, DEFAULT_TOGGLES, "", {
+        onStep: (s) => steps.push(s),
+      }),
+    ).toEqual(city);
+    const size = Number(length);
+    const half = Math.floor(size / 2);
+    expect(steps).toEqual([
+      { phase: "download", done: 0, of: size },
+      { phase: "download", done: half, of: size },
+      { phase: "download", done: size, of: size },
+      { phase: "parse" },
+    ]);
+    // An encoded body's length counts compressed bytes, so no total is claimed; nor without a length.
+    const unknown = await Promise.all(
+      [{ "content-length": "9", "content-encoding": "gzip" }, {}].map(async (headers) => {
+        const heard: Step[] = [];
+        await loadCity(chunked(body, headers), entry, DEFAULT_TOGGLES, "", { onStep: (s) => heard.push(s) });
+        return heard.at(-2);
+      }),
+    );
+    expect(unknown).toEqual([
+      { phase: "download", done: size },
+      { phase: "download", done: size },
+    ]);
+    const fromFile: Step[] = [];
+    await readCityFile(new Blob([body]), { onStep: (s) => fromFile.push(s) });
+    expect(fromFile.at(-2)).toEqual({ phase: "download", done: size, of: size });
+  });
+
+  it("read a body without a stream whole", async () => {
+    const plain = async () => Object.assign(new Response(null), { text: async () => serialiseCity(city) });
+    expect(await loadCity(plain, entry, DEFAULT_TOGGLES)).toEqual(city);
+  });
+
+  it("stop when their signal aborts, while downloading or before reading", async () => {
+    const controller = new AbortController();
+    const steps: Step[] = [];
+    const reading = loadCity(chunked(serialiseCity(city), {}), entry, DEFAULT_TOGGLES, "", {
+      signal: controller.signal,
+      onStep: (s) => {
+        steps.push(s);
+        if (s.phase === "download" && s.done! > 0) controller.abort();
+      },
+    });
+    await expect(reading).rejects.toMatchObject({ name: "AbortError" });
+    expect(steps.some((s) => s.phase === "parse")).toBe(false);
+    const late = new AbortController();
+    const parsing = readCityFile(new Blob([serialiseCity(city)]), {
+      signal: late.signal,
+      onStep: (s) => {
+        if (s.phase === "parse") late.abort();
+      },
+    });
+    await expect(parsing).rejects.toMatchObject({ name: "AbortError" });
   });
 
   it("reject what is not a city", async () => {

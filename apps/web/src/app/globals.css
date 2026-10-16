@@ -334,6 +334,24 @@ button.icon-button:not(.glass) {
   font-size: 12px;
   color: var(--ink-soft);
 }
+/* The owner's repositories, under their own heading after the city's matches. */
+.results .group {
+  margin: 8px 8px 4px;
+  padding-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--glass-line);
+}
+.choices > .group:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.option-text .description {
+  color: var(--ink);
+}
 mark {
   font-weight: 700;
   color: var(--mark);
@@ -702,6 +720,136 @@ mark {
   border: 0;
 }
 
+/* Over the free map while something opens: centred in what the cards leave free, beneath the search and menus. */
+.loading-place {
+  position: absolute;
+  inset: 100px calc(var(--drawer) + 2 * var(--gap)) 0 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: var(--gap);
+  pointer-events: none;
+}
+.viewer:has(.drawer[data-open="false"]) .loading-place {
+  right: 0;
+}
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(360px, 100%);
+  padding: 16px;
+  pointer-events: auto;
+}
+.loading h2 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.loading h2 span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loading h2 svg {
+  flex: none;
+  color: var(--accent);
+  animation: turn 1.2s linear infinite;
+}
+.loading p {
+  margin: 0;
+}
+.loading .phase {
+  font-weight: 600;
+}
+.loading .bar {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  background: var(--hover);
+  border-radius: 4px;
+}
+.loading progress {
+  display: block;
+  width: 100%;
+  height: 100%;
+  appearance: none;
+  background: none;
+  border: 0;
+}
+.loading progress::-webkit-progress-bar {
+  background: none;
+}
+.loading progress::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width var(--motion) ease-out;
+}
+.loading progress::-moz-progress-bar {
+  background: var(--accent);
+  border-radius: 4px;
+}
+.loading .sweep {
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.6;
+  animation: sweep 1.4s ease-in-out infinite;
+}
+.loading .count,
+.loading .time {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.loading .foot {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+.loading .cancel {
+  flex: none;
+  min-height: var(--control);
+  padding: 0 16px;
+  font-weight: 600;
+  background: var(--raised);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-control);
+  transition: background-color var(--motion);
+}
+.loading .cancel:hover {
+  background: var(--hover);
+}
+/* The last city stays under the card, dimmed, and stays live. */
+.viewer[data-loading="true"] .map {
+  opacity: 0.45;
+  transition: opacity var(--motion);
+}
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+@keyframes turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading .sweep,
+  .loading h2 svg {
+    animation: none;
+  }
+}
+
 /* The card beside the pointer. */
 .hover-card {
   position: absolute;
@@ -743,6 +891,9 @@ mark {
   .notice {
     top: calc(var(--gap) + 76px + 8px + 48px + 8px);
   }
+  .loading-place {
+    top: 156px;
+  }
 }
 /* Phones: title and controls share the top row, the search sits below, the drawer is a sheet, closed at first. */
 @media (max-width: 760px) {
@@ -776,6 +927,13 @@ mark {
   }
   .notice {
     top: calc(var(--gap) + 68px + 8px + 48px + 8px);
+  }
+  .loading-place,
+  .viewer:has(.drawer[data-open="false"]) .loading-place {
+    inset: 140px 0 64px;
+  }
+  .viewer:has(.drawer[data-open="true"]) .loading-place {
+    bottom: 50%;
   }
   .drawer {
     top: auto;

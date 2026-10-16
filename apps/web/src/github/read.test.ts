@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Step } from "../load/step";
 import { IN_FLIGHT, readRepository, type Fetcher } from "./read";
 
 const API = "https://api.github.com/repos/o/r";
@@ -37,18 +38,26 @@ describe("readRepository", () => {
         }),
       [`${RAW}/package.json`]: () => new Response(JSON.stringify({ workspaces: ["packages/*"] })),
     });
-    const counts: number[] = [];
-    const snap = await readRepository(fetcher, { owner: "o", name: "r" }, (n) => counts.push(n));
+    const steps: Step[] = [];
+    const snap = await readRepository(fetcher, { owner: "o", name: "r" }, { onStep: (s) => steps.push(s) });
     expect(snap).toMatchObject({ repository: "r", commit: "c1", index: 0, workspaces: ["packages/a"] });
     expect(snap.files.map((f) => f.path)).toEqual(["README.md", "package.json", "packages/a/index.ts"]);
-    expect(counts).toEqual([1, 2]);
+    // The root and packages are the folders it lists; the one answer reads both.
+    expect(steps).toEqual([
+      { phase: "commit", requests: 0 },
+      { phase: "tree", done: 0, of: 1, requests: 1 },
+      { phase: "tree", done: 2, of: 2, requests: 2 },
+      { phase: "manifests", done: 0, of: 1, requests: 2 },
+      { phase: "manifests", done: 1, of: 1, requests: 2 },
+    ]);
   });
 
   it("reads a truncated tree folder by folder, splitting again where needed, a few at a time", async () => {
     const folders = Array.from({ length: IN_FLIGHT + 1 }, (_, i) => `d${i}`);
     const routes: Record<string, () => Response> = {
       [`${API}/commits/HEAD`]: commit,
-      [`${API}/git/trees/t0?recursive=1`]: () => json({ truncated: true, tree: [] }),
+      // The truncated answer names some folders already: they are known before they are read.
+      [`${API}/git/trees/t0?recursive=1`]: () => json({ truncated: true, tree: [entry("d1", "tree", "d1-t")] }),
       [`${API}/git/trees/t0`]: () =>
         json({ tree: [entry("top.ts", "blob"), ...folders.map((d) => entry(d, "tree", `${d}-t`))] }),
       // The first folder is itself too large: its own folders are read one by one.
@@ -59,13 +68,64 @@ describe("readRepository", () => {
     for (const d of folders.slice(1))
       routes[`${API}/git/trees/${d}-t?recursive=1`] = () => json({ tree: [entry("f.ts", "blob")] });
     const { fetcher } = github(routes);
-    const snap = await readRepository(fetcher, { owner: "o", name: "r" });
+    const steps: Step[] = [];
+    const snap = await readRepository(fetcher, { owner: "o", name: "r" }, { onStep: (s) => steps.push(s) });
     expect(snap.files.map((f) => f.path)).toEqual([
       "d0/deep/x.ts",
       ...folders.slice(1).map((d) => `${d}/f.ts`),
       "top.ts",
     ]);
     expect(snap.workspaces).toBeUndefined();
+    const tree = steps.filter((s) => s.phase === "tree");
+    // Known: the root, then d1 from the truncated answer, then every folder; read: each folder as its entries arrive.
+    expect(tree.slice(0, 3)).toEqual([
+      { phase: "tree", done: 0, of: 1, requests: 1 },
+      { phase: "tree", done: 0, of: 2, requests: 2 },
+      { phase: "tree", done: 1, of: 6, requests: 3 },
+    ]);
+    expect(tree.at(-1)).toEqual({ phase: "tree", done: 7, of: 7, requests: 10 });
+    const done = tree.map((s) => s.done!);
+    expect(done).toEqual(done.toSorted((a, b) => a - b));
+  });
+
+  it("stops when its signal aborts: between requests, and in the middle of one", async () => {
+    const controller = new AbortController();
+    const { fetcher, asked } = github({
+      [`${API}/commits/HEAD`]: () => {
+        controller.abort();
+        return commit();
+      },
+    });
+    const repo = { owner: "o", name: "r" };
+    await expect(readRepository(fetcher, repo, { signal: controller.signal })).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    expect(asked).toEqual([`${API}/commits/HEAD`]);
+    // A fetch the signal aborts rejects with the abort, never as being offline.
+    const aborting = new AbortController();
+    const hanging: Fetcher = (_url, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        aborting.abort();
+      });
+    await expect(readRepository(hanging, repo, { signal: aborting.signal })).rejects.toMatchObject({
+      name: "AbortError",
+    });
+  });
+
+  it("stops after the tree when aborted while the manifests are read", async () => {
+    const controller = new AbortController();
+    const { fetcher } = github({
+      [`${API}/commits/HEAD`]: commit,
+      [`${API}/git/trees/t0?recursive=1`]: () => json({ tree: [entry("package.json", "blob")] }),
+      [`${RAW}/package.json`]: () => {
+        controller.abort();
+        throw new Error("aborted");
+      },
+    });
+    await expect(
+      readRepository(fetcher, { owner: "o", name: "r" }, { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: "AbortError" });
   });
 
   it("leaves out a manifest it cannot read, or one that declares no members", async () => {
