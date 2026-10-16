@@ -9,16 +9,38 @@ import {
   type Options,
   type Snapshot,
 } from "@citymap/ground-plan";
+import { buildScene, type Scene } from "@citymap/scene";
+import { THEMES, type ThemeName } from "@citymap/themes";
 import type { OnStep, Step } from "../load/step";
 
 export interface LayOptions {
   /** Ends the lay: the worker is terminated and the promise rejects with the signal's reason. */
   readonly signal?: AbortSignal;
-  /** Hears the lay's progress as `lay` steps. */
+  /** Hears the lay's progress as `lay` steps, then a `draw` step when it builds the scene. */
   readonly onProgress?: OnStep;
+  /** The map theme to build the scene in, off the main thread; none builds no scene. */
+  readonly theme?: ThemeName;
 }
 
-export type Lay = (snapshot: Snapshot, options?: LayOptions) => Promise<City>;
+/** A scene built in a theme, ready to draw while that theme is the map's. */
+export interface Drawn {
+  readonly theme: ThemeName;
+  readonly scene: Scene;
+}
+
+/** What a lay hands back: the city, and its scene when a theme was given. */
+export interface Laid {
+  readonly city: City;
+  readonly scene: Drawn | null;
+}
+
+export type Lay = (snapshot: Snapshot, options?: LayOptions) => Promise<Laid>;
+
+/** The buffers under a scene's layers, handed to the main thread without a copy. */
+export const buffersOf = (scene: Scene): ArrayBuffer[] =>
+  scene.layers
+    .flatMap((l) => [l.positions.buffer, l.colours.buffer, l.indices.buffer])
+    .filter((b): b is ArrayBuffer => b instanceof ArrayBuffer);
 
 /** The CLI's defaults. */
 export const LIVE_OPTIONS: Options = {
@@ -57,9 +79,12 @@ export function throttled<T>(tell: (value: T) => void, ms: number, now: () => nu
   return call;
 }
 
-/** Lays on the calling thread: in the worker, and in tests. */
-export const layHere: Lay = async (snapshot, { signal, onProgress } = {}) => {
+/** Lays on the calling thread, and builds the scene when given a theme: in the worker, and in tests. */
+export const layHere: Lay = async (snapshot, { signal, onProgress, theme } = {}) => {
   signal?.throwIfAborted();
   const tell = onProgress && ((progress: LayProgress) => onProgress(layStep(progress)));
-  return layCity(snapshot, initialState(LIVE_OPTIONS), LIVE_OPTIONS, tell).city;
+  const { city } = layCity(snapshot, initialState(LIVE_OPTIONS), LIVE_OPTIONS, tell);
+  if (theme === undefined) return { city, scene: null };
+  onProgress?.({ phase: "draw" });
+  return { city, scene: { theme, scene: buildScene(city, THEMES[theme]) } };
 };

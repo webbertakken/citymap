@@ -1,7 +1,10 @@
 import { stateSnapshot } from "@citymap/ground-plan";
+import { buildScene } from "@citymap/scene";
+import { THEMES } from "@citymap/themes";
 import { describe, expect, it } from "vitest";
+import { city as cityNamed } from "../components/testing/fixtures";
 import type { Step } from "../load/step";
-import { layHere, layStep, throttled } from "./lay";
+import { buffersOf, layHere, layStep, throttled } from "./lay";
 
 const snapshot = stateSnapshot(
   "demo",
@@ -45,12 +48,27 @@ describe("throttled", () => {
 describe("layHere", () => {
   it("lays the snapshot and tells how far it has come, ending at the whole bar", async () => {
     const steps: Step[] = [];
-    const city = await layHere(snapshot, { onProgress: (s) => steps.push(s) });
+    const { city, scene } = await layHere(snapshot, { onProgress: (s) => steps.push(s) });
     expect(city.repository).toBe("demo");
+    expect(scene).toBeNull();
     expect(steps[0]).toMatchObject({ phase: "lay", done: 0 });
     const last = steps.at(-1)!;
     expect(last.done).toBe(last.of);
-    expect(await layHere(snapshot)).toEqual(city);
+    expect((await layHere(snapshot)).city).toEqual(city);
+  });
+
+  it("draws the scene too when given a theme, saying so first", async () => {
+    const steps: Step[] = [];
+    const { city, scene } = await layHere(snapshot, { theme: "dracula", onProgress: (s) => steps.push(s) });
+    expect(steps.at(-1)).toEqual({ phase: "draw" });
+    expect(scene).toEqual({ theme: "dracula", scene: buildScene(city, THEMES.dracula) });
+  });
+
+  it("lists the scene's buffers, to hand over without a copy", () => {
+    const scene = buildScene(cityNamed("x"), THEMES.dracula);
+    const buffers = buffersOf(scene);
+    expect(buffers).toHaveLength(scene.layers.length * 3);
+    expect(buffers[0]).toBe(scene.layers[0]!.positions.buffer);
   });
 
   it("lays nothing once aborted", async () => {

@@ -1,6 +1,6 @@
 "use client";
 import type { City } from "@citymap/ground-plan";
-import { buildScene, pick, pickIndex, type Hit } from "@citymap/scene";
+import { buildScene, pick, pickIndex, type Hit, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import {
   useCallback,
@@ -16,7 +16,7 @@ import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } fr
 import { readRepository, type Fetcher } from "../github/read";
 import { parseRepository } from "../github/repository";
 import { layInWorker } from "../lay/browser";
-import type { Lay } from "../lay/lay";
+import type { Drawn, Lay } from "../lay/lay";
 import { afterPaint } from "../load/paint";
 import { loadingStatus, useLoading, type Job } from "../load/useLoading";
 import { log, reasonOf } from "../log";
@@ -91,7 +91,13 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   // Drill down: the key of the one town shown, or null for the whole city.
   const [focus, setFocus] = useState<string | null>(null);
   // The whole city's scene and index stay built while a town is shown, so going back costs nothing.
-  const wholeScene = useMemo(() => (city ? buildScene(city, THEMES[theme]) : null), [city, theme]);
+  // A scene the layout worker built with the city, used while the map's theme is the one it was built in.
+  const [drawn, setDrawn] = useState<{ city: City; theme: ThemeName; scene: Scene } | null>(null);
+  const wholeScene = useMemo(
+    () =>
+      city ? (drawn?.city === city && drawn.theme === theme ? drawn.scene : buildScene(city, THEMES[theme])) : null,
+    [city, theme, drawn],
+  );
   const wholeIndex = useMemo(() => (city ? pickIndex(city) : null), [city]);
   const town = useMemo(() => (city && focus !== null ? focusOn(city, focus) : null), [city, focus]);
   const townScene = useMemo(() => (town ? buildScene(town, THEMES[theme]) : null), [town, theme]);
@@ -182,10 +188,11 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   }, []);
   // The last phase of every load: the city is in hand; it is shown, and the load is done once the map has drawn.
   const draw = useCallback(
-    async (job: Job, next: City, name: string, file: string) => {
+    async (job: Job, next: City, name: string, file: string, prebuilt: Drawn | null = null) => {
       job.step({ phase: "draw" });
       await afterPaint();
       job.signal.throwIfAborted();
+      setDrawn(prebuilt && { city: next, ...prebuilt });
       show(next, name);
       setSelected(file);
       await afterPaint();
@@ -228,10 +235,9 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
           },
         });
         load.step({ phase: "lay", files: snapshot.files.length });
-        const next = await lay(snapshot, { signal: load.signal, onProgress: load.step });
-        await draw(load, next, name, "");
+        const laid = await lay(snapshot, { signal: load.signal, onProgress: load.step, theme });
+        await draw(load, laid.city, name, "", laid.scene);
         setStatus((done) => `${done} · single state, not folded`);
-        setSelected("");
         log.info("viewer/github-read", {
           repo: name,
           requests,
@@ -246,7 +252,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         setError(describeFailure(failure));
       }
     },
-    [begin, draw, fetcher, lay],
+    [begin, draw, fetcher, lay, theme],
   );
   // The index loads once, on mount; a repository in the address is laid, else the first bundled city opens.
   const first = useEffectEvent((entry: CityEntry) => void open(entry));
