@@ -39,7 +39,7 @@ A progress card over the map while anything loads, and repository suggestions af
       with reset time, offline); reads the remaining allowance (tests with a stubbed fetcher)
 - [x] SearchBox: an "On GitHub" group after the city's matches (city at most three then), seven in all; marked names,
       one-line descriptions, stars, language, fork and archived; the remaining allowance in the summary
-- [ ] Debounce so typing a name costs one request per owner, measured
+- [x] Debounce so typing a name costs one request per owner, measured
 
 ## Phase 5: proof
 
