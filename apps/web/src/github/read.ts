@@ -3,11 +3,10 @@
 import { CitymapError, compareKeys, stateSnapshot, type Snapshot } from "@citymap/ground-plan";
 import { isManifest, patternsOf, resolveWorkspaces, type Patterns } from "@citymap/history/manifests";
 import type { Step } from "../load/step";
+import { API, getJson, type Fetcher } from "./api";
 import type { Repository } from "./repository";
 
-export type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
-
-const API = "https://api.github.com";
+export type { Fetcher } from "./api";
 const RAW = "https://raw.githubusercontent.com";
 /** Subtrees read at once when a tree is read folder by folder. */
 export const IN_FLIGHT = 4;
@@ -63,28 +62,15 @@ export async function readRepository(
 ): Promise<Snapshot> {
   let requests = 0;
   const base = `${API}/repos/${repo.owner}/${repo.name}`;
+  const missing = () =>
+    new CitymapError("github/not-found", `${repo.owner}/${repo.name} does not exist or is private`, {
+      owner: repo.owner,
+      name: repo.name,
+    });
   const json = async (url: string): Promise<unknown> => {
     signal?.throwIfAborted();
     requests++;
-    let response: Response;
-    try {
-      response = await fetcher(url, { headers: { Accept: "application/vnd.github+json" }, signal: signal ?? null });
-    } catch (error) {
-      signal?.throwIfAborted();
-      throw new CitymapError("github/offline", `GitHub could not be reached: ${String(error)}`, { url });
-    }
-    if (response.status === 404)
-      throw new CitymapError("github/not-found", `${repo.owner}/${repo.name} does not exist or is private`, {
-        owner: repo.owner,
-        name: repo.name,
-      });
-    if ((response.status === 403 || response.status === 429) && response.headers.get("x-ratelimit-remaining") === "0") {
-      const reset = Number(response.headers.get("x-ratelimit-reset") ?? 0);
-      throw new CitymapError("github/rate-limited", "GitHub's hourly limit for this browser is reached", { reset });
-    }
-    if (!response.ok)
-      throw new CitymapError("github/failed", `GitHub answered ${response.status}`, { status: response.status });
-    return response.json();
+    return (await getJson(fetcher, url, missing, signal)).body;
   };
 
   onStep({ phase: "commit", requests });

@@ -33,8 +33,8 @@ A progress card over the map while anything loads, and repository suggestions af
 
 ## Phase 4: repository suggestions
 
-- [ ] `suggest.ts`: parse `owner/prefix` (and URLs); rank by starts-with, contains, stars (tests first)
-- [ ] `ownerRepositories`: one request per owner (`/users/{owner}/repos`, newest pushed first, 100 per page), kept ten
+- [x] `suggest.ts`: parse `owner/prefix` (and URLs); rank by starts-with, contains, stars (tests first)
+- [x] `ownerRepositories`: one request per owner (`/users/{owner}/repos`, newest pushed first, 100 per page), kept ten
       minutes in the tab; the repository search for a name past the first page; named failures (unknown owner, limit
       with reset time, offline); reads the remaining allowance (tests with a stubbed fetcher)
 - [ ] SearchBox: an "On GitHub" group after the city's matches (city at most three then), seven in all; marked names,
