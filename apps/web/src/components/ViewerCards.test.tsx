@@ -145,7 +145,7 @@ describe("Viewer selection's actions", () => {
     await screen.findByRole("heading", { level: 1, name: "alpha" });
     type("acme/widgets");
     fireEvent.keyDown(searchField(), { key: "Enter" });
-    await screen.findByRole("heading", { level: 1, name: "widgets" });
+    await screen.findByText(/single state, not folded$/);
     type("a b");
     fireEvent.keyDown(searchField(), { key: "Enter" });
     const link = within(selected()).getByRole("link", { name: /^Open on GitHub/ });
