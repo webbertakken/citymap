@@ -185,8 +185,6 @@ describe("SearchBox suggestions", () => {
     renderSearch(fetcher);
     type("big/");
     await settle();
-    type("big/al");
-    await settle();
     expect(asked).toEqual([ownerUrl("big")]);
     type("big/zst");
     expect(names()).toEqual(["Lay big/zst from GitHub"]);

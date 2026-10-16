@@ -32,8 +32,6 @@ interface Found {
 }
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
-const holds = (repos: readonly GitHubRepository[], prefix: string) =>
-  repos.some((r) => r.name.toLowerCase().includes(prefix.toLowerCase()));
 
 export function useSuggestions(suggester: Suggester | null, allowance: Allowance | null, text: string): Suggestions {
   const query = suggester ? ownerQuery(text) : null;
@@ -91,8 +89,8 @@ export function useSuggestions(suggester: Suggester | null, allowance: Allowance
 
   const current = answer !== null && owner !== null && same(answer.owner, owner) ? answer : null;
   const list = current && "list" in current ? current.list : null;
-  // A name past the first page of an owner with more is looked up with the search instead.
-  const searching = list !== null && list.more && prefix !== "" && !holds(list.repos, prefix);
+  // An owner with more than one page may hold the name past it: what follows the slash is searched for too.
+  const searching = list !== null && list.more && prefix !== "";
   useEffect(() => {
     if (!searching || owner === null || suggester === null) return () => {};
     let live = true;
