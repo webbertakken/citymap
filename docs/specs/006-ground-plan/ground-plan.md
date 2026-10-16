@@ -276,6 +276,8 @@ archipelago and quarters off.
 - A quarter is a ward, named after its heaviest folder.
 - The plat remembers each quarter's members. A newcomer joins the last quarter while it needs under 24 blocks, else
   opens the next; a member that leaves (deleted, or grown past flattening) drops out, and its quarter keeps its place.
+- Quarters suit wide, flat fan-outs (home-assistant's components, linux's drivers); their frames take some land from
+  lots, so a fan-out may leave a few more files without a lot (home-assistant's single state: 14 to 22).
 
 ### Tiers
 

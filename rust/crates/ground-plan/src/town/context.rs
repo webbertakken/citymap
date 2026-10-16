@@ -270,12 +270,6 @@ impl<'t> Ctx<'t, '_> {
         });
     }
 
-    /// True when a toggle is on for this town.
-    #[must_use]
-    pub fn is_on(&self, toggle: Toggle) -> bool {
-        self.options.toggles.contains(&toggle)
-    }
-
     /// Drops every remembered cut, grid, radial layout, island and quarter of the folder at path.
     pub fn forget(&mut self, path: &str) {
         let plat = &mut self.plat;

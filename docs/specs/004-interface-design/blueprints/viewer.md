@@ -170,8 +170,8 @@ phone), so nothing the cards do moves the map or each other.
   panel is `Toggles` (`components/Toggles.tsx`): a `<fieldset>`, legend "City layout", of four
   `<input type="checkbox" role="switch" aria-checked>` in `TOGGLES` order, each in a `<label>` with its name
   ("Corridor", "Archipelago", "Quarters", "Tiers"), drawn as a track and thumb, and a `role="tooltip"` element
-  (`TOOLTIPS`, the spec's text word for word) that is its `aria-describedby`. The tooltip is `TOOLTIP_WIDTH` 280 px
-  wide, beside the panel to its left on a wide screen, and beneath its row inside the panel below 760 px.
+  (`TOOLTIPS`, the spec's text word for word) that is its `aria-describedby`. The tooltip (`.tooltip` in the stylesheet)
+  is 280 px wide, beside the panel to its left on a wide screen, and beneath its row inside the panel below 760 px.
 - A tooltip shows while its row is hovered (the row holds the tooltip, so the pointer can rest on it) or its switch has
   focus, and hides when both end and on Escape: the first Escape while one shows hides it and is marked answered
   (`preventDefault`, as the page's React root may be the document the popover listens on); `Popover` skips an Escape
@@ -220,8 +220,8 @@ phone), so nothing the cards do moves the map or each other.
 Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_SHARE`, `KEY_ZOOM`, `FIT_SHARE`,
 `LABEL_FIT`, `REPEAT_PX` (in `view/view.ts`), `FLY_SHARE`, `FLY_MIN_EXTENT`, `FLY_MS` (in `view/fly.ts`), `NARROW`,
 `MEDIUM` and the card sizes (in `view/insets.ts`), `CLICK_SLOP`, `WHEEL_ZOOM`, `CARD` (in `MapView.tsx`), `MIN_QUERY`,
-`MAX_HITS` (in `search/search.ts`), `SETTLE_MS` (in `SearchBox.tsx`), `TOWNS_SHOWN` (in `Drawer.tsx`), `TOOLTIP_WIDTH`
-(in the stylesheet), `LOT_TOP` and `LOT_HEIGHT` (in `packages/scene`).
+`MAX_HITS` (in `search/search.ts`), `SETTLE_MS` (in `SearchBox.tsx`), `TOWNS_SHOWN` (in `Drawer.tsx`), the tooltip's
+width (`.tooltip` in the stylesheet), `LOT_TOP` and `LOT_HEIGHT` (in `packages/scene`).
 
 ## Web experience
 

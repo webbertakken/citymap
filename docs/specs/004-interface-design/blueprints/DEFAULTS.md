@@ -31,6 +31,6 @@ One row per value the viewer spec leaves silent or qualitative.
 | Search settles            | `SETTLE_MS` 600 ms before a query is logged                                               | a pause in typing, not every keystroke      | 300 to 1,000 ms           |
 | Free map                  | top 100 px (156 px from 1,100 px down), right 352 px with the drawer; phone 140 and 64 px | the cards' sizes in the stylesheet          | follows the cards         |
 | Phone title width         | to 8 px short of the controls, which take 152 px on a touch screen                        | measured; checked by the overlap test       | follows the controls      |
-| Tooltip width             | `TOOLTIP_WIDTH` 280 px, beside its switch                                                 | the longest tooltip in four lines at 14 px  | 240 to 320 px             |
+| Tooltip width             | 280 px (`.tooltip`), beside the panel; beneath its row below 760 px                       | the longest tooltip in four lines at 14 px  | 240 to 320 px             |
 | Toggles at start          | the engine's defaults, corridor and tiers on; not remembered between visits               | spec                                        | fixed                     |
 | Bundled variants          | all sixteen combinations of the four toggles per bundled city                             | Webber's decision (research)                | fixed                     |

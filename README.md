@@ -31,6 +31,23 @@ GitHub allows about 60 requests an hour without signing in: most repositories ta
 - **Roads that mean something.** Every cut between folders is a road, classed by the size of the land it divides: lanes
   and streets inside neighbourhoods, collectors and avenues between districts, one boulevard through a city. Road shares
   are checked against 68 real settlements of matching size.
+- **Four layout toggles.** Some repositories have a shape of their own, and four archetypes answer it. Corridor and
+  tiers are on by default; archipelago and quarters are a switch away, with `--toggles=` in the CLI or behind the
+  viewer's settings cog, which loads each bundled city as laid with the switches chosen.
+  - **Corridor**: when one folder holds nearly everything, the small folders beside it gather into one corner quarter
+    behind a short avenue, instead of thin strips round the edge.
+  - **Archipelago**: a folder of packages becomes islands, one per package, with canals and bridges between them instead
+    of roads.
+  - **Quarters**: many similar small folders are grouped into planned quarters, each a tidy grid of blocks square to its
+    own outline, so you get neighbourhoods rather than stripes.
+  - **Tiers**: a town's size sets its widest road, and only one road per town gets that class; every other road is at
+    least one class narrower.
+
+  ![Each toggle off (left) and on (right): corridor and quarters on home-assistant, archipelago on react, tiers on
+  typescript](docs/img/toggles.png)
+
+  ![The viewer's settings cog, light and dark: four switches, each with its tooltip](docs/img/viewer-toggles.png)
+
 - **Docs are parks, tests are off the map** by default (`--tests` gives them land), and deleted files leave vacant lots
   until their neighbourhood renews.
 - **Any size.** Very large repositories can be shown as a single state, without their history:
@@ -81,18 +98,19 @@ your own.
 bun apps/cli/src/bin.ts <repository> [options]
 ```
 
-| Option             | What it does                                                     |
-| ------------------ | ---------------------------------------------------------------- |
-| `--svg=<file>`     | Write the city as an SVG                                         |
-| `--out=<file>`     | Write the city as JSON, for the viewer                           |
-| `--theme=<name>`   | `paper-atlas`, `night-atlas`, `beck`, `nolli`, `dracula`         |
-| `--camera=<view>`  | `plan` or `dimetric`                                             |
-| `--to=<ref>`       | Draw the city as it was at that commit                           |
-| `--lock`           | Save progress in `citymap.lock.json`, and resume from it         |
-| `--no-history`     | Lay one state, every file at once, without folding the history   |
-| `--voronoi`        | Fill each folder's region beneath its blocks                     |
-| `--split=<groups>` | Which workspace groups become a town per member (default `apps`) |
-| `--help`           | Show every option                                                |
+| Option             | What it does                                                           |
+| ------------------ | ---------------------------------------------------------------------- |
+| `--svg=<file>`     | Write the city as an SVG                                               |
+| `--out=<file>`     | Write the city as JSON, for the viewer                                 |
+| `--theme=<name>`   | `paper-atlas`, `night-atlas`, `beck`, `nolli`, `dracula`               |
+| `--camera=<view>`  | `plan` or `dimetric`                                                   |
+| `--to=<ref>`       | Draw the city as it was at that commit                                 |
+| `--lock`           | Save progress in `citymap.lock.json`, and resume from it               |
+| `--no-history`     | Lay one state, every file at once, without folding the history         |
+| `--voronoi`        | Fill each folder's region beneath its blocks                           |
+| `--split=<groups>` | Which workspace groups become a town per member (default `apps`)       |
+| `--toggles=<list>` | Archetype toggles on (default `corridor,tiers`; `--toggles=` for none) |
+| `--help`           | Show every option                                                      |
 
 A long history folds its last 1,000 to 1,999 commits one by one and older ones in windows of 100 commits (of 1,000
 beyond the last 10,000), so a full fold takes seconds for small repositories and minutes for the largest: react (15,000
