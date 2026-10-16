@@ -32,12 +32,12 @@ Branch `feat/fold-schedule` in the worktree `../citymap-stride`.
 
 ## Phase 2: Rust
 
-- [ ] `schedule.rs`: the same functions and constants, the same tests
-- [ ] `count_commits`, `read_history` on the schedule, `HistoryEvent::Schedule`
-- [ ] CLI summary as in TypeScript
-- [ ] Parity fixtures regenerated if they change; `bun run rust:check`
-- [ ] `bun run parity` (both CLIs byte-identical, including redux and livediagram, now windowed)
-- [ ] Commit
+- [x] `schedule.rs`: the same functions and constants, the same tests
+- [x] `count_commits`, `read_history` on the schedule, `HistoryEvent::Schedule`
+- [x] CLI summary as in TypeScript
+- [x] Parity fixtures (unchanged: synthetic snapshots); `bun run rust:check`
+- [x] `bun run parity` (both CLIs byte-identical, including redux and livediagram, now windowed)
+- [x] Commit
 
 ## Phase 3: proof and measurements
 

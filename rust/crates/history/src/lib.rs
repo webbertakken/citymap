@@ -5,9 +5,11 @@ pub mod blobs;
 pub mod env;
 pub mod manifests;
 pub mod read;
+pub mod schedule;
 pub mod tree;
 pub mod workspaces;
 
-pub use ancestry::{is_ancestor, resolve_commit};
+pub use ancestry::{count_commits, is_ancestor, resolve_commit};
 pub use read::{History, HistoryEvent, HistoryItem, ReadOptions, read_history};
+pub use schedule::{EVERY_COMMIT, FOLD_STRIDES, FoldSchedule, Strides, fold_schedule, is_laid, laid_count};
 pub use tree::read_tree;

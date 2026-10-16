@@ -26,6 +26,7 @@ pub enum ErrorCode {
     HistoryNotARepo,
     HistoryGitFailed,
     HistoryParse,
+    HistoryBadSchedule,
     CliUsage,
     LockBadJson,
     LockBadShape,
@@ -41,7 +42,7 @@ pub enum ErrorCode {
 
 impl ErrorCode {
     /// Every code, in the order the TypeScript union lists them, then the CLI's own.
-    pub const ALL: [Self; 32] = [
+    pub const ALL: [Self; 33] = [
         Self::FixedBadDivisor,
         Self::FixedOverflow,
         Self::FixedNegativeSqrt,
@@ -64,6 +65,7 @@ impl ErrorCode {
         Self::HistoryNotARepo,
         Self::HistoryGitFailed,
         Self::HistoryParse,
+        Self::HistoryBadSchedule,
         Self::CliUsage,
         Self::LockBadJson,
         Self::LockBadShape,
@@ -102,6 +104,7 @@ impl ErrorCode {
             Self::HistoryNotARepo => "history/not-a-repo",
             Self::HistoryGitFailed => "history/git-failed",
             Self::HistoryParse => "history/parse",
+            Self::HistoryBadSchedule => "history/bad-schedule",
             Self::CliUsage => "cli/usage",
             Self::LockBadJson => "lock/bad-json",
             Self::LockBadShape => "lock/bad-shape",
