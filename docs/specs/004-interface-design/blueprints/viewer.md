@@ -329,8 +329,7 @@ phone), so nothing the cards do moves the map or each other.
   focus, and hides when both end and on Escape: the first Escape while one shows hides it and is marked answered
   (`preventDefault`, as the page's React root may be the document the popover listens on); `Popover` skips an Escape
   already answered, so the next one closes it. A switch never closes the popover.
-- Below 760 px the view switch is hidden (the viewer shows plan view only, as the spec says, there first), so the three
-  controls take 152 px of a touch screen's top row.
+- The top right holds three controls (Theme, Layout, More), 152 px of a touch screen's top row.
 - `Viewer` holds `toggles` (`DEFAULT_TOGGLES` at start; not remembered) and the `origin` of the city shown (a bundled
   entry; a live repository's name, snapshot, status note and tab title, from GitHub or the person's machine; or a file).
   A change re-opens what is shown in the new variant as a load of its own, with the loading card and the status naming
