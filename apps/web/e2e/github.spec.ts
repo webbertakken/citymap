@@ -69,7 +69,8 @@ test("shows a large repository's progress over the dimmed map, and Cancel keeps 
   await expect(card(page)).toContainText(`1 of ${FOLDERS + 1} folders · 3 requests`);
   await expect(page.locator(".status")).toHaveText("acme/large: reading the file tree…");
   await expect(page.locator("main")).toHaveAttribute("data-loading", "true");
-  expect(await page.locator(".map").evaluate((m) => getComputedStyle(m).opacity)).toBe("0.45");
+  // Dimmed once its 150 ms transition ends.
+  await expect.poll(() => page.locator(".map").evaluate((m) => getComputedStyle(m).opacity)).toBe("0.45");
   // The card sits in the free map, clear of every other card.
   const box = (await card(page).boundingBox())!;
   const others = await Promise.all([".card-title", ".search", ".controls"].map((s) => page.locator(s).boundingBox()));
