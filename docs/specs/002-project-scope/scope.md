@@ -14,6 +14,8 @@ The first deliverable is the **ground plan**: the city without buildings, as def
   the Paper atlas style, plus SVG export from the same model. Themes: Paper atlas, Night atlas, Beck schematic, Nolli
   noir and Dracula. Desktop and phones.
 - **Land dimension**: tests off the map (default) or tests as land.
+- **Local repositories**: a repository's folder on the person's machine, laid in the viewer as its single state, with
+  nothing installed and nothing sent ([local repositories](../007-local-repositories/local-repositories.md)).
 - **Rust CLI**: a second implementation of the command line, byte for byte the same output, many times faster.
 - **Morphometrics**: the generator measures its own output (orientation entropy, node degree, dead-end share, block
   shape factor, built share) and asserts them per archetype.

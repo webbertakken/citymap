@@ -1,0 +1,41 @@
+{
+  "note": "SHA-256 object ids",
+  "version": 2,
+  "entries": [
+    {
+      "mode": "100644",
+      "stage": 0,
+      "path": "README.md"
+    },
+    {
+      "mode": "100644",
+      "stage": 0,
+      "path": "docs/naïve café.md"
+    },
+    {
+      "mode": "100644",
+      "stage": 0,
+      "path": "package.json"
+    },
+    {
+      "mode": "100644",
+      "stage": 0,
+      "path": "packages/a/index.test.ts"
+    },
+    {
+      "mode": "100644",
+      "stage": 0,
+      "path": "packages/a/index.ts"
+    },
+    {
+      "mode": "100644",
+      "stage": 0,
+      "path": "packages/b/src/main.ts"
+    },
+    {
+      "mode": "100644",
+      "stage": 0,
+      "path": "space name/file with spaces.txt"
+    }
+  ]
+}

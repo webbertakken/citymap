@@ -4,7 +4,7 @@
     "rootDir": ".",
     "outDir": "../../node_modules/.cache/tsc/web",
     "tsBuildInfoFile": "../../node_modules/.cache/tsc/web.tsbuildinfo",
-    "lib": ["es2024", "dom", "dom.iterable"],
+    "lib": ["es2024", "dom", "dom.iterable", "dom.asynciterable"],
     "jsx": "react-jsx",
     "types": ["node"],
     "plugins": [{ "name": "next" }]

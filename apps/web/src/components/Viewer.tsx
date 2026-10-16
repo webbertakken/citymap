@@ -17,6 +17,7 @@ import { readRepository, type Fetcher } from "../github/read";
 import { parseRepository } from "../github/repository";
 import { layInWorker } from "../lay/browser";
 import type { Lay } from "../lay/lay";
+import type { LocalPorts } from "../local/ports";
 import { log, reasonOf } from "../log";
 import { searchIndex, type SearchEntry } from "../search/search";
 import { FLY_MS, between, ease, flyTo } from "../view/fly";
@@ -28,6 +29,7 @@ import { MapView, type CanvasProps } from "./MapView";
 import { Notice } from "./Notice";
 import { SearchBox } from "./SearchBox";
 import { TitleCard } from "./TitleCard";
+import { LOCAL_STATUS, LOCAL_TITLE, useLocalRepository } from "./useLocalRepository";
 import { ViewControls } from "./ViewControls";
 import { ZoomControls } from "./ZoomControls";
 
@@ -38,6 +40,8 @@ export interface ViewerProps {
   readonly lay?: Lay;
   /** The site's path under its host, before every bundled file: "/citymap" on GitHub Pages. */
   readonly basePath?: string;
+  /** The browser's folder access: its own by default, stand-ins in tests. */
+  readonly folders?: LocalPorts;
 }
 
 const browserFetch: Fetcher = (url, init) => fetch(url, init);
@@ -64,7 +68,7 @@ export const focusOn = (city: City, key: string): City => ({
   highways: [],
 });
 
-export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "" }: ViewerProps) {
+export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "", folders }: ViewerProps) {
   const [cities, setCities] = useState<readonly CityEntry[]>([]);
   const [selected, setSelected] = useState("");
   const [city, setCity] = useState<City | null>(null);
@@ -159,7 +163,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     setMarker({ x: entry.x, z: entry.z });
   };
 
-  const show = useCallback((next: City, name: string) => {
+  const show = useCallback((next: City, name: string, title: string = name) => {
     cancelAnimationFrame(flight.current);
     setCity(next);
     setFocus(null);
@@ -170,7 +174,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     log.info("viewer/open", { name, towns: next.towns.length, lots });
     setStatus(`${next.towns.length} towns · ${lots.toLocaleString("en-GB")} lots`);
     setFitted(true);
-    document.title = `${name} · citymap`;
+    document.title = `${title} · citymap`;
   }, []);
   const open = useCallback(
     async (entry: CityEntry) => {
@@ -219,6 +223,19 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     },
     [fetcher, lay, show],
   );
+  // A repository on the person's machine, read and laid in the browser; nothing about it leaves the page.
+  const local = useLocalRepository({
+    ...(folders ? { ports: folders } : {}),
+    lay,
+    status,
+    setStatus,
+    setError,
+    present: (next, name) => {
+      show(next, name, LOCAL_TITLE);
+      setStatus((done) => `${done} · ${LOCAL_STATUS}`);
+      setSelected("");
+    },
+  });
   // The index loads once, on mount; a repository in the address is laid, else the first bundled city opens.
   const first = useEffectEvent((entry: CityEntry) => void open(entry));
   const wanted = useEffectEvent((repo: string) => void openRepository(repo));
@@ -313,7 +330,9 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         onTheme={setTheme}
         onCity={(entry) => void open(entry)}
         onFile={(file) => void openFile(file)}
+        local={local}
       />
+      {local.input}
       <Drawer
         city={shown}
         settled={status === ""}
