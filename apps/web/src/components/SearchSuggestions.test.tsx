@@ -1,5 +1,5 @@
 import type { City } from "@citymap/ground-plan";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Allowance } from "../github/allowance";
 import type { Fetcher } from "../github/api";
@@ -87,7 +87,7 @@ function renderSearch(
 const query = (q: string) =>
   `${API}/search/repositories?q=${encodeURIComponent(`${q} in:name user:big`)}&sort=stars&per_page=20`;
 const settle = () => act(() => vi.advanceTimersByTimeAsync(SUGGEST_MS));
-const choices = () => within(screen.getByRole("list", { name: "Matches" })).getAllByRole("button");
+const choices = () => [...document.querySelectorAll<HTMLButtonElement>(".results button")];
 const names = () => choices().map((b) => b.querySelector(".option-text > span")?.textContent);
 const summary = () => document.querySelector(".summary")?.textContent;
 
@@ -110,7 +110,8 @@ describe("SearchBox suggestions", () => {
     expect(summary()).toContain("Asking GitHub for facebook's repositories…");
     await settle();
     expect(asked).toEqual([ownerUrl("facebook")]);
-    expect(screen.getByText("On GitHub").getAttribute("role")).toBe("presentation");
+    expect(screen.getByRole("list", { name: "On GitHub" })).toBeTruthy();
+    expect(screen.queryByRole("list", { name: "Matches" })).toBeNull();
     // By stars when nothing follows the slash; seven at most.
     expect(names()).toEqual([
       "GitHub repository facebook/react",

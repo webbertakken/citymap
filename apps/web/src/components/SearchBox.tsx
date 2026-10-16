@@ -1,6 +1,6 @@
 "use client";
 import { BookMarked, File, Folder, GitBranch, Search } from "lucide-react";
-import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Allowance } from "../github/allowance";
 import type { Suggester } from "../github/owners";
 import { parseRepository } from "../github/repository";
@@ -102,8 +102,9 @@ export function SearchBox({ index, onPick, onRepository, suggester = null, allow
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLElement>(null);
   const field = useRef<HTMLInputElement>(null);
-  const list = useRef<HTMLUListElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   const summary = useId();
+  const group = useId();
   const found = useMemo(() => (index ? search(index, text) : { hits: [], total: 0 }), [index, text]);
   const repository = repositoryIn(text);
   // A text that starts with one of the city's folders is a path in the city: GitHub is not asked about it.
@@ -138,7 +139,10 @@ export function SearchBox({ index, onPick, onRepository, suggester = null, allow
     }
   }
   const github = githubLine(suggestions, allowance);
+  // The city's places in one list; the owner's repositories, and laying the typed name after them, under "On GitHub".
   const firstSuggestion = options.findIndex((o) => o.kind === "suggestion");
+  const cityOptions = firstSuggestion < 0 ? options : options.slice(0, firstSuggestion);
+  const githubOptions = firstSuggestion < 0 ? [] : options.slice(firstSuggestion);
   const querying = text.trim().length >= 2;
   const expanded = open && (options.length > 0 || querying);
 
@@ -217,6 +221,52 @@ export function SearchBox({ index, onPick, onRepository, suggester = null, allow
       setOpen(false);
     }
   };
+  const renderOption = (option: Option) => (
+    <li key={keyOf(option)}>
+      <button type="button" onClick={() => choose(option)} onKeyDown={onOptionKey}>
+        {option.kind === "suggestion" ? (
+          <>
+            <BookMarked size={20} aria-hidden="true" />
+            <span className="option-text">
+              <span>
+                <span className="visually-hidden">GitHub repository</span> {option.owner}/
+                <Marked text={option.repo.name} query={option.prefix} />
+              </span>
+              {option.repo.description && (
+                <>
+                  {" "}
+                  <small className="description">{option.repo.description}</small>
+                </>
+              )}{" "}
+              <Facts repo={option.repo} />
+            </span>
+          </>
+        ) : option.kind === "repository" ? (
+          <>
+            <GitBranch size={20} aria-hidden="true" />
+            <span className="option-text">
+              <span>Lay {option.name} from GitHub</span> <small>Reads its tree and lays it here</small>
+            </span>
+          </>
+        ) : (
+          <>
+            {option.entry.kind === "folder" ? (
+              <Folder size={20} aria-hidden="true" />
+            ) : (
+              <File size={20} aria-hidden="true" />
+            )}
+            <span className="option-text">
+              <span>
+                <span className="visually-hidden">{option.entry.kind === "folder" ? "Folder " : "File "}</span>
+                <Marked text={option.entry.name} query={text} />
+              </span>{" "}
+              <small>{option.entry.path}</small>
+            </span>
+          </>
+        )}
+      </button>
+    </li>
+  );
   return (
     <search ref={root} className="glass search">
       <Search size={20} aria-hidden="true" />
@@ -253,63 +303,17 @@ export function SearchBox({ index, onPick, onRepository, suggester = null, allow
               </span>
             )}
           </p>
-          <ul ref={list} aria-label="Matches">
-            {options.map((option, at) => (
-              <Fragment key={keyOf(option)}>
-                {at === firstSuggestion && (
-                  <li role="presentation" className="group">
-                    On GitHub
-                  </li>
-                )}
-                <li>
-                  <button type="button" onClick={() => choose(option)} onKeyDown={onOptionKey}>
-                    {option.kind === "suggestion" ? (
-                      <>
-                        <BookMarked size={20} aria-hidden="true" />
-                        <span className="option-text">
-                          <span>
-                            <span className="visually-hidden">GitHub repository</span> {option.owner}/
-                            <Marked text={option.repo.name} query={option.prefix} />
-                          </span>
-                          {option.repo.description && (
-                            <>
-                              {" "}
-                              <small className="description">{option.repo.description}</small>
-                            </>
-                          )}{" "}
-                          <Facts repo={option.repo} />
-                        </span>
-                      </>
-                    ) : option.kind === "repository" ? (
-                      <>
-                        <GitBranch size={20} aria-hidden="true" />
-                        <span className="option-text">
-                          <span>Lay {option.name} from GitHub</span> <small>Reads its tree and lays it here</small>
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        {option.entry.kind === "folder" ? (
-                          <Folder size={20} aria-hidden="true" />
-                        ) : (
-                          <File size={20} aria-hidden="true" />
-                        )}
-                        <span className="option-text">
-                          <span>
-                            <span className="visually-hidden">
-                              {option.entry.kind === "folder" ? "Folder " : "File "}
-                            </span>
-                            <Marked text={option.entry.name} query={text} />
-                          </span>{" "}
-                          <small>{option.entry.path}</small>
-                        </span>
-                      </>
-                    )}
-                  </button>
-                </li>
-              </Fragment>
-            ))}
-          </ul>
+          <div ref={list} className="choices">
+            {cityOptions.length > 0 && <ul aria-label="Matches">{cityOptions.map(renderOption)}</ul>}
+            {githubOptions.length > 0 && (
+              <>
+                <p id={group} className="group">
+                  On GitHub
+                </p>
+                <ul aria-labelledby={group}>{githubOptions.map(renderOption)}</ul>
+              </>
+            )}
+          </div>
         </div>
       )}
     </search>
