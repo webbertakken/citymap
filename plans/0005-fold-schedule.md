@@ -41,17 +41,20 @@ Branch `feat/fold-schedule` in the worktree `../citymap-stride`.
 
 ## Phase 3: proof and measurements
 
-- [ ] Histories of 1,000 commits or fewer fold byte-identically to `origin/main` (corpus: city, lock, SVG)
-- [ ] `bun run bench` and `bun run bench --folds`, before and after
-- [ ] After: fold time, files without a lot, fresh lay, stability for react, next.js, home-assistant, rust, typescript
+- [x] Histories of 1,000 commits or fewer fold byte-identically to `origin/main` (corpus: city, lock, SVG; four
+      repositories up to 1,069 commits, `cmp`)
+- [x] `bun run bench` and `bun run bench --folds`, before and after (budgets and corpus ratchet unchanged; folds 35
+      → 19)
+- [x] After: fold time, files without a lot, fresh lay, stability for react, next.js, home-assistant, rust, typescript
       and linux
-- [ ] Ratchets rebased only where the numbers improve or are explained
-- [ ] Commit
+- [x] Ratchets rebased only where the numbers improve or are explained (`fold-baseline.json` 35 → 19; the corpus
+      baseline is unchanged)
+- [x] Commit
 
 ## Phase 4: finish
 
 - [x] Surface the design fork: whether the per-commit fold stays reachable from the CLI (Webber: library only,
       `EVERY_COMMIT`; no CLI flag), recorded in the spec and blueprints
-- [ ] README: fold times and history
+- [x] README: fold times and history; architecture and development notes on fold times
 - [ ] Fold-back: spec reconciled to what shipped, blueprint re-derived, every symbol, file and reference verified
 - [ ] Commit, push, open the pull request (not merged)
