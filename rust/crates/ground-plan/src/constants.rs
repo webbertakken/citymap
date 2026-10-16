@@ -74,6 +74,6 @@ pub const FLATTEN_HYSTERESIS_PCT: i64 = 150;
 /// A new cut, partition or town gives each side this share of its demand as room to grow, in per cent.
 pub const GROWTH_PCT: i64 = 135;
 /// Mass (‰ of a file) at which land enters the village, town and city tiers; each tier lifts its roads one class.
-pub const TIER_MASS_MILLE: [i64; 3] = [30_000, 300_000, 3_000_000];
+pub const TIER_MASS_MILLE: [i64; 4] = [30_000, 300_000, 3_000_000, 30_000_000];
 /// A laid road moves up a tier at its threshold × this, and down below its threshold ÷ this, in per cent.
 pub const TIER_BAND_PCT: i64 = 125;

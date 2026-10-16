@@ -14,6 +14,7 @@ pub mod plat;
 pub mod region;
 pub mod roads;
 pub mod snapshot;
+pub mod toggles;
 pub mod town;
 pub mod tree;
 pub mod workspace;

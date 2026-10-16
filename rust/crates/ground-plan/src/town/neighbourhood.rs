@@ -13,6 +13,7 @@ use crate::fixed::{
 };
 use crate::land_use::LandUse;
 use crate::plat::{GridRecord, ParkLine, Slots};
+use crate::roads::capped_class;
 use crate::snapshot::folder_of;
 use crate::town::context::{Ctx, DraftLot, tint, to_poly};
 use crate::tree::LotSeed;
@@ -437,7 +438,7 @@ pub fn neighbourhood(
     for r in r_min + 1..=r_max {
         let c = (g.b0 + r * g.row_pitch - U / 2) * DIRECTION;
         let cls = if g.high == Some(r) {
-            RoadClass::Collector
+            capped_class(RoadClass::Collector, ctx.tier)
         } else {
             RoadClass::Street
         };

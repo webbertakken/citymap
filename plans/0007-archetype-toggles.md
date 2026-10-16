@@ -45,8 +45,8 @@ touches the fold and the plat: rebase onto main when it merges.
 
 ## Phase 3: Rust
 
-- [ ] Port options, tree, classify, tiers, decide, corridor, waterway, archipelago, quarters, plat, city, themes, SVG
-- [ ] Rust tests ported; `bun run rust:check`
+- [x] Port options, tree, classify, tiers, decide, corridor, waterway, archipelago, quarters, plat, city, themes, SVG
+- [x] Rust tests ported; `bun run rust:check`
 - [ ] `bun run parity` with the defaults, each toggle alone, and none
 - [ ] Commit
 

@@ -57,6 +57,7 @@ pub fn tree_with(entries: &[FileEntry], folders: &[(&str, i64)], shares: &Shares
         exclude: vec![],
         land_uses: default_land_uses(),
         density_pct: 50,
+        members: vec![],
     };
     let built = build_tree(&snapshot, &snapshot.files, &options, shares, &|_, f| {
         classify_land_use(&f.path)
@@ -82,6 +83,7 @@ pub fn layout_options() -> crate::town::context::LayoutOptions {
         warp: false,
         density_pct: 50,
         loops: true,
+        toggles: vec![],
     }
 }
 

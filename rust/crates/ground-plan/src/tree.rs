@@ -39,6 +39,10 @@ pub struct TreeNode {
     pub demand: i64,
     /// Two FNV-1a hashes of the folder's content: its lots, docs, first appearance and its children's digests.
     pub digest: u64,
+    /// The folder, or a folder its chain collapsed into it, is a workspace member.
+    pub member: bool,
+    /// The mass of its subtree's source files (1,000 each).
+    pub source_mille: i64,
 }
 
 /// A shared lot: its key (its founding identity) and its member identities.
@@ -59,6 +63,8 @@ pub struct TreeOptions {
     pub exclude: Vec<String>,
     pub land_uses: Vec<LandUse>,
     pub density_pct: i64,
+    /// The workspace members of the region, which mark packages.
+    pub members: Vec<String>,
 }
 
 /// A built tree and what building it measured.
@@ -201,6 +207,7 @@ fn collapse_chain(mut n: TreeNode) -> TreeNode {
             name: format!("{}/{}", n.name, child.name),
             depth: n.depth,
             first_seen: n.first_seen.min(child.first_seen),
+            member: n.member || child.member,
             ..child
         };
     }
@@ -225,6 +232,7 @@ struct Builder<'a, 's> {
     raw: FxHashMap<&'a str, Raw<'a>>,
     shares: &'s Shares,
     next: Shares,
+    members: FxHashSet<&'a str>,
 }
 
 impl<'a> Builder<'a, '_> {
@@ -236,6 +244,11 @@ impl<'a> Builder<'a, '_> {
         let children: Vec<TreeNode> = kids.into_iter().map(|kid| self.make(kid, depth + 1)).collect();
         let own_mass: i64 = entry.files.iter().map(|(_, u)| u.weight_mille()).sum();
         let mass_mille = own_mass + children.iter().map(|c| c.mass_mille).sum::<i64>();
+        let own_source = i64::try_from(entry.files.iter().filter(|(_, u)| *u == LandUse::Source).count())
+            .expect("small")
+            * LandUse::Source.weight_mille();
+        let source_mille = own_source + children.iter().map(|c| c.source_mille).sum::<i64>();
+        let member = self.members.contains(path);
         let items = land_for(i64::try_from(lots.len()).expect("small") * LOT_AREA, self.density_pct)
             + land_for(entry.docs * LOT_AREA / 2, self.density_pct)
             + children.iter().map(|c| c.demand).sum::<i64>();
@@ -252,7 +265,13 @@ impl<'a> Builder<'a, '_> {
         // Everything layout reads of a folder: a file joining a shared lot changes its mass but not its lots.
         let mut digest = Digest::new();
         let mut text = String::new();
-        write!(text, "{path}|{first_seen}|{}|{mass_mille}|{demand}", entry.docs).expect("a string takes text");
+        write!(
+            text,
+            "{path}|{first_seen}|{}|{mass_mille}|{demand}|{}",
+            entry.docs,
+            u8::from(member)
+        )
+        .expect("a string takes text");
         digest.feed(&text);
         for lot in &lots {
             text.clear();
@@ -284,6 +303,8 @@ impl<'a> Builder<'a, '_> {
             children,
             mass_mille,
             demand,
+            member,
+            source_mille,
         }
     }
 }
@@ -345,6 +366,7 @@ pub fn build_tree(
         raw,
         shares,
         next: Shares::new(),
+        members: options.members.iter().map(String::as_str).collect(),
     };
     let tree = collapse(builder.make(root, 0), true);
     Built {
@@ -367,6 +389,49 @@ mod tests {
         assert_eq!(land_for(LOT_AREA, 50), (isqrt(LOT_AREA * 2) + 2 * MARGIN).pow(2));
     }
 
+    fn member_tree(entries: &[FileEntry], members: &[&str]) -> TreeNode {
+        let snapshot = snapshot_of(entries);
+        let options = TreeOptions {
+            root: String::new(),
+            exclude: vec![],
+            land_uses: default_land_uses(),
+            density_pct: 50,
+            members: members.iter().map(|m| (*m).to_owned()).collect(),
+        };
+        let built = build_tree(&snapshot, &snapshot.files, &options, &Shares::new(), &|_, f| {
+            classify_land_use(&f.path)
+        });
+        Arc::unwrap_or_clone(built.tree)
+    }
+
+    #[test]
+    fn marks_workspace_members_through_a_collapsed_chain_too_and_sums_source_mass() {
+        let mut entries = files("libs/a", 1, 0, "json", "package");
+        entries.extend(files("libs/a/src", 1, 0, "ts", "x"));
+        entries.extend(files("libs/b/deep/src", 1, 0, "ts", "y"));
+        entries.extend(files("libs/b/deep", 1, 0, "md", "z"));
+        let tree = member_tree(&entries, &["libs/a", "libs/b"]);
+        let libs = &tree.children[0];
+        let (a, b) = (&libs.children[0], &libs.children[1]);
+        assert_eq!(
+            (&*a.path, a.member, a.source_mille, a.mass_mille),
+            ("libs/a", true, 1000, 1500)
+        );
+        assert_eq!(
+            (&*b.path, b.name.as_str(), b.member, b.source_mille),
+            ("libs/b/deep", "b/deep", true, 1000)
+        );
+        assert_eq!((libs.member, libs.source_mille), (false, 2000));
+    }
+
+    #[test]
+    fn changes_a_folder_s_digest_when_its_membership_does() {
+        let entries = files("libs/a", 1, 0, "ts", "x");
+        let plain = member_tree(&entries, &[]);
+        let member = member_tree(&entries, &["libs/a"]);
+        assert_ne!(plain.children[0].digest, member.children[0].digest);
+    }
+
     #[test]
     fn collapses_chains_of_single_folders() {
         let tree = tree_of(&files("a/b/c", 3, 0, "ts", "f"));
@@ -386,6 +451,7 @@ mod tests {
             exclude: vec![],
             land_uses: default_land_uses(),
             density_pct: 50,
+            members: vec![],
         };
         let use_of = |_: usize, f: &FileEntry| classify_land_use(&f.path);
         let built = build_tree(&snapshot, &snapshot.files, &options, &Shares::new(), &use_of);
@@ -413,6 +479,7 @@ mod tests {
             exclude: vec![],
             land_uses: default_land_uses(),
             density_pct: 50,
+            members: vec![],
         };
         let built = build_tree(&snapshot, &snapshot.files, &options, &Shares::new(), &|_, f| {
             classify_land_use(&f.path)
@@ -440,6 +507,7 @@ mod ported {
             exclude: vec![],
             land_uses: default_land_uses(),
             density_pct: 50,
+            members: vec![],
         }
     }
 

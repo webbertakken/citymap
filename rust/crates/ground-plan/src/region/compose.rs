@@ -20,6 +20,7 @@ use crate::plat::{OldTown, Plat, TownPlat};
 use crate::region::highway::{highway_between, with_approach};
 use crate::region::outline::outline_for;
 use crate::snapshot::{FileEntry, MAX_FILES, Snapshot};
+use crate::toggles::{Toggle, toggle_list};
 use crate::town::context::{Jog, LayoutOptions, Order, PlatEvent, TownCache, Value};
 use crate::town::layout::{TownDraft, layout_town};
 use crate::tree::{Built, Shares, TreeOptions, build_tree};
@@ -37,17 +38,25 @@ pub struct Options {
     pub loops: bool,
     /// Workspace groups whose members each become a town, by folder path or name.
     pub split: Vec<String>,
+    /// The archetype toggles on.
+    pub toggles: Vec<Toggle>,
 }
 
 /// Each app of an `apps/` group is its own town by default; other groups stay one town each.
 pub const DEFAULT_SPLIT: &[&str] = &["apps"];
 
-/// The setting a plat is laid for: its land uses and its split groups. Each setting has its own plat.
+/// The setting a plat is laid for: its land uses, its split groups and its toggles. Each setting has its own plat.
 #[must_use]
 pub fn setting_key(options: &Options) -> String {
     let mut split: Vec<&str> = options.split.iter().map(String::as_str).collect();
     split.sort_by(|a, b| compare_keys(a, b));
-    format!("{}|split:{}", land_key(&options.land_uses), split.join(","))
+    let toggles: Vec<&str> = toggle_list(&options.toggles).into_iter().map(Toggle::as_str).collect();
+    format!(
+        "{}|split:{}|toggles:{}",
+        land_key(&options.land_uses),
+        split.join(","),
+        toggles.join(",")
+    )
 }
 
 /// What a file list says on its own, kept while a fold hands over the same list.
@@ -174,6 +183,7 @@ pub fn translate_town(town: &mut Town, by: Pt) {
     };
     shift(&mut town.outline);
     town.water.iter_mut().for_each(shift);
+    town.canals.iter_mut().for_each(shift);
     town.roads.iter_mut().for_each(|r| shift(&mut r.pts));
     town.blocks.iter_mut().for_each(|b| shift(&mut b.pts));
     town.lots.iter_mut().for_each(|l| shift(&mut l.pts));
@@ -532,6 +542,7 @@ pub fn lay(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -> Res
         warp: options.warp,
         density_pct: options.density_pct,
         loops: options.loops,
+        toggles: toggle_list(&options.toggles),
     };
     let mut events: Vec<PlatEvent> = Vec::new();
     let is_split = |group: &str| {
@@ -585,6 +596,7 @@ pub fn lay(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -> Res
         exclude: part.exclude.clone(),
         land_uses: options.land_uses.clone(),
         density_pct: options.density_pct,
+        members: derived.member_folders.clone(),
     };
     // A part's tree without the files its old towns hold; or, `whole`, with them and no shares (to judge its form).
     let tree_for = |plat: &Plat, cache: &mut Option<FoldCache>, part: &Part, whole: bool| -> Built {
@@ -616,7 +628,7 @@ pub fn lay(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -> Res
             .contains_key(&part.key)
             .then(|| tree_for(plat, cache, &part, true).tree);
         let previous = plat.root_forms.get(&part.key).copied();
-        let root_form = classify_node(whole.as_deref().unwrap_or(&built.tree), previous);
+        let root_form = classify_node(whole.as_deref().unwrap_or(&built.tree), previous, &layout.toggles);
         plat.root_forms.insert(part.key.clone(), root_form);
         let switched = previous.is_some_and(|p| root_form != p && !(p.is_flat() && root_form.is_flat()));
         if switched && let Some(before) = last.get(&part.key) {
@@ -804,6 +816,7 @@ mod tests {
     use crate::json::canonical_json;
     use crate::land_use::default_land_uses;
     use crate::testing::{files, snapshot_with, sources};
+    use crate::toggles::DEFAULT_TOGGLES;
 
     fn options() -> Options {
         Options {
@@ -814,6 +827,7 @@ mod tests {
             warp: false,
             loops: true,
             split: vec!["apps".into()],
+            toggles: DEFAULT_TOGGLES.to_vec(),
         }
     }
 
@@ -907,7 +921,8 @@ mod tests {
             (first.towns[0].form, grown.towns[0].form),
             (Form::Neighbourhood, Form::Neighbourhood)
         );
-        assert_eq!(codes(&events), ["plat/grow"]);
+        // 39 files pass the village threshold times 1.25: the town grows and moves up a tier.
+        assert_eq!(codes(&events), ["plat/grow", "plat/tier"]);
         for (lot, slot) in &slots {
             assert_eq!(state.plat.towns["demo"].grids[""].slots.get(lot), Some(slot));
         }
@@ -1012,13 +1027,31 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error.code, ErrorCode::PlatSettingMismatch);
+        let untoggled = Options {
+            toggles: vec![],
+            ..options()
+        };
+        let error = lay_city(
+            &at(0, &sources("", 3, 0)),
+            &mut initial_state(&untoggled, None, true),
+            &options(),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::PlatSettingMismatch);
+        let land = land_key(&default_land_uses());
+        assert_eq!(
+            setting_key(&options()),
+            format!("{land}|split:apps|toggles:corridor,tiers")
+        );
         assert_eq!(
             setting_key(&Options {
                 split: vec!["packages".into(), "apps".into()],
+                toggles: vec![Toggle::Quarters, Toggle::Archipelago],
                 ..options()
             }),
-            format!("{}|split:apps,packages", land_key(&default_land_uses()))
+            format!("{land}|split:apps,packages|toggles:archipelago,quarters")
         );
+        assert_eq!(setting_key(&untoggled), format!("{land}|split:apps|toggles:"));
     }
 
     #[test]

@@ -1,4 +1,5 @@
 //! The command line, parsed as `node:util` `parseArgs` parses it in strict mode, with the same options and messages.
+use citymap_ground_plan::toggles::{TOGGLES, Toggle, toggle_list};
 use citymap_ground_plan::town::context::Jog;
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
 use citymap_svg::Camera;
@@ -29,6 +30,8 @@ pub struct LayCommand {
     pub history: bool,
     /// Workspace groups whose members each become a town.
     pub split: Vec<String>,
+    /// The archetype toggles on, in their own order.
+    pub toggles: Vec<Toggle>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -52,6 +55,8 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --jog=<cuts>        off, top-level or all (default top-level)
   --split=<groups>    workspace groups whose members each become a town, comma-separated (default apps;
                       --split=apps,packages splits packages too; --split= splits none)
+  --toggles=<forms>   archetype toggles on, comma-separated: corridor, archipelago, quarters, tiers
+                      (default corridor,tiers; --toggles= turns all off)
   --no-warp           draw the plan without its organic warp
   --no-loops          leave dead ends unjoined (default: nearby dead ends are joined by lanes)
   --no-history        lay the tree at --to once, every file at once, without folding its history (no --lock)
@@ -59,7 +64,26 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --verbose           log every plan decision
   --help              show this help";
 
-const STRINGS: [&str; 8] = ["to", "out", "svg", "theme", "camera", "density", "jog", "split"];
+const STRINGS: [&str; 9] = [
+    "to", "out", "svg", "theme", "camera", "density", "jog", "split", "toggles",
+];
+
+/// The toggles a comma-separated list names, each one known.
+fn toggles_of(text: &str) -> Result<Vec<Toggle>> {
+    let mut toggles = Vec::new();
+    for name in text.split(',').filter(|n| !n.is_empty()) {
+        let Some(toggle) = Toggle::parse(name) else {
+            let names: Vec<&str> = TOGGLES.iter().map(|t| t.as_str()).collect();
+            let (last, rest) = names.split_last().expect("four toggles");
+            return Err(usage(format!(
+                "--toggles takes {} and {last}, not {name}",
+                rest.join(", ")
+            )));
+        };
+        toggles.push(toggle);
+    }
+    Ok(toggle_list(&toggles))
+}
 const BOOLEANS: [&str; 9] = [
     "lock",
     "verbose",
@@ -226,6 +250,7 @@ pub fn parse_command_line(argv: &[String]) -> Result<Command> {
             .filter(|g| !g.is_empty())
             .map(str::to_owned)
             .collect(),
+        toggles: toggles_of(&text("toggles", "corridor,tiers"))?,
     })))
 }
 
@@ -265,6 +290,7 @@ mod tests {
                 voronoi: false,
                 history: true,
                 split: vec!["apps".into()],
+                toggles: vec![Toggle::Corridor, Toggle::Tiers],
             }
         );
     }
@@ -288,6 +314,7 @@ mod tests {
             "--no-loops",
             "--voronoi",
             "--split=apps,packages",
+            "--toggles=tiers,archipelago",
         ]);
         assert_eq!(
             (command.to.as_str(), command.out.as_deref(), command.svg.as_deref()),
@@ -299,6 +326,8 @@ mod tests {
         assert_eq!((command.density_pct, command.jog), (70, Jog::All));
         assert_eq!(command.split, ["apps", "packages"]);
         assert_eq!(lay(&["repo", "--split="]).split, Vec::<String>::new());
+        assert_eq!(command.toggles, [Toggle::Archipelago, Toggle::Tiers]);
+        assert_eq!(lay(&["repo", "--toggles="]).toggles, []);
         assert!(!lay(&["repo", "--no-history"]).history);
     }
 
@@ -310,8 +339,12 @@ mod tests {
 
     #[test]
     fn rejects_bad_command_lines_by_name() {
-        let cases: [(&[&str], &str); 10] = [
+        let cases: [(&[&str], &str); 11] = [
             (&[], "cli/usage: name one repository"),
+            (
+                &["a", "--toggles=corridor,gridiron"],
+                "cli/usage: --toggles takes corridor, archipelago, quarters and tiers, not gridiron",
+            ),
             (&["a", "b"], "cli/usage: name one repository"),
             (&["a", "--theme=neon"], "cli/usage: --theme"),
             (&["a", "--camera=fish"], "cli/usage: --camera"),

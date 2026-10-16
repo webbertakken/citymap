@@ -52,6 +52,9 @@ pub struct Theme {
     pub plaza: String,
     pub water: String,
     pub waterline: String,
+    /// An archipelago's canals: a deeper, more saturated blue than the water, so no district tint matches them.
+    pub canal: String,
+    pub canalline: String,
     pub casing: String,
     pub road: String,
     pub text: String,
@@ -76,6 +79,9 @@ fn form_hue(form: Form) -> f64 {
     match form {
         Form::Radial => 55.0,
         Form::Twin => 235.0,
+        Form::Corridor => 95.0,
+        Form::Archipelago => 200.0,
+        Form::Quarters => 300.0,
         _ => 15.0,
     }
 }
@@ -84,6 +90,9 @@ fn form_accent(form: Form) -> &'static str {
     match form {
         Form::Radial => "#FFB86C",
         Form::Twin => "#8BE9FD",
+        Form::Corridor => "#F1FA8C",
+        Form::Archipelago => "#6272A4",
+        Form::Quarters => "#BD93F9",
         _ => "#FF79C6",
     }
 }
@@ -129,6 +138,8 @@ impl Theme {
                 plaza: s("#E9DFCB"),
                 water: s("#A9CCE3"),
                 waterline: s("#7FAFD0"),
+                canal: oklch(0.66, 0.1, 235.0),
+                canalline: oklch(0.52, 0.1, 235.0),
                 casing: s("#C3BBAC"),
                 road: s("#FFFFFF"),
                 text: s("#1E1E24"),
@@ -148,6 +159,8 @@ impl Theme {
                 plaza: s("#2A303A"),
                 water: s("#22384D"),
                 waterline: s("#34536F"),
+                canal: oklch(0.38, 0.1, 240.0),
+                canalline: oklch(0.5, 0.11, 240.0),
                 casing: s("#0D1117"),
                 road: s("#59606B"),
                 text: s("#ECEAE4"),
@@ -167,6 +180,8 @@ impl Theme {
                 plaza: s("#F7F7F2"),
                 water: s("#B9DCF2"),
                 waterline: s("#B9DCF2"),
+                canal: oklch(0.52, 0.14, 245.0),
+                canalline: oklch(0.4, 0.12, 245.0),
                 casing: s("#FFFFFF"),
                 road: s("#FFFFFF"),
                 text: s("#10141A"),
@@ -186,6 +201,8 @@ impl Theme {
                 plaza: s("#F4F1EA"),
                 water: s("#CFCBC2"),
                 waterline: s("#B3AEA4"),
+                canal: oklch(0.68, 0.04, 235.0),
+                canalline: oklch(0.55, 0.05, 235.0),
                 casing: s("#F4F1EA"),
                 road: s("#F4F1EA"),
                 text: s("#111111"),
@@ -205,6 +222,8 @@ impl Theme {
                 plaza: mix(DRACULA_BACKGROUND, DRACULA_FOREGROUND, 0.16),
                 water: mix(DRACULA_BACKGROUND, "#8BE9FD", 0.3),
                 waterline: mix(DRACULA_BACKGROUND, "#8BE9FD", 0.6),
+                canal: mix(DRACULA_BACKGROUND, "#8BE9FD", 0.5),
+                canalline: mix(DRACULA_BACKGROUND, "#8BE9FD", 0.8),
                 casing: s(DRACULA_DEEP),
                 road: s(DRACULA_LINE),
                 text: s(DRACULA_FOREGROUND),
@@ -307,6 +326,9 @@ mod parity {
         match name {
             "radial" => Form::Radial,
             "twin" => Form::Twin,
+            "corridor" => Form::Corridor,
+            "archipelago" => Form::Archipelago,
+            "quarters" => Form::Quarters,
             _ => Form::Polycentric,
         }
     }
@@ -328,6 +350,8 @@ mod parity {
                 "plaza" => theme.plaza.clone(),
                 "water" => theme.water.clone(),
                 "waterline" => theme.waterline.clone(),
+                "canal" => theme.canal.clone(),
+                "canalline" => theme.canalline.clone(),
                 "casing" => theme.casing.clone(),
                 "road" => theme.road.clone(),
                 "text" => theme.text.clone(),

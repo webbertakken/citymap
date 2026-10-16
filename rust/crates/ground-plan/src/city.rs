@@ -95,6 +95,9 @@ pub struct TownStats {
 #[serde(deny_unknown_fields)]
 pub struct Town {
     pub blocks: Vec<Block>,
+    /// An archipelago's canals, drawn deeper than water; written only when the town has any.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub canals: Vec<Vec<Pt>>,
     pub districts: Vec<District>,
     pub form: Form,
     pub key: String,
