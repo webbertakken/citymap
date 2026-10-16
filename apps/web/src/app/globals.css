@@ -203,17 +203,19 @@ button.icon-button:not(.glass) {
   font-weight: 700;
   letter-spacing: -0.01em;
 }
-.card-title h1 span,
-.card-title .status {
+.card-title h1 span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The status wraps and is never cut: two lines are held from the first paint, so wrapping moves nothing. */
 .card-title .status {
   margin: 4px 0 0;
-  min-height: 18px;
+  min-height: 36px;
   font-size: 13px;
+  line-height: 18px;
   color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }
 .crumbs ol {
   display: flex;
@@ -552,23 +554,46 @@ mark {
   color: var(--ink-soft);
 }
 .selection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px;
   background: var(--raised);
   border-radius: var(--radius-control);
 }
-.selection p {
-  margin: 2px 0;
-  font-size: 13px;
-  color: var(--ink-soft);
-  overflow-wrap: anywhere;
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
 }
-.selection .title {
-  font-size: 15px;
-  font-weight: 700;
+.action {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: var(--control);
+  padding: 0 12px;
+  font-size: 13px;
   color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-decoration: none;
+  background: var(--glass-solid);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--radius-control);
+  transition: background-color var(--motion);
+}
+.action:hover {
+  background: var(--hover);
+}
+.action svg {
+  flex: none;
+  color: var(--accent);
+}
+/* Two words in one place: the wider holds the width, so swapping them moves nothing. */
+.swap {
+  display: inline-grid;
+}
+.swap > span {
+  grid-area: 1 / 1;
 }
 .towns ul {
   margin: 0;
@@ -702,7 +727,7 @@ mark {
 /* Over the free map while something opens: centred in what the cards leave free, beneath the search and menus. */
 .loading-place {
   position: absolute;
-  inset: 100px calc(var(--drawer) + 2 * var(--gap)) 0 0;
+  inset: 118px calc(var(--drawer) + 2 * var(--gap)) 0 0;
   z-index: 10;
   display: grid;
   place-items: center;
@@ -829,49 +854,139 @@ mark {
   }
 }
 
-/* The card beside the pointer. */
+/* The card beside the pointer: as wide as its words, 280 to 360 px, and never wider than the map. */
 .hover-card {
   position: absolute;
   z-index: 20;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  width: 260px;
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--ink-soft);
+  gap: 8px;
+  width: max-content;
+  min-width: min(280px, calc(100% - 16px));
+  max-width: min(360px, calc(100% - 16px));
+  padding: 12px;
+  color: var(--ink);
   background: var(--glass-solid);
   border: 1px solid var(--glass-line);
   border-radius: var(--radius-control);
   box-shadow: var(--shadow);
   pointer-events: none;
 }
-.hover-card > * {
-  flex-shrink: 0;
-  overflow-wrap: anywhere;
+/* A card's body, on the hover card and in the drawer: head, meaning, facts. Every text wraps; none is cut. */
+.card-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
 }
-.hover-card strong {
-  font-size: 13px;
+.card-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: var(--accent);
+  background: var(--hover);
+  border-radius: 8px;
+}
+.card-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.card-eyebrow {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 20px;
   color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.card-place {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-soft);
+}
+.card-meaning {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink);
+}
+.card-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--glass-line);
+}
+.card-rows > div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 8px;
+}
+.card-rows dt {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink-soft);
+}
+.card-rows dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink);
+}
+.card-rows small {
+  display: block;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-soft);
+}
+.card-hint {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  padding-top: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--glass-line);
+}
+.card-hint svg {
+  flex: none;
+}
+.card-title,
+.card-place,
+.card-meaning,
+.card-rows dd,
+.card-hint {
+  overflow-wrap: anywhere;
 }
 
 /* Medium screens: the search narrows between the title and the controls. */
 @media (max-width: 1100px) {
   .search {
-    top: calc(var(--gap) + 76px + 8px);
+    top: calc(var(--gap) + 94px + 8px);
     left: var(--gap);
     /* Up to the drawer: the room left of it, less the gaps. */
     width: min(440px, calc(100vw - 3 * var(--gap) - var(--drawer)));
     transform: none;
   }
   .notice {
-    top: calc(var(--gap) + 76px + 8px + 48px + 8px);
+    top: calc(var(--gap) + 94px + 8px + 48px + 8px);
   }
   .loading-place {
-    top: 156px;
+    top: 174px;
   }
 }
 /* Phones: title and controls share the top row, the search sits below, the drawer is a sheet, closed at first. */
@@ -892,7 +1007,7 @@ mark {
     gap: 4px;
   }
   .search {
-    top: calc(var(--gap) + 68px + 8px);
+    top: calc(var(--gap) + 82px + 8px);
     right: var(--gap);
     left: var(--gap);
     width: auto;
@@ -901,11 +1016,11 @@ mark {
     display: none;
   }
   .notice {
-    top: calc(var(--gap) + 68px + 8px + 48px + 8px);
+    top: calc(var(--gap) + 82px + 8px + 48px + 8px);
   }
   .loading-place,
   .viewer:has(.drawer[data-open="false"]) .loading-place {
-    inset: 140px 0 64px;
+    inset: 154px 0 64px;
   }
   .viewer:has(.drawer[data-open="true"]) .loading-place {
     bottom: 50%;

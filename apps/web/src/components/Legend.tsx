@@ -1,5 +1,6 @@
 "use client";
 import type { Theme } from "@citymap/themes";
+import { LEGEND } from "../card/words";
 
 /** The tint seed used for the legend's sample folder: any district number shows a folder's two tints. */
 const SAMPLE_DISTRICT = 7;
@@ -13,15 +14,15 @@ export function Legend({ theme }: { readonly theme: Theme }) {
         <li>
           <span className="swatch" style={{ background: theme.lot(SAMPLE_DISTRICT, true) }} />
           <span className="swatch" style={{ background: theme.lot(SAMPLE_DISTRICT, false) }} />
-          A folder&apos;s files, source stronger
+          {LEGEND.lot}
         </li>
         <li>
           <span className="swatch" style={{ background: theme.park }} />
-          Park: documentation
+          {LEGEND.park}
         </li>
         <li>
           <span className="swatch" style={{ background: reserve, borderColor: reserveLine, borderStyle: "dashed" }} />
-          Room to grow, and deleted files&apos; lots
+          {LEGEND.reserve}
         </li>
       </ul>
     </section>

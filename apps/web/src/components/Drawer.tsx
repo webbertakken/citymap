@@ -3,7 +3,10 @@ import type { City } from "@citymap/ground-plan";
 import type { Hit } from "@citymap/scene";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useId, useState } from "react";
-import { describeHit } from "../view/hover";
+import { describeHit } from "../card/describe";
+import type { GitHubSource } from "../card/github";
+import { Actions } from "./Actions";
+import { CardBody } from "./CardBody";
 
 /** The towns listed before "Show all": the largest by lots. */
 export const TOWNS_SHOWN = 7;
@@ -19,13 +22,17 @@ export interface DrawerProps {
   readonly open: boolean | null;
   readonly onOpen: (open: boolean) => void;
   readonly onDrill: (key: string) => void;
+  /** The repository and commit the city was laid from, when it came from GitHub. */
+  readonly github: GitHubSource | null;
+  /** Says a failure of an action to the person. */
+  readonly onFailure: (message: string) => void;
 }
 
 /** Right: what is selected, then the towns. Closes to a button; on a phone it is a sheet, closed at first. */
-export function Drawer({ city, settled, selected, focused, open, onOpen, onDrill }: DrawerProps) {
+export function Drawer({ city, settled, selected, focused, open, onOpen, onDrill, github, onFailure }: DrawerProps) {
   const [all, setAll] = useState(false);
   const hint = useId();
-  const details = selected ? describeHit(selected) : null;
+  const card = selected ? describeHit(selected) : null;
   const towns = (city?.towns ?? []).toSorted((a, b) => b.stats.lots - a.stats.lots);
   const shown = all ? towns : towns.slice(0, TOWNS_SHOWN);
   const state = open === null ? "auto" : String(open);
@@ -56,24 +63,19 @@ export function Drawer({ city, settled, selected, focused, open, onOpen, onDrill
         </button>
         <section className="selected" aria-label="Selected" aria-live="polite">
           <h2>Selected</h2>
-          {details ? (
+          {selected && card ? (
             <div className="selection">
-              <p className="title" title={details.title}>
-                {details.title}
-              </p>
-              {details.lines.map((line) => (
-                <p key={line}>{line}</p>
-              ))}
-              {!focused && selected?.townKey != null && (
-                <button
-                  type="button"
-                  className="text-button"
-                  aria-label={`Show only this town: ${selected.town!}`}
-                  onClick={() => onDrill(selected.townKey!)}
-                >
-                  Show only this town
-                </button>
-              )}
+              <CardBody card={card} titleAs="h3" />
+              <Actions
+                // A new selection starts with its own, uncopied, actions.
+                key={`${card.kind}:${card.title}:${card.place.join("/")}`}
+                hit={selected}
+                card={card}
+                focused={focused}
+                github={github}
+                onDrill={onDrill}
+                onFailure={onFailure}
+              />
             </div>
           ) : (
             <p className="hint">Nothing yet. Click the map or search to select; Escape clears it.</p>

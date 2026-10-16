@@ -412,10 +412,15 @@ One description of a hit feeds the hover card and the drawer's selection, so bot
   - `TOWN_FORM` (a town's meaning): hamlet "A hamlet: a few blocks round a green." street-village "A street village:
     blocks along one high street." neighbourhood "A single neighbourhood: one grid of blocks." radial "A radial town:
     districts round a centre." twin "A twin town: two halves facing each other across a river." polycentric "A
-    polycentric town: districts side by side between roads."
+    polycentric town: districts side by side between roads." corridor "A corridor: a road through a small edge quarter
+    leads to the one folder that holds nearly everything." archipelago "An archipelago: each package an island, with
+    canals and bridges between them." quarters "A town of quarters: many small folders gathered into tidy quarters of
+    straight streets."
   - `LAYOUT` (a folder's "Layout" row): hamlet "A hamlet round a green"; street-village "A street village along a high
     street"; neighbourhood "One grid of blocks"; radial "Its folders round a centre"; twin "Two halves across a river";
-    polycentric "Its folders side by side between roads".
+    polycentric "Its folders side by side between roads"; corridor "A gateway through to the folder that holds nearly
+    all of it"; archipelago "Its packages as islands between canals"; quarters "Its small folders gathered into
+    quarters".
   - `OLD`: "Kept whole as it stood before its layout changed; the new town grows beside it."
 - Address in words (`addressWords(address)`): the address `{folder}:{row}.{block}.{side}.{index}` reads "No. {index + 1}
   on {folder}" ("the top folder" when the folder is empty; `#lots` dropped), with the note "Block {row}.{block}, side

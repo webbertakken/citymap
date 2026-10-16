@@ -41,7 +41,9 @@ describe("Viewer", () => {
     expect(await screen.findByText("1 towns · 1 lots")).toBeTruthy();
     expect(towns()).toEqual(["alpha"]);
     expect(screen.getByRole("application", { name: /Map of alpha/ })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Legend" }).textContent).toContain("Park: documentation");
+    expect(screen.getByRole("region", { name: "Legend" }).textContent).toContain(
+      "Park: land for a folder's documentation",
+    );
   });
 
   it("switches city from More and theme from its menu, and shows plan view only", async () => {
@@ -318,7 +320,9 @@ describe("Viewer hover and select", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
-  it("keeps the card on the map beside the pointer, flipping at the far edges", async () => {
+  it("places the card by its measured size beside the pointer, flipping at the far edges", async () => {
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(300);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(200);
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     const map = await screen.findByRole("application");
     // Without the drawer the town sits near the map's middle; close up, the whole map is town.
@@ -326,8 +330,8 @@ describe("Viewer hover and select", () => {
     for (let i = 0; i < 12; i++) fireEvent.keyDown(map, { key: "+" });
     fireEvent.pointerMove(map, { pointerId: 1, clientX: 790, clientY: 590 });
     const card = screen.getByRole("tooltip");
-    expect(card.style.left).toBe(`${790 - 16 - 260}px`);
-    expect(card.style.top).toBe(`${590 - 16 - 96}px`);
+    expect(card.style.left).toBe(`${790 - 16 - 300}px`);
+    expect(card.style.top).toBe(`${590 - 16 - 200}px`);
     fireEvent.pointerMove(map, { pointerId: 1, clientX: 10, clientY: 10 });
     expect(screen.getByRole("tooltip").style.left).toBe("26px");
   });
@@ -362,7 +366,8 @@ describe("Viewer drill down", () => {
     fireEvent.pointerDown(map, { pointerId: 1, clientX: lot.x, clientY: lot.y });
     fireEvent.pointerUp(map, { pointerId: 1, clientX: lot.x, clientY: lot.y });
     const selected = screen.getByRole("region", { name: "Selected" });
-    expect(selected.textContent).toContain("apps/web/page.tsx");
+    expect(within(selected).getByRole("heading", { level: 3 }).textContent).toBe("page.tsx");
+    expect(selected.textContent).toContain("In apps/web");
     fireEvent.click(within(selected).getByRole("button", { name: "Show only this town: apps/web" }));
     expect(towns()).toEqual(["apps/web"]);
     expect(selected.textContent).toContain("Nothing yet");
@@ -370,7 +375,7 @@ describe("Viewer drill down", () => {
     const again = project(currentView(), viewport, { x: 12896 / 64, y: 0.15, z: -32 / 64 });
     fireEvent.pointerDown(map, { pointerId: 1, clientX: again.x, clientY: again.y });
     fireEvent.pointerUp(map, { pointerId: 1, clientX: again.x, clientY: again.y });
-    expect(selected.textContent).toContain("apps/web/page.tsx");
+    expect(within(selected).getByRole("heading", { level: 3 }).textContent).toBe("page.tsx");
     expect(screen.queryByRole("button", { name: /^Show only this town/ })).toBeNull();
     fireEvent.keyDown(map, { key: "Escape" });
     expect(selected.textContent).toContain("Nothing yet");

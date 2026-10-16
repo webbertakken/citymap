@@ -2,8 +2,9 @@
 import type { Hit, PickIndex, Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
 import { useEffectEvent, useLayoutEffect, useRef, useState, type ComponentType } from "react";
-import { describeHit, hitAt } from "../view/hover";
+import { hitAt } from "../view/hover";
 import { NO_INSETS, declutter, onKey, pan, project, type Insets, type View, type Viewport } from "../view/view";
+import { HoverCard } from "./HoverCard";
 
 /** What the WebGL canvas draws: the scene's layers from the view, filling its parent. */
 export interface CanvasProps {
@@ -23,6 +24,10 @@ export interface MapViewProps {
   /** A place to mark on the map (scene units), or null. */
   readonly marker?: { readonly x: number; readonly z: number } | null;
   readonly theme: Theme;
+  /** One town is shown alone; the hover card's hint then offers no town. */
+  readonly focused?: boolean;
+  /** The city came from GitHub; the hover card's hint offers opening a file or folder there. */
+  readonly github?: boolean;
   readonly Canvas: ComponentType<CanvasProps>;
   readonly onSelect: (hit: Hit | null) => void;
   readonly onEscape: () => void;
@@ -35,14 +40,12 @@ const sizeOf = (element: HTMLElement): Viewport => ({
   height: element.clientHeight || 600,
 });
 
-/** The map: keyboard, drag, wheel and pinch drive the view; labels are HTML over the canvas. */
-/** The card's size and its gap from the pointer, in pixels, to keep it beside the pointer and on the map. */
-const CARD = { width: 260, height: 96, gap: 16 };
 /** A press that moves less than this many pixels is a click or a tap. */
 const CLICK_SLOP = 4;
 /** One wheel step zooms by this factor. */
 const WHEEL_ZOOM = 1.1;
 
+/** The map: keyboard, drag, wheel and pinch drive the view; labels are HTML over the canvas. */
 export function MapView({
   name,
   scene,
@@ -51,6 +54,8 @@ export function MapView({
   insets = NO_INSETS,
   marker = null,
   theme,
+  focused = false,
+  github = false,
   Canvas,
   onView,
   onViewport,
@@ -157,16 +162,6 @@ export function MapView({
 
   const labels = declutter(scene.labels, view, viewport);
   const mark = marker ? project(view, viewport, { x: marker.x, y: 0, z: marker.z }) : null;
-  const card = hover ? describeHit(hover.hit) : null;
-  // Beside the pointer, flipped to the other side near the map's edges, so it never covers the pointer.
-  const cardLeft =
-    hover && hover.x + CARD.gap + CARD.width > viewport.width
-      ? hover.x - CARD.gap - CARD.width
-      : (hover?.x ?? 0) + CARD.gap;
-  const cardTop =
-    hover && hover.y + CARD.gap + CARD.height > viewport.height
-      ? hover.y - CARD.gap - CARD.height
-      : (hover?.y ?? 0) + CARD.gap;
   return (
     <div
       ref={box}
@@ -193,14 +188,7 @@ export function MapView({
         ))}
       </div>
       {mark && <span className="marker" aria-hidden="true" style={{ left: mark.x, top: mark.y }} />}
-      {card && (
-        <div className="hover-card" role="tooltip" style={{ left: cardLeft, top: cardTop }}>
-          <strong>{card.title}</strong>
-          {card.lines.map((line) => (
-            <span key={line}>{line}</span>
-          ))}
-        </div>
-      )}
+      {hover && <HoverCard hit={hover.hit} pointer={hover} map={viewport} focused={focused} github={github} />}
     </div>
   );
 }

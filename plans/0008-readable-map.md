@@ -21,23 +21,23 @@ Plan view only, hover cards that say what things are and never cut their text, a
 
 ## Phase 3: what a hit knows
 
-- [ ] `Hit` gains what the cards need: the lot's folder path and its file count, a park's folder and its documents, a
+- [x] `Hit` gains what the cards need: the lot's folder path and its file count, a park's folder and its documents, a
       highway's towns, a town's form, lots and districts (tests first, in `packages/scene`)
-- [ ] Pick index budget held: next.js about 8,000 lots indexes in under 50 ms, linux about 75,000 in under 500 ms
+- [x] Pick index budget held: next.js about 8,000 lots indexes in under 50 ms, linux about 75,000 in under 500 ms
 
 ## Phase 4: the card
 
-- [ ] `describeHit` returns a title, an icon, a place line and labelled rows, no repeats (tests first, one per kind,
+- [x] `describeHit` returns a title, an icon, a place line and labelled rows, no repeats (tests first, one per kind,
       including the park of a folder named "Documentation")
-- [ ] `HoverCard`: 280 to 360 px, wraps every text, paths break after slashes; placed by its measured size, flipped and
+- [x] `HoverCard`: 280 to 360 px, wraps every text, paths break after slashes; placed by its measured size, flipped and
       nudged inside the map; never under the pointer (tests for long paths at every edge)
-- [ ] Drawer's "Selected" uses the same rows, plus "Copy path" and "Open on GitHub" for a city from GitHub
-- [ ] Legend in the same words
-- [ ] Title card status wraps to two lines, never truncated
+- [x] Drawer's "Selected" uses the same rows, plus "Copy path" and "Open on GitHub" for a city from GitHub
+- [x] Legend in the same words
+- [x] Title card status wraps to two lines, never truncated
 
 ## Phase 5: names
 
-- [ ] `declutter`'s repeat rule compares names without regard to case (test: `NET` then `net` within reach)
+- [x] `declutter`'s repeat rule compares names without regard to case (test: `NET` then `net` within reach)
 
 ## Phase 6: proof
 

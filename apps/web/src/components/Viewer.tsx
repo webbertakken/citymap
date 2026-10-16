@@ -1,6 +1,6 @@
 "use client";
 import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } from "@citymap/ground-plan";
-import { buildScene, pick, pickIndex, type Hit, type Scene } from "@citymap/scene";
+import { buildScene, folderHit, pick, pickIndex, type Hit, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import {
   useCallback,
@@ -12,6 +12,7 @@ import {
   useSyncExternalStore,
   type ComponentType,
 } from "react";
+import type { GitHubSource } from "../card/github";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
 import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
@@ -106,6 +107,12 @@ export const focusOn = (city: City, key: string): City => ({
   towns: city.towns.filter((t) => t.key === key),
   highways: [],
 });
+
+/** A GitHub repository, named "owner/name", at a commit. */
+const sourceOf = (name: string, commit: string): GitHubSource => {
+  const slash = name.indexOf("/");
+  return { owner: name.slice(0, slash), name: name.slice(slash + 1), commit };
+};
 
 /** The viewer: one city at a time, its theme, its view and its layout toggles. */
 export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "", folders }: ViewerProps) {
@@ -209,9 +216,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     const from = leaving ? whole : view;
     flyView(from, flyTo(viewport, entry, whole, insets));
     const hit: Hit | null =
-      entry.kind === "file"
-        ? pick(picking, entry.x, entry.z)
-        : { kind: "district", town: entry.town, townKey: entry.townKey, district: entry.name };
+      entry.kind === "file" ? pick(picking, entry.x, entry.z) : folderHit(picking, entry.townKey, entry.path);
     setPickedHit(hit);
     setMarker({ x: entry.x, z: entry.z });
   };
@@ -394,6 +399,8 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
       document.removeEventListener("drop", drop);
     };
   }, []);
+  // The repository and commit a city laid from GitHub came from, so its files and folders can be opened there.
+  const source = origin?.kind === "live" && origin.via === "github" && city ? sourceOf(origin.name, city.commit) : null;
   const colours = THEMES[theme];
   // While something opens, the status names it and its phase; the last city's status comes back if it is cancelled.
   const statusLine = loading.progress ? loadingStatus(loading.progress) : status;
@@ -426,6 +433,8 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
           insets={insets}
           marker={marker}
           theme={colours}
+          focused={focus !== null}
+          github={source !== null}
           Canvas={Canvas}
           onView={settle}
           onViewport={setViewport}
@@ -474,6 +483,8 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
           setDrawer(next);
         }}
         onDrill={drill}
+        github={source}
+        onFailure={setError}
       />
       {scene && (
         <ZoomControls
