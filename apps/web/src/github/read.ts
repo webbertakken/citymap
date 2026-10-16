@@ -2,7 +2,7 @@
 // root workspace manifests, as the snapshot the CLI's `--no-history` would lay.
 import { CitymapError, compareKeys, stateSnapshot, type Snapshot } from "@citymap/ground-plan";
 import { isManifest, patternsOf, resolveWorkspaces, type Patterns } from "@citymap/history/manifests";
-import type { OnStep } from "../load/step";
+import type { Step } from "../load/step";
 import type { Repository } from "./repository";
 
 export type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
@@ -45,11 +45,14 @@ async function inBatches<T, R>(items: readonly T[], task: (item: T) => Promise<R
   return [...now, ...(await inBatches(items.slice(IN_FLIGHT), task))];
 }
 
+/** A step of a read, which always counts its API requests so far. */
+export type ReadStep = Step & { readonly requests: number };
+
 export interface ReadOptions {
   /** Aborts every request, and the read, with the signal's reason. */
   readonly signal?: AbortSignal;
   /** Hears the read's progress: the commit, folders read of folders known, and the manifests. */
-  readonly onStep?: OnStep;
+  readonly onStep?: (step: ReadStep) => void;
 }
 
 /** Reads a repository's tree at its default branch, telling how far it has come as it goes. */

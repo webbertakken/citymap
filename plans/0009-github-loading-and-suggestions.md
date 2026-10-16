@@ -26,10 +26,10 @@ A progress card over the map while anything loads, and repository suggestions af
 
 - [x] `progress.ts`: the pure model (phase, fraction that never falls, counts in words, time spent, estimate once
       steady), tests first
-- [ ] `LoadingCard`: over the free map, after 300 ms, at least 400 ms once shown, the last city dimmed beneath;
+- [x] `LoadingCard`: over the free map, after 300 ms, at least 400 ms once shown, the last city dimmed beneath;
       `progressbar` with value and phase as text, phase changes announced; sweep, still under reduced motion
-- [ ] Cancel and Escape abort requests and end the worker; the last city stays (tests)
-- [ ] Logs: `viewer/load-phase`, `viewer/load-cancelled`, `viewer/load-done ms`
+- [x] Cancel and Escape abort requests and end the worker; the last city stays (tests)
+- [x] Logs: `viewer/load-phase`, `viewer/load-cancelled`, `viewer/load-done ms`
 
 ## Phase 4: repository suggestions
 

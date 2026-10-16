@@ -38,7 +38,7 @@ describe("Viewer", () => {
   it("opens the first bundled city and lists its towns", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     expect(await screen.findByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
-    expect(screen.getByText("1 towns · 1 lots")).toBeTruthy();
+    expect(await screen.findByText("1 towns · 1 lots")).toBeTruthy();
     expect(towns()).toEqual(["alpha"]);
     expect(screen.getByRole("application", { name: /Map of alpha/ })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Legend" }).textContent).toContain("Park: documentation");
@@ -174,7 +174,7 @@ describe("Viewer", () => {
     const slow = async (url: string) =>
       url === "/cities/index.json" ? fetcher(url) : new Promise<Response>((done) => (arrive = done));
     render(<Viewer Canvas={StubCanvas} fetcher={slow} />);
-    expect(await screen.findByText("alpha: laying out…")).toBeTruthy();
+    expect(await screen.findByText("alpha: downloading…")).toBeTruthy();
     expect(screen.queryByText(/No city yet/)).toBeNull();
     await act(async () => arrive!(await fetcher("/cities/alpha.json")));
     expect(await screen.findByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
@@ -409,16 +409,26 @@ describe("Viewer log", () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
-    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    await screen.findByText("1 towns · 1 lots");
     fireEvent.change(screen.getByLabelText("City file"), { target: { files: [new File(["{"], "bad.json")] } });
     await screen.findByRole("alert");
     fireEvent.click(townButton("alpha"));
     fireEvent.click(screen.getByRole("navigation", { name: "Breadcrumb" }).querySelector("button")!);
-    expect(info.mock.calls.map(([line]) => line)).toEqual([
+    const lines = info.mock.calls.map(([line]) => String(line));
+    expect(lines.filter((l) => !l.startsWith("viewer/load-"))).toEqual([
       "viewer/index cities=2",
       "viewer/open name=alpha towns=1 lots=1",
       "viewer/town key=alpha",
       "viewer/city",
+    ]);
+    // Each load logs its phases and its end; the bad file failed, so it ends in the error instead.
+    expect(lines.filter((l) => l.startsWith("viewer/load-")).map((l) => l.replace(/ ms=\d+$/, ""))).toEqual([
+      "viewer/load-phase source=bundled name=alpha phase=download",
+      "viewer/load-phase source=bundled name=alpha phase=parse",
+      "viewer/load-phase source=bundled name=alpha phase=draw",
+      "viewer/load-done source=bundled name=alpha",
+      "viewer/load-phase source=file name=bad.json phase=download",
+      "viewer/load-phase source=file name=bad.json phase=parse",
     ]);
     expect(error.mock.calls.map(([line]) => line)).toEqual(["viewer/file-rejected file=bad.json reason=city/bad-json"]);
   });
