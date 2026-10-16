@@ -17,14 +17,48 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
 
 ## Layout
 
-- The map fills the page. A slim bar runs along the top: the city's name, the city picker, the repository field, the
-  open-file button, the view switch and the theme picker.
-- A panel lists the towns and their largest districts, with lot counts; on a phone it folds behind a button.
-- Empty state: no city loaded shows a short line on how to make one (`citymap <repository> --out=city.json`) and the
-  open-file button.
-- Loading state: the bar shows the city's name with "laying out…" until the scene is drawn.
-- Error state: a file that is not a city says so in one sentence with the reason (the parser's message), and the last
-  good city stays on screen.
+The map fills the whole page; every control floats over it on translucent ("glass") cards at the edges, so the centre
+stays clear for the city.
+
+- **Top left, the title card**: the city's name, a line of status (towns, lots, how it was laid), and the breadcrumb
+  when one town is shown.
+- **Top centre, the search box**: finds folders and files of the city shown, and lays a GitHub repository when the text
+  is `owner/name` or a GitHub URL. `/` puts the cursor in it from anywhere.
+- **Top right, three controls**: the view switch (Plan, 3D), the theme menu, and More (the bundled cities, opening a
+  city file).
+- **Right, the drawer**: what is selected, then the towns (seven, then "Show all"), each with "Show only this town". It
+  can be closed to give the map the whole page. On a phone it becomes a sheet at the bottom, closed at first.
+- **Bottom right, zoom**: in, out, and fit.
+- **Bottom left, the legend**: what the colours mean.
+- Empty state: no city loaded says how to make one (`citymap <repository> --out=city.json`) or to type a repository.
+- Loading state: the status line says what is happening ("reading the tree…", "laying out…").
+- Error state: one sentence in a notice that floats above the map and never moves anything; the last good city stays.
+
+## Search
+
+- Typing two or more characters lists matches as they are typed: folders first, then files, each with its path, the
+  matched text marked. At most seven show; a line says how many more there are.
+- A GitHub repository typed as `owner/name` or its URL is offered as the first choice: "Lay owner/name from GitHub".
+- Arrow keys move through the list, Enter picks, Escape closes it. Picking a folder or a file flies the map to it,
+  selects it and shows it in the drawer.
+
+## Light and dark
+
+- The interface follows the system's colour scheme, and changes with it: light glass on light, dark glass on dark.
+- The map's theme starts from the same preference (Paper atlas on light, Night atlas on dark) and can be changed in the
+  theme menu, independently of the interface.
+
+## Design rules
+
+Every control meets measurable rules:
+
+- Targets at least 48 by 48 px on touch screens and 32 by 32 px for a pointer, 8 px apart.
+- At most seven choices visible at once; more sit behind "More" or "Show all".
+- Spacing on a 4 px grid (4, 8, 12, 16, 24, 32, 48).
+- Feedback within 100 ms of input; transitions 150 to 400 ms; none under reduced motion.
+- No layout shift: notices float, controls keep their box.
+- Layers, bottom to top: the map, its labels, the cards and controls, menus and the hover card, notices.
+- Fonts and icons are self-hosted; nothing loads from a third party but GitHub's API.
 
 ## A GitHub repository, live
 
@@ -45,7 +79,8 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
 - The camera is orthographic. Plan, the default: straight down. Dimetric: 30° elevation, 45° yaw. Switching keeps the
   centre and the zoom.
 - Pan by dragging or the arrow keys; zoom by the wheel, a pinch, or `+` and `-`; `0` fits the city to the window.
-- Town names and the largest district names float over the map as text, never as images, and never overlap.
+- Town names and the largest district names float over the map as text, never as images, and never overlap. A name shown
+  once is not repeated nearby, and smaller names appear only as the map is zoomed in far enough to read them.
 - Styles are the five themes of the ground plan; the viewer and the SVG export share their colours.
 
 ## Drill down
