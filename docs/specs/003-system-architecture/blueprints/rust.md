@@ -194,6 +194,8 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
 - `args.rs` parses the command line by hand, as `node:util` `parseArgs` does in strict mode: `--name=value` or
   `--name value` for string options, bare booleans (a value is an error), positionals anywhere, `--` ends options.
   Messages and the usage text are the TypeScript ones.
+- `--toggles=<list>` names the archetype toggles on, as the TypeScript CLI does: `corridor,tiers` by default, empty for
+  none, an unknown name `cli/usage` with the TypeScript message.
 - `run.rs` takes an `Io` trait (read file, write file, log, clock) as `Io` is injected in TypeScript.
 - Exit codes: 0 success, 2 usage (with the usage on standard error), 1 any other failure. The summary line is
   `fold/done repository=… commits=… laid=… lots=… overflow=… ms=…`.
@@ -211,6 +213,8 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   one the uninterrupted fold could have saved. The CLIs' resumed outputs are compared with each other, and each CLI's
   city, SVG and lock with its own `fold` outputs: `parity/resumed repo=… saved=… same` or
   `parity/resume-differs repo=… saved=… files=<side>:<file>,…` (exit 1).
+- `--toggles=<list>` passes the same flag to both CLIs, so one run proves one toggle setting: the defaults (no flag),
+  each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`).
 - One line per run: `parity/same repo=… mode=… ts-ms=… rs-ms=…` or `parity/differs repo=… mode=… files=… …` (exit 1),
   the second followed by `parity/kept repo=… dir=…` where every mode's outputs for the repository stay; a missing
   repository is `parity/skipped reason=no-repository`. The run ends with a Markdown table of outputs and timings.

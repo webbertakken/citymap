@@ -138,6 +138,7 @@ fingerprint is the first token:
 | `plat/grow`                    | a town's outline grows (key, from, to)                               |
 | `plat/old-town`                | an archetype switch freezes an old town (key, from, to, lots)        |
 | `plat/forget`                  | remembered records are dropped (key, count)                          |
+| `plat/tier`, `plat/gateway`, … | the toggles' decisions: [toggles](toggles.md) § Observability        |
 | `town/overflow`                | lots without room (key, count)                                       |
 | `history/skip-submodule`       | a submodule entry is skipped (path)                                  |
 | `history/manifest-unavailable` | a root manifest blob cannot be read (path, index)                    |

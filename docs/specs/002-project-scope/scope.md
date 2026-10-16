@@ -9,7 +9,8 @@ The first deliverable is the **ground plan**: the city without buildings, as def
 - **Ground plan**: districts, streets, blocks, lots, islands, water, parks and plazas, derived deterministically.
 - **Stability**: the plan is folded over history, recent commits one by one and older ones in windows, so each step
   changes the city only where its commits changed the tree.
-- **Archetypes**: each folder picks an urban form and a tier from its shape, with hysteresis.
+- **Archetypes**: each folder picks an urban form and a tier from its shape, with hysteresis; four of them (corridor,
+  archipelago, quarters and tiers) are toggles, a setting each, switched in the viewer between precomputed variants.
 - **Rendering**: one 3D scene in Three.js with an orthographic camera (plan view by default, 2:1 dimetric on demand) in
   the Paper atlas style, plus SVG export from the same model. Themes: Paper atlas, Night atlas, Beck schematic, Nolli
   noir and Dracula. Desktop and phones.

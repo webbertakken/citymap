@@ -60,6 +60,8 @@ interface TreeNode {
   readonly children: readonly TreeNode[]; // by compareKeys(path)
   readonly massMille: number; // Σ own WEIGHT_MILLE + Σ children
   readonly demand: number; // land in fixed units², see Land
+  readonly member: boolean; // it, or a folder of its collapsed chain, is a workspace member
+  readonly sourceMille: number; // mass of its subtree's source files
 }
 interface LotSeed {
   readonly key: string;
@@ -87,7 +89,7 @@ interface LotSeed {
 ```ts
 interface Plat {
   readonly version: 1;
-  readonly setting: string; // landKey(uses) + "|split:" + the split groups, sorted and comma-joined
+  readonly setting: string; // landKey(uses) + "|split:" + groups, sorted, comma-joined + "|toggles:" + toggles
   towns: Record<string, TownPlat>; // key: repository name, or `${name}/${group}`
   old: Record<string, OldTown[]>;
   rootForms: Record<string, Form>;
@@ -103,6 +105,9 @@ interface TownPlat {
   forms: Record<string, Form>;
   radial: Record<string, RadialRecord>;
   addresses: Record<string, string>;
+  tier?: Tier; // with tiers on
+  islands?: Record<string, string[][]>; // an archipelago's islands, per folder
+  quarters?: Record<string, string[][]>; // a folder's quarters
 }
 interface CutRecord {
   n: Dir;
@@ -112,7 +117,9 @@ interface CutRecord {
   right: string[];
   capLeft: number;
   capRight: number;
+  row?: RoadClass;
   river?: true;
+  canal?: true;
 }
 interface RadialRecord {
   core: string;
@@ -171,6 +178,7 @@ interface Town {
   old: boolean;
   outline: Pt[];
   water: Pt[][];
+  canals?: Pt[][]; // an archipelago's canals, when there are any
   roads: Road[];
   blocks: Block[];
   lots: Lot[];

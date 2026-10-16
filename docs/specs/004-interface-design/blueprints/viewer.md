@@ -36,8 +36,10 @@ in `BufferGeometry`.
 
 ## App (`apps/web`)
 
-- Next.js App Router, `output: "export"`, one page. Bundled cities live in `public/cities/*.json` with an index
-  `public/cities/index.json` (`[{ name, file, lots }]`), produced by `scripts/bundle-cities.ts` from CLI output.
+- Next.js App Router, `output: "export"`, one page. Bundled cities live in `public/cities/<name>/<variant>.json`, one
+  per combination of toggles, with an index `public/cities/index.json`
+  (`[{ name, variants: [{ toggles, file, lots }] }]`, sixteen variants per city), produced by `scripts/bundle-cities.ts`
+  (Layout toggles, below).
 - Components: `Viewer` (state: city, theme, view), the floating atlas's cards (below), `CityCanvas` (react-three-fiber
   `Canvas` with an `OrthographicCamera`, one `mesh` per layer with vertex colours); labels are HTML over the canvas,
   placed by `MapView`).
@@ -78,8 +80,9 @@ in `BufferGeometry`.
   (detail `reset`, the epoch second from `x-ratelimit-reset`); any other failure status `github/failed` (detail
   `status`); a fetch that throws `github/offline`.
 - Laying: `lay.worker.ts` (a module Web Worker) receives the snapshot (its map as entries) and returns
-  `layCity(snapshot, initialState(OPTIONS), OPTIONS).city` with the CLI's default options; `Viewer` takes a `lay`
-  function (the worker by default, a direct call in tests).
+  `layCity(snapshot, initialState(options), options).city` with the CLI's default options and the chosen toggles
+  (`liveOptions(toggles)`); the message is `{ snapshot, toggles }`. `Viewer` takes a `lay` function (the worker by
+  default, a direct call in tests).
 - A repository is laid from the search box (below). The status reads "{name}: reading the tree… ({n} requests)", then
   "{name}: laying out…", then "{towns} towns · {lots} lots · single state, not folded". On success the address becomes
   `?repo=owner/name` (`history.replaceState`); on load, a `repo` parameter is laid instead of the first bundled city.
@@ -161,6 +164,33 @@ phone), so nothing the cards do moves the map or each other.
   4, 8, 12, 16, 24, 32, 48 px. Layers (`z-index`): map 0, marker 1, labels 2, cards 10, the search, the controls'
   popovers and the hover card 20, notices 30. Transitions 150 ms, none under reduced motion.
 
+## Layout toggles
+
+- `ViewControls` gains the settings cog between Theme and More: a `Popover` labelled "Layout" (icon `Settings`), whose
+  panel is `Toggles` (`components/Toggles.tsx`): a `<fieldset>`, legend "City layout", of four
+  `<input type="checkbox" role="switch">` in `TOGGLES` order, each in a `<label>` with its name ("Corridor",
+  "Archipelago", "Quarters", "Tiers") and a `role="tooltip"` element (`TOOLTIPS`, the spec's text word for word) that is
+  its `aria-describedby`. The popover is `TOOLTIP_WIDTH` 280 px wide, so the tooltip sits beside the switch, to the left
+  of the panel on a wide screen and beneath the row on a phone.
+- A tooltip shows while its row is hovered (the row holds the tooltip, so the pointer can rest on it) or its switch has
+  focus (`:focus-visible`), and hides on Escape: the first Escape while one shows hides it and stops there; the next
+  closes the popover. A switch never closes the popover.
+- `Viewer` holds `toggles` (`DEFAULT_TOGGLES` at start; not remembered). A change re-opens what is shown in the new
+  variant: a bundled city loads `variantOf(entry, toggles)` (status "{name}: loading…"); a live repository is laid again
+  from its kept snapshot (status "{name}: laying out…"); a city file disables the fieldset and shows "A city file keeps
+  the layout it was laid with." The view stays where it was unless the city's towns change (`fitted` holds).
+- `cities.ts`: `CityEntry { name, variants }`, each variant `{ toggles, file, lots }`; `isEntry` checks sixteen distinct
+  variants whose toggles are known, files `^[\w.-]+/[\w.-]+\.json$`; `variantOf(entry, toggles)` finds the variant with
+  exactly those toggles. "More" lists each city with the lots of the variant the toggles name.
+- Logs: `viewer/toggles on` (the list, `none` when empty) on every change; `viewer/variant-failed name reason` when a
+  variant cannot load (also a notice; the last city stays).
+- `scripts/bundle-cities.ts` lays every combination (`combinations()` in `scripts/bundle/bundle.ts`, the sixteen subsets
+  of `TOGGLES` in binary order) of each public city from `~/.cache/citymap/repos/<name>` with the Rust CLI
+  (`rust/target/release/citymap <repo> --toggles=<list> --out=…`, a full fold, no lock), into
+  `public/cities/<name>/<variant>.json`, where `variantName(toggles)` joins the toggles with `-`, or is `none`; then
+  writes the index. One line per lay: `bundle/laid name variant lots bytes ms`; at the end
+  `bundle/done cities variants bytes gzip`.
+
 ## Labels
 
 - `Label` carries `extent`: the scene-unit width of the town's or district's bounding box (the smaller side).
@@ -183,8 +213,8 @@ phone), so nothing the cards do moves the map or each other.
 Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_SHARE`, `KEY_ZOOM`, `FIT_SHARE`,
 `LABEL_FIT`, `REPEAT_PX` (in `view/view.ts`), `FLY_SHARE`, `FLY_MIN_EXTENT`, `FLY_MS` (in `view/fly.ts`), `NARROW`,
 `MEDIUM` and the card sizes (in `view/insets.ts`), `CLICK_SLOP`, `WHEEL_ZOOM`, `CARD` (in `MapView.tsx`), `MIN_QUERY`,
-`MAX_HITS` (in `search/search.ts`), `SETTLE_MS` (in `SearchBox.tsx`), `TOWNS_SHOWN` (in `Drawer.tsx`), `LOT_TOP` and
-`LOT_HEIGHT` (in `packages/scene`).
+`MAX_HITS` (in `search/search.ts`), `SETTLE_MS` (in `SearchBox.tsx`), `TOWNS_SHOWN` (in `Drawer.tsx`), `TOOLTIP_WIDTH`
+(in the stylesheet), `LOT_TOP` and `LOT_HEIGHT` (in `packages/scene`).
 
 ## Web experience
 
@@ -217,5 +247,6 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
   replaced by a stub there; fixtures in `components/testing/`); Playwright end-to-end on a desktop and a phone, in dark
   mode with one light run: loads, switches city, theme and view, searches and flies, opens a file, shows an error for a
   bad file, reaches every control by keyboard, keeps every card clear of the others at widths from 1,400 to 360 px, and
-  passes axe (WCAG 2.2 AA rules) with no violations, with the menus, the matches and the drawer open, in light and dark;
-  a screenshot per theme for review.
+  passes axe (WCAG 2.2 AA rules) with no violations, with the menus, the matches, the layout toggles (a tooltip shown)
+  and the drawer open, in light and dark; switches a toggle by keyboard and sees the variant load; a screenshot per
+  theme for review.
