@@ -43,13 +43,14 @@ A progress card over the map while anything loads, and repository suggestions af
 
 ## Phase 5: proof
 
-- [ ] Unit tests at 100 %; `bun run check`
-- [ ] End-to-end with GitHub answered from fixtures: linux-sized folder-by-folder read shows progress and a count,
+- [x] Unit tests at 100 %; `bun run check`
+- [x] End-to-end with GitHub answered from fixtures: linux-sized folder-by-folder read shows progress and a count,
       cancel keeps the last city; suggestions for an owner, keyboard picking, unknown owner, limit reached; axe light
       and dark with the card and the suggestions open; vitals (CLS 0, INP)
-- [ ] On the live page: torvalds/linux loads with the card; `facebook/` suggests react; screenshots
+- [x] On the live page: torvalds/linux loads with the card; `facebook/` suggests react; screenshots (facebook/react now
+      lives at react/react, so `react/` suggests it; `torvalds/li` suggests linux)
 
 ## Phase 6: ship
 
-- [ ] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
+- [x] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
 - [ ] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`

@@ -60,9 +60,13 @@ stays clear for the city.
   Picking one lays it, as typing its full name would.
 - Suggestions sit under a heading "On GitHub", after the city's own matches; with suggestions shown, the city keeps at
   most three places, so seven choices at most in all.
-- An owner's list is asked for once per owner and kept for ten minutes in the tab. Typing more after the slash filters
-  it without asking again; for an owner with more repositories than one answer holds, a name not among them is looked up
-  with GitHub's repository search instead.
+- An owner's list (the hundred most recently pushed) is asked for once per owner, once the text rests, and kept for ten
+  minutes in the tab; so is the answer that no such owner exists. Typing more after the slash filters it without asking
+  again; for an owner with more repositories than one answer holds, what follows the slash is also looked up with
+  GitHub's repository search, and its finds join the list.
+- A text that starts with one of the shown city's folders is a path in the city: GitHub is not asked about it.
+- A repository that moved to another owner is suggested under its new owner only (`facebook/react` is now
+  `react/react`); typing the old name in full still lays it, as GitHub forwards it.
 - GitHub's hourly allowance is shared with laying: the list's summary says how many requests remain this hour. When the
   allowance is spent, or the owner does not exist, one line says so ("No GitHub user or organisation named x", "GitHub's
   hourly limit is reached; it resets at 14:05"), and laying the typed name stays on offer.
@@ -76,12 +80,12 @@ stays clear for the city.
   "Reading the file tree", "Reading workspace manifests", "Laying out 96,000 files", "Drawing the map"; for a bundled
   city or a file, "Downloading" and "Reading the city".
 - One bar runs through all phases and never moves backwards. It is determinate wherever a count is known (folders read
-  of folders known, files laid of files, bytes of bytes) and shows the count beside it ("1,204 of 2,610 folders · 27
-  requests"); where nothing can be counted, a gentle sweep, and a still bar under reduced motion. Once the pace is
-  steady it estimates the time left ("about 12 s left"), and it always shows the time spent.
-- "Cancel" (and Escape) stops the work: requests are aborted, the layout worker ends, and the last city stays as it was.
-  The last city stays visible, dimmed, under the card while the next one loads; search, the menus and the drawer stay
-  usable.
+  of folders known, lots placed of lots, bytes of bytes) and shows the count beside it ("1,204 of 2,610 folders · 27
+  requests", "31,200 of 75,663 lots"); where nothing can be counted, a gentle sweep over it, still under reduced motion.
+  Once the pace is steady it estimates the time left ("about 12 s left"), and it always shows the time spent.
+- "Cancel" (and Escape, anywhere but in the search box or an open menu) stops the work: requests are aborted, the layout
+  worker ends, and the last city stays as it was. Opening something else while one load runs replaces it. The last city
+  stays visible, dimmed, under the card while the next one loads; search, the menus and the drawer stay usable.
 - A failure removes the card and says why in the notice, as elsewhere.
 - The card floats: it moves nothing (CLS 0), and its progress is a `progressbar` with its value and phase as text; only
   phase changes are announced, not every step.
@@ -113,10 +117,11 @@ Every control meets measurable rules:
   from its root manifests. It is not folded over history, so it is not stable from one commit to the next; the status
   line says so ("single state, not folded").
 - Everything runs in the browser, from GitHub's public API, without signing in. A tree too large for one answer is read
-  folder by folder until complete; the status line counts the requests as they go.
+  folder by folder until complete; the loading card counts the folders and the requests as they go.
 - Errors are one sentence each, and the last city stays: a repository that does not exist or is private, GitHub's hourly
   limit reached (with the time it resets), or no network.
-- Laying runs off the main thread, so the page stays responsive while a large repository is laid.
+- Laying, and building the map's shapes, run off the main thread, so the page stays responsive while a large repository
+  is laid.
 
 ## Map
 

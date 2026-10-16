@@ -14,8 +14,12 @@ Open **[webbertakken.github.io/citymap](https://webbertakken.github.io/citymap/)
 for most repositories (linux: 96,000 files in about 14 seconds). A link such as
 [?repo=facebook/react](https://webbertakken.github.io/citymap/?repo=facebook/react) opens one directly.
 
+A large repository shows its progress over the map as it is read and laid, and Cancel (or Escape) stops it. After
+`owner/`, the search suggests that owner's public repositories.
+
 The live page shows a single state; folding the whole history, which keeps the map stable over time, runs with the CLI.
-GitHub allows about 60 requests an hour without signing in: most repositories take two, linux about thirty.
+GitHub allows about 60 requests an hour without signing in: most repositories take two, linux about thirty, and an
+owner's suggestions one; the search says how many are left.
 
 ## What it does
 
