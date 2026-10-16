@@ -77,6 +77,6 @@ touches the fold and the plat: rebase onto main when it merges.
 ## Phase 7: finish
 
 - [x] README text and pictures (before and after)
-- [ ] Rebase onto main if the resume work merged; resolve; gate and parity again
-- [ ] Fold-back: spec reconciled to what shipped, blueprints re-derived, every symbol, file and reference verified
+- [x] Rebase onto main if the resume work merged; resolve; gate and parity again
+- [x] Fold-back: spec reconciled to what shipped, blueprints re-derived, every symbol, file and reference verified
 - [ ] Commit, push, open the pull request with before and after pictures (not merged)

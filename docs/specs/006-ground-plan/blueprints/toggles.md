@@ -39,8 +39,8 @@ Modules: `packages/ground-plan/src/archetype/`, `src/town/{corridor,archipelago,
 
 - `TreeNode.member: boolean`: the folder, or any folder its chain collapsed into it, is a workspace member.
   `TreeNode.sourceMille`: the mass of its subtree's source files (1,000 each).
-- `TreeOptions.members: readonly string[]`: `workspaceMembers(paths, snapshot.workspaces)`, the region's member folders.
-  `treeOf` keeps a built tree only while the member list is the same array.
+- `TreeOptions.members?: readonly string[]` (none when absent): `workspaceMembers(paths, snapshot.workspaces)`, the
+  region's member folders. `treeOf` keeps a built tree only while the member list is the same array.
 - A node's digest content gains `member` (`1` or `0`), after `demand`.
 
 ## Classify
