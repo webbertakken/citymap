@@ -64,7 +64,7 @@ export function useLocalRepository({
   const [remembered, setRemembered] = useState<PermissionHandle | null>(null);
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement | null>(null);
-  // The status before the folder input opened, put back when it closes without a folder.
+  // The status before an opening began, put back when it fails or the folder input closes without a folder.
   const before = useRef("");
 
   useEffect(() => {
@@ -81,7 +81,7 @@ export function useLocalRepository({
   const failed = (failure: unknown, name: string) => {
     log.error("viewer/local-failed", { reason: failure instanceof LocalError ? failure.code : reasonOf(failure) });
     setError(describeLocal(failure, name));
-    setStatus("");
+    setStatus(before.current);
   };
 
   const open = async (folder: Folder, handle: PermissionHandle | null) => {
@@ -115,6 +115,7 @@ export function useLocalRepository({
   };
 
   const pick = () => {
+    before.current = status;
     if (support === "handle") {
       log.info("viewer/local-pick", { how: "handle" });
       // Called within the person's click, as the folder dialog requires.
@@ -128,12 +129,12 @@ export function useLocalRepository({
       return;
     }
     log.info("viewer/local-pick", { how: "input" });
-    before.current = status;
     setStatus(statusOf("", { phase: "listing" }));
     input.current?.click();
   };
 
   const again = (handle: PermissionHandle) => {
+    before.current = status;
     log.info("viewer/local-pick", { how: "again" });
     mayRead(handle).then(
       (allowed) =>

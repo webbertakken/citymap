@@ -33,16 +33,20 @@ function inside(path: string): string | null {
   return kept.join("/");
 }
 
-/** 32 when the config's `[extensions]` section sets `objectformat = sha256`, else 20. */
-export async function objectIdBytes(folder: Folder, dir: string): Promise<20 | 32> {
-  const config = await fileText(folder, `${dir}/config`);
-  let section = "";
+/** Whether a git config sets `key = value` in `section`, names and values compared without case. */
+function configSets(config: string | null, section: string, key: string, value: string): boolean {
+  let current = "";
   for (const line of (config ?? "").split("\n")) {
     const header = /^\s*\[\s*([^\]\s]+)/.exec(line);
-    if (header) section = header[1]!.toLowerCase();
-    else if (section === "extensions" && /^\s*objectformat\s*=\s*sha256\s*$/i.test(line)) return 32;
+    if (header) current = header[1]!.toLowerCase();
+    else if (current === section && new RegExp(`^\\s*${key}\\s*=\\s*${value}\\s*$`, "i").test(line)) return true;
   }
-  return 20;
+  return false;
+}
+
+/** 32 when the config's `[extensions]` section sets `objectformat = sha256`, else 20. */
+export async function objectIdBytes(folder: Folder, dir: string): Promise<20 | 32> {
+  return configSets(await fileText(folder, `${dir}/config`), "extensions", "objectformat", "sha256") ? 32 : 20;
 }
 
 /** The folder's git data, or null for a folder without git; git data elsewhere, or git's own data, is refused. */
@@ -57,8 +61,11 @@ export async function findGit(folder: Folder): Promise<GitData | null> {
       throw new LocalError("local/outside", "the git data lies outside the folder", { gitdir: pointer[1]! });
     return { dir, idBytes: await objectIdBytes(folder, dir) };
   }
+  // Git's own data: HEAD beside objects and refs, or a config that says it is bare (the folder input lists no empty
+  // folders, so a fresh bare repository shows neither).
   const [head, objects, refs] = await Promise.all([folder.kind("HEAD"), folder.kind("objects"), folder.kind("refs")]);
-  if (head === "file" && objects === "directory" && refs === "directory")
+  const bare = head === "file" && configSets(await fileText(folder, "config"), "core", "bare", "true");
+  if (head === "file" && ((objects === "directory" && refs === "directory") || bare))
     throw new LocalError("local/no-working-tree", "the folder is git's own data, not a working tree");
   return null;
 }

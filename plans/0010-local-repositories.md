@@ -30,7 +30,7 @@ Spec: [local repositories](../docs/specs/007-local-repositories/local-repositori
 
 ## Phase 4: proof
 
-- [ ] Unit tests at 100 %; `bun run check`
+- [x] Unit tests at 100 %; `bun run check`
 - [ ] End-to-end: pick a fixture folder (Chromium handle and folder input), a folder without git, each failure; axe
       light and dark; vitals
 - [ ] Measured: linux, next.js and takken.io by folder pick, in Chromium and Firefox

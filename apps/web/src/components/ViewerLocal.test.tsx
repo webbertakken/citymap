@@ -117,7 +117,9 @@ describe("Viewer, a local repository", () => {
     await opened(folders);
     fromMore(PICK);
     expect((await screen.findByRole("alert")).textContent).toBe(sentence);
+    // The last city stays, and so does what the status said of it.
     expect(screen.getByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
+    expect(screen.getByText("1 towns · 1 lots")).toBeTruthy();
     expect(lines(error).find((l) => l.startsWith("viewer/local-failed"))).toContain(`reason=${reason}`);
   });
 

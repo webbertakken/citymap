@@ -39,11 +39,15 @@ describe("findGit", () => {
   it("refuses git's own data: a bare repository or a .git folder", async () => {
     const bare = folder({ HEAD: "ref: refs/heads/main", objects: { pack: { p: "" } }, refs: { heads: { main: A } } });
     await expect(findGit(bare)).rejects.toMatchObject({ code: "local/no-working-tree" });
+    // Fresh and bare, as the folder input lists it: no empty folders, but its config says so.
+    const fresh = folder({ HEAD: "ref: refs/heads/main", config: "[core]\n\tbare = true\n", description: "x" });
+    await expect(findGit(fresh)).rejects.toMatchObject({ code: "local/no-working-tree" });
   });
 
   it("is null for a folder without git, even one with a HEAD file", async () => {
     expect(await findGit(folder({ src: { "a.ts": "" } }))).toBeNull();
     expect(await findGit(folder({ HEAD: "notes", objects: { o: "" } }))).toBeNull();
+    expect(await findGit(folder({ HEAD: "notes", config: "[core]\n\tbare = false\n" }))).toBeNull();
   });
 });
 
