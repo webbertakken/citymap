@@ -8,9 +8,9 @@ Plan view only, hover cards that say what things are and never cut their text, a
 
 - [x] Spec: plan view only, the hover card's shape, contents and long text, the selection's actions, the legend's words,
       repeated names without regard to case, the status that wraps
-- [ ] Blueprint: the card's components and their rows per hit kind, the words for every land use, block kind, road class
+- [x] Blueprint: the card's components and their rows per hit kind, the words for every land use, block kind, road class
       and town form; placement by measured size; the hit's new fields; the address in words; defaults and completeness
-- [ ] Research the address format (street, side, index) and the counts a card needs (files per folder, documents per
+- [x] Research the address format (street, side, index) and the counts a card needs (files per folder, documents per
       park, the towns a highway joins); decide which the pick index carries and which the card derives
 
 ## Phase 2: plan view only
