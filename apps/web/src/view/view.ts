@@ -126,7 +126,8 @@ export const REPEAT_PX = 240;
 
 /**
  * The labels that fit, in order: each kept only if it lies inside the viewport, a district's land is wide enough on
- * screen for its name, the same name is not already shown nearby, and it is clear of every one kept before.
+ * screen for its name, the same name (in any letter case) is not already shown nearby, and it is clear of every one kept
+ * before.
  */
 export function declutter(labels: readonly Label[], view: View, viewport: Viewport): Placed[] {
   const kept: Placed[] = [];
@@ -139,7 +140,9 @@ export function declutter(labels: readonly Label[], view: View, viewport: Viewpo
     const box: [number, number, number, number] = [at.x - half, at.y - size / 2 - 3, at.x + half, at.y + size / 2 + 3];
     if (box[0] < 0 || box[1] < 0 || box[2] > viewport.width || box[3] > viewport.height) continue;
     if (label.size !== "town" && label.extent * view.zoom < width * LABEL_FIT) continue;
-    if (kept.some((k) => k.text === label.text && Math.hypot(k.left - at.x, k.top - at.y) < REPEAT_PX)) continue;
+    const name = label.text.toLowerCase();
+    if (kept.some((k) => k.text.toLowerCase() === name && Math.hypot(k.left - at.x, k.top - at.y) < REPEAT_PX))
+      continue;
     if (boxes.some((b) => b[0] < box[2] && box[0] < b[2] && b[1] < box[3] && box[1] < b[3])) continue;
     boxes.push(box);
     kept.push({ ...label, left: at.x, top: at.y });

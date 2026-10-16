@@ -124,6 +124,16 @@ describe("declutter", () => {
     // The second sits about 141 px from the first, inside the 240 px reach; the third, 400 px away, is shown.
     expect(declutter(labels, view, viewport).map((l) => l.left)).toEqual([500, 900]);
   });
+
+  it("does not repeat a name in another letter case: NET and net are one name", () => {
+    const view: View = { centre: { x: 0, z: 0 }, zoom: 10 };
+    const labels = [
+      { text: "NET", x: 0, z: 0, size: "district", extent: 20 },
+      { text: "net", x: 10, z: 10, size: "district", extent: 20 },
+      { text: "Net", x: 40, z: 0, size: "district", extent: 20 },
+    ] as const;
+    expect(declutter(labels, view, viewport).map((l) => l.text)).toEqual(["NET", "Net"]);
+  });
 });
 
 describe("unproject", () => {
