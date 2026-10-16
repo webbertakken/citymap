@@ -3,6 +3,7 @@ import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } fr
 import { buildScene, folderHit, pick, pickIndex, type Hit, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import {
+  startTransition,
   useCallback,
   useEffect,
   useEffectEvent,
@@ -463,7 +464,8 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         theme={theme}
         cities={cities}
         selected={selected}
-        onTheme={setTheme}
+        // The menu closes in the next frame; the map redraws in its new colours after it.
+        onTheme={(next) => startTransition(() => setTheme(next))}
         onCity={(entry) => void open(entry, toggles)}
         onFile={(file) => void openFile(file)}
         local={local}
