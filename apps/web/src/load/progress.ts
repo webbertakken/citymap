@@ -12,11 +12,11 @@ export const PHASES: Readonly<Record<Source, readonly Phase[]>> = {
   file: ["download", "parse", "draw"],
 };
 
-/** Each phase's share of the bar, per source; measured on linux, next.js and redux (see DEFAULTS.md). */
+/** Each phase's share of the bar, per source: their shares of the time linux takes (see DEFAULTS.md). */
 export const PHASE_WEIGHTS: Readonly<Record<Source, Partial<Record<Phase, number>>>> = {
-  github: { commit: 0.04, tree: 0.5, manifests: 0.02, lay: 0.34, draw: 0.1 },
-  bundled: { download: 0.6, parse: 0.2, draw: 0.2 },
-  file: { download: 0.3, parse: 0.35, draw: 0.35 },
+  github: { commit: 0.03, tree: 0.67, manifests: 0.02, lay: 0.18, draw: 0.1 },
+  bundled: { download: 0.6, parse: 0.15, draw: 0.25 },
+  file: { download: 0.1, parse: 0.3, draw: 0.6 },
 };
 
 /** The share of the bar, and the time spent, before the time left is estimated. */

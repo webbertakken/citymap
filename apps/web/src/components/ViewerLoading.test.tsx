@@ -67,7 +67,7 @@ describe("Viewer while loading", () => {
     const shown = within(card()!);
     expect(shown.getByRole("heading", { name: "Opening acme/widgets" })).toBeTruthy();
     const bar = shown.getByRole("progressbar", { name: "Reading the file tree" });
-    expect(bar.getAttribute("value")).toBe("4");
+    expect(bar.getAttribute("value")).toBe("3");
     expect(bar.getAttribute("aria-valuetext")).toBe("Reading the file tree: 0 of 1 folders · 1 request");
     expect(shown.getByText("0 s spent")).toBeTruthy();
     expect(document.querySelector("main")?.getAttribute("data-loading")).toBe("true");

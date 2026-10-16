@@ -17,10 +17,10 @@ describe("LoadingCard", () => {
     const cancel = vi.fn<() => void>();
     render(<LoadingCard progress={linux} now={12_000} onCancel={cancel} />);
     const bar = screen.getByRole("progressbar", { name: "Reading the file tree" });
-    expect(bar.getAttribute("value")).toBe("27");
+    expect(bar.getAttribute("value")).toBe("34");
     expect(bar.parentElement?.getAttribute("data-sweep")).toBe("false");
     expect(screen.getByText("1,204 of 2,610 folders · 27 requests")).toBeTruthy();
-    expect(screen.getByText("12 s spent · about 30 s left")).toBeTruthy();
+    expect(screen.getByText("12 s spent · about 25 s left")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(cancel).toHaveBeenCalledOnce();
   });
