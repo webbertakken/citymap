@@ -49,7 +49,7 @@ The Rust implementation of the CLI lives in `rust/`: see
    `bun scripts/parity-fixtures.ts` and commit `rust/fixtures/`. The golden towns are shared with the TypeScript tests.
 6. Prove parity with `bun run parity` under PM2. It runs both CLIs on the repositories under `~/.cache/citymap/repos`,
    each on its own shared clone (so no lock lands in the cache), and compares city, SVG, lockfile and log byte for byte.
-   `--long` adds next.js (hours on TypeScript); `--repos=a,b` and `--modes=state,fold` narrow it; `--features=mimalloc`
+   `--long` adds next.js (minutes on TypeScript); `--repos=a,b` and `--modes=state,fold` narrow it; `--features=mimalloc`
    builds the Rust CLI with mimalloc.
 7. A `parity/differs` line is a bug in one of the two implementations. Both runs' outputs stay in
    `/tmp/citymap-parity-<repo>-<mode>`: find the first differing byte, then the rule behind it.

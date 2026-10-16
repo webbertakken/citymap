@@ -72,9 +72,9 @@ each window. A batch of births lays well, where thousands of small steps wear th
   multiples of both strides, so every window lies in one zone.
 - The tail holds the last 1,000 to 1,999 commits, and the last commit is always laid. A history of 1,999 commits or
   fewer folds every commit.
-- A fresh fold of one more commit lays the same windows and one more commit, except when N reaches a multiple of 1,000:
-  then a zone boundary steps, and the commits that left the tail fold in windows from then on. A fresh fold therefore
-  changes shape once per 1,000 commits.
+- A fresh fold of one more commit lays the same windows and one more commit, except when N reaches a multiple of 1,000
+  from 2,000 on: then a zone boundary steps, and the commits that left the tail fold in windows from then on. A fresh
+  fold therefore changes shape once per 1,000 commits.
 - Inside a window:
   - a file keeps the commit it first appeared at, so siblings still order by first appearance;
   - identity follows exact renames commit by commit, so a file renamed several times in one window keeps its identity;
