@@ -1,4 +1,4 @@
-// `bun run parity [--long] [--repos=a,b] [--modes=state,fold]`: runs the TypeScript and Rust CLIs on the repositories
+// `bun run parity [--long] [--repos=a,b] [--modes=state,fold] [--features=mimalloc]`: runs the TypeScript and Rust CLIs on the repositories
 // under ~/.cache/citymap/repos (or $CITYMAP_REPOS), each on its own shared clone so no lock lands in the cache, and
 // compares their city JSON, SVG, lockfile and log byte for byte. Run it under PM2: folds take minutes to hours.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -6,6 +6,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   OUTPUTS,
+  buildArgs,
   cliArgs,
   parseSettings,
   table,
@@ -31,9 +32,9 @@ function run(command: string[], cwd = root): { code: number; stdout: string; std
   };
 }
 
-const build = run(["cargo", "build", "--release", "--quiet", "-p", "citymap-cli"], join(root, "rust"));
+const build = run(buildArgs(settings.features), join(root, "rust"));
 if (build.code !== 0) throw new Error(`parity/build-failed ${build.stderr.split("\n", 1)[0]}`);
-console.log("parity/built rust/target/release/citymap");
+console.log(`parity/built rust/target/release/citymap features=${settings.features.join(",") || "none"}`);
 
 const results: Result[] = [];
 for (const repo of settings.repos) {

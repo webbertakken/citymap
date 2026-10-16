@@ -16,6 +16,7 @@ citymap-themes = { path = "crates/themes" }
 citymap-svg = { path = "crates/svg" }
 ethnum = "1.5.3"
 indexmap = { version = "2.14.2", features = ["serde"] }
+mimalloc = { version = "0.1.52", default-features = false }
 proptest = "1.12.0"
 regress = "0.12.0"
 rustc-hash = "2.1.3"

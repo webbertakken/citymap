@@ -61,6 +61,8 @@ TypeScript engine, and a fold service needs it in minutes.
   CLIs on local clones of the reference repositories and compares their outputs byte for byte.
 - The Rust CLI may run work in parallel (the history read beside the fold) where the result cannot depend on it.
 - It reads git the way the TypeScript reader does: `git` subprocesses with argument arrays and the same flags.
+- Its allocator is the system's by default. mimalloc, which folds react about a quarter faster, is the CLI crate's
+  `mimalloc` cargo feature, off by default, so a default build compiles no C. Parity holds with it on or off.
 - The blueprint is [Rust implementation](blueprints/rust.md).
 
 ## Tooling
@@ -73,11 +75,12 @@ TypeScript engine, and a fold service needs it in minutes.
   at 120) for formatting. Neither ESLint nor Prettier is used.
 - Vitest for unit and property tests in every package, one project per workspace, with 100% coverage enforced;
   Playwright for the web app's end-to-end tests, dark mode.
-- One gate, `bun run check`: format check, lint, type check, tests with coverage. A commit formats and lints its staged
-  files, type checks and scans for secrets; a push runs the gate's checks for what it changes; CI runs the whole gate on
-  every pull request and every push to `main`.
+- One gate, `bun run check`: format check, lint, type check, tests with coverage, then the Rust checks. A commit formats
+  and lints its staged files, type checks and scans for secrets; a push runs the gate's checks for what it changes; CI
+  runs the whole gate on every pull request and every push to `main`.
 - Rust: rustfmt, clippy with pedantic lints denied as errors, and `cargo test`, run by `bun run rust:check`; `unsafe` is
-  forbidden. A commit with Rust files runs them; CI runs them in their own job.
+  forbidden. They are part of `bun run check`; a commit with Rust files runs them; CI runs them in their own job, with a
+  clippy pass over the `mimalloc` feature.
 
 ## Boundaries and trust
 

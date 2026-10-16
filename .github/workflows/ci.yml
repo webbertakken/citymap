@@ -129,6 +129,10 @@ jobs:
       - name: Format, clippy and tests
         run: bun run rust:check
 
+      # The optional mimalloc allocator (a C build), so the feature never rots while default builds stay without it.
+      - name: Clippy with mimalloc
+        run: bun run rust:lint:mimalloc
+
   # ---------------------------------------------------------------------------------------------------------------------
   # LATER: the web app (apps/web), once it exists. Two jobs beside the ones above, each with the same set-up steps.
   #
