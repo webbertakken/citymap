@@ -1,11 +1,23 @@
-// `bun scripts/stability.ts <repo> [from] [count]`: lays `count` commits from index `from` (a fresh plat at the first)
-// and reports how many lots move per commit, overall and on commits that delete files.
-import { DEFAULT_LAND_USES, DEFAULT_SPLIT, initialState, layCity, type City, type Options } from "@citymap/ground-plan";
+// `bun scripts/stability.ts <repo> [from] [count] [--lock=<file>]`: lays `count` steps of the fold schedule from index
+// `from` (a fresh plat at the first; the root's fold when 0), or from a lockfile's commit and plat, and reports how many
+// lots move per laid step, overall and on steps that delete files.
+import { readFileSync } from "node:fs";
+import {
+  DEFAULT_LAND_USES,
+  DEFAULT_SPLIT,
+  initialState,
+  layCity,
+  parseLock,
+  type City,
+  type Options,
+} from "@citymap/ground-plan";
 import { readHistory } from "@citymap/history";
 import { compareCities, summarise, type Step } from "./stability/stability.ts";
 
-const [repo, fromArg = "0", countArg = "300"] = process.argv.slice(2);
-if (!repo) throw new Error("usage: bun scripts/stability.ts <repo> [from] [count]");
+const args = process.argv.slice(2);
+const [repo, fromArg = "0", countArg = "300"] = args.filter((arg) => !arg.startsWith("--"));
+const lockFile = args.find((arg) => arg.startsWith("--lock="))?.slice("--lock=".length);
+if (!repo) throw new Error("usage: bun scripts/stability.ts <repo> [from] [count] [--lock=<file>]");
 const options: Options = {
   densityPct: 50,
   landUses: DEFAULT_LAND_USES,
@@ -14,12 +26,13 @@ const options: Options = {
   warp: true,
   split: DEFAULT_SPLIT,
 };
-const from = Number(fromArg);
+const lock = lockFile === undefined ? null : parseLock(readFileSync(lockFile, "utf8"));
+const from = lock?.index ?? Number(fromArg);
 const count = Number(countArg);
-let state = initialState(options);
+let state = initialState(options, lock?.plat);
 let previous: { city: City; identities: Set<string> } | null = null;
 const steps: Step[] = [];
-for await (const snapshot of readHistory(repo, { from })) {
+for await (const snapshot of readHistory(repo, from > 0 || lock ? { from } : {})) {
   const laid = layCity(snapshot, state, options);
   state = laid.state;
   const identities = new Set(snapshot.files.map((f) => f.identity));

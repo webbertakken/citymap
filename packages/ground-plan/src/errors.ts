@@ -22,6 +22,7 @@ export type ErrorCode =
   | "history/not-a-repo"
   | "history/git-failed"
   | "history/parse"
+  | "history/bad-schedule"
   | "cli/usage"
   | "lock/bad-json"
   | "lock/bad-shape"

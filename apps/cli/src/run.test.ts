@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseCity } from "@citymap/ground-plan";
-import { gitEnvironment } from "@citymap/history";
+import { gitEnvironment, type Strides } from "@citymap/history";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseCommandLine, type LayCommand } from "./args";
 import { LOCKFILE, runLay, type Io } from "./run";
@@ -58,8 +58,9 @@ describe("runLay", () => {
     expect(parseCity(files["city.json"]!)).toEqual(city);
     expect(files["map.svg"]).toContain("<svg ");
     expect(files["map.svg"]).toContain(`class="region"`);
-    expect(lines.at(-1)).toMatch(/^fold\/done repository=citymap-cli-\S+ commits=3 lots=36 overflow=0 ms=\d+$/);
+    expect(lines.at(-1)).toMatch(/^fold\/done repository=citymap-cli-\S+ commits=3 laid=3 lots=36 overflow=0 ms=\d+$/);
     expect(lines.some((l) => l.startsWith("plat/grow"))).toBe(true);
+    expect(lines[0]).toBe("history/schedule commits=3 coarse=0 tail=0 from=0 laid=3");
   });
 
   it("writes a lockfile and resumes from it, laying the same city", async () => {
@@ -71,7 +72,7 @@ describe("runLay", () => {
     const second = memoryIo({ [join(dir, LOCKFILE)]: lock });
     const again = await runLay(command(dir), second.io);
     expect(second.lines).toContain(`lock/resume commit=${git(dir, "rev-parse", "HEAD")} index=2`);
-    expect(second.lines.at(-1)).toContain("commits=1");
+    expect(second.lines.at(-1)).toContain(" commits=1 laid=1 ");
     expect(again).toEqual(city);
   });
 
@@ -99,6 +100,35 @@ describe("runLay", () => {
     expect(resumed.lines).toContain(`lock/resume commit=${shas[3]} index=3`);
   });
 
+  it("folds in windows on the strides it is given, and resumes on the same schedule", async () => {
+    const dir = repo(5);
+    const strides: Strides = { tail: 1, window: 2, coarseAfter: 1, coarseWindow: 2, grain: 2 };
+    const saved = memoryIo();
+    const locks: string[] = [];
+    const io: Io = {
+      ...saved.io,
+      writeFile: (path, text) => {
+        locks.push(text);
+        saved.io.writeFile(path, text);
+      },
+    };
+    const city = await runLay(command(dir, "--lock"), io, 2, strides);
+    const shas = git(dir, "rev-list", "--reverse", "HEAD").split("\n");
+    expect(saved.lines[0]).toBe("history/schedule commits=5 coarse=4 tail=4 from=0 laid=3");
+    expect(saved.lines.filter((l) => l.startsWith("lock/saved"))).toEqual([
+      `lock/saved commit=${shas[3]} index=3`,
+      `lock/saved commit=${shas[4]} index=4`,
+    ]);
+    expect(saved.lines.at(-1)).toMatch(/ commits=5 laid=3 lots=60 /);
+    // Every file is laid at the end, though the fold laid three of the five commits.
+    expect(city.towns.reduce((s, t) => s + t.stats.lots, 0)).toBe(60);
+    // Resumed from the lock saved along the way, the fold lays that commit again, then the rest of the schedule.
+    const resumed = memoryIo({ [join(dir, LOCKFILE)]: locks[0]! });
+    expect(await runLay(command(dir), resumed.io, 2, strides)).toEqual(city);
+    expect(resumed.lines).toContain("history/schedule commits=5 coarse=4 tail=4 from=3 laid=2");
+    expect(resumed.lines.at(-1)).toMatch(/ commits=2 laid=2 /);
+  });
+
   it("ignores a lockfile for another land setting or off the history", async () => {
     const dir = repo(2);
     const first = memoryIo();
@@ -120,7 +150,7 @@ describe("runLay", () => {
     const dir = repo(3);
     const { io, files, lines } = memoryIo();
     const city = await runLay(command(dir, "--no-history", "--out=city.json"), io);
-    expect(lines.at(-1)).toMatch(/^fold\/done repository=citymap-cli-\S+ commits=1 lots=36 overflow=0 ms=\d+$/);
+    expect(lines.at(-1)).toMatch(/^fold\/done repository=citymap-cli-\S+ commits=1 laid=1 lots=36 overflow=0 ms=\d+$/);
     expect(parseCity(files["city.json"]!)).toEqual(city);
     // The state of an earlier commit, and a lockfile left alone.
     const earlier = await runLay(

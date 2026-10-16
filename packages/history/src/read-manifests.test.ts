@@ -120,6 +120,9 @@ describe("readHistory workspaces", () => {
     const events: HistoryEvent[] = [];
     const snaps = await collect(clone, events);
     expect(snaps.map((s) => s.workspaces)).toEqual([["apps/web"], ["apps/web"]]);
-    expect(events).toEqual([{ code: "history/manifest-unavailable", detail: { path: "package.json", index: 1 } }]);
+    expect(events).toEqual([
+      { code: "history/schedule", detail: { commits: 2, coarse: 0, tail: 0, from: 0, laid: 2 } },
+      { code: "history/manifest-unavailable", detail: { path: "package.json", index: 1 } },
+    ]);
   });
 });

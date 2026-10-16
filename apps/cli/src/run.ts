@@ -11,7 +11,7 @@ import {
   type FoldState,
   type Options,
 } from "@citymap/ground-plan";
-import { isAncestor, readHistory, readTree, resolveCommit } from "@citymap/history";
+import { FOLD_STRIDES, isAncestor, readHistory, readTree, resolveCommit, type Strides } from "@citymap/history";
 import { renderCity } from "@citymap/svg";
 import type { LayCommand } from "./args";
 
@@ -24,7 +24,7 @@ export interface Io {
 }
 
 export const LOCKFILE = "citymap.lock.json";
-/** With `--lock`, the lock is also saved every this many laid commits, so a long fold cut short resumes near its end. */
+/** With `--lock`, the lock is also saved every this many laid snapshots, so a long fold cut short resumes near its end. */
 export const LOCK_EVERY = 1000;
 
 interface Lock {
@@ -56,7 +56,12 @@ async function readLock(repo: string, target: string, options: Options, io: Io):
 }
 
 /** Folds the repository's history into its city and writes what the command asks for. Returns the city. */
-export async function runLay(command: LayCommand, io: Io, lockEvery = LOCK_EVERY): Promise<City> {
+export async function runLay(
+  command: LayCommand,
+  io: Io,
+  lockEvery = LOCK_EVERY,
+  strides: Strides = FOLD_STRIDES,
+): Promise<City> {
   const started = io.now();
   const repo = resolve(command.repo);
   const options: Options = {
@@ -72,7 +77,7 @@ export async function runLay(command: LayCommand, io: Io, lockEvery = LOCK_EVERY
   const lock = command.history ? await readLock(repo, target, options, io) : null;
   let state = lock?.state ?? initialState(options);
   let city: City | null = null;
-  let commits = 0;
+  let laidCount = 0;
   let index = 0;
   const onEvent = (e: { code: string; detail: Readonly<Record<string, string | number>> }) =>
     io.log(`${e.code} ${fields(e.detail)}`);
@@ -80,9 +85,9 @@ export async function runLay(command: LayCommand, io: Io, lockEvery = LOCK_EVERY
     io.writeFile(join(repo, LOCKFILE), serialiseLock({ commit, index: at, plat: state.plat }));
     io.log(`lock/saved commit=${commit} index=${at}`);
   };
-  // One state, every file at once; or the history, folded from the lock or the first commit.
+  // One state, every file at once; or the history, folded on its schedule from the lock or the first commit.
   const snapshots = command.history
-    ? readHistory(repo, { to: target, from: lock?.index ?? 0, onEvent })
+    ? readHistory(repo, { to: target, ...(lock ? { from: lock.index } : {}), strides, onEvent })
     : (async function* () {
         yield await readTree(repo, target, { onEvent });
       })();
@@ -91,10 +96,10 @@ export async function runLay(command: LayCommand, io: Io, lockEvery = LOCK_EVERY
     state = laid.state;
     city = laid.city;
     index = snapshot.index;
-    commits++;
+    laidCount++;
     // The lock's own commit is laid again to restore the towns as they stood; its decisions are already in the plat.
     if (command.verbose) for (const event of laid.events) onEvent(event);
-    if (command.lock && commits % lockEvery === 0 && snapshot.commit !== target) saveLock(snapshot.commit, index);
+    if (command.lock && laidCount % lockEvery === 0 && snapshot.commit !== target) saveLock(snapshot.commit, index);
   }
   const laid = city!;
   const lots = laid.towns.reduce((sum, t) => sum + t.stats.lots, 0);
@@ -112,8 +117,10 @@ export async function runLay(command: LayCommand, io: Io, lockEvery = LOCK_EVERY
       }),
     );
   if (command.lock) saveLock(target, index);
+  // The commits folded, the lock's own included; windows lay fewer of them.
+  const commits = index + 1 - (lock?.index ?? 0);
   io.log(
-    `fold/done repository=${laid.repository} commits=${commits} lots=${lots} overflow=${overflow} ms=${Math.round(io.now() - started)}`,
+    `fold/done repository=${laid.repository} commits=${commits} laid=${laidCount} lots=${lots} overflow=${overflow} ms=${Math.round(io.now() - started)}`,
   );
   return laid;
 }

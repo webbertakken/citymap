@@ -103,8 +103,8 @@ function countCommits(dir: string, commit: string): Promise<number>; // ancestry
 - `countCommits` runs `git rev-list --first-parent --count <commit> --` and returns the number it prints; a failure is
   `history/git-failed`.
 - `readHistory` builds the schedule with `options.strides ?? FOLD_STRIDES`, emits `history/schedule` before the first
-  snapshot, and lays `isLaid(schedule, index, from)`. `strides` is an option for tests and measurements; a stride larger
-  than the history (`tail` at `Number.MAX_SAFE_INTEGER`) folds every commit.
+  snapshot, and lays `isLaid(schedule, index, from)`. `strides` is an option for tests and measurements; `EVERY_COMMIT`
+  (a tail and coarse zone of `Number.MAX_SAFE_INTEGER`, strides and grain 1) folds every commit.
 - Snapshot indices are commit indices: a window's snapshot has its last commit's index and commit id, and its files keep
   the indices of the commits they first appeared at.
 

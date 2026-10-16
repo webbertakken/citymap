@@ -3,8 +3,10 @@ import { once } from "node:events";
 import { statSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { CitymapError, MAX_PATH_BYTES, compareKeys, type FileEntry, type Snapshot } from "@citymap/ground-plan";
+import { countCommits, resolveCommit } from "./ancestry";
 import { BlobReader } from "./blobs";
 import { gitEnvironment } from "./env";
+import { foldSchedule, isLaid, laidCount, type Strides } from "./schedule";
 import { Workspaces, type ManifestUnavailable } from "./workspaces";
 
 /** One changed path of a commit, from git's raw diff against the first parent. */
@@ -21,9 +23,22 @@ export interface RawCommit {
   readonly entries: readonly RawEntry[];
 }
 
+/** The fold schedule a read follows: the history's length, its zone boundaries, the first index and how many it lays. */
+export interface ScheduleChosen {
+  readonly code: "history/schedule";
+  readonly detail: {
+    readonly commits: number;
+    readonly coarse: number;
+    readonly tail: number;
+    readonly from: number;
+    readonly laid: number;
+  };
+}
+
 export type HistoryEvent =
   | { readonly code: "history/skip-submodule"; readonly detail: { readonly path: string; readonly index: number } }
-  | ManifestUnavailable;
+  | ManifestUnavailable
+  | ScheduleChosen;
 
 const SUBMODULE = "160000";
 
@@ -145,14 +160,22 @@ function snapshotOf(
 export interface ReadOptions {
   /** The commit to read up to; HEAD by default. */
   readonly to?: string;
-  /** The first index to yield: earlier commits still apply to the tree, but build no snapshot. */
+  /**
+   * A resume: the first index to yield, laid whatever the schedule; earlier commits still apply to the tree, but build no
+   * snapshot, and later ones follow the schedule.
+   */
   readonly from?: number;
+  /** The fold schedule's strides; `FOLD_STRIDES` by default (tests and measurements choose others). */
+  readonly strides?: Strides;
   /** The repository's display name; the folder name by default. */
   readonly repository?: string;
   readonly onEvent?: (event: HistoryEvent) => void;
 }
 
-/** Streams a repository's first-parent history, oldest first, as one snapshot per commit; reads no file contents. */
+/**
+ * Streams a repository's first-parent history, oldest first, as one snapshot per commit the fold schedule lays; every
+ * commit applies to the tree. Reads no file contents but the root workspace manifests.
+ */
 export async function* readHistory(repoDir: string, options: ReadOptions = {}): AsyncGenerator<Snapshot> {
   const dir = resolve(repoDir);
   let isDirectory = false;
@@ -164,7 +187,21 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
   if (!isDirectory) throw new CitymapError("history/not-a-repo", `${dir} is not a directory`, { dir });
   const repository = options.repository ?? basename(dir);
   const onEvent = options.onEvent ?? (() => {});
-  const from = options.from ?? 0;
+  const from = options.from;
+  // The count and the log walk the same commit, even when the ref moves between them.
+  const head = await resolveCommit(dir, options.to ?? "HEAD");
+  const schedule = foldSchedule(await countCommits(dir, head), options.strides);
+  const laid = (at: number) => isLaid(schedule, at, from);
+  onEvent({
+    code: "history/schedule",
+    detail: {
+      commits: schedule.commits,
+      coarse: schedule.coarseEnd,
+      tail: schedule.tailStart,
+      from: from ?? 0,
+      laid: laidCount(schedule, from),
+    },
+  });
   const child = spawn(
     "git",
     [
@@ -183,7 +220,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
       "--no-renames",
       "--no-abbrev",
       "--format=%x01%H",
-      options.to ?? "HEAD",
+      head,
       "--",
     ],
     { stdio: ["ignore", "pipe", "pipe"], env: gitEnvironment() },
@@ -213,10 +250,10 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
     if (cut <= 0) return;
     const commits = [...parseRawLog(pending.slice(0, cut))];
     // The manifests these commits need, read in one pass before their snapshots are built.
-    const texts = await blobs.readAll(workspaces.wanted(commits, index, from));
+    const texts = await blobs.readAll(workspaces.wanted(commits, index, laid));
     for (const commit of commits) {
       if (apply(state, folders, workspaces, commit, index, onEvent)) [files, folderMap] = [null, null];
-      if (index >= from) {
+      if (laid(index)) {
         files ??= filesOf(state);
         folderMap ??= new Map(folders);
         yield snapshotOf(repository, commit.sha, index, files, folderMap, workspaces.resolve(texts, index, onEvent));

@@ -20,15 +20,15 @@ Branch `feat/fold-schedule` in the worktree `../citymap-stride`.
 
 ## Phase 1: TypeScript
 
-- [ ] `foldSchedule` and `isLaid` as pure functions, test-first, with the strides as named constants
-- [ ] `countCommits` (`git rev-list --first-parent --count`), test-first
-- [ ] `readHistory` lays only the schedule's commits (the lock's commit first), reads manifests only for them, and emits
+- [x] `foldSchedule` and `isLaid` as pure functions, test-first, with the strides as named constants
+- [x] `countCommits` (`git rev-list --first-parent --count`), test-first
+- [x] `readHistory` lays only the schedule's commits (the lock's commit first), reads manifests only for them, and emits
       `history/schedule`; strides injectable for tests
-- [ ] CLI summary: `commits=` counts the commits folded, `laid=` the lays
-- [ ] Stability script: `--lock=<file>` starts from a lock
-- [ ] Bench: the react fold budget follows the schedule
-- [ ] Gate: format, lint, typecheck, coverage
-- [ ] Commit
+- [x] CLI summary: `commits=` counts the commits folded, `laid=` the lays
+- [x] Stability script: `--lock=<file>` starts from a lock
+- [x] Bench: the react fold budget keeps timing every commit (`EVERY_COMMIT`)
+- [x] Gate: format, lint, typecheck, coverage
+- [x] Commit
 
 ## Phase 2: Rust
 
