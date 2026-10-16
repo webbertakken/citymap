@@ -158,7 +158,7 @@ phone), so nothing the cards do moves the map or each other.
   on a phone top 140 px and bottom 64 px (half the height while the sheet is open). `fit`, `onKey`'s `0` and `flyTo`
   take them: the zoom fits the free part, and `framed` pans so the free part's centre is the view's.
 - Sizes: controls 48 px tall on `(pointer: coarse)`, 40 px otherwise (above the 32 px floor), 8 px apart; spacing from
-  4, 8, 12, 16, 24, 32, 48 px. Layers (`z-index`): map 0, labels 1, marker 2, cards 10, the search, the controls'
+  4, 8, 12, 16, 24, 32, 48 px. Layers (`z-index`): map 0, marker 1, labels 2, cards 10, the search, the controls'
   popovers and the hover card 20, notices 30. Transitions 150 ms, none under reduced motion.
 
 ## Labels
