@@ -31,3 +31,12 @@ One row per value the viewer spec leaves silent or qualitative.
 | Search settles            | `SETTLE_MS` 600 ms before a query is logged                                               | a pause in typing, not every keystroke      | 300 to 1,000 ms           |
 | Free map                  | top 100 px (156 px from 1,100 px down), right 352 px with the drawer; phone 140 and 64 px | the cards' sizes in the stylesheet          | follows the cards         |
 | Phone title width         | to 8 px short of the controls, which take 204 px on a touch screen                        | measured; checked by the overlap test       | follows the controls      |
+| Loading card appears      | `SHOW_AFTER_MS` 300 ms after a load begins; once shown, `HOLD_MS` 400 ms at least         | spec                                        | fixed                     |
+| Loading clock             | `TICK_MS` 250 ms while the card shows                                                     | whole seconds read smoothly                 | 100 to 1,000 ms           |
+| Phase weights             | `PHASE_WEIGHTS`: see `load/progress.ts`, measured on linux                                | each phase's share of linux's load time     | follows the measurements  |
+| Time left shown           | from `ESTIMATE_FROM` 0.1 of the bar and `STEADY_MS` 2,000 ms spent                        | earlier, the pace swings too much to trust  | 0.05 to 0.25; 1 to 5 s    |
+| Worker progress           | `POST_MS` 100 ms between posts                                                            | ten updates a second, little cloning        | 50 to 250 ms              |
+| Owner's repositories      | one page of 100, newest pushed first, kept `OWNER_TTL_MS` 10 minutes                      | spec; GitHub's largest page                 | 5 to 30 minutes           |
+| Suggestions asked for     | after `SUGGEST_MS` 250 ms of rest                                                         | one request per owner while typing          | 150 to 500 ms             |
+| City places beside them   | `CITY_WITH_SUGGESTIONS` 3                                                                 | spec                                        | fixed                     |
+| Repository search         | 20 results, by stars                                                                      | enough to fill the list after ranking       | 10 to 30                  |

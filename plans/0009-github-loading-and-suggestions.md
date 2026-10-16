@@ -7,7 +7,7 @@ A progress card over the map while anything loads, and repository suggestions af
 
 - [x] Spec: Loading (phases, one bar, counts, estimate, cancel, threshold, accessibility) and Repository suggestions
       (source, ranking, shape, caching, the shared hourly allowance, failures)
-- [ ] Blueprint: the progress model (phases, weights, monotonic fraction, estimate), its events from the reader, the
+- [x] Blueprint: the progress model (phases, weights, monotonic fraction, estimate), its events from the reader, the
       worker and the scene; the suggestion sources and their requests; error codes; defaults and completeness
 - [ ] Measure the phases on linux, next.js, react and takken.io (requests, folders, files, worker and scene times on a
       laptop and a 4x slowed phone), to set the weights
