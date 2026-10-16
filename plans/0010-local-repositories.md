@@ -15,7 +15,7 @@ Spec: [local repositories](../docs/specs/007-local-repositories/local-repositori
 
 ## Phase 2: reading a folder
 
-- [ ] `readIndex`: the git index to tracked paths, test-first against indexes written by git (v2, v3, v4, with and
+- [x] `readIndex`: the git index to tracked paths, test-first against indexes written by git (v2, v3, v4, with and
       without extensions), refusing split and sparse indexes by name
 - [ ] The folder reader: Chromium's directory handle (reads only the index and manifests), the folder input elsewhere;
       `.gitignore` for a folder without git; the remembered folder in Chromium
