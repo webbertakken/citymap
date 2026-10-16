@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { LONG, PARITY, cliArgs, parseSettings, table, verdict, withoutTimings, type Result } from "./parity.ts";
+import {
+  LONG,
+  PARITY,
+  buildArgs,
+  cliArgs,
+  parseSettings,
+  table,
+  verdict,
+  withoutTimings,
+  type Result,
+} from "./parity.ts";
 
 describe("parseSettings", () => {
   it("covers the parity repositories in both modes by default, and next.js with --long", () => {
-    expect(parseSettings([])).toEqual({ repos: [...PARITY], modes: ["state", "fold"] });
+    expect(parseSettings([])).toEqual({ repos: [...PARITY], modes: ["state", "fold"], features: [] });
     expect(parseSettings(["--long"]).repos).toEqual([...PARITY, ...LONG]);
   });
 
@@ -11,13 +21,22 @@ describe("parseSettings", () => {
     expect(parseSettings(["--repos=redux,react", "--modes=fold"])).toEqual({
       repos: ["redux", "react"],
       modes: ["fold"],
+      features: [],
     });
+    expect(parseSettings(["--features=mimalloc"]).features).toEqual(["mimalloc"]);
   });
 
   it("rejects a mode it does not know", () => {
     expect(() => parseSettings(["--modes=state,quick"])).toThrow(
       "parity/usage: --modes takes state and fold, not quick",
     );
+  });
+});
+
+describe("buildArgs", () => {
+  it("builds the release CLI, with the features asked for", () => {
+    expect(buildArgs([])).toEqual(["cargo", "build", "--release", "--quiet", "-p", "citymap-cli"]);
+    expect(buildArgs(["mimalloc"]).slice(-2)).toEqual(["--features", "mimalloc"]);
   });
 });
 

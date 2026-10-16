@@ -22,6 +22,8 @@ How to set up citymap, keep the gate green, and what the hooks and CI run. The t
 | `bun run coverage`     | Vitest over every workspace, 100% coverage enforced (`vitest.config.ts`)     |
 | `bun run rust:check`   | rustfmt check, clippy with warnings as errors, then `cargo test`, in `rust/` |
 
+- The Rust checks stay in the gate: warm, `bun run rust:check` takes about 2 s (1.5 to 2.3 s measured). A cold build,
+  after a toolchain or lockfile change, takes a minute or so once.
 - `bun run format` writes the formatting; run it rather than formatting by hand.
 - Vitest and the tools' launchers run on Node, not Bun: `@vitest/coverage-v8` needs V8. Code under test uses `node:`
   APIs; `Bun.*` APIs belong in entry points only.
@@ -36,14 +38,20 @@ The Rust implementation of the CLI lives in `rust/`: see
 
 1. Build it with `cargo build --release --manifest-path rust/Cargo.toml`. The binary, `rust/target/release/citymap`,
    takes the same arguments as the TypeScript CLI.
-2. `bun run rust:format` writes the formatting; `bun run rust:check` runs what CI runs.
-3. A change to the engine, the history reader, the themes, the SVG or the CLI lands in TypeScript and Rust together.
-4. After a change to a rule the parity fixtures record (land use, the fold, colours, SVG, the usage), run
+2. For long folds, build it with mimalloc as its allocator:
+   `cargo build --release --manifest-path rust/Cargo.toml -p citymap-cli --features mimalloc`. It needs a C compiler (it
+   builds mimalloc's C sources) and writes the same bytes. Measured on a react fold (14,967 commits): 8.3 s to 6.1 s on
+   a quiet machine, and best of five 7.8 s to 5.6 s on a loaded one, with the same 140 MB peak.
+   `bun run rust:lint:mimalloc` lints the feature; CI runs it.
+3. `bun run rust:format` writes the formatting; `bun run rust:check` runs what CI runs.
+4. A change to the engine, the history reader, the themes, the SVG or the CLI lands in TypeScript and Rust together.
+5. After a change to a rule the parity fixtures record (land use, the fold, colours, SVG, the usage), run
    `bun scripts/parity-fixtures.ts` and commit `rust/fixtures/`. The golden towns are shared with the TypeScript tests.
-5. Prove parity with `bun run parity` under PM2. It runs both CLIs on the repositories under `~/.cache/citymap/repos`,
+6. Prove parity with `bun run parity` under PM2. It runs both CLIs on the repositories under `~/.cache/citymap/repos`,
    each on its own shared clone (so no lock lands in the cache), and compares city, SVG, lockfile and log byte for byte.
-   `--long` adds next.js (hours on TypeScript); `--repos=a,b` and `--modes=state,fold` narrow it.
-6. A `parity/differs` line is a bug in one of the two implementations. Both runs' outputs stay in
+   `--long` adds next.js (hours on TypeScript); `--repos=a,b` and `--modes=state,fold` narrow it; `--features=mimalloc`
+   builds the Rust CLI with mimalloc.
+7. A `parity/differs` line is a bug in one of the two implementations. Both runs' outputs stay in
    `/tmp/citymap-parity-<repo>-<mode>`: find the first differing byte, then the rule behind it.
 
 ## Adding a workspace
@@ -85,7 +93,8 @@ The Rust implementation of the CLI lives in `rust/`: see
   - **Checks**: format check, lint, type check.
   - **Tests**: tests with coverage, then the report to Codecov over OIDC (no secret). Codecov informs and never gates
     (`codecov.yml`); the 100% thresholds gate in the job itself.
-  - **Rust**: `bun run rust:check`, builds cached by `Swatinem/rust-cache` (written by runs on `main` only).
+  - **Rust**: `bun run rust:check`, then `bun run rust:lint:mimalloc`, builds cached by `Swatinem/rust-cache` (written
+    by runs on `main` only).
 - `.github/workflows/workflows.yml` runs actionlint when a workflow or `mise.toml` changes; it is not a required check.
 - A newer push to a pull request cancels its running checks; runs on `main` always finish.
 - Every action is pinned by full commit SHA with its version in a comment; Dependabot (`.github/dependabot.yml`)

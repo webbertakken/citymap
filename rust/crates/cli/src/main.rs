@@ -1,4 +1,9 @@
 //! `citymap`: a repository in, a city (JSON, SVG) and a lockfile out. The Rust implementation of `apps/cli`.
+/// With the `mimalloc` feature, mimalloc allocates: the fold allocates and frees many small values each commit.
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 mod args;
 mod run;
 

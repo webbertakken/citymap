@@ -12,6 +12,8 @@ export const MODES: readonly Mode[] = ["state", "fold"];
 export interface Settings {
   readonly repos: readonly string[];
   readonly modes: readonly Mode[];
+  /** Cargo features the Rust CLI is built with (`--features=mimalloc`). */
+  readonly features: readonly string[];
 }
 
 /** The files a run writes, compared between the CLIs; the log is compared without its timings. */
@@ -25,15 +27,26 @@ const list = (text: string | undefined) => text?.split(",").filter((item) => ite
 
 const isMode = (value: string): value is Mode => MODES.some((mode) => mode === value);
 
-/** `--long` adds next.js, `--repos=a,b` names the repositories, `--modes=state,fold` the modes. */
+/** `--long` adds next.js, `--repos=a,b` names the repositories, `--modes=state,fold` the modes, `--features=a` the Rust build. */
 export function parseSettings(argv: readonly string[]): Settings {
   const value = (name: string) => argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
   const modes = list(value("modes")) ?? [...MODES];
   const bad = modes.find((mode) => !isMode(mode));
   if (bad !== undefined) throw new Error(`parity/usage: --modes takes state and fold, not ${bad}`);
   const repos = list(value("repos")) ?? [...PARITY, ...(argv.includes("--long") ? LONG : [])];
-  return { repos, modes: modes.filter(isMode) };
+  return { repos, modes: modes.filter(isMode), features: list(value("features")) ?? [] };
 }
+
+/** The cargo command that builds the Rust CLI, with the features asked for. */
+export const buildArgs = (features: readonly string[]): string[] => [
+  "cargo",
+  "build",
+  "--release",
+  "--quiet",
+  "-p",
+  "citymap-cli",
+  ...(features.length > 0 ? ["--features", features.join(",")] : []),
+];
 
 /** The CLI arguments of one run: the clone, its outputs in `out`, and the mode's own flag. */
 export const cliArgs = (clone: string, out: string, mode: Mode): string[] => [

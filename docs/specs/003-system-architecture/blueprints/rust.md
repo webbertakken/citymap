@@ -12,13 +12,13 @@ It allows, workspace-wide, the lints the code mirrors the reference by: `many_si
 (the formulas' names), `too_many_lines` (functions that match the TypeScript ones), `missing_panics_doc` and
 `missing_errors_doc`, `module_name_repetitions`. Casts the fixed-point core makes on purpose are allowed at their site.
 
-| Crate                 | Implements                   | Depends on                                                |
-| --------------------- | ---------------------------- | --------------------------------------------------------- |
-| `citymap-ground-plan` | `packages/ground-plan`       | `indexmap`, `serde`, `serde_json`, `ethnum`, `rustc-hash` |
-| `citymap-history`     | `packages/history`           | `citymap-ground-plan`, `regress`, `serde_json`            |
-| `citymap-themes`      | `packages/themes`            | `citymap-ground-plan`                                     |
-| `citymap-svg`         | `packages/svg`               | `citymap-ground-plan`, `citymap-themes`                   |
-| `citymap-cli`         | `apps/cli`, binary `citymap` | all of the above                                          |
+| Crate                 | Implements                   | Depends on                                                 |
+| --------------------- | ---------------------------- | ---------------------------------------------------------- |
+| `citymap-ground-plan` | `packages/ground-plan`       | `indexmap`, `serde`, `serde_json`, `ethnum`, `rustc-hash`  |
+| `citymap-history`     | `packages/history`           | `citymap-ground-plan`, `regress`, `serde_json`             |
+| `citymap-themes`      | `packages/themes`            | `citymap-ground-plan`                                      |
+| `citymap-svg`         | `packages/svg`               | `citymap-ground-plan`, `citymap-themes`                    |
+| `citymap-cli`         | `apps/cli`, binary `citymap` | all of the above; `mimalloc` behind its `mimalloc` feature |
 
 Dependencies point the same way as the TypeScript workspaces. Each dependency is the latest stable release when it is
 added, declared once in `[workspace.dependencies]`; `Cargo.lock` is committed and pins the build.
@@ -194,11 +194,11 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
 
 ## Parity
 
-- `bun run parity` (`scripts/parity.ts`) builds the Rust CLI in release mode, then for each repository under
-  `~/.cache/citymap/repos` (or `$CITYMAP_REPOS`) in `PARITY` (takken.io, redux, studio-worker, game-ci-cli, livediagram,
-  react; next.js with `--long`) runs both CLIs with `--no-history` and with a full fold, each writing `--out`, `--svg`
-  and `--lock` (the fold) into its own temporary folder, and compares the files with `cmp`: city, SVG, lockfile, and the
-  log with the summary's `ms=` blanked (`withoutTimings`).
+- `bun run parity` (`scripts/parity.ts`) builds the Rust CLI in release mode (with `--features=a,b` passed to cargo),
+  then for each repository under `~/.cache/citymap/repos` (or `$CITYMAP_REPOS`) in `PARITY` (takken.io, redux,
+  studio-worker, game-ci-cli, livediagram, react; next.js with `--long`) runs both CLIs with `--no-history` and with a
+  full fold, each writing `--out`, `--svg` and `--lock` (the fold) into its own temporary folder, and compares the files
+  with `cmp`: city, SVG, lockfile, and the log with the summary's `ms=` blanked (`withoutTimings`).
 - One line per run: `parity/same repo=… mode=… ts-ms=… rs-ms=…` or `parity/differs repo=… mode=… files=… …` (exit 1),
   the second followed by `parity/kept … dir=…` where both runs' outputs stay; a missing repository is
   `parity/skipped reason=no-repository`. The run ends with a Markdown table of outputs and timings.
@@ -234,3 +234,10 @@ Only on input the TypeScript CLI would also reject, or never meets:
 - A city whose highways (not its outlines) cross `COORD_LIMIT` at a commit before the last fails in TypeScript and is
   only checked at the last commit in Rust.
 - `parseSnapshot` (untrusted snapshot JSON) has no Rust counterpart: Rust snapshots come only from its own reader.
+
+## Allocator
+
+- `citymap-cli` has one cargo feature, `mimalloc` (off by default), which sets `mimalloc::MiMalloc` as the global
+  allocator in `main.rs`. Without it no crate compiles C. The allocator changes speed only, never output: parity runs
+  with and without it are byte-identical.
+- `bun run rust:lint:mimalloc` runs clippy over the feature, in CI after `bun run rust:check`.

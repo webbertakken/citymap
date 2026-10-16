@@ -16,6 +16,11 @@ citymap-ground-plan.workspace = true
 citymap-history.workspace = true
 citymap-svg.workspace = true
 citymap-themes.workspace = true
+mimalloc = { workspace = true, optional = true }
+
+[features]
+# mimalloc as the global allocator: faster folds, at the cost of compiling its C sources. Off by default.
+mimalloc = ["dep:mimalloc"]
 
 [lints]
 workspace = true
