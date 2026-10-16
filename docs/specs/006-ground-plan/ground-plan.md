@@ -226,8 +226,10 @@ archipelago and quarters off.
   aside and the history folded afresh, never continued. A change of defaults therefore re-lays existing cities.
 - With every toggle off, the city is exactly the one the other forms alone lay.
 - Each toggle keeps its decisions in the plat (a gateway's cut, an archipelago's islands, a folder's quarters, a town's
-  tier), so a toggle costs no stability: a newcomer joins what is remembered, and nothing moves unless a band is
-  outgrown.
+  tier): a newcomer joins what is remembered, and nothing moves unless a band is outgrown. Over nine reference windows
+  the defaults move as few lots as every toggle off, or fewer (rust: 1.9 to 1.4 % of lots per step). Archipelago and
+  quarters, off by default, move more in some: a deleted package leaves its island smaller (react's deleting steps, 6.1
+  to 7.0 %), and quarters grow at their last quarter (home-assistant, 0.3 to 0.7 % per step).
 - The forms combine; a folder takes at most one form.
 
 ### Corridor

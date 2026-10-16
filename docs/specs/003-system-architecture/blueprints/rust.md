@@ -232,9 +232,12 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   test writes them.
 - Parity fixtures under `rust/fixtures/` are written by `scripts/parity-fixtures.ts` from the TypeScript engine:
   `land-use.tsv` (every path in `react-head-paths.txt` and a list of edge cases), `fold.json` (a synthetic history of
-  groups, split apps, edits, deletions, a rename and a root switch, its events per commit, its city and its plat),
-  `colours.tsv` (every colour of every theme for every district class and form), `svg.tsv` and `city.svg` (the folded
-  city drawn in every theme, camera and region setting, as lengths and digests, one whole) and `usage.txt`.
+  groups, split apps, edits, deletions, a rename and a root switch, its events per commit, its city and its plat, with
+  every toggle off), `fold-defaults.json` and `fold-all.json` (that history grown by a corridor, an app of plugins and
+  four packages, folded with the default toggles and with all four), `colours.tsv` (every colour of every theme for
+  every district class and form), `svg.tsv` and `city.svg` (the folded city drawn in every theme, camera and region
+  setting, as lengths and digests, one whole) and `usage.txt`.
+- The toggles' forms are laid whole in `town/toggled.rs`, the TypeScript `town/toggles.test.ts` case by case.
 - `cargo test` runs in under ten seconds on the development machine; the parity script is local, not in CI.
 
 ## Known differences

@@ -168,28 +168,35 @@ phone), so nothing the cards do moves the map or each other.
 
 - `ViewControls` gains the settings cog between Theme and More: a `Popover` labelled "Layout" (icon `Settings`), whose
   panel is `Toggles` (`components/Toggles.tsx`): a `<fieldset>`, legend "City layout", of four
-  `<input type="checkbox" role="switch">` in `TOGGLES` order, each in a `<label>` with its name ("Corridor",
-  "Archipelago", "Quarters", "Tiers") and a `role="tooltip"` element (`TOOLTIPS`, the spec's text word for word) that is
-  its `aria-describedby`. The popover is `TOOLTIP_WIDTH` 280 px wide, so the tooltip sits beside the switch, to the left
-  of the panel on a wide screen and beneath the row on a phone.
+  `<input type="checkbox" role="switch" aria-checked>` in `TOGGLES` order, each in a `<label>` with its name
+  ("Corridor", "Archipelago", "Quarters", "Tiers"), drawn as a track and thumb, and a `role="tooltip"` element
+  (`TOOLTIPS`, the spec's text word for word) that is its `aria-describedby`. The tooltip is `TOOLTIP_WIDTH` 280 px
+  wide, beside the panel to its left on a wide screen, and beneath its row inside the panel below 760 px.
 - A tooltip shows while its row is hovered (the row holds the tooltip, so the pointer can rest on it) or its switch has
-  focus (`:focus-visible`), and hides on Escape: the first Escape while one shows hides it and stops there; the next
-  closes the popover. A switch never closes the popover.
-- `Viewer` holds `toggles` (`DEFAULT_TOGGLES` at start; not remembered). A change re-opens what is shown in the new
-  variant: a bundled city loads `variantOf(entry, toggles)` (status "{name}: loading…"); a live repository is laid again
-  from its kept snapshot (status "{name}: laying out…"); a city file disables the fieldset and shows "A city file keeps
-  the layout it was laid with." The view stays where it was unless the city's towns change (`fitted` holds).
+  focus, and hides when both end and on Escape: the first Escape while one shows hides it and is marked answered
+  (`preventDefault`, as the page's React root may be the document the popover listens on); `Popover` skips an Escape
+  already answered, so the next one closes it. A switch never closes the popover.
+- Below 760 px the view switch is hidden (the viewer shows plan view only, as the spec says, there first), so the three
+  controls take 152 px of a touch screen's top row.
+- `Viewer` holds `toggles` (`DEFAULT_TOGGLES` at start; not remembered) and the `source` of the city shown (a bundled
+  entry, a live repository's name and snapshot, or a file). A change re-opens what is shown in the new variant: a
+  bundled city loads `variantOf(entry, toggles)` (status "{name}: loading…"); a live repository is laid again from its
+  kept snapshot (`relay`, status "{name}: laying out…"); a city file disables every switch and shows "A city file keeps
+  the layout it was laid with."; with nothing shown the switches only change. A city shown again in another layout keeps
+  the view and the town shown when it has a town of that key (`show(city, name, relaid)`).
 - `cities.ts`: `CityEntry { name, variants }`, each variant `{ toggles, file, lots }`; `isEntry` checks sixteen distinct
-  variants whose toggles are known, files `^[\w.-]+/[\w.-]+\.json$`; `variantOf(entry, toggles)` finds the variant with
-  exactly those toggles. "More" lists each city with the lots of the variant the toggles name.
+  variants whose toggles are known, files `^\w[\w.-]*/\w[\w.-]*\.json$` (no `..`); `variantOf(entry, toggles)` finds the
+  variant with exactly those toggles, in any order; `loadCity(fetcher, entry, toggles, base)`. "More" lists each city
+  with the lots of the variant the toggles name, the one shown marked by its name.
 - Logs: `viewer/toggles on` (the list, `none` when empty) on every change; `viewer/variant-failed name reason` when a
   variant cannot load (also a notice; the last city stays).
 - `scripts/bundle-cities.ts` lays every combination (`combinations()` in `scripts/bundle/bundle.ts`, the sixteen subsets
   of `TOGGLES` in binary order) of each public city from `~/.cache/citymap/repos/<name>` with the Rust CLI
   (`rust/target/release/citymap <repo> --toggles=<list> --out=…`, a full fold, no lock), into
   `public/cities/<name>/<variant>.json`, where `variantName(toggles)` joins the toggles with `-`, or is `none`; then
-  writes the index. One line per lay: `bundle/laid name variant lots bytes ms`; at the end
-  `bundle/done cities variants bytes gzip`.
+  writes the index. One line per lay: `bundle/laid name variant lots bytes gzip ms`; at the end
+  `bundle/done cities variants bytes gzip`. The six cities' 96 variants take 62.2 MB (10.0 MB gzipped, 1.7 MB in a git
+  pack); a visitor loads one at a time, 35 to 320 kB gzipped.
 
 ## Labels
 

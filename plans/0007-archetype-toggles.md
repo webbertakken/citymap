@@ -69,9 +69,10 @@ touches the fold and the plat: rebase onto main when it merges.
 
 ## Phase 6: measurements
 
-- [ ] After: `bun run bench --folds` (budgets, corpus ratchet, morphometrics), stability for the defaults, none and each
-      toggle alone; ratchets rebased only where numbers improve or the change is explained
-- [ ] Commit
+- [x] After: `bun run bench --folds` (budgets, corpus ratchet, morphometrics), stability for the defaults, none and each
+      toggle alone; ratchets rebased only where numbers improve or the change is explained (corpus 962/555/4 →
+      699/501/3, rebased; folds 19 held; stability: all off equals main, defaults equal or better)
+- [x] Commit
 
 ## Phase 7: finish
 

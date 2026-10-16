@@ -126,9 +126,9 @@ the heaviest folder among a side's folders and the folders inside its groups and
    no longer crosses the land, logs `plat/corridor-destination key from to` and forgets `key`.
 3. Fresh: `dl = demandOf(wayside)`, `dr = destination.demand`; start `floorDiv(unitMille(seed#gate) × GATE_STEP, 1000)`
    with `GATE_STEP = TURN / GATE_DIRECTIONS` (128); for k in 0..32, `n = dir(start + k × GATE_STEP)`,
-   `c = offsetFor(poly, n, dl, dl + dr)`; the chord of least squared length wins, ties to the lower k; none declines.
-   The record: class `classOf(mass, false, false)`, right of way `rightOfWayFor(mass, false, false)`, left the wayside's
-   keys, right `[destination.key]`, caps `grow(dl)`, `grow(dr)`; logs `plat/gateway key destination wayside`.
+   `c = offsetFor(poly, n, dl, dl + dr)`; the chord of least squared length wins, ties to the lower k. The record: class
+   `classOf(mass, false, false)`, right of way `rightOfWayFor(mass, false, false)`, left the wayside's keys, right
+   `[destination.key]`, caps `grow(dl)`, `grow(dr)`; logs `plat/gateway key destination wayside`.
 4. Remembered: wayside keys not on either side are appended to `left`, then
    `decide(ctx, [...wayside, destination], poly, mass, false, key, { share })` reclasses and recuts it as any cut
    (`share` is the corridor's land, doubled, and its demand).
@@ -231,10 +231,10 @@ empty side lends its land; else a street along the chord and both sides recurse,
 
 ## Errors and edge cases
 
-- A corridor whose chain ends in a level without folders, or with nothing beside the destination, declines to cuts.
-- An archipelago with fewer than two packages left (hysteresis holds the form a lay longer) declines to cuts.
-- Quarters with fewer than two eligible items decline to cuts.
-- A gateway with no chord in any of its 32 directions declines.
+- A form can reach a tree that no longer bears it: the region classifies a town's root over its old towns' files too.
+  Then a corridor whose chain meets a level without folders, or has nothing beside the destination, declines to cuts; so
+  does an archipelago with fewer than two packages, and quarters with fewer than two eligible items.
+- A gateway's line always crosses its land: both sides ask a share of it, so `offsetFor` leaves each side some.
 - An emptied island or quarter keeps its index and lays nothing.
 - Every new plat field is validated by `parsePlat` (`plat/bad-shape`); unknown toggle names are rejected by the CLIs
   (`cli/usage`) and never reach the engine.
