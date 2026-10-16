@@ -7,7 +7,16 @@ import { densify, memoised, warper } from "../fixed/warp";
 import type { TownPlat } from "../plat/plat";
 import type { TreeNode } from "../tree/tree";
 import { loopConnectors } from "./connectors";
-import { tint, toPoly, type Ctx, type LayoutOptions, type PlatEvent, type TownCache } from "./context";
+import {
+  seedsOf,
+  tint,
+  toPoly,
+  type Ctx,
+  type LayHooks,
+  type LayoutOptions,
+  type PlatEvent,
+  type TownCache,
+} from "./context";
 import { diameterOf } from "./cut";
 import { partition } from "./partition";
 
@@ -45,14 +54,20 @@ function warpTown(ctx: Ctx, key: string, outline: readonly Pt[]) {
     ]),
   );
   const bend = (pts: readonly Pt[], closed: boolean, step: number) => densify(pts, step, closed).map(warp);
-  return {
-    outline: bend(outline, true, 80),
-    roads: ctx.roads.map((r) => ({ ...r, pts: bend(r.pts, false, 48) })),
-    blocks: ctx.blocks.map((b) => ({ ...b, pts: bend(b.pts, true, 64) })),
-    lots: ctx.lots.map((l) => ({ ...l, pts: l.pts.map(warp) })),
-    districts: ctx.districts.map((d) => ({ ...d, pts: bend(d.pts, true, 80) })),
-    water: ctx.water.map((w) => bend(w, true, 64)),
-  };
+  // The town's seeds count as shaped a quarter at a time, as its four kinds of shape are bent.
+  const seeds = ctx.hooks ? seedsOf(ctx.root) : 0;
+  const quarter = Math.floor(seeds / 4);
+  const outlineBent = bend(outline, true, 80);
+  const roads = ctx.roads.map((r) => ({ ...r, pts: bend(r.pts, false, 48) }));
+  ctx.hooks?.shaped(quarter);
+  const blocks = ctx.blocks.map((b) => ({ ...b, pts: bend(b.pts, true, 64) }));
+  ctx.hooks?.shaped(quarter);
+  const lots = ctx.lots.map((l) => ({ ...l, pts: l.pts.map(warp) }));
+  ctx.hooks?.shaped(quarter);
+  const districts = ctx.districts.map((d) => ({ ...d, pts: bend(d.pts, true, 80) }));
+  const water = ctx.water.map((w) => bend(w, true, 64));
+  ctx.hooks?.shaped(seeds - 3 * quarter);
+  return { outline: outlineBent, roads, blocks, lots, districts, water };
 }
 
 /** Lays out one town on its outline. Pure: the plat given is copied, and the new plat returned. */
@@ -65,6 +80,7 @@ export function layoutTown(
   options: LayoutOptions,
   rootForm?: Form,
   cache?: TownCache,
+  hooks?: LayHooks,
 ): LaidTown {
   // A town's cached folders hold only while its constants do: its options, its land and its root.
   const landArea2 = area2(outline);
@@ -87,6 +103,7 @@ export function layoutTown(
     water: [],
     landArea2,
     cache,
+    hooks,
     form: "neighbourhood",
     overflow: 0,
     lotArea2: 0,
@@ -97,6 +114,7 @@ export function layoutTown(
     ctx.roads.push(
       ...loopConnectors(ctx.roads, [...ctx.lots.map((l) => l.pts), ...ctx.blocks.map((b) => b.pts)], outline),
     );
+  if (!options.warp) hooks?.shaped(seedsOf(root));
   const laid = options.warp
     ? warpTown(ctx, key, outline)
     : {

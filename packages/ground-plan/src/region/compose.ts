@@ -11,7 +11,7 @@ import { densify, warper } from "../fixed/warp";
 import { classifyLandUse, landKey, type LandUse } from "../land-use/land-use";
 import { emptyTownPlat, type OldTown, type Plat } from "../plat/plat";
 import { MAX_FILES, type FileEntry, type Snapshot } from "../snapshot/snapshot";
-import type { PlatEvent, TownCache } from "../town/context";
+import { seedsOf, type LayHooks, type PlatEvent, type TownCache } from "../town/context";
 import { layoutTown } from "../town/layout";
 import { buildTree, type Shares, type TreeOptions } from "../tree/tree";
 import { workspaceGroups, workspaceMembers } from "../workspace/workspace";
@@ -179,10 +179,21 @@ function derive(snapshot: Snapshot): Derived {
   return fresh;
 }
 
+/**
+ * How far a lay has come, in lot seeds: `lots` in every town it lays, `placed` by their neighbourhoods so far, and
+ * `shaped` by their warps (or at once, unwarped). Heard only: the city is the same with or without a listener.
+ */
+export interface LayProgress {
+  readonly placed: number;
+  readonly shaped: number;
+  readonly lots: number;
+}
+
 export function layCity(
   snapshot: Snapshot,
   state: FoldState,
   options: Options,
+  onProgress?: (progress: LayProgress) => void,
 ): { city: City; state: FoldState; events: PlatEvent[] } {
   if (snapshot.files.length > MAX_FILES)
     throw new CitymapError("snapshot/too-large", `a snapshot holds at most ${MAX_FILES} files`, {
@@ -277,6 +288,19 @@ export function layCity(
         },
       })),
     );
+  const progress = { placed: 0, shaped: 0, lots: laidParts.reduce((sum, p) => sum + seedsOf(p.tree), 0) };
+  const tell = () => onProgress?.({ ...progress });
+  const hooks: LayHooks | undefined = onProgress && {
+    placed: (seeds) => {
+      progress.placed += seeds;
+      tell();
+    },
+    shaped: (seeds) => {
+      progress.shaped += seeds;
+      tell();
+    },
+  };
+  tell();
   const blockers = oldTowns.map((o) => footprint(o.town));
   const placed: { centre: Pt; radius: number }[] = [];
   const towns: Town[] = [];
@@ -326,7 +350,7 @@ export function layCity(
       ? (state.cache.towns[part.key] ??= { constants: "", entries: new Map(), hits: 0 })
       : undefined;
     const hitsBefore = cache?.hits ?? 0;
-    const laid = layoutTown(part.name, part.key, tree, outline, townPlat, options, rootForm, cache);
+    const laid = layoutTown(part.name, part.key, tree, outline, townPlat, options, rootForm, cache, hooks);
     if (state.cache && cache) state.cache.hits += cache.hits - hitsBefore;
     events.push(...laid.events);
     plat.towns[part.key] = laid.plat;
