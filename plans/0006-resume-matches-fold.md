@@ -52,4 +52,4 @@ Branch `fix/resume-matches-fold` in the worktree `../citymap-resume`.
 ## Phase 3: finish
 
 - [x] Fold-back: spec reconciled to what shipped, blueprints re-derived, every symbol and reference verified
-- [ ] Commit, push, open the pull request (not merged)
+- [x] Commit, push, open the pull request (not merged): #29
