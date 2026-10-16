@@ -17,6 +17,7 @@ import { readRepository, type Fetcher } from "../github/read";
 import { parseRepository } from "../github/repository";
 import { layInWorker } from "../lay/browser";
 import type { Lay } from "../lay/lay";
+import type { LocalPorts } from "../local/ports";
 import { log, reasonOf } from "../log";
 import { searchIndex, type SearchEntry } from "../search/search";
 import { FLY_MS, between, ease, flyTo } from "../view/fly";
@@ -28,6 +29,7 @@ import { MapView, type CanvasProps } from "./MapView";
 import { Notice } from "./Notice";
 import { SearchBox } from "./SearchBox";
 import { TitleCard } from "./TitleCard";
+import { LOCAL_STATUS, LOCAL_TITLE, useLocalRepository } from "./useLocalRepository";
 import { ViewControls } from "./ViewControls";
 import { ZoomControls } from "./ZoomControls";
 
@@ -38,6 +40,8 @@ export interface ViewerProps {
   readonly lay?: Lay;
   /** The site's path under its host, before every bundled file: "/citymap" on GitHub Pages. */
   readonly basePath?: string;
+  /** The browser's folder access: its own by default, stand-ins in tests. */
+  readonly folders?: LocalPorts;
 }
 
 const browserFetch: Fetcher = (url, init) => fetch(url, init);
@@ -60,7 +64,15 @@ const stillness = () =>
  * snapshot, or a city file (which keeps its layout). */
 type Source =
   | { readonly kind: "bundled"; readonly entry: CityEntry }
-  | { readonly kind: "live"; readonly name: string; readonly snapshot: Snapshot }
+  | {
+      readonly kind: "live";
+      readonly name: string;
+      readonly snapshot: Snapshot;
+      /** What the status says of it: a single state, from GitHub or from the person's machine. */
+      readonly note: string;
+      /** The tab's title, when it is not the name (a local repository's stays private). */
+      readonly title?: string;
+    }
   | { readonly kind: "file" };
 
 /** The city with only the town of that key, and no highways. */
@@ -71,7 +83,7 @@ export const focusOn = (city: City, key: string): City => ({
 });
 
 /** The viewer: one city at a time, its theme, its view and its layout toggles. */
-export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "" }: ViewerProps) {
+export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "", folders }: ViewerProps) {
   const [cities, setCities] = useState<readonly CityEntry[]>([]);
   // The layout toggles, at the engine's defaults on every visit; and where the city shown came from.
   const [toggles, setToggles] = useState<readonly Toggle[]>(DEFAULT_TOGGLES);
@@ -170,25 +182,25 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   };
 
   // A city shown afresh fits the map; the same city in another layout keeps the view, and the town shown if it is there.
-  const show = useCallback((next: City, name: string, relaid = false) => {
+  const show = useCallback((next: City, name: string, how: { title?: string; relaid?: boolean } = {}) => {
     cancelAnimationFrame(flight.current);
     setCity(next);
-    setFocus((was) => (relaid && next.towns.some((t) => t.key === was) ? was : null));
+    setFocus((was) => (how.relaid && next.towns.some((t) => t.key === was) ? was : null));
     setPickedHit(null);
     setMarker(null);
     setError("");
     const lots = next.towns.reduce((s, t) => s + t.stats.lots, 0);
     log.info("viewer/open", { name, towns: next.towns.length, lots });
     setStatus(`${next.towns.length} towns · ${lots.toLocaleString("en-GB")} lots`);
-    if (!relaid) setFitted(true);
-    document.title = `${name} · citymap`;
+    if (!how.relaid) setFitted(true);
+    document.title = `${how.title ?? name} · citymap`;
   }, []);
   const open = useCallback(
     async (entry: CityEntry, layout: readonly Toggle[], relaid = false) => {
       setSelected(entry.name);
       setStatus(relaid ? `${entry.name}: loading…` : `${entry.name}: laying out…`);
       try {
-        show(await loadCity(fetcher, entry, layout, basePath), entry.name, relaid);
+        show(await loadCity(fetcher, entry, layout, basePath), entry.name, { relaid });
         setSource({ kind: "bundled", entry });
       } catch (failure) {
         log.error(relaid ? "viewer/variant-failed" : "viewer/open-failed", {
@@ -202,11 +214,12 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     [basePath, fetcher, show],
   );
   // A live repository's snapshot laid again with other toggles, off the main thread.
-  const relay = async (name: string, snapshot: Snapshot, layout: readonly Toggle[]) => {
+  const relay = async (live: Extract<Source, { kind: "live" }>, layout: readonly Toggle[]) => {
+    const { name, snapshot, note, title } = live;
     setStatus(`${name}: laying out…`);
     try {
-      show(await lay(snapshot, layout), name, true);
-      setStatus((done) => `${done} · single state, not folded`);
+      show(await lay(snapshot, layout), name, { relaid: true, ...(title ? { title } : {}) });
+      setStatus((done) => `${done} · ${note}`);
     } catch (failure) {
       log.error("viewer/variant-failed", { name, reason: reasonOf(failure) });
       setError(describeFailure(failure));
@@ -218,7 +231,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     setToggles(next);
     log.info("viewer/toggles", { on: next.join(",") || "none" });
     if (source?.kind === "bundled") void open(source.entry, next, true);
-    else if (source?.kind === "live") void relay(source.name, source.snapshot, next);
+    else if (source?.kind === "live") void relay(source, next);
   };
   // A public GitHub repository's single state, read and laid in the browser.
   const openRepository = useCallback(
@@ -236,7 +249,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         setStatus(`${name}: laying out…`);
         const next = await lay(snapshot, toggles);
         show(next, name);
-        setSource({ kind: "live", name, snapshot });
+        setSource({ kind: "live", name, snapshot, note: "single state, not folded" });
         setStatus((done) => `${done} · single state, not folded`);
         setSelected("");
         log.info("viewer/github-read", {
@@ -254,6 +267,21 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     },
     [fetcher, lay, show, toggles],
   );
+  // A repository on the person's machine, read and laid in the browser; nothing about it leaves the page.
+  const local = useLocalRepository({
+    ...(folders ? { ports: folders } : {}),
+    lay,
+    toggles,
+    status,
+    setStatus,
+    setError,
+    present: (next, name, snapshot) => {
+      show(next, name, { title: LOCAL_TITLE });
+      setSource({ kind: "live", name, snapshot, note: LOCAL_STATUS, title: LOCAL_TITLE });
+      setStatus((done) => `${done} · ${LOCAL_STATUS}`);
+      setSelected("");
+    },
+  });
   // The index loads once, on mount; a repository in the address is laid, else the first bundled city opens.
   const first = useEffectEvent((entry: CityEntry) => void open(entry, toggles));
   const wanted = useEffectEvent((repo: string) => void openRepository(repo));
@@ -349,10 +377,12 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         onTheme={setTheme}
         onCity={(entry) => void open(entry, toggles)}
         onFile={(file) => void openFile(file)}
+        local={local}
         toggles={toggles}
         fixed={source?.kind === "file"}
         onToggle={toggle}
       />
+      {local.input}
       <Drawer
         city={shown}
         settled={status === ""}

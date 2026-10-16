@@ -431,6 +431,23 @@ mark {
 .menu [aria-current="true"] {
   font-weight: 700;
 }
+.menu button:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+/* A line that explains a menu item, or why there is none. */
+.menu-note {
+  margin: 4px 8px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+.menu-note code {
+  overflow-wrap: anywhere;
+}
+.menu + .popover-heading {
+  margin-top: 12px;
+}
 
 /* The layout toggles: a switch each, its tooltip beside the panel (beneath its row on a phone). */
 .toggles ul {

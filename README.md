@@ -17,6 +17,22 @@ for most repositories (linux: 96,000 files in about 14 seconds). A link such as
 The live page shows a single state; folding the whole history, which keeps the map stable over time, runs with the CLI.
 GitHub allows about 60 requests an hour without signing in: most repositories take two, linux about thirty.
 
+### A repository on your own machine
+
+Under **More**, **Open a local repository…** asks for a repository's folder and lays it in the page, without a GitHub
+account and without installing anything. The page reads the repository's git index, so exactly the files git tracks
+become the city (no `node_modules`, no build output), the same city as `citymap --no-history`; a folder without git
+honours its `.gitignore` files. Nothing leaves your machine: no request, nothing in the address, and the tab's title
+keeps the name to your own screen.
+
+![More's local repository group, and this repository opened from its own folder](docs/img/local.png)
+
+- **Chrome and Edge** read only the index and a few small files, and remember the folder for next time (the browser asks
+  again before reading it). linux opens in about 4 seconds.
+- **Firefox** lists every file in the folder first, which takes a few seconds for a large one (linux: about 9 in all).
+- **Safari** hides `.git` and `.gitignore` from pages, so it is not offered there; use another browser or the CLI.
+- Like a GitHub repository, it shows the single state; fold its history with the CLI and open the city file.
+
 ## What it does
 
 - **Stable by design.** citymap folds a repository's whole first-parent history: the recent commits one by one, older

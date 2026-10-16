@@ -1,0 +1,26 @@
+{
+  "note": "a merge in conflict: one path at stages 1 to 3",
+  "version": 2,
+  "entries": [
+    {
+      "mode": "100644",
+      "stage": 1,
+      "path": "both.txt"
+    },
+    {
+      "mode": "100644",
+      "stage": 2,
+      "path": "both.txt"
+    },
+    {
+      "mode": "100644",
+      "stage": 3,
+      "path": "both.txt"
+    },
+    {
+      "mode": "100644",
+      "stage": 0,
+      "path": "other.txt"
+    }
+  ]
+}

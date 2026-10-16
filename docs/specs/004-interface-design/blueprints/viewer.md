@@ -138,7 +138,8 @@ phone), so nothing the cards do moves the map or each other.
 - `ViewControls` (top right): a `<fieldset>` (legend "View", visually hidden) of two `aria-pressed` buttons, "Plan" and
   "3D"; then "Theme" (a popover `<fieldset>`, legend "Map theme", of radio inputs, one per theme); then "More" (a
   popover headed "Example cities": each bundled city as a button, "{name} {lots} lots", the current one `aria-current`,
-  then "Open a city file…" behind a hidden `<input type="file">` labelled "City file"). A popover (`Popover.tsx`:
+  then "Open a city file…" behind a hidden `<input type="file">` labelled "City file", then the local repository group
+  of [local repositories](../../007-local-repositories/blueprints/local-repositories.md)). A popover (`Popover.tsx`:
   `aria-expanded`, `aria-controls`) closes on Escape and on a pick, both handing focus back to its button, and on focus
   or a press outside.
 - `Drawer` (`<aside aria-label="Details">`; right, 320 px, from below the top row to 16 px above the bottom): "Selected"
