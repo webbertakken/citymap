@@ -5,12 +5,13 @@
 // under PM2: folds take minutes.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   OUTPUTS,
   RESUMED,
   buildArgs,
   cliArgs,
+  coverageReports,
   parseSettings,
   resumePoint,
   resumeVerdict,
@@ -43,6 +44,8 @@ const build = run(buildArgs(settings.features), join(root, "rust"));
 if (build.code !== 0) throw new Error(`parity/build-failed ${build.stderr.split("\n", 1)[0]}`);
 console.log(`parity/built rust/target/release/citymap features=${settings.features.join(",") || "none"}`);
 
+/** The lockfile a fold writes at the clone's root. */
+const LOCK = "citymap.lock.json";
 const results: Result[] = [];
 let resumeFailed = false;
 for (const repo of settings.repos) {
@@ -88,6 +91,24 @@ function compare(repo: string, source: string, mode: Mode, dir: string): Result 
     mkdirSync(join(dir, side), { recursive: true });
     const cloned = run(["git", "clone", "--shared", "--no-checkout", "--quiet", source, clone]);
     if (cloned.code !== 0) throw new Error(`parity/clone-failed repo=${repo} ${cloned.stderr.split("\n", 1)[0]}`);
+    if (mode === "coverage") {
+      const listed = run([
+        "git",
+        "-C",
+        clone,
+        "-c",
+        "core.quotepath=off",
+        "ls-tree",
+        "-r",
+        "-z",
+        "--name-only",
+        "HEAD",
+      ]);
+      for (const [path, text] of Object.entries(coverageReports(listed.stdout.split("\0").filter(Boolean), repo))) {
+        mkdirSync(dirname(join(clone, path)), { recursive: true });
+        writeFileSync(join(clone, path), text);
+      }
+    }
     const out = join(dir, `${side}-out`);
     mkdirSync(out);
     if (mode === "resume") {
@@ -99,7 +120,7 @@ function compare(repo: string, source: string, mode: Mode, dir: string): Result 
     if (laid.code !== 0)
       throw new Error(`parity/cli-failed side=${side} repo=${repo} mode=${mode} ${laid.stderr.split("\n", 1)[0]}`);
     writeFileSync(join(out, "log.txt"), withoutTimings(laid.stdout));
-    if (mode !== "state") copyFileSync(join(clone, "citymap.lock.json"), join(out, "citymap.lock.json"));
+    if (OUTPUTS[mode].includes(LOCK)) copyFileSync(join(clone, LOCK), join(out, LOCK));
     ms[side] = laid.ms;
   }
   const differs = OUTPUTS[mode].filter(

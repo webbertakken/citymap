@@ -6,6 +6,8 @@ export interface IndexListing {
   readonly version: 2 | 3 | 4;
   /** Tracked paths in the index's order, each once; submodules left out. */
   readonly paths: readonly string[];
+  /** Each path's size in bytes as git last saw it in the working tree (the stat data's 32 bits), in the same order. */
+  readonly sizes: readonly number[];
   readonly submodules: number;
 }
 
@@ -13,6 +15,8 @@ const SIGNATURE = 0x44_49_52_43; // "DIRC"
 /** Stat data before the object id: ctime, mtime, dev, ino, mode, uid, gid, size; 32 bits each but the times' 64. */
 const STAT_BYTES = 40;
 const MODE_AT = 24;
+/** The stat data's file size: the last of its 32-bit words. */
+const SIZE_AT = 36;
 const EXTENDED = 0x40_00;
 const MODE_TYPE = 0o170_000;
 const SUBMODULE = 0o160_000;
@@ -35,6 +39,7 @@ export function readIndex(bytes: Uint8Array, idBytes: number): IndexListing {
   const decoder = new TextDecoder();
   const seen = new Set<string>();
   const paths: string[] = [];
+  const sizes: number[] = [];
   let submodules = 0;
   let previous: Uint8Array = new Uint8Array(0);
   let at = 12;
@@ -45,6 +50,7 @@ export function readIndex(bytes: Uint8Array, idBytes: number): IndexListing {
     const fixed = STAT_BYTES + idBytes + 2;
     if (start + fixed > end) damaged("entry", start);
     const mode = view.getUint32(start + MODE_AT);
+    const size = view.getUint32(start + SIZE_AT);
     const flags = view.getUint16(start + STAT_BYTES + idBytes);
     at = start + fixed;
     if (flags & EXTENDED) {
@@ -84,7 +90,10 @@ export function readIndex(bytes: Uint8Array, idBytes: number): IndexListing {
     if (seen.has(text)) continue;
     seen.add(text);
     if (type === SUBMODULE) submodules++;
-    else paths.push(text);
+    else {
+      paths.push(text);
+      sizes.push(size);
+    }
   }
   while (at + 8 <= end) {
     const name = String.fromCharCode(...bytes.subarray(at, at + 4));
@@ -100,5 +109,5 @@ export function readIndex(bytes: Uint8Array, idBytes: number): IndexListing {
     at += 8 + size;
   }
   if (at !== end) damaged("trailer", at);
-  return { version, paths, submodules };
+  return { version, paths, sizes, submodules };
 }

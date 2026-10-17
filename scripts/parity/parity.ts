@@ -7,11 +7,12 @@ export const PARITY = ["takken.io", "redux", "studio-worker", "game-ci-cli", "li
 export const LONG = ["next.js"] as const;
 
 /**
- * A single state (`--no-history`); the whole history folded with a lock; or the same fold resumed from a lock saved part
- * way, which must also match the uninterrupted fold of the same CLI.
+ * A single state (`--no-history`); the whole history folded with a lock; the same fold resumed from a lock saved part
+ * way, which must also match the uninterrupted fold of the same CLI; or a single state with coverage reports in all
+ * four formats written at their usual paths in the clone.
  */
-export type Mode = "state" | "fold" | "resume";
-export const MODES: readonly Mode[] = ["state", "fold", "resume"];
+export type Mode = "state" | "fold" | "resume" | "coverage";
+export const MODES: readonly Mode[] = ["state", "fold", "resume", "coverage"];
 
 export interface Settings {
   readonly repos: readonly string[];
@@ -27,6 +28,7 @@ export const OUTPUTS: Readonly<Record<Mode, readonly string[]>> = {
   state: ["city.json", "city.svg", "log.txt"],
   fold: ["city.json", "city.svg", "citymap.lock.json", "log.txt"],
   resume: ["city.json", "city.svg", "citymap.lock.json", "log.txt"],
+  coverage: ["city.json", "city.svg", "log.txt"],
 };
 
 /** The outputs a resumed fold shares with the uninterrupted one; their logs differ by the resume itself. */
@@ -45,7 +47,7 @@ export function parseSettings(argv: readonly string[]): Settings {
   const value = (name: string) => argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
   const modes = list(value("modes")) ?? [...MODES];
   const bad = modes.find((mode) => !isMode(mode));
-  if (bad !== undefined) throw new Error(`parity/usage: --modes takes state, fold and resume, not ${bad}`);
+  if (bad !== undefined) throw new Error(`parity/usage: --modes takes state, fold, resume and coverage, not ${bad}`);
   const repos = list(value("repos")) ?? [...PARITY, ...(argv.includes("--long") ? LONG : [])];
   return {
     repos,
@@ -74,7 +76,7 @@ export const cliArgs = (clone: string, out: string, mode: Mode, toggles: string 
   clone,
   `--out=${out}/city.json`,
   `--svg=${out}/city.svg`,
-  mode === "state" ? "--no-history" : "--lock",
+  mode === "state" || mode === "coverage" ? "--no-history" : "--lock",
   ...togglesFlag(toggles),
 ];
 
@@ -142,4 +144,68 @@ export function table(results: readonly Result[]): string {
     "| --- | --- | --- | --- | --- | --- |",
     ...rows,
   ].join("\n");
+}
+
+/** The language sources the coverage mode reports on: up to this many, spread evenly through the tree. */
+export const COVERED_SOURCES = 400;
+
+/** A file's synthetic lines and hits: 1 to 12 lines, every third one missed, from the file's place in the list. */
+const linesOf = (i: number) => Array.from({ length: 1 + (i % 12) }, (_, k) => [k + 1, (i + k) % 3 === 0 ? 0 : 1 + k]);
+
+const xml = (text: string) => text.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
+
+/**
+ * Coverage reports in the four formats, by their usual paths, over a repository's paths: each format names a quarter
+ * of the sources its own way (LCOV and Istanbul by absolute paths from a CI machine, Cobertura relative to a source
+ * root, JaCoCo by the path after its first folder), with one path no repository holds.
+ */
+export function coverageReports(paths: readonly string[], repo: string): Record<string, string> {
+  const sources = paths.filter((p) => /\.(ts|tsx|js|jsx|py|go|java|rs|c|cc|cpp|h|rb)$/.test(p) && p.includes("/"));
+  const step = Math.max(1, Math.floor(sources.length / COVERED_SOURCES));
+  const picked = sources.filter((_, i) => i % step === 0).slice(0, COVERED_SOURCES);
+  const ci = `/home/runner/work/${repo}/${repo}`;
+  const quarter = (k: number) => picked.filter((_, i) => i % 4 === k);
+  const lcov = [...quarter(0), "nowhere/at/all.ts"]
+    .map((p, i) => [`SF:${ci}/${p}`, ...linesOf(i).map(([l, h]) => `DA:${l},${h}`), "end_of_record"].join("\n"))
+    .join("\n");
+  const istanbul = Object.fromEntries(
+    quarter(1).map((p, i) => {
+      const lines = linesOf(i);
+      return [
+        `${ci}/${p}`,
+        {
+          path: `${ci}/${p}`,
+          statementMap: Object.fromEntries(lines.map(([l], k) => [k, { start: { line: l, column: 0 } }])),
+          s: Object.fromEntries(lines.map(([, h], k) => [k, h])),
+        },
+      ];
+    }),
+  );
+  const classes = quarter(2)
+    .map((p, i) => {
+      const lines = linesOf(i)
+        .map(([l, h]) => `<line number="${l}" hits="${h}"/>`)
+        .join("");
+      return `<class name="c${i}" filename="${xml(p)}"><methods/><lines>${lines}</lines></class>`;
+    })
+    .join("\n");
+  const cobertura = `<?xml version="1.0" ?>\n<!DOCTYPE coverage SYSTEM "http://cobertura.sourceforge.net/xml/coverage-04.dtd">\n<coverage><sources><source>${ci}</source></sources><packages><package name="p"><classes>\n${classes}\n</classes></package></packages></coverage>\n`;
+  const files = quarter(3)
+    .map((p, i) => {
+      const rest = p.slice(p.indexOf("/") + 1);
+      const folder = rest.includes("/") ? rest.slice(0, rest.lastIndexOf("/")) : "";
+      const name = rest.slice(rest.lastIndexOf("/") + 1);
+      const lines = linesOf(i)
+        .map(([l, h]) => `<line nr="${l}" mi="${h === 0 ? 2 : 0}" ci="${h}"/>`)
+        .join("");
+      return `<package name="${xml(folder)}"><sourcefile name="${xml(name)}">${lines}</sourcefile></package>`;
+    })
+    .join("\n");
+  const jacoco = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<report name="x">\n${files}\n</report>\n`;
+  return {
+    "coverage/lcov.info": `${lcov}\n`,
+    "coverage/coverage-final.json": JSON.stringify(istanbul),
+    "coverage.xml": cobertura,
+    "target/site/jacoco/jacoco.xml": jacoco,
+  };
 }

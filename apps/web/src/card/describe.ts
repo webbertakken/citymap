@@ -71,8 +71,9 @@ export function addressWords(address: string): CardRow {
 const nameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1);
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
-/** A hit as a card: what it is, where it is, and what it means, with nothing said twice. */
-export function describeHit(hit: Hit): Card {
+/** A hit as a card: what it is, where it is, and what it means, with nothing said twice; a file's building adds its
+ * measures as `extra` rows. */
+export function describeHit(hit: Hit, extra: readonly CardRow[] = []): Card {
   const plain = { eyebrow: null, rows: [], target: null };
   switch (hit.kind) {
     case "lot": {
@@ -92,7 +93,7 @@ export function describeHit(hit: Hit): Card {
         title: nameOf(hit.path),
         place,
         meaning: USE[hit.use].meaning,
-        rows: [{ label: "In this folder", value: count(hit.folderLots, "lot") }, addressWords(hit.address)],
+        rows: [{ label: "In this folder", value: count(hit.folderLots, "lot") }, addressWords(hit.address), ...extra],
         target: { path: hit.path, type: "blob" },
       };
     }

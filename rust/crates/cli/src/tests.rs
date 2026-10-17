@@ -5,7 +5,7 @@ use std::process::Command as Git;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use citymap_ground_plan::Result;
-use citymap_ground_plan::city::parse_city;
+use citymap_ground_plan::city::{City, parse_city};
 use citymap_history::{FOLD_STRIDES, Strides};
 
 use super::main_with;
@@ -96,6 +96,66 @@ impl Io for Memory {
     }
 }
 
+/// The city of a city file, its measures set aside.
+fn layout_of(text: &str) -> City {
+    let mut value: serde_json::Value = serde_json::from_str(text).expect("JSON");
+    value.as_object_mut().expect("an object").remove("measures");
+    parse_city(&value.to_string()).expect("a city")
+}
+
+/// The measures of a file of a city file, by its path.
+fn file_of(text: &str, path: &str) -> serde_json::Value {
+    let value: serde_json::Value = serde_json::from_str(text).expect("JSON");
+    value["measures"]["lots"]
+        .as_object()
+        .expect("towns")
+        .values()
+        .flat_map(|town| town.as_object().expect("lots").values())
+        .flat_map(|lot| lot["files"].as_array().expect("files").iter())
+        .find(|file| file["path"] == path)
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// A repository of sources, a test that names one, a manifest and an image, by two people.
+fn measured() -> Repo {
+    let n = NEXT.fetch_add(1, Ordering::SeqCst);
+    let dir = std::env::temp_dir().join(format!("citymap-cli-measures-{}-{n}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("src")).expect("a folder");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    let commit_as = |email: &str| {
+        git(&dir, &["add", "-A"]);
+        git(
+            &dir,
+            &[
+                "-c",
+                &format!("user.email={email}"),
+                "-c",
+                "user.name=x",
+                "commit",
+                "-q",
+                "-m",
+                email,
+            ],
+        );
+    };
+    std::fs::write(dir.join("src/a.ts"), "// TODO: a\nexport const a = 1;\n").expect("a file");
+    std::fs::write(dir.join("src/b.ts"), "export const b = 2;\n").expect("a file");
+    std::fs::write(dir.join("src/copy.ts"), "export const b = 2;\n").expect("a file");
+    std::fs::write(dir.join("src/a.test.ts"), "test();\n").expect("a file");
+    std::fs::write(dir.join("package.json"), "{}\n").expect("a file");
+    commit_as("ann@x.org");
+    std::fs::write(
+        dir.join("src/a.ts"),
+        "// TODO: a\nexport const a = 1;\nexport const c = 3;\n",
+    )
+    .expect("a file");
+    std::fs::write(dir.join("logo.png"), [0x89, 0, 1, 2]).expect("a file");
+    commit_as("bob@x.org");
+    Repo(dir)
+}
+
 fn command(dir: &Path, flags: &[&str]) -> LayCommand {
     let mut argv = vec![dir.display().to_string()];
     argv.extend(flags.iter().map(|f| (*f).to_owned()));
@@ -117,7 +177,7 @@ fn writes_the_city_as_json_and_svg_and_logs_a_summary() {
         "--voronoi",
     ];
     let city = run_lay(&command(&repo.0, &flags), &mut io, 1000, FOLD_STRIDES).expect("a city");
-    assert_eq!(parse_city(&io.files[Path::new("city.json")]).expect("json"), city);
+    assert_eq!(layout_of(&io.files[Path::new("city.json")]), city);
     assert!(io.files[Path::new("map.svg")].contains("<svg "));
     assert!(io.files[Path::new("map.svg")].contains(r#"class="region""#));
     let last = io.lines.last().expect("a summary");
@@ -298,7 +358,7 @@ fn lays_one_state_without_its_history_every_file_at_once() {
             .expect("a summary")
             .contains(" commits=1 laid=1 lots=36 overflow=0 ms=")
     );
-    assert_eq!(parse_city(&io.files[Path::new("city.json")]).expect("json"), city);
+    assert_eq!(layout_of(&io.files[Path::new("city.json")]), city);
     let first = git(&repo.0, &["rev-list", "--reverse", "HEAD"])
         .lines()
         .next()
@@ -333,4 +393,159 @@ fn exits_with_the_usage_code_and_names_every_failure() {
         1
     );
     assert!(errors[0].starts_with("error history/git-failed"), "{}", errors[0]);
+}
+
+#[test]
+fn writes_sizes_comments_tests_by_name_and_history_beside_the_layout() {
+    let repo = measured();
+    let mut io = Memory::default();
+    let city = run_lay(&command(&repo.0, &["--out=city.json"]), &mut io, 1000, FOLD_STRIDES).expect("a city");
+    let text = io.files[Path::new("city.json")].clone();
+    assert_eq!(layout_of(&text), city);
+    let a = file_of(&text, "src/a.ts");
+    assert_eq!(
+        (
+            &a["bytes"],
+            &a["lines"],
+            &a["comments"],
+            &a["todos"],
+            &a["named"],
+            &a["commits"],
+            &a["authors"]
+        ),
+        (
+            &51.into(),
+            &3.into(),
+            &1.into(),
+            &1.into(),
+            &true.into(),
+            &2.into(),
+            &2.into()
+        )
+    );
+    assert_eq!(file_of(&text, "src/b.ts")["named"], false);
+    assert_eq!(file_of(&text, "logo.png")["bytes"], 4);
+    assert_eq!(file_of(&text, "logo.png")["lines"], serde_json::Value::Null);
+    assert_eq!(
+        io.lines[io.lines.len() - 2],
+        "measures/done source=cli size=lines tested=name lots=5 files=5 read=6 unread=0"
+    );
+    let mut bare = Memory::default();
+    run_lay(
+        &command(&repo.0, &["--out=city.json", "--no-measures"]),
+        &mut bare,
+        1000,
+        FOLD_STRIDES,
+    )
+    .expect("a city");
+    let without = bare.files[Path::new("city.json")].clone();
+    assert!(!without.contains("\"measures\""));
+    assert_eq!(layout_of(&without), city);
+}
+
+#[test]
+fn reads_coverage_named_or_at_the_usual_paths_and_says_which_it_skipped() {
+    let repo = measured();
+    let lcov = "SF:src/a.ts\nDA:1,1\nDA:2,0\nend_of_record\nSF:gone.ts\nDA:1,1\nend_of_record\n";
+    let report = repo.0.join("report.info");
+    let mut named = Memory::default();
+    named.files.insert(report.clone(), lcov.to_owned());
+    let flag = format!("--coverage={}", report.display());
+    run_lay(
+        &command(&repo.0, &["--out=city.json", &flag]),
+        &mut named,
+        1000,
+        FOLD_STRIDES,
+    )
+    .expect("a city");
+    let text = named.files[Path::new("city.json")].clone();
+    assert_eq!(
+        (
+            file_of(&text, "src/a.ts")["covered"].clone(),
+            file_of(&text, "src/a.ts")["executable"].clone()
+        ),
+        (1.into(), 2.into())
+    );
+    assert_eq!(file_of(&text, "src/b.ts")["named"], serde_json::Value::Null);
+    assert!(named.lines.contains(&format!(
+        "measures/report path={} format=lcov files=2 matched=1",
+        report.display()
+    )));
+    let mut usual = Memory::default();
+    usual.files.insert(repo.0.join("coverage/lcov.info"), lcov.to_owned());
+    usual.files.insert(repo.0.join("coverage.xml"), "<html/>".to_owned());
+    usual
+        .files
+        .insert(repo.0.join("lcov.info"), "x".repeat(300 * 1024 * 1024));
+    run_lay(
+        &command(&repo.0, &["--out=city.json", "--no-history"]),
+        &mut usual,
+        1000,
+        FOLD_STRIDES,
+    )
+    .expect("a city");
+    assert!(
+        usual
+            .lines
+            .contains(&"measures/report-skipped path=lcov.info reason=too-large".to_owned())
+    );
+    assert!(
+        usual
+            .lines
+            .contains(&"measures/report-skipped path=coverage.xml reason=unreadable".to_owned())
+    );
+    assert!(
+        usual
+            .lines
+            .contains(&"measures/report path=coverage/lcov.info format=lcov files=2 matched=1".to_owned())
+    );
+    let text = usual.files[Path::new("city.json")].clone();
+    assert!(text.contains("\"available\":[\"size\",\"tested\",\"kind\",\"comments\"]"));
+}
+
+#[test]
+fn rejects_a_named_report_that_is_missing_unreadable_or_too_large() {
+    let repo = measured();
+    let code = |files: &[(&str, String)], flag: &str| {
+        let mut io = Memory::default();
+        for (path, text) in files {
+            io.files.insert(PathBuf::from(path), text.clone());
+        }
+        run_lay(&command(&repo.0, &["--out=c.json", flag]), &mut io, 1000, FOLD_STRIDES)
+            .expect_err("a rejection")
+            .to_string()
+    };
+    assert!(code(&[], "--coverage=/nowhere").starts_with("coverage/missing"));
+    assert!(code(&[("r.xml", "<x/>".into())], "--coverage=r.xml").starts_with("coverage/unreadable"));
+    assert!(
+        code(&[("r", "x".repeat(300 * 1024 * 1024))], "--coverage=r")
+            .starts_with("coverage/unreadable: r is larger than")
+    );
+}
+
+#[test]
+fn measures_a_partial_clone_without_fetching() {
+    let source = measured();
+    git(&source.0, &["config", "uploadpack.allowFilter", "true"]);
+    let n = NEXT.fetch_add(1, Ordering::SeqCst);
+    let clone = Repo(std::env::temp_dir().join(format!("citymap-cli-partial-{}-{n}", std::process::id())));
+    let _ = std::fs::remove_dir_all(&clone.0);
+    let url = format!("file://{}", source.0.display());
+    let out = Git::new("git")
+        .args(["clone", "-q", "--no-checkout", "--filter=blob:none", &url])
+        .arg(&clone.0)
+        .output()
+        .expect("git runs");
+    assert!(out.status.success());
+    let mut io = Memory::default();
+    run_lay(&command(&clone.0, &["--out=city.json"]), &mut io, 1000, FOLD_STRIDES).expect("a city");
+    assert_eq!(
+        io.lines[io.lines.len() - 2],
+        "measures/done source=cli size=lines tested=name lots=5 files=5 read=0 unread=6"
+    );
+    let a = file_of(&io.files[Path::new("city.json")], "src/a.ts");
+    assert_eq!(
+        (a["bytes"].clone(), a["named"].clone(), a["commits"].clone()),
+        (serde_json::Value::Null, true.into(), 2.into())
+    );
 }

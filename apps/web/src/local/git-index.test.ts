@@ -41,7 +41,9 @@ describe("readIndex", () => {
     const entries = want.entries!;
     const tracked = [...new Set(entries.filter((e) => e.mode !== "160000").map((e) => e.path))];
     const submodules = new Set(entries.filter((e) => e.mode === "160000").map((e) => e.path)).size;
-    expect(readIndex(bytes(name), idBytes(name))).toEqual({ version: want.version, paths: tracked, submodules });
+    const listing = readIndex(bytes(name), idBytes(name));
+    expect(listing).toEqual({ version: want.version, paths: tracked, sizes: expect.any(Array), submodules });
+    expect(listing.sizes).toHaveLength(tracked.length);
   });
 
   it.each(FIXTURES.filter((name) => expected(name).refused))("refuses %s by name", (name) => {
@@ -56,6 +58,11 @@ describe("readIndex", () => {
     expect(submodules).toBe(1);
     expect(paths.map((p) => new TextEncoder().encode(p).length)).toContain(4096);
     expect(paths).toContain("docs/naïve café.md");
+    // Each path's size as git last saw it: the working tree's bytes.
+    const { sizes } = readIndex(bytes("v2"), 20);
+    expect(sizes[paths.indexOf("README.md")]).toBe("# fixture\n".length);
+    // An entry git added without looking at the disk carries no size.
+    expect(sizes[paths.indexOf("bin/run.sh")]).toBe(0);
   });
 
   it("lists a conflicted path once", () => {

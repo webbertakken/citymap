@@ -98,6 +98,14 @@ test("answers every interaction within 200 ms on a slowed phone", async ({ page,
   await page.getByRole("button", { name: "Details", exact: true }).tap();
   await page.getByRole("region", { name: "Towns" }).getByRole("button", { name: "apps/live", exact: true }).tap();
   await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("button").tap();
+  // The Buildings view and a colour by measure: another index of the same mesh, then one texture. The legend's button
+  // shows once the details sheet is closed.
+  await page.getByRole("button", { name: "Buildings" }).tap();
+  await page.getByRole("button", { name: "Hide details" }).tap();
+  await page.getByRole("button", { name: "Legend" }).tap();
+  await page.getByRole("button", { name: /^Colour by/ }).tap();
+  await page.getByRole("radio", { name: "Size" }).tap();
+  await page.getByRole("button", { name: "Legend" }).tap();
   await page.waitForTimeout(500);
   const { events } = await vitals(page);
   expect(events.length).toBeGreaterThan(0);

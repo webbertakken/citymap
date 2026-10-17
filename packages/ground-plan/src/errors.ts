@@ -31,6 +31,10 @@ export type ErrorCode =
   | "github/rate-limited"
   | "github/failed"
   | "github/offline"
+  | "measures/bad-shape"
+  | "measures/too-new"
+  | "coverage/missing"
+  | "coverage/unreadable"
   | "engine/invariant";
 
 /** The only error the engine throws: a stable code, a message, and structured detail for logs. */

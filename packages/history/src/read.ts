@@ -6,6 +6,7 @@ import { CitymapError, MAX_PATH_BYTES, compareKeys, type FileEntry, type Snapsho
 import { countCommits, resolveCommit } from "./ancestry";
 import { BlobReader } from "./blobs";
 import { gitEnvironment } from "./env";
+import type { FileHistory } from "./file-history";
 import { foldSchedule, isLaid, laidCount, type Strides } from "./schedule";
 import { Workspaces, type ManifestUnavailable } from "./workspaces";
 
@@ -17,9 +18,11 @@ interface RawEntry {
   readonly path: string;
 }
 
-/** One first-parent commit and its changes. */
+/** One first-parent commit: its id, its committer time (epoch seconds), its author's email, and its changes. */
 export interface RawCommit {
   readonly sha: string;
+  readonly time: number;
+  readonly author: string;
   readonly entries: readonly RawEntry[];
 }
 
@@ -42,15 +45,22 @@ export type HistoryEvent =
 
 const SUBMODULE = "160000";
 
+/** A commit's header, "<sha>\x02<time>\x02<email>" after its \x01 mark; a time that is no number reads 0. */
+function headerOf(token: string): { sha: string; time: number; author: string; entries: RawEntry[] } {
+  const [sha = "", time = "", author = ""] = token.slice(1).split("\u0002");
+  const seconds = /^\d+$/.test(time) ? Number(time) : 0;
+  return { sha, time: Number.isSafeInteger(seconds) ? seconds : 0, author, entries: [] };
+}
+
 /** Parses git's `log --raw -z` tokens (split at NUL) into commits. */
 export function* parseRawLog(tokens: Iterable<string>): Generator<RawCommit> {
-  let current: { sha: string; entries: RawEntry[] } | null = null;
+  let current: { sha: string; time: number; author: string; entries: RawEntry[] } | null = null;
   let meta: string | null = null;
   for (const raw of tokens) {
     const token = raw.startsWith("\n") ? raw.slice(1) : raw;
     if (token.startsWith("\u0001")) {
       if (current) yield current;
-      current = { sha: token.slice(1, 41), entries: [] };
+      current = headerOf(token);
       continue;
     }
     if (token === "") continue;
@@ -170,6 +180,17 @@ export interface ReadOptions {
   /** The repository's display name; the folder name by default. */
   readonly repository?: string;
   readonly onEvent?: (event: HistoryEvent) => void;
+  /** Hears every commit's changes, by identity, for the files' own measures. */
+  readonly fileHistory?: FileHistory;
+}
+
+/** Records a commit's changes to the files it leaves live, after it is applied, by the identities they carry. */
+function recordChanges(history: FileHistory, state: ReadonlyMap<string, Live>, commit: RawCommit): void {
+  for (const entry of commit.entries) {
+    if (entry.status === "D" || entry.mode === SUBMODULE) continue;
+    // Applying the commit made every such path live.
+    history.record(state.get(entry.path)!.identity, commit.time, commit.author);
+  }
 }
 
 /**
@@ -219,7 +240,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
       "-z",
       "--no-renames",
       "--no-abbrev",
-      "--format=%x01%H",
+      "--format=%x01%H%x02%ct%x02%aE",
       head,
       "--",
     ],
@@ -256,6 +277,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
     const texts = new Map([...wanted, ...older]);
     for (const commit of commits) {
       if (apply(state, folders, workspaces, commit, index, onEvent)) [files, folderMap] = [null, null];
+      if (options.fileHistory) recordChanges(options.fileHistory, state, commit);
       if (laid(index)) {
         files ??= filesOf(state);
         folderMap ??= new Map(folders);

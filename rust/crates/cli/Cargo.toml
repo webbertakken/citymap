@@ -14,6 +14,7 @@ path = "src/main.rs"
 [dependencies]
 citymap-ground-plan.workspace = true
 citymap-history.workspace = true
+citymap-measures.workspace = true
 citymap-svg.workspace = true
 citymap-themes.workspace = true
 mimalloc = { workspace = true, optional = true }
@@ -24,3 +25,6 @@ mimalloc = ["dep:mimalloc"]
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -1,10 +1,21 @@
 #!/usr/bin/env bun
 // The citymap command: real files, the real clock, standard output and error.
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { main } from "./main";
 
+const utf8 = new TextDecoder("utf-8", { fatal: true });
+
+/** A file's text; null when there is no file there, or it is not UTF-8 text, as the Rust CLI reads it. */
+function readFile(path: string): string | null {
+  try {
+    return statSync(path).isFile() ? utf8.decode(readFileSync(path)) : null;
+  } catch {
+    return null;
+  }
+}
+
 const io = {
-  readFile: (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : null),
+  readFile,
   writeFile: (path: string, text: string) => writeFileSync(path, text),
   log: (line: string) => console.log(line),
   now: () => performance.now(),

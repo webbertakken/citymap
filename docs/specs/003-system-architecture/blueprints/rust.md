@@ -12,13 +12,14 @@ It allows, workspace-wide, the lints the code mirrors the reference by: `many_si
 (the formulas' names), `too_many_lines` (functions that match the TypeScript ones), `missing_panics_doc` and
 `missing_errors_doc`, `module_name_repetitions`. Casts the fixed-point core makes on purpose are allowed at their site.
 
-| Crate                 | Implements                   | Depends on                                                 |
-| --------------------- | ---------------------------- | ---------------------------------------------------------- |
-| `citymap-ground-plan` | `packages/ground-plan`       | `indexmap`, `serde`, `serde_json`, `ethnum`, `rustc-hash`  |
-| `citymap-history`     | `packages/history`           | `citymap-ground-plan`, `regress`, `serde_json`             |
-| `citymap-themes`      | `packages/themes`            | `citymap-ground-plan`                                      |
-| `citymap-svg`         | `packages/svg`               | `citymap-ground-plan`, `citymap-themes`                    |
-| `citymap-cli`         | `apps/cli`, binary `citymap` | all of the above; `mimalloc` behind its `mimalloc` feature |
+| Crate                 | Implements                                | Depends on                                                 |
+| --------------------- | ----------------------------------------- | ---------------------------------------------------------- |
+| `citymap-ground-plan` | `packages/ground-plan`                    | `indexmap`, `serde`, `serde_json`, `ethnum`, `rustc-hash`  |
+| `citymap-history`     | `packages/history`                        | `citymap-ground-plan`, `regress`, `serde_json`             |
+| `citymap-measures`    | `packages/measures` (what the CLI writes) | `citymap-ground-plan`, `serde`, `serde_json`               |
+| `citymap-themes`      | `packages/themes`                         | `citymap-ground-plan`                                      |
+| `citymap-svg`         | `packages/svg`                            | `citymap-ground-plan`, `citymap-themes`                    |
+| `citymap-cli`         | `apps/cli`, binary `citymap`              | all of the above; `mimalloc` behind its `mimalloc` feature |
 
 Dependencies point the same way as the TypeScript workspaces. Each dependency is the latest stable release when it is
 added, declared once in `[workspace.dependencies]`; `Cargo.lock` is committed and pins the build.
@@ -45,9 +46,13 @@ Each TypeScript module has one Rust module of the same name (snake case); functi
 | `fold/`                                                                    | `fold.rs`                                                                                                   |
 | `organic/` (delaunay, regions)                                             | `organic/` (same names)                                                                                     |
 
-`packages/history/src/{read,schedule,tree,blobs,manifests,workspaces,ancestry,env}.ts` map to `citymap-history`'s
-modules of the same names; `packages/themes/src/{themes,colour}.ts` to `citymap-themes`; `packages/svg/src/render.ts` to
-`citymap-svg`; `apps/cli/src/{args,run,main,bin}.ts` to `citymap-cli`'s `args.rs`, `run.rs` and `main.rs`.
+`packages/history/src/{read,schedule,tree,blobs,manifests,workspaces,ancestry,env,contents,file-history}.ts` map to
+`citymap-history`'s modules of the same names (`file_history.rs`);
+`packages/measures/src/{section,by-name,language,text,lots}.ts` and `reports/{xml,report,match}.ts` to
+`citymap-measures` (`by_name.rs`, `reports/matching.rs`; aggregation and scales are the viewer's, TypeScript only);
+`packages/themes/src/{themes,colour}.ts` to `citymap-themes`; `packages/svg/src/render.ts` to `citymap-svg`;
+`apps/cli/src/{args,run,main,bin,measures}.ts` to `citymap-cli`'s `args.rs`, `run.rs`, `main.rs` and `measures.rs`. The
+history reader hands the files' history over as its last item (`HistoryItem::Files`) when asked.
 
 ## Types
 
@@ -213,6 +218,10 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   one the uninterrupted fold could have saved. The CLIs' resumed outputs are compared with each other, and each CLI's
   city, SVG and lock with its own `fold` outputs: `parity/resumed repo=… saved=… same` or
   `parity/resume-differs repo=… saved=… files=<side>:<file>,…` (exit 1).
+- Every mode writes the city with its measures. The `coverage` mode lays the single state with coverage reports in all
+  four formats written into each clone at their usual paths (`coverageReports`: a quarter of up to 400 sources each,
+  LCOV and Istanbul by absolute CI paths, Cobertura by a source root, JaCoCo by package, and one path no repository
+  holds), so the parsers and the path matching are compared byte for byte too.
 - `--toggles=<list>` passes the same flag to both CLIs, so one run proves one toggle setting: the defaults (no flag),
   each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`).
 - One line per run: `parity/same repo=… mode=… ts-ms=… rs-ms=…` or `parity/differs repo=… mode=… files=… …` (exit 1),

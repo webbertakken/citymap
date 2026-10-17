@@ -29,6 +29,7 @@ describe("describeHit", () => {
   it("says a file's name, kind, place, its folder's lots and its address, each once", () => {
     const hit: Hit = {
       kind: "lot",
+      key: "k@0",
       ...linux,
       path: "drivers/phy/intel/phy-intel-keembay-usb.c",
       use: "source",
@@ -54,6 +55,7 @@ describe("describeHit", () => {
   it("says a test file is kept off the map unless asked for, and places a member town's file below its root", () => {
     const hit: Hit = {
       kind: "lot",
+      key: "k@0",
       ...member,
       path: "apps/live/lib/a.test.ts",
       use: "tests",
@@ -73,6 +75,7 @@ describe("describeHit", () => {
   it("says why a lot is empty, and where it is by its address", () => {
     const hit: Hit = {
       kind: "lot",
+      key: "k@0",
       ...linux,
       path: "",
       use: "source",
@@ -237,6 +240,7 @@ describe("hintFor", () => {
 describe("offersFor", () => {
   const file: Hit = {
     kind: "lot",
+    key: "k@0",
     ...linux,
     path: "a.ts",
     use: "source",

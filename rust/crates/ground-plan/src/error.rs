@@ -35,6 +35,10 @@ pub enum ErrorCode {
     GithubRateLimited,
     GithubFailed,
     GithubOffline,
+    MeasuresBadShape,
+    MeasuresTooNew,
+    CoverageMissing,
+    CoverageUnreadable,
     EngineInvariant,
     /// A failure outside the engine (an I/O error the CLI meets).
     EngineUnexpected,
@@ -42,7 +46,7 @@ pub enum ErrorCode {
 
 impl ErrorCode {
     /// Every code, in the order the TypeScript union lists them, then the CLI's own.
-    pub const ALL: [Self; 33] = [
+    pub const ALL: [Self; 37] = [
         Self::FixedBadDivisor,
         Self::FixedOverflow,
         Self::FixedNegativeSqrt,
@@ -74,6 +78,10 @@ impl ErrorCode {
         Self::GithubRateLimited,
         Self::GithubFailed,
         Self::GithubOffline,
+        Self::MeasuresBadShape,
+        Self::MeasuresTooNew,
+        Self::CoverageMissing,
+        Self::CoverageUnreadable,
         Self::EngineInvariant,
         Self::EngineUnexpected,
     ];
@@ -113,6 +121,10 @@ impl ErrorCode {
             Self::GithubRateLimited => "github/rate-limited",
             Self::GithubFailed => "github/failed",
             Self::GithubOffline => "github/offline",
+            Self::MeasuresBadShape => "measures/bad-shape",
+            Self::MeasuresTooNew => "measures/too-new",
+            Self::CoverageMissing => "coverage/missing",
+            Self::CoverageUnreadable => "coverage/unreadable",
             Self::EngineInvariant => "engine/invariant",
             Self::EngineUnexpected => "engine/unexpected",
         }

@@ -7,14 +7,29 @@
     "lib": ["es2024", "dom", "dom.iterable", "dom.asynciterable"],
     "jsx": "react-jsx",
     "types": ["node"],
-    "plugins": [{ "name": "next" }]
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
   "include": ["src", "e2e", "*.ts"],
   "exclude": ["node_modules", ".next", "out"],
   "references": [
-    { "path": "../../packages/ground-plan" },
-    { "path": "../../packages/history" },
-    { "path": "../../packages/scene" },
-    { "path": "../../packages/themes" }
+    {
+      "path": "../../packages/ground-plan"
+    },
+    {
+      "path": "../../packages/history"
+    },
+    {
+      "path": "../../packages/measures"
+    },
+    {
+      "path": "../../packages/scene"
+    },
+    {
+      "path": "../../packages/themes"
+    }
   ]
 }

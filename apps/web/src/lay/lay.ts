@@ -11,9 +11,11 @@ import {
   type Snapshot,
   type Toggle,
 } from "@citymap/ground-plan";
+import type { Measures } from "@citymap/measures";
 import { buildScene, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import type { OnStep, Step } from "../load/step";
+import { liveMeasures, type LiveFacts } from "../measures/live";
 
 export interface LayOptions {
   /** Ends the lay: the worker is terminated and the promise rejects with the signal's reason. */
@@ -24,6 +26,8 @@ export interface LayOptions {
   readonly theme?: ThemeName;
   /** The layout toggles to lay with; the engine's defaults when absent. */
   readonly toggles?: readonly Toggle[];
+  /** What the source knows of its files: the city's measures are built from it beside the layout. */
+  readonly facts?: LiveFacts;
 }
 
 /** A scene built in a theme, ready to draw while that theme is the map's. */
@@ -32,9 +36,10 @@ export interface Drawn {
   readonly scene: Scene;
 }
 
-/** What a lay hands back: the city, and its scene when a theme was given. */
+/** What a lay hands back: the city, its measures when facts were given, and its scene when a theme was. */
 export interface Laid {
   readonly city: City;
+  readonly measures: Measures | null;
   readonly scene: Drawn | null;
 }
 
@@ -42,9 +47,13 @@ export type Lay = (snapshot: Snapshot, options?: LayOptions) => Promise<Laid>;
 
 /** The buffers under a scene's layers, handed to the main thread without a copy. */
 export const buffersOf = (scene: Scene): ArrayBuffer[] =>
-  scene.layers
-    .flatMap((l) => [l.positions.buffer, l.colours.buffer, l.indices.buffer])
-    .filter((b): b is ArrayBuffer => b instanceof ArrayBuffer);
+  [
+    ...scene.layers.flatMap((l) => [l.positions.buffer, l.colours.buffer, l.indices.buffer]),
+    scene.buildings.positions.buffer,
+    scene.buildings.lots.buffer,
+    scene.buildings.facades.buffer,
+    scene.buildings.indices.buffer,
+  ].filter((b): b is ArrayBuffer => b instanceof ArrayBuffer);
 
 /** The CLI's defaults, with the toggles chosen (the engine's defaults when none are). */
 export const liveOptions = (toggles?: readonly Toggle[]): Options => ({
@@ -85,12 +94,13 @@ export function throttled<T>(tell: (value: T) => void, ms: number, now: () => nu
 }
 
 /** Lays on the calling thread, and builds the scene when given a theme: in the worker, and in tests. */
-export const layHere: Lay = async (snapshot, { signal, onProgress, theme, toggles } = {}) => {
+export const layHere: Lay = async (snapshot, { signal, onProgress, theme, toggles, facts } = {}) => {
   signal?.throwIfAborted();
   const tell = onProgress && ((progress: LayProgress) => onProgress(layStep(progress)));
   const options = liveOptions(toggles);
-  const { city } = layCity(snapshot, initialState(options), options, tell);
-  if (theme === undefined) return { city, scene: null };
+  const { city, state } = layCity(snapshot, initialState(options), options, tell);
+  const measures = facts ? liveMeasures(city, state.plat, snapshot, facts) : null;
+  if (theme === undefined) return { city, measures, scene: null };
   onProgress?.({ phase: "draw" });
-  return { city, scene: { theme, scene: buildScene(city, THEMES[theme]) } };
+  return { city, measures, scene: { theme, scene: buildScene(city, THEMES[theme]) } };
 };

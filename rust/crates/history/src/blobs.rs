@@ -38,7 +38,7 @@ enum Held {
 
 /// One answer of the batch process.
 enum Answer {
-    Text(String),
+    Bytes(Vec<u8>),
     Missing,
     /// The output ended first: the process is gone.
     Ended,
@@ -131,7 +131,7 @@ fn answer(batch: &mut Batch) -> Answer {
         return Answer::Ended;
     }
     content.pop();
-    Answer::Text(String::from_utf8_lossy(&content).into_owned())
+    Answer::Bytes(content)
 }
 
 impl BlobReader {
@@ -147,8 +147,16 @@ impl BlobReader {
     /// Each blob's text, or none when the repository does not hold it.
     pub fn read_all(&mut self, blobs: &[String]) -> Result<HashMap<String, Option<String>>> {
         let mut texts = HashMap::new();
+        self.read_bytes(blobs, &mut |blob, bytes| {
+            texts.insert(blob.to_owned(), bytes.map(|b| String::from_utf8_lossy(b).into_owned()));
+        })?;
+        Ok(texts)
+    }
+
+    /// Hands each blob's bytes to `on_blob` as it arrives (none when the repository does not hold it), keeping none.
+    pub fn read_bytes(&mut self, blobs: &[String], on_blob: &mut dyn FnMut(&str, Option<&[u8]>)) -> Result<()> {
         if blobs.is_empty() {
-            return Ok(texts);
+            return Ok(());
         }
         if matches!(self.held, Held::Unknown) {
             self.held = held_blobs(&self.dir)?;
@@ -160,20 +168,20 @@ impl BlobReader {
         let mut ask = Vec::new();
         for blob in blobs {
             if held.is_some_and(|h| !h.contains(blob)) {
-                texts.insert(blob.clone(), None);
+                on_blob(blob, None);
             } else {
                 ask.push(blob.clone());
             }
         }
         for blob in ask {
-            let text = self.ask(&blob);
-            texts.insert(blob, text);
+            let bytes = self.ask(&blob);
+            on_blob(&blob, bytes.as_deref());
         }
-        Ok(texts)
+        Ok(())
     }
 
     /// One blob, asked of the batch process; a process that ended at this blob is replaced for the next one.
-    fn ask(&mut self, blob: &str) -> Option<String> {
+    fn ask(&mut self, blob: &str) -> Option<Vec<u8>> {
         if self.batch.is_none() {
             self.batch = start(&self.dir);
         }
@@ -183,7 +191,7 @@ impl BlobReader {
             .write_all(format!("{blob}\n").as_bytes())
             .and_then(|()| batch.stdin.flush());
         match asked.map_or(Answer::Ended, |()| answer(batch)) {
-            Answer::Text(text) => Some(text),
+            Answer::Bytes(bytes) => Some(bytes),
             Answer::Missing => None,
             Answer::Ended => {
                 self.batch = None;
