@@ -1,7 +1,6 @@
 // The performance budgets of the fold blueprint, timed on this machine: growth checks, not ceilings for CI.
 import {
   DEFAULT_LAND_USES,
-  DEFAULT_SPLIT,
   initialState,
   layCity,
   stateSnapshot,
@@ -43,7 +42,6 @@ export const OPTIONS: Options = {
   order: "centre-out",
   jog: "top-level",
   warp: true,
-  split: DEFAULT_SPLIT,
 };
 
 /** Lays the first `commits` commits of a history in order (the fold's own work, reading included); how many it laid. */

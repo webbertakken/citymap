@@ -41,6 +41,8 @@ pub struct Snapshot {
     pub folder_first_seen: Arc<HashMap<String, i64>>,
     /// Member folders declared by the root workspace manifests, when the history reader read them; sorted.
     pub workspaces: Option<Arc<Vec<String>>>,
+    /// The submodules' folders (gitlinks), read or not, when the tree holds any; sorted.
+    pub submodules: Option<Arc<Vec<String>>>,
 }
 
 impl Snapshot {

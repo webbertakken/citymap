@@ -13,8 +13,9 @@ const index = (name: string) =>
 const COMMIT = "c".repeat(40);
 const MANIFEST = '{ "workspaces": ["packages/*"] }\n';
 /** The v2 fixture's repository, as a working tree: its index, HEAD and the files the reader opens. */
+const GIT: Tree = { HEAD: "ref: refs/heads/main\n", refs: { heads: { main: `${COMMIT}\n` } }, index: index("v2") };
 const REPO: Tree = {
-  ".git": { HEAD: "ref: refs/heads/main\n", refs: { heads: { main: `${COMMIT}\n` } }, index: index("v2") },
+  ".git": GIT,
   "package.json": MANIFEST,
   "README.md": "# fixture\n",
 };
@@ -30,14 +31,32 @@ describe("readLocal", () => {
   it("lays what the index tracks, with the commit HEAD names and members from the working tree's manifests", async () => {
     const phases: LocalPhase[] = [];
     const result = await read(REPO, phases);
-    expect(result.snapshot).toEqual(stateSnapshot("fixture", COMMIT, V2_PATHS, ["packages/a", "packages/b"]));
+    // Its submodule is not checked out here: it is laid as its .gitlink file.
+    const paths = [...V2_PATHS, "vendor/sub/.gitlink"];
+    expect(result.snapshot).toEqual(
+      stateSnapshot("fixture", COMMIT, paths, ["packages/a", "packages/b"], ["vendor/sub"]),
+    );
     expect(result).toMatchObject({
       source: "index",
       index: { version: 2, entries: V2_PATHS.length, submodules: 1 },
       head: "ref",
       unread: [],
+      submodules: { read: [], unread: [{ path: "vendor/sub", reason: "not-checked-out" }] },
     });
     expect(phases).toEqual([{ phase: "index" }, { phase: "manifests" }]);
+  });
+
+  it("lays a checked-out submodule's tracked files, and counts them", async () => {
+    const checkedOut: Tree = {
+      ...REPO,
+      ".git": { ...GIT, modules: { vendor: { sub: { index: index("v3") } } } },
+      vendor: { sub: { ".git": "gitdir: ../../.git/modules/vendor/sub\n" } },
+    };
+    const result = await read(checkedOut);
+    const inner = result.snapshot.files.filter((f) => f.path.startsWith("vendor/sub/"));
+    expect(inner.length).toBeGreaterThan(0);
+    expect(result.submodules).toEqual({ read: [{ path: "vendor/sub", files: inner.length }], unread: [] });
+    expect(result.snapshot.submodules).toEqual(["vendor/sub"]);
   });
 
   it("leaves out a tracked manifest missing from the working tree, and names it", async () => {
@@ -80,7 +99,7 @@ describe("readLocal", () => {
   });
 
   it("names more files than a city holds, and a path longer than it holds", async () => {
-    await expect(read(REPO, [], 3)).rejects.toMatchObject({ code: "local/too-large", detail: { files: 10 } });
+    await expect(read(REPO, [], 3)).rejects.toMatchObject({ code: "local/too-large", detail: { files: 11 } });
     await expect(read({ [`${"x".repeat(4097)}.ts`]: "" })).rejects.toMatchObject({ code: "local/long-path" });
   });
 });

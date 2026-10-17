@@ -43,6 +43,7 @@ pub fn snapshot_with(entries: &[FileEntry], folders: &[(&str, i64)], repository:
                 .collect::<HashMap<_, _>>(),
         ),
         workspaces: None,
+        submodules: None,
     }
 }
 

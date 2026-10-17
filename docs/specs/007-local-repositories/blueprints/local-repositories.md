@@ -49,7 +49,8 @@ interface Folder {
 
 ### `readIndex(bytes, idBytes)` (`local/git-index.ts`)
 
-Returns `{ version: 2 | 3 | 4, paths: string[], submodules: number }`, `paths` in the index's order without repeats.
+Returns `{ version: 2 | 3 | 4, paths: string[], gitlinks: string[] }`, `paths` in the index's order without repeats,
+`gitlinks` the submodules' paths.
 
 1. At least `12 + idBytes` bytes, starting `DIRC`, else `local/bad-index` (`reason: "header"`). The version (big-endian
    32-bit at 4) is 2, 3 or 4, else `local/index-version` (`version`). The entry count is at 8.
@@ -62,7 +63,7 @@ Returns `{ version: 2 | 3 | 4, paths: string[], submodules: number }`, `paths` i
    zero-terminated suffix; the path is the previous path's bytes less `strip` from the end, plus the suffix. `strip`
    beyond the previous path, a missing zero byte, or an entry past the end is `local/bad-index` (`reason: "entry"`,
    `at`).
-4. Mode `0160000` (a submodule) is counted in `submodules` and left out; mode `040000` (a sparse folder) is
+4. Mode `0160000` (a submodule) goes to `gitlinks`, not `paths`; mode `040000` (a sparse folder) is
    `local/sparse-index`. A path seen already (a conflict's stages 1 to 3) is left out. Paths are decoded as UTF-8,
    invalid bytes as U+FFFD, as Node decodes git's output for the CLI.
 5. Extensions follow until `idBytes` bytes remain: a 4-byte signature and a 32-bit size; one that overruns is
@@ -112,7 +113,18 @@ Returns
 3. `onPhase({ phase: "manifests" })`: each tracked root manifest (`isManifest`) is read from the working tree and parsed
    with `patternsOf`; one that cannot be read is left out and named in `unread`, as the CLI leaves out a manifest it
    cannot read. Members: `resolveWorkspaces(patterns, folders)` over every folder holding a file.
-4. The snapshot is `stateSnapshot(folder.name, commit, paths, members)`, the builder `citymap --no-history` uses.
+4. Submodules (`local/submodules.ts`, `readSubmodules(folder, gitlinks)` → `{ paths, submodules, unread }`, `unread` by
+   path, as parallel reads finish in any order; `readLocal` returns them as `submodules: { read, unread }`, `read`
+   naming each top submodule with its file count): each gitlink's folder is looked up in the picked folder; its
+   `findGit` (a `.git` file whose `gitdir` stays inside the picked folder, measured from the submodule's folder, or a
+   `.git` directory) gives its git data, whose index (`readIndex`, its own `idBytes`) lists its tracked paths, prefixed
+   with the gitlink's folder; its own gitlinks follow down to `SUBMODULE_DEPTH` 8 levels. A folder that is missing or
+   empty (not checked out), git data outside the picked folder, no index, an index of a kind not read, or a depth beyond
+   is the one file `<folder>/.gitlink`, logged `viewer/local-submodule-unread path reason` (`not-checked-out`,
+   `outside`, `bad-git-file`, `no-index`, `index`, `depth`); it never fails the read. Submodule paths count towards
+   `MAX_FILES` and `MAX_PATH_BYTES` as any.
+5. The snapshot is `stateSnapshot(folder.name, commit, paths, members, gitlinks)`, the builder `citymap --no-history`
+   uses.
 
 ### Support (`local/support.ts`)
 
@@ -246,11 +258,12 @@ While a read runs, the button and More's item are disabled, so no second opening
 ## Observability
 
 Every line through `src/log.ts`: `viewer/local-pick how` (`handle`, `input`, `again`), `viewer/local-cancelled how`,
-`viewer/local-listed entries`, `viewer/local-index version entries submodules`, `viewer/local-commit how`,
-`viewer/local-walk files`, `viewer/local-manifest-unread path`, `viewer/local-read source files ms`,
-`viewer/local-failed reason` (to `console.error`), `viewer/local-remember-failed reason`,
-`viewer/local-recall-failed reason`, `viewer/local-recalled found`. `ms` runs from the start of the read to the city
-shown. No line carries the folder's name, except the viewer's own `viewer/open`.
+`viewer/local-listed entries`, `viewer/local-index version entries submodules`, `viewer/local-submodule path files`,
+`viewer/local-submodule-unread path reason`, `viewer/local-commit how`, `viewer/local-walk files`,
+`viewer/local-manifest-unread path`, `viewer/local-read source files ms`, `viewer/local-failed reason` (to
+`console.error`), `viewer/local-remember-failed reason`, `viewer/local-recall-failed reason`,
+`viewer/local-recalled found`. `ms` runs from the start of the read to the city shown. No line carries the folder's
+name, except the viewer's own `viewer/open`.
 
 ## Constants and configuration
 
@@ -272,6 +285,7 @@ database name, version and key (in `local/remember.ts`); provenance in [DEFAULTS
 | the files are what git tracks; versions 2 to 4; formats | `git-index.test.ts`: every fixture against git's listing, links kept, submodules out               |
 | split and sparse indexes, other kinds named             | `git-index.test.ts`: the `link` and `sdir` fixtures, and damaged bytes, each by code               |
 | worktrees, submodules, git's own data, no index         | `git-data.test.ts`, `read.test.ts` over `listedFolder` fixtures                                    |
+| submodules read through their own index; unread ones    | `submodules.test.ts` (handle and listed folders); `e2e/local.spec.ts` with a real submodule        |
 | a folder without git honours `.gitignore`               | `walk.test.ts`: nesting, negation, anchoring, ignored folders never listed                         |
 | equal to `citymap --no-history`                         | `apps/web/scripts/local-equals-cli.ts` over the corpus, and over each index rewritten as v3 and v4 |
 | Chromium reads only what it needs                       | `folder.test.ts`: a recording handle; `e2e/local.spec.ts` through an origin private folder         |

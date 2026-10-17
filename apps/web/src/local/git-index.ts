@@ -6,7 +6,8 @@ export interface IndexListing {
   readonly version: 2 | 3 | 4;
   /** Tracked paths in the index's order, each once; submodules left out. */
   readonly paths: readonly string[];
-  readonly submodules: number;
+  /** The submodules' paths (gitlinks), in the index's order, each once. */
+  readonly gitlinks: readonly string[];
 }
 
 const SIGNATURE = 0x44_49_52_43; // "DIRC"
@@ -35,7 +36,7 @@ export function readIndex(bytes: Uint8Array, idBytes: number): IndexListing {
   const decoder = new TextDecoder();
   const seen = new Set<string>();
   const paths: string[] = [];
-  let submodules = 0;
+  const gitlinks: string[] = [];
   let previous: Uint8Array = new Uint8Array(0);
   let at = 12;
   /** A byte before the checksum. */
@@ -83,7 +84,7 @@ export function readIndex(bytes: Uint8Array, idBytes: number): IndexListing {
     const text = decoder.decode(path);
     if (seen.has(text)) continue;
     seen.add(text);
-    if (type === SUBMODULE) submodules++;
+    if (type === SUBMODULE) gitlinks.push(text);
     else paths.push(text);
   }
   while (at + 8 <= end) {
@@ -100,5 +101,5 @@ export function readIndex(bytes: Uint8Array, idBytes: number): IndexListing {
     at += 8 + size;
   }
   if (at !== end) damaged("trailer", at);
-  return { version, paths, submodules };
+  return { version, paths, gitlinks };
 }

@@ -63,6 +63,22 @@ describe("runLay", () => {
     expect(lines[0]).toBe("history/schedule commits=3 coarse=0 tail=0 from=0 laid=3");
   });
 
+  it("logs how many towns each separation laid apart, and nothing when none did", async () => {
+    const dir = repo(1);
+    for (const path of ["apps/web/a.ts", "apps/api/b.ts", "lib/plugins/p/c.ts"]) {
+      mkdirSync(join(dir, path, ".."), { recursive: true });
+      writeFileSync(join(dir, path), path);
+    }
+    git(dir, "add", "-A");
+    git(dir, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "apart");
+    const { io, lines } = memoryIo();
+    await runLay(command(dir, "--separate=apps,plugins"), io);
+    expect(lines).toContain("fold/separate towns=3 by=apps:2,plugins:1");
+    const none = memoryIo();
+    await runLay(command(dir, "--separate="), none.io);
+    expect(none.lines.some((l) => l.startsWith("fold/separate"))).toBe(false);
+  });
+
   it("writes a lockfile and resumes from it, laying the same city", async () => {
     const dir = repo(3);
     const first = memoryIo();

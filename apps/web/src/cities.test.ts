@@ -1,4 +1,4 @@
-import { CitymapError, DEFAULT_TOGGLES, serialiseCity, type City } from "@citymap/ground-plan";
+import { CitymapError, DEFAULT_TOGGLES, serialiseCity, type City, type Separation } from "@citymap/ground-plan";
 import { describe, expect, it } from "vitest";
 import { describeFailure, loadCity, loadIndex, readCityFile, variantOf } from "./cities";
 import { entryOf } from "./components/testing/fixtures";
@@ -22,6 +22,9 @@ const chunked = (text: string, headers: Record<string, string>) => async () => {
 };
 const entry = entryOf("demo", 0);
 
+/** An index whose text is the value given. */
+const bad = (value: unknown) => fetcher({ "/cities/index.json": JSON.stringify(value) });
+
 describe("loadIndex", () => {
   it("reads the bundled cities, each with its sixteen variants", async () => {
     const index = [entryOf("demo", 3)];
@@ -29,7 +32,6 @@ describe("loadIndex", () => {
   });
 
   it("rejects a missing or malformed index", async () => {
-    const bad = (value: unknown) => fetcher({ "/cities/index.json": JSON.stringify(value) });
     const demo = entryOf("demo", 1);
     await expect(loadIndex(fetcher({}))).rejects.toThrow("/cities/index.json answered 404");
     await expect(loadIndex(bad({}))).rejects.toThrow("not a list of cities");
@@ -49,21 +51,59 @@ describe("loadIndex", () => {
     );
     await expect(loadIndex(bad([{ name: 1, variants: demo.variants }]))).rejects.toThrow("not a list of cities");
   });
+
+  it("reads a city that records separations, a variant per combination and separation state", async () => {
+    const index = [entryOf("demo", 3, ["workspaces", "apps", "packages"], true)];
+    expect(index[0]!.variants).toHaveLength(16 * 5);
+    expect(await loadIndex(fetcher({ "/cities/index.json": JSON.stringify(index) }))).toEqual(index);
+  });
+
+  it("rejects recorded separations that are unknown or out of order, and variants that miss or repeat a state", async () => {
+    const demo = entryOf("demo", 1, ["apps", "plugins"]);
+    const [first, ...rest] = demo.variants;
+    const cases = [
+      { ...demo, separable: ["split"] },
+      { ...demo, separable: ["plugins", "apps"] },
+      { ...demo, separable: [] },
+      { ...demo, declared: false },
+      { ...demo, variants: [{ ...first, separate: ["libs"] }, ...rest] },
+      { ...demo, variants: [{ ...first, separate: undefined }, ...rest] },
+      { ...demo, variants: [rest[0], ...rest] },
+      {
+        ...entryOf("demo", 1),
+        variants: [{ ...entryOf("demo", 1).variants[0], separate: [] }, ...entryOf("demo", 1).variants.slice(1)],
+      },
+    ];
+    const read = await Promise.allSettled(cases.map((broken) => loadIndex(bad([broken]))));
+    expect(read.map((r) => r.status)).toEqual(cases.map(() => "rejected"));
+  });
 });
 
 describe("variantOf", () => {
   it("finds the variant with exactly the toggles named, in any order", () => {
     const demo = entryOf("demo", 1);
-    expect(variantOf(demo, DEFAULT_TOGGLES).file).toBe("demo/corridor-tiers.json");
-    expect(variantOf(demo, ["tiers", "corridor"]).file).toBe("demo/corridor-tiers.json");
-    expect(variantOf(demo, []).file).toBe("demo/none.json");
+    expect(variantOf(demo, { toggles: DEFAULT_TOGGLES }).file).toBe("demo/corridor-tiers.json");
+    expect(variantOf(demo, { toggles: ["tiers", "corridor"], separate: ["plugins"] }).file).toBe(
+      "demo/corridor-tiers.json",
+    );
+    expect(variantOf(demo, { toggles: [] }).file).toBe("demo/none.json");
+  });
+
+  it("names a recorded city's variant by the separations it records, declared workspaces deciding", () => {
+    const demo = entryOf("demo", 1, ["workspaces", "apps", "packages"], true);
+    const at = (separate: readonly Separation[]) => variantOf(demo, { toggles: [], separate }).file;
+    expect(at(["workspaces", "submodules", "apps"])).toBe("demo/none~workspaces-apps.json");
+    expect(at(["workspaces", "packages"])).toBe("demo/none~workspaces-apps.json");
+    expect(at(["packages", "plugins"])).toBe("demo/none~packages.json");
+    expect(at([])).toBe("demo/none~none.json");
+    expect(variantOf(demo, { toggles: [] }).file).toBe("demo/none~workspaces-apps.json");
   });
 });
 
 describe("loadCity and readCityFile", () => {
   it("parse a city, the bundled one in the variant the toggles name", async () => {
     const files = { "/cities/demo/quarters.json": serialiseCity(city) };
-    expect(await loadCity(fetcher(files), entryOf("demo", 0), ["quarters"])).toEqual(city);
+    expect(await loadCity(fetcher(files), entryOf("demo", 0), { toggles: ["quarters"] })).toEqual(city);
     expect(await readCityFile(new Blob([serialiseCity(city)]))).toEqual(city);
   });
 
@@ -72,7 +112,7 @@ describe("loadCity and readCityFile", () => {
     const length = String(new TextEncoder().encode(body).length);
     const steps: Step[] = [];
     expect(
-      await loadCity(chunked(body, { "content-length": length }), entry, DEFAULT_TOGGLES, "", {
+      await loadCity(chunked(body, { "content-length": length }), entry, { toggles: DEFAULT_TOGGLES }, "", {
         onStep: (s) => steps.push(s),
       }),
     ).toEqual(city);
@@ -88,7 +128,9 @@ describe("loadCity and readCityFile", () => {
     const unknown = await Promise.all(
       [{ "content-length": "9", "content-encoding": "gzip" }, {}].map(async (headers) => {
         const heard: Step[] = [];
-        await loadCity(chunked(body, headers), entry, DEFAULT_TOGGLES, "", { onStep: (s) => heard.push(s) });
+        await loadCity(chunked(body, headers), entry, { toggles: DEFAULT_TOGGLES }, "", {
+          onStep: (s) => heard.push(s),
+        });
         return heard.at(-2);
       }),
     );
@@ -103,13 +145,13 @@ describe("loadCity and readCityFile", () => {
 
   it("read a body without a stream whole", async () => {
     const plain = async () => Object.assign(new Response(null), { text: async () => serialiseCity(city) });
-    expect(await loadCity(plain, entry, DEFAULT_TOGGLES)).toEqual(city);
+    expect(await loadCity(plain, entry, { toggles: DEFAULT_TOGGLES })).toEqual(city);
   });
 
   it("stop when their signal aborts, while downloading or before reading", async () => {
     const controller = new AbortController();
     const steps: Step[] = [];
-    const reading = loadCity(chunked(serialiseCity(city), {}), entry, DEFAULT_TOGGLES, "", {
+    const reading = loadCity(chunked(serialiseCity(city), {}), entry, { toggles: DEFAULT_TOGGLES }, "", {
       signal: controller.signal,
       onStep: (s) => {
         steps.push(s);

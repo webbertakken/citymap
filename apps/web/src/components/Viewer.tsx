@@ -1,5 +1,14 @@
 "use client";
-import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } from "@citymap/ground-plan";
+import {
+  DEFAULT_SEPARATIONS,
+  DEFAULT_TOGGLES,
+  separationList,
+  toggleList,
+  type City,
+  type Separation,
+  type Snapshot,
+  type Toggle,
+} from "@citymap/ground-plan";
 import { buildScene, folderHit, pick, pickIndex, type Hit, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import {
@@ -14,7 +23,7 @@ import {
   type ComponentType,
 } from "react";
 import type { GitHubSource } from "../card/github";
-import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
+import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry, type Layout } from "../cities";
 import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
 import { readRepository, type Fetcher } from "../github/read";
@@ -126,6 +135,8 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const [cities, setCities] = useState<readonly CityEntry[]>([]);
   // The layout toggles, at the engine's defaults on every visit; and where the city shown came from.
   const [toggles, setToggles] = useState<readonly Toggle[]>(DEFAULT_TOGGLES);
+  // The separations, at the engine's defaults on every visit too.
+  const [separate, setSeparate] = useState<readonly Separation[]>(DEFAULT_SEPARATIONS);
   const [origin, setOrigin] = useState<Origin | null>(null);
   const [selected, setSelected] = useState("");
   const [city, setCity] = useState<City | null>(null);
@@ -255,9 +266,9 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     [show],
   );
   const { begin } = loading;
-  // A bundled city in the variant the toggles name; `relaid` when it is the city shown, in another layout.
+  // A bundled city in the variant its layout names; `relaid` when it is the city shown, in another layout.
   const open = useCallback(
-    async (entry: CityEntry, layout: readonly Toggle[], relaid = false) => {
+    async (entry: CityEntry, layout: Layout, relaid = false) => {
       const job = begin("bundled", entry.name);
       try {
         const next = await loadCity(fetcher, entry, layout, basePath, { signal: job.signal, onStep: job.step });
@@ -291,9 +302,10 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
             requests = step.requests;
             load.step(step);
           },
+          onUnread: (path, reason) => log.info("viewer/github-submodule-unread", { path, reason }),
         });
         load.step({ phase: "lay", files: snapshot.files.length });
-        const laid = await lay(snapshot, { signal: load.signal, onProgress: load.step, theme, toggles });
+        const laid = await lay(snapshot, { signal: load.signal, onProgress: load.step, theme, toggles, separate });
         const from: Origin = { kind: "live", via: "github", name, snapshot, note: GITHUB_STATUS, title: name };
         await draw(load, laid.city, { name, file: "", prebuilt: laid.scene, origin: from });
         setStatus((done) => `${done} · ${GITHUB_STATUS}`);
@@ -311,7 +323,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         setError(describeFailure(failure));
       }
     },
-    [begin, draw, github, lay, theme, toggles],
+    [begin, draw, github, lay, separate, theme, toggles],
   );
   // A repository on the person's machine, read and laid in the browser; nothing about it leaves the page.
   const local = useLocalRepository({
@@ -319,6 +331,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     lay,
     theme,
     toggles,
+    separate,
     begin,
     status,
     setStatus,
@@ -329,13 +342,13 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
       setStatus((done) => `${done} · ${LOCAL_STATUS}`);
     },
   });
-  // A live repository's snapshot laid again with other toggles, off the main thread.
-  const relay = async (live: Extract<Origin, { kind: "live" }>, layout: readonly Toggle[]) => {
+  // A live repository's snapshot laid again in another layout, off the main thread.
+  const relay = async (live: Extract<Origin, { kind: "live" }>, layout: Layout) => {
     const { via, name, snapshot, note, title } = live;
     const job = begin(via, name);
     try {
       job.step({ phase: "lay", files: snapshot.files.length });
-      const laid = await lay(snapshot, { signal: job.signal, onProgress: job.step, theme, toggles: layout });
+      const laid = await lay(snapshot, { signal: job.signal, onProgress: job.step, theme, ...layout });
       await draw(job, laid.city, { name, file: "", prebuilt: laid.scene, title, relaid: true, origin: live });
       setStatus((done) => `${done} · ${note}`);
     } catch (failure) {
@@ -349,11 +362,21 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     const next = toggleList(on ? [...toggles, changed] : toggles.filter((t) => t !== changed));
     setToggles(next);
     log.info("viewer/toggles", { on: next.join(",") || "none" });
-    if (origin?.kind === "bundled") void open(origin.entry, next, true);
-    else if (origin?.kind === "live") void relay(origin, next);
+    relayout({ toggles: next, separate });
+  };
+  const separation = (changed: Separation, on: boolean) => {
+    const next = separationList(on ? [...separate, changed] : separate.filter((s) => s !== changed));
+    setSeparate(next);
+    log.info("viewer/separate", { on: next.join(",") || "none" });
+    relayout({ toggles, separate: next });
+  };
+  // The city shown, again in another layout: a bundled one's variant, or a live one laid again.
+  const relayout = (layout: Layout) => {
+    if (origin?.kind === "bundled") void open(origin.entry, layout, true);
+    else if (origin?.kind === "live") void relay(origin, layout);
   };
   // The index loads once, on mount; a repository in the address is laid, else the first bundled city opens.
-  const first = useEffectEvent((entry: CityEntry) => void open(entry, toggles));
+  const first = useEffectEvent((entry: CityEntry) => void open(entry, { toggles, separate }));
   const wanted = useEffectEvent((repo: string) => void openRepository(repo));
   useEffect(() => {
     loadIndex(fetcher, basePath).then(
@@ -470,12 +493,16 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         selected={selected}
         // The menu closes in the next frame; the map redraws in its new colours after it.
         onTheme={(next) => startTransition(() => setTheme(next))}
-        onCity={(entry) => void open(entry, toggles)}
+        onCity={(entry) => void open(entry, { toggles, separate })}
         onFile={(file) => void openFile(file)}
         local={local}
         toggles={toggles}
         fixed={origin?.kind === "file"}
         onToggle={toggle}
+        separate={separate}
+        separable={city?.separable ?? []}
+        declared={city?.declared === true}
+        onSeparate={separation}
       />
       {local.input}
       <Drawer

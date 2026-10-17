@@ -1,7 +1,7 @@
 import { DEFAULT_LAND_USES, initialState, layCity, type City, type Pt } from "@citymap/ground-plan";
 import { THEMES } from "@citymap/themes";
 import { describe, expect, it } from "vitest";
-import { buildScene, flatLayer, plinths, roadRibbon, triangulate, LOT_HEIGHT } from "./scene";
+import { buildScene, flatLayer, plinths, roadRibbon, shortTownName, triangulate, LOT_HEIGHT } from "./scene";
 
 const square: Pt[] = [
   { x: 0, y: 0 },
@@ -126,6 +126,11 @@ describe("buildScene", () => {
     options,
   ).city;
 
+  it("labels a town named by a path by its last folder", () => {
+    const named = { ...city, towns: [{ ...city.towns[0]!, name: "packages/react-reconciler" }] };
+    expect(buildScene(named, THEMES["paper-atlas"]).labels[0]).toMatchObject({ text: "REACT-RECONCILER" });
+  });
+
   it("builds every layer of the city, with labels and bounds", () => {
     const scene = buildScene(city, THEMES["paper-atlas"]);
     expect(scene.layers.map((l) => l.name)).toEqual(["ground", "blocks", "water", "casings", "roads", "lots"]);
@@ -232,5 +237,13 @@ describe("buildScene colours", () => {
       Array.from(water.colours.slice(shape * 12, shape * 12 + 3), (c) => Math.round(c * 255));
     expect(colourAt(0)).toEqual(hex(theme.water));
     expect(colourAt(1)).toEqual(hex(theme.canal));
+  });
+});
+
+describe("shortTownName", () => {
+  it("names a town by the text after its last slash, its old-town suffix kept", () => {
+    expect(shortTownName("react")).toBe("react");
+    expect(shortTownName("packages/react-reconciler")).toBe("react-reconciler");
+    expect(shortTownName("apps/web old town 2")).toBe("web old town 2");
   });
 });

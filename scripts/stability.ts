@@ -4,7 +4,6 @@
 import { readFileSync } from "node:fs";
 import {
   DEFAULT_LAND_USES,
-  DEFAULT_SPLIT,
   initialState,
   isToggle,
   layCity,
@@ -30,7 +29,6 @@ const options: Options = {
   order: "centre-out",
   jog: "top-level",
   warp: true,
-  split: DEFAULT_SPLIT,
   ...(named ? { toggles: named.filter(isToggle) } : {}),
 };
 const lock = lockFile === undefined ? null : parseLock(readFileSync(lockFile, "utf8"));

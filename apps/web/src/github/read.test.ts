@@ -22,7 +22,7 @@ const offline: Fetcher = () => Promise.reject(new Error("no network"));
 const commit = () => json({ sha: "c1", commit: { tree: { sha: "t0" } } });
 
 describe("readRepository", () => {
-  it("reads a whole tree in one answer, skipping folders and submodules, with its declared members", async () => {
+  it("reads a whole tree in one answer, a submodule without a url as its .gitlink, with its declared members", async () => {
     const { fetcher } = github({
       [`${API}/commits/HEAD`]: commit,
       [`${API}/git/trees/t0?recursive=1`]: () =>
@@ -39,9 +39,21 @@ describe("readRepository", () => {
       [`${RAW}/package.json`]: () => new Response(JSON.stringify({ workspaces: ["packages/*"] })),
     });
     const steps: Step[] = [];
-    const snap = await readRepository(fetcher, { owner: "o", name: "r" }, { onStep: (s) => steps.push(s) });
+    const unread: string[] = [];
+    const snap = await readRepository(
+      fetcher,
+      { owner: "o", name: "r" },
+      { onStep: (s) => steps.push(s), onUnread: (path, reason) => unread.push(`${path} ${reason}`) },
+    );
     expect(snap).toMatchObject({ repository: "r", commit: "c1", index: 0, workspaces: ["packages/a"] });
-    expect(snap.files.map((f) => f.path)).toEqual(["README.md", "package.json", "packages/a/index.ts"]);
+    expect(snap.files.map((f) => f.path)).toEqual([
+      "README.md",
+      "package.json",
+      "packages/a/index.ts",
+      "vendor/lib/.gitlink",
+    ]);
+    expect(snap.submodules).toEqual(["vendor/lib"]);
+    expect(unread).toEqual(["vendor/lib no-url"]);
     // The root and packages are the folders it lists; the one answer reads both.
     expect(steps).toEqual([
       { phase: "commit", requests: 0 },
@@ -170,5 +182,73 @@ describe("readRepository", () => {
     await expect(readRepository(noTree.fetcher, repo)).rejects.toThrow("github/failed: GitHub's answer has no tree");
     const notObject = github({ [`${API}/commits/HEAD`]: () => json(null) });
     await expect(readRepository(notObject.fetcher, repo)).rejects.toThrow("github/failed");
+  });
+
+  it("reads submodules on GitHub at their pins, nested in turn; others as their .gitlink, and why", async () => {
+    const LIB = "https://api.github.com/repos/o/lib";
+    const LOOP = "https://api.github.com/repos/o/loop";
+    const { fetcher, asked } = github({
+      [`${API}/commits/HEAD`]: commit,
+      [`${API}/git/trees/t0?recursive=1`]: () =>
+        json({
+          tree: [
+            entry("main.ts", "blob"),
+            entry("vendor/lib", "commit", "pin1"),
+            entry("vendor/gone", "commit", "pin9"),
+            entry("vendor/loop", "commit", "pin0"),
+          ],
+        }),
+      [`${RAW}/.gitmodules`]: () =>
+        new Response(
+          [
+            '[submodule "lib"]\n path = vendor/lib\n url = ../lib.git',
+            '[submodule "gone"]\n path = vendor/gone\n url = https://github.com/o/gone',
+            '[submodule "loop"]\n path = vendor/loop\n url = git@github.com:o/loop.git',
+          ].join("\n"),
+        ),
+      [`${LIB}/git/trees/pin1?recursive=1`]: () =>
+        json({ tree: [entry("src", "tree"), entry("src/l.ts", "blob"), entry("deps/x", "commit", "pin2")] }),
+      "https://raw.githubusercontent.com/o/lib/pin1/.gitmodules": () =>
+        new Response('[submodule "x"]\n path = deps/x\n url = https://gitlab.com/x/x.git\n'),
+      // A submodule that holds itself: read down to the depth limit, then laid as its .gitlink.
+      [`${LOOP}/git/trees/pin0?recursive=1`]: () => json({ tree: [entry("again", "commit", "pin0")] }),
+      "https://raw.githubusercontent.com/o/loop/pin0/.gitmodules": () =>
+        new Response('[submodule "again"]\n path = again\n url = ../loop\n'),
+    });
+    const unread: string[] = [];
+    const steps: Step[] = [];
+    const snap = await readRepository(
+      fetcher,
+      { owner: "o", name: "r" },
+      { onStep: (s) => steps.push(s), onUnread: (path, reason) => unread.push(`${path} ${reason}`) },
+    );
+    const deepest = `vendor/loop/${Array.from({ length: 7 }, () => "again").join("/")}`;
+    expect(snap.files.map((f) => f.path)).toEqual([
+      "main.ts",
+      "vendor/gone/.gitlink",
+      "vendor/lib/deps/x/.gitlink",
+      "vendor/lib/src/l.ts",
+      `${deepest}/again/.gitlink`,
+    ]);
+    expect(snap.submodules).toContain("vendor/lib/deps/x");
+    expect(snap.submodules).toHaveLength(12);
+    expect(unread).toEqual(["vendor/gone not-found", "vendor/lib/deps/x host", `${deepest}/again depth`]);
+    expect(asked).toContain(`${LIB}/git/trees/pin1?recursive=1`);
+    // Without a listener, a submodule left unread is laid the same.
+    expect((await readRepository(fetcher, { owner: "o", name: "r" })).files).toEqual(snap.files);
+    // Every folder it came to know, it read: the bar ends full.
+    const last = steps.findLast((s) => s.phase === "tree");
+    expect(last && "of" in last && last.done === last.of).toBe(true);
+  });
+
+  it("fails the whole read when GitHub's allowance runs out inside a submodule", async () => {
+    const { fetcher } = github({
+      [`${API}/commits/HEAD`]: commit,
+      [`${API}/git/trees/t0?recursive=1`]: () => json({ tree: [entry("vendor/lib", "commit", "pin1")] }),
+      [`${RAW}/.gitmodules`]: () => new Response('[submodule "lib"]\n path = vendor/lib\n url = ../lib\n'),
+      "https://api.github.com/repos/o/lib/git/trees/pin1?recursive=1": () =>
+        json({}, 403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "99" }),
+    });
+    await expect(readRepository(fetcher, { owner: "o", name: "r" })).rejects.toThrow("github/rate-limited");
   });
 });

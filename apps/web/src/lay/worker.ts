@@ -1,6 +1,6 @@
 // The Web Worker that lays a snapshot off the main thread, and builds its scene there too, so the page answers while a
 // large repository is laid; the scene's buffers are handed over without a copy.
-import type { Snapshot, Toggle } from "@citymap/ground-plan";
+import type { Separation, Snapshot, Toggle } from "@citymap/ground-plan";
 import type { ThemeName } from "@citymap/themes";
 import type { Step } from "../load/step";
 import { buffersOf, layHere, throttled } from "./lay";
@@ -8,7 +8,12 @@ import { buffersOf, layHere, throttled } from "./lay";
 /** The least time between two progress posts, in milliseconds. */
 const POST_MS = 100;
 
-type Request = { snapshot: Snapshot; theme?: ThemeName; toggles?: readonly Toggle[] };
+type Request = {
+  snapshot: Snapshot;
+  theme?: ThemeName;
+  toggles?: readonly Toggle[];
+  separate?: readonly Separation[];
+};
 
 self.addEventListener("message", (event: MessageEvent<Request>) => {
   const post = throttled(
@@ -16,7 +21,7 @@ self.addEventListener("message", (event: MessageEvent<Request>) => {
     POST_MS,
     () => performance.now(),
   );
-  const { snapshot, theme, toggles } = event.data;
+  const { snapshot, theme, toggles, separate } = event.data;
   // Each step posts as it comes when its phase changes; within a phase, at most one per POST_MS.
   let phase = "";
   const onProgress = (step: Step) => {
@@ -30,6 +35,7 @@ self.addEventListener("message", (event: MessageEvent<Request>) => {
     onProgress,
     ...(theme === undefined ? {} : { theme }),
     ...(toggles === undefined ? {} : { toggles }),
+    ...(separate === undefined ? {} : { separate }),
   }).then(
     ({ city, scene }) => {
       post.flush();

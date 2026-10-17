@@ -256,7 +256,7 @@ const big = (name: string, born: number) => [
   ...files(`packages/${name}`, 150, born),
 ];
 
-describe("split groups", () => {
+describe("separate towns", () => {
   it("lays each app as its own town by default, and keeps packages one town", () => {
     const { city } = layCity(at(0, monorepo()), initialState(OPTIONS), OPTIONS);
     // Without folder ages, parts follow path order.
@@ -265,8 +265,8 @@ describe("split groups", () => {
     expect(city.highways).toHaveLength(3);
   });
 
-  it("splits packages too when asked, and lays nothing split when asked", () => {
-    const both = { ...OPTIONS, split: ["apps", "packages"] };
+  it("lays packages apart too when asked, and nothing apart when asked", () => {
+    const both: Options = { ...OPTIONS, separate: ["apps", "packages"] };
     expect(layCity(at(0, monorepo()), initialState(both), both).city.towns.map((t) => t.key)).toEqual([
       "demo",
       "demo/apps/api",
@@ -274,7 +274,7 @@ describe("split groups", () => {
       "demo/packages/a",
       "demo/packages/b",
     ]);
-    const none = { ...OPTIONS, split: [] };
+    const none: Options = { ...OPTIONS, separate: [] };
     expect(layCity(at(0, monorepo()), initialState(none), none).city.towns.map((t) => t.key)).toEqual([
       "demo",
       "demo/apps",
@@ -282,9 +282,9 @@ describe("split groups", () => {
     ]);
   });
 
-  it("keeps a split group's own files outside its members in the main town", () => {
-    const { city } = layCity(at(0, monorepo([...files("apps/shared", 20, 900)])), initialState(OPTIONS), OPTIONS);
-    expect(city.towns[0]?.lots.filter((l) => l.path.startsWith("apps/shared/"))).toHaveLength(20);
+  it("keeps a folder kind's own files outside its members in the main town", () => {
+    const { city } = layCity(at(0, monorepo([...files("apps", 20, 900)])), initialState(OPTIONS), OPTIONS);
+    expect(city.towns[0]?.lots.filter((l) => /^apps\/[^/]+$/.test(l.path))).toHaveLength(20);
   });
 
   it("sets an archipelago town's canals down where the town stands, bent like its water", () => {
@@ -299,24 +299,92 @@ describe("split groups", () => {
     expect(canal.every((p) => p.x >= Math.min(...xs) && p.x <= Math.max(...xs))).toBe(true);
   });
 
-  it("names each setting of land, split and toggles, and rejects a plat laid for another", () => {
-    expect(settingKey(OPTIONS)).toBe(`${landKey(DEFAULT_LAND_USES)}|split:apps|toggles:corridor,tiers`);
-    expect(settingKey({ ...OPTIONS, split: ["packages", "apps"], toggles: ["quarters", "archipelago"] })).toBe(
-      `${landKey(DEFAULT_LAND_USES)}|split:apps,packages|toggles:archipelago,quarters`,
+  it("names each setting of land, separations and toggles, and rejects a plat laid for another", () => {
+    const land = landKey(DEFAULT_LAND_USES);
+    expect(settingKey(OPTIONS)).toBe(`${land}|separate:workspaces,submodules,apps|toggles:corridor,tiers`);
+    expect(settingKey({ ...OPTIONS, separate: ["plugins", "apps"], toggles: ["quarters", "archipelago"] })).toBe(
+      `${land}|separate:apps,plugins|toggles:archipelago,quarters`,
     );
-    expect(settingKey({ ...OPTIONS, toggles: [] })).toBe(`${landKey(DEFAULT_LAND_USES)}|split:apps|toggles:`);
-    const other = initialState({ ...OPTIONS, split: [] });
+    expect(settingKey({ ...OPTIONS, separate: [], toggles: [] })).toBe(`${land}|separate:|toggles:`);
+    const other = initialState({ ...OPTIONS, separate: [] });
     expect(() => layCity(at(0, files("", 3)), other, OPTIONS)).toThrow("plat/setting-mismatch");
     const untoggled = initialState({ ...OPTIONS, toggles: [] });
     expect(() => layCity(at(0, files("", 3)), untoggled, OPTIONS)).toThrow("plat/setting-mismatch");
   });
 
-  it("takes members from the manifests when the snapshot carries them", () => {
+  it("lays every declared member apart, the manifests deciding apps, and records it on the city", () => {
     const declared = { ...at(0, monorepo()), workspaces: ["apps/web", "packages/a", "packages/b"] };
-    expect(layCity(declared, initialState(OPTIONS), OPTIONS).city.towns.map((t) => t.key)).toEqual([
+    const { city } = layCity(declared, initialState(OPTIONS), OPTIONS);
+    // apps/api is no member: with workspaces declared, apps stand apart only as the manifests say.
+    expect(city.towns.map((t) => t.key)).toEqual(["demo", "demo/apps/web", "demo/packages/a", "demo/packages/b"]);
+    expect(city.separable).toEqual(["workspaces", "apps", "packages"]);
+    expect(city.declared).toBe(true);
+  });
+
+  it("keeps declared members in groups as before with the workspaces separation off", () => {
+    const declared = { ...at(0, monorepo()), workspaces: ["apps/web", "packages/a", "packages/b"] };
+    const off: Options = { ...OPTIONS, separate: [] };
+    expect(layCity(declared, initialState(off), off).city.towns.map((t) => t.key)).toEqual(["demo", "demo/packages"]);
+  });
+
+  it("records nothing on a city without separations or declarations", () => {
+    const { city } = layCity(at(0, files("src", 5)), initialState(OPTIONS), OPTIONS);
+    expect(city).not.toHaveProperty("separable");
+    expect(city).not.toHaveProperty("declared");
+  });
+
+  it("nests a separate town inside another, taking its files, joined by highway to the town it lies in", () => {
+    const options: Options = { ...OPTIONS, separate: ["apps", "plugins", "submodules"] };
+    const snapshot = {
+      ...at(0, monorepo([...files("apps/web/plugins/maps", 30, 900), ...files("vendor/x", 20, 950)])),
+      submodules: ["vendor/x"],
+    };
+    const { city } = layCity(snapshot, initialState(options), options);
+    expect(city.towns.map((t) => t.key)).toEqual([
       "demo",
+      "demo/apps/api",
+      "demo/apps/web",
+      "demo/apps/web/plugins/maps",
       "demo/packages",
+      "demo/vendor/x",
     ]);
+    const web = city.towns.find((t) => t.key === "demo/apps/web")!;
+    const maps = city.towns.find((t) => t.key === "demo/apps/web/plugins/maps")!;
+    expect(web.lots.some((l) => l.path.includes("/plugins/"))).toBe(false);
+    expect(maps.stats.lots).toBe(30);
+    // Unwarped, a highway runs straight from a road end of one town to a road end of the other.
+    const near = (town: typeof web, p: { x: number; y: number }) => {
+      const xs = town.outline.map((q) => q.x);
+      const ys = town.outline.map((q) => q.y);
+      return p.x >= Math.min(...xs) && p.x <= Math.max(...xs) && p.y >= Math.min(...ys) && p.y <= Math.max(...ys);
+    };
+    const joins = (a: typeof web, b: typeof web) =>
+      city.highways.some((h) => near(a, h.pts[0]!) && near(b, h.pts.at(-1)!));
+    expect(joins(web, maps)).toBe(true);
+    expect(city.highways).toHaveLength(5);
+  });
+
+  it("lays no town for a group any of whose members stands apart", () => {
+    const options: Options = { ...OPTIONS, separate: ["packages"] };
+    const { city } = layCity(at(0, monorepo(files("packages", 4, 950))), initialState(options), options);
+    expect(city.towns.map((t) => t.key)).toEqual(["demo", "demo/apps", "demo/packages/a", "demo/packages/b"]);
+    expect(city.towns[0]?.lots.filter((l) => l.path.startsWith("packages/"))).toHaveLength(4);
+  });
+
+  it("joins every town to the first town laid when the main town has no land", () => {
+    const only = at(0, [...files("apps/api", 30), ...files("apps/web", 20, 100)]);
+    const { city } = layCity(only, initialState(OPTIONS), OPTIONS);
+    expect(city.towns.map((t) => t.key)).toEqual(["demo/apps/api", "demo/apps/web"]);
+    expect(city.highways).toHaveLength(1);
+  });
+
+  it("joins a town whose parent lays no town to the first town laid", () => {
+    const options: Options = { ...OPTIONS, separate: ["apps", "plugins"] };
+    // apps/web holds nothing of its own beyond its plugin, so it lays no town.
+    const only = at(0, [...files("src", 40), ...files("apps/web/plugins/p", 10, 100)]);
+    const { city } = layCity(only, initialState(options), options);
+    expect(city.towns.map((t) => t.key)).toEqual(["demo", "demo/apps/web/plugins/p"]);
+    expect(city.highways).toHaveLength(1);
   });
 });
 

@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 citymap-ground-plan.workspace = true
+indexmap.workspace = true
 regress.workspace = true
 serde_json.workspace = true
 

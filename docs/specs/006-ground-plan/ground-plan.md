@@ -13,8 +13,11 @@ Each concept has one name; the names in brackets are not used.
 | Term            | Meaning                                                                                            |
 | --------------- | -------------------------------------------------------------------------------------------------- |
 | city            | The ground plan of one repository: one or more towns.                                              |
-| town            | One cohesive settlement: the main town, or the town of a workspace group.                          |
+| town            | One cohesive settlement: the main town, the town of a workspace group, or a separate town.         |
 | workspace group | A folder holding two or more workspace members whose land is mostly source (`apps/`, `packages/`). |
+| separation      | A switch that lays each member of one kind of folder as a town of its own (Separate towns).        |
+| separate town   | The town of one member a separation lays apart, joined to the town its folder lies in.             |
+| submodule       | A repository nested in another, pinned to a commit (a gitlink); read from its own git data.        |
 | node            | A folder or a file in the tree.                                                                    |
 | district        | A folder with real weight; one coherent fabric (grain, orientation, block shape).                  |
 | ward            | Land bounded by collectors or bigger roads; it takes one tint and the name of its heaviest folder. |
@@ -62,8 +65,10 @@ Each concept has one name; the names in brackets are not used.
 - The plat is the fold of the layout over first-parent history, oldest commit first, on the fold schedule. The same
   repository at the same commit always yields the same plat and the same city.
 - A committed lockfile overrides the fold. A folder without git keeps its plat as local state.
-- The fold reads commits and trees, and the contents of the repository's root workspace manifests only, at the commits
-  that change them; it never needs any other file's contents.
+- The fold reads commits and trees, and the contents of the repository's root workspace manifests and `.gitmodules`
+  only, at the commits that change them; it never needs any other file's contents.
+- A submodule's files are part of the tree: the files of its pinned commit, read from the submodule's own git data,
+  under the submodule's folder (Submodules).
 - A file's identity follows exact renames: the fold carries it through every commit that moves a file unchanged (equal
   blob ids, no contents needed). A folder's identity is its path.
 
@@ -304,14 +309,62 @@ Edges carry meaning:
 - A workspace group is a folder holding two or more members whose land is mostly source.
 - A repository is one cohesive city. Each workspace group becomes its own town, sized by its land, its members as
   districts, joined to the main town by a highway across open country.
-- Split groups give each member its own town instead, each joined to the main town by its own highway. `apps/` is split
-  by default; any other group (`packages/` and the like) may be split as a setting, off by default. Each setting has its
-  own plat, as the land dimension does.
+- A separation that is on lays each of its members as a separate town instead (Separate towns).
 - A highway continues a road: it joins, in both towns, the end of a road of the highest class both offer at their edges,
   takes that class, and is drawn exactly like it. A town without roads gets an approach street from its nearest edge to
   its centre.
 - **Parks** hold docs.
 - **Reserve plots** hold room for growth inside neighbourhoods.
+
+## Separate towns
+
+Some kinds of folder hold things that stand on their own: apps, packages, plugins, submodules. A separation lays each
+member of its kind of folder as a town of its own, a separate town, joined by a highway to the town its folder lies in.
+
+| Separation | Default | Its members                                                      |
+| ---------- | ------- | ---------------------------------------------------------------- |
+| workspaces | on      | every workspace member the root manifests declare                |
+| submodules | on      | every submodule                                                  |
+| apps       | on      | each child folder of the root's `apps/`                          |
+| packages   | off     | each child folder of the root's `packages/`                      |
+| libs       | off     | each child folder of the root's `libs/`                          |
+| crates     | off     | each child folder of the root's `crates/`                        |
+| services   | off     | each child folder of the root's `services/`                      |
+| modules    | off     | each child folder of the root's `modules/`                       |
+| extensions | off     | each child folder of the root's `extensions/`                    |
+| plugins    | off     | each child folder of every folder named `plugins/`, at any depth |
+
+- The workspaces separation reads every root manifest the engine reads (Edges and open land); a repository whose
+  manifests declare no member has no members of it.
+- Declared workspaces override apps and packages: at a commit whose root manifests declare members, with the workspaces
+  separation on, the apps and packages separations lay nothing apart. At a commit that declares none, they act as set.
+- A folder kind's members are its child folders holding files; the folder's own files stay in the town it lies in.
+- A separation that is off leaves its folders as the engine lays them otherwise: a workspace group stays one town, any
+  other folder stays districts of its town.
+- Separate towns nest: a member of one separation inside a separate town (a submodule in a package, a `plugins/` folder
+  in an app) is a separate town too, joined to the town it lies in, and its files leave that town.
+- A workspace group any of whose members is laid apart is no town: its other files stay in the town it lies in.
+- A member is laid apart only once; a folder that two separations name (a declared member under `apps/`) is one town.
+- Members nested inside another member of the same separation are not laid apart: the outermost member holds them.
+- A separate town is named by its member's path and keyed by it, as a workspace group's town is; it is placed round the
+  main town like every other town, in first-appearance order.
+- The separations on are a setting: each combination has its own plat, as the land dimension and the toggles do. A
+  separation whose kind of folder a repository lacks changes nothing.
+- A city records which separations would change its layout at its commit, so a viewer offers only those.
+
+### Submodules
+
+- A submodule is a gitlink in the tree: a folder pinned to a commit of another repository. `.gitmodules` names its path
+  and its name; its git data lies in the parent's `.git/modules/<name>`, or in the submodule's own `.git`.
+- Its files are the files of the pinned commit's tree, read from that git data, laid under the submodule's folder as any
+  file is; nested submodules are read the same way from their own git data.
+- In the fold, a moved gitlink changes the submodule's files by the difference between its pinned tree as last laid and
+  its pinned tree now: files born, deleted, and renamed exactly (equal blob ids), as any commit's files. A window reads
+  each moved submodule once, at its end; the submodule's own commits are never folded.
+- A submodule whose pinned commit cannot be read (not initialised, not fetched, on a host not reached) is one file,
+  `.gitlink`, in its folder, and the log names it; it keeps its identity while the pin moves. Its separate town is a
+  single lot.
+- The same repository at the same commit, with the same submodules at hand, yields the same plat and city.
 
 ## Deletion
 
@@ -358,7 +411,8 @@ warp. It never feeds back into the plat.
 
 ## Invariants
 
-- Determinism: the same repository and commit give the same plat and city, bit for bit, in every implementation.
+- Determinism: the same repository and commit, with the same submodules at hand, give the same plat and city, bit for
+  bit, in every implementation.
 - Integer core: the plat uses integer arithmetic and sorted iteration only; no rule reads the plat's records in the
   order they were made, which a lockfile does not keep.
 - Settled lays: laying a commit again on the plat its lay produced decides nothing and draws the same city; a lay leaves

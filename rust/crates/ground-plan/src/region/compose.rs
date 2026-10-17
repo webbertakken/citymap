@@ -19,7 +19,10 @@ use crate::land_use::{LandUse, classify_land_use, land_key};
 use crate::plat::{OldTown, Plat, TownPlat};
 use crate::region::highway::{highway_between, with_approach};
 use crate::region::outline::outline_for;
-use crate::snapshot::{FileEntry, MAX_FILES, Snapshot};
+use crate::region::separate::{
+    SeparateMember, Separation, declares_workspaces, separable, separate_members, separation_list,
+};
+use crate::snapshot::{FileEntry, MAX_FILES, Snapshot, folder_of};
 use crate::toggles::{Toggle, toggle_list};
 use crate::town::context::{Jog, LayoutOptions, Order, PlatEvent, TownCache, Value};
 use crate::town::layout::{TownDraft, layout_town};
@@ -36,25 +39,24 @@ pub struct Options {
     pub warp: bool,
     /// Lanes joining nearby dead ends. They never touch the plat.
     pub loops: bool,
-    /// Workspace groups whose members each become a town, by folder path or name.
-    pub split: Vec<String>,
+    /// The separations on: kinds of folder whose members each become a town.
+    pub separate: Vec<Separation>,
     /// The archetype toggles on.
     pub toggles: Vec<Toggle>,
 }
 
-/// Each app of an `apps/` group is its own town by default; other groups stay one town each.
-pub const DEFAULT_SPLIT: &[&str] = &["apps"];
-
-/// The setting a plat is laid for: its land uses, its split groups and its toggles. Each setting has its own plat.
+/// The setting a plat is laid for: its land uses, its separations and its toggles. Each setting has its own plat.
 #[must_use]
 pub fn setting_key(options: &Options) -> String {
-    let mut split: Vec<&str> = options.split.iter().map(String::as_str).collect();
-    split.sort_by(|a, b| compare_keys(a, b));
+    let separate: Vec<&str> = separation_list(&options.separate)
+        .into_iter()
+        .map(Separation::as_str)
+        .collect();
     let toggles: Vec<&str> = toggle_list(&options.toggles).into_iter().map(Toggle::as_str).collect();
     format!(
-        "{}|split:{}|toggles:{}",
+        "{}|separate:{}|toggles:{}",
         land_key(&options.land_uses),
-        split.join(","),
+        separate.join(","),
         toggles.join(",")
     )
 }
@@ -82,6 +84,46 @@ pub struct FoldCache {
     wholes: HashMap<String, KeptTree>,
     /// Land use per path, remembered for a million paths: every commit asks again about the same paths.
     uses: FxHashMap<Arc<str>, LandUse>,
+    /// The members laid apart, kept per file list and setting: a commit that only edits files lays the same ones.
+    members: Option<KeptMembers>,
+}
+
+/// The members a file list, its declared workspaces and its submodules lay apart under some separations.
+struct KeptMembers {
+    files: Arc<Vec<FileEntry>>,
+    workspaces: Option<Arc<Vec<String>>>,
+    submodules: Option<Arc<Vec<String>>>,
+    separate: Vec<Separation>,
+    members: Vec<SeparateMember>,
+}
+
+/// The members laid apart, kept while the file list, the declared workspaces, the submodules and the setting stand.
+fn members_of(snapshot: &Snapshot, separate: &[Separation], kept: Option<&mut Option<KeptMembers>>) -> Vec<String> {
+    let separate = separation_list(separate);
+    let Some(kept) = kept else {
+        return separate_members(snapshot, &separate)
+            .into_iter()
+            .map(|m| m.folder)
+            .collect();
+    };
+    let same = kept.as_ref().is_some_and(|k| {
+        Arc::ptr_eq(&k.files, &snapshot.files)
+            && k.separate == separate
+            && same_list(k.workspaces.as_ref(), snapshot.workspaces.as_ref())
+            && same_list(k.submodules.as_ref(), snapshot.submodules.as_ref())
+    });
+    if !same {
+        *kept = Some(KeptMembers {
+            files: snapshot.files.clone(),
+            workspaces: snapshot.workspaces.clone(),
+            submodules: snapshot.submodules.clone(),
+            members: separate_members(snapshot, &separate),
+            separate,
+        });
+    }
+    kept.as_ref()
+        .map(|k| k.members.iter().map(|m| m.folder.clone()).collect())
+        .unwrap_or_default()
 }
 
 /// A part's last tree, the files it was built from, and where they lay in the snapshot it was last checked against.
@@ -150,6 +192,39 @@ struct Part {
     root: String,
     exclude: Vec<String>,
     first_seen: i64,
+    /// The key of the part whose town this one's highway joins: the nearest root holding it, else the main town.
+    parent: String,
+}
+
+/// True when a folder lies inside a root (every folder lies inside the root of the repository).
+fn is_inside(folder: &str, root: &str) -> bool {
+    root.is_empty() || (folder.len() > root.len() && folder.as_bytes()[root.len()] == b'/' && folder.starts_with(root))
+}
+
+/// The roots directly inside a root: inside it, and inside no other root inside it.
+fn nearest_inside(root: &str, roots: &[String]) -> Vec<String> {
+    let inside: Vec<&String> = roots.iter().filter(|r| *r != root && is_inside(r, root)).collect();
+    inside
+        .iter()
+        .filter(|r| !inside.iter().any(|o| o != *r && is_inside(r, o)))
+        .map(|r| (*r).clone())
+        .collect()
+}
+
+/// The towns' roots: workspace groups that stay one town, and the members laid apart; sorted.
+fn town_roots(groups: &[String], member_folders: &[String], separate: &[String]) -> Vec<String> {
+    let apart: HashSet<&str> = separate.iter().map(String::as_str).collect();
+    // A group laid apart, or with any member laid apart, is no town: its members' towns and its other files stand.
+    let towns = groups.iter().filter(|g| {
+        !apart.contains(g.as_str())
+            && !member_folders
+                .iter()
+                .any(|m| folder_of(m) == g.as_str() && apart.contains(m.as_str()))
+    });
+    let mut roots: Vec<String> = towns.chain(separate).cloned().collect();
+    roots.sort_by(|a, b| compare_keys(a, b));
+    roots.dedup();
+    roots
 }
 
 /// The radius of a circle of the given doubled area, widened by 8 %.
@@ -254,7 +329,7 @@ fn derive(snapshot: &Snapshot, memory: Option<&mut FxHashMap<Arc<str>, LandUse>>
     }
 }
 
-fn same_workspaces(a: Option<&Arc<Vec<String>>>, b: Option<&Arc<Vec<String>>>) -> bool {
+fn same_list(a: Option<&Arc<Vec<String>>>, b: Option<&Arc<Vec<String>>>) -> bool {
     match (a, b) {
         (None, None) => true,
         (Some(a), Some(b)) => Arc::ptr_eq(a, b),
@@ -395,12 +470,12 @@ impl LastTown {
     }
 }
 
-/// The city of the last lay, before it is drawn: its towns by part key, and the files that light its old towns.
+/// The city of the last lay, before it is drawn: its towns by part key, the town each joins by highway (for every town
+/// after the first), and the snapshot whose files light its old towns and whose folders its record names.
 struct Current {
-    repository: String,
-    commit: String,
+    snapshot: Snapshot,
     towns: Vec<String>,
-    files: Arc<Vec<FileEntry>>,
+    joins: Vec<usize>,
 }
 
 /// Old towns stay where they stood; their lots stay lit while any of their files lives. With their successors.
@@ -447,10 +522,12 @@ pub fn current_city(state: &mut FoldState, options: &Options) -> Result<City> {
         all.push(state.last[key].town(town_cache(&mut state.cache, key)));
     }
     let main_count = all.len();
-    let old = old_towns(&state.plat, &current.files);
+    let snapshot = &current.snapshot;
+    let old = old_towns(&state.plat, &snapshot.files);
     all.extend(old.iter().map(|(_, t)| Arc::new(t.clone())));
-    // Highways join each group town to the main town, and each old town to the town that replaced it.
-    let mut pairs: Vec<(usize, usize)> = (1..main_count).map(|t| (0, t)).collect();
+    // Highways join each town to the town of its parent part (the nearest laid one up the chain, else the first town),
+    // and each old town to the town that replaced it.
+    let mut pairs: Vec<(usize, usize)> = (1..main_count).map(|t| (current.joins[t - 1], t)).collect();
     for (o, (successor, _)) in old.iter().enumerate() {
         let found = all[..main_count].iter().position(|t| t.key == *successor);
         if let Some(s) = found.or((main_count > 0).then_some(0)) {
@@ -465,7 +542,7 @@ pub fn current_city(state: &mut FoldState, options: &Options) -> Result<City> {
         with_approach(&mut all[to], toward_from);
         highways.push(highway_between(&all[from], &all[to]));
     }
-    let bend = Warp::new(fnv1a(&current.repository) ^ 0x0051_ed27, vec![(240, 5600)]);
+    let bend = Warp::new(fnv1a(&snapshot.repository) ^ 0x0051_ed27, vec![(240, 5600)]);
     // The bend fades to nothing at both ends, so a highway meets its roads exactly.
     let fade = |pts: Vec<Pt>| -> Vec<Pt> {
         let n = i64::try_from(pts.len()).expect("small") - 1;
@@ -493,11 +570,15 @@ pub fn current_city(state: &mut FoldState, options: &Options) -> Result<City> {
         highways
     };
     check_extent(&all, &highways)?;
+    // What the city records of its separations: those that would change it, and whether it declares workspaces.
+    let offered = separable(snapshot);
     Ok(City {
-        repository: current.repository.clone(),
-        commit: current.commit.clone(),
+        repository: snapshot.repository.clone(),
+        commit: snapshot.commit.clone(),
         towns: all,
         highways,
+        separable: (!offered.is_empty()).then_some(offered),
+        declared: declares_workspaces(snapshot).then_some(true),
     })
 }
 
@@ -529,8 +610,7 @@ pub fn lay(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -> Res
     let derived = match cache.as_mut() {
         Some(cache) => {
             let kept = cache.derived.take().filter(|d| {
-                Arc::ptr_eq(&d.files, &snapshot.files)
-                    && same_workspaces(d.workspaces.as_ref(), snapshot.workspaces.as_ref())
+                Arc::ptr_eq(&d.files, &snapshot.files) && same_list(d.workspaces.as_ref(), snapshot.workspaces.as_ref())
             });
             kept.unwrap_or_else(|| derive(snapshot, Some(&mut cache.uses)))
         }
@@ -545,40 +625,39 @@ pub fn lay(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -> Res
         toggles: toggle_list(&options.toggles),
     };
     let mut events: Vec<PlatEvent> = Vec::new();
-    let is_split = |group: &str| {
-        let name = group.rsplit_once('/').map_or(group, |(_, n)| n);
-        options.split.iter().any(|s| s == group || s == name)
-    };
-    // A split group lends each member a town of its own; its other files stay in the main town.
-    let town_roots: Vec<String> = derived
-        .groups
-        .iter()
-        .flat_map(|g| {
-            if is_split(g) {
-                let prefix = format!("{g}/");
-                derived
-                    .member_folders
-                    .iter()
-                    .filter(|m| m.starts_with(&prefix))
-                    .cloned()
-                    .collect()
-            } else {
-                vec![g.clone()]
-            }
-        })
-        .collect();
+    let apart = members_of(snapshot, &options.separate, cache.as_mut().map(|c| &mut c.members));
+    let roots = town_roots(&derived.groups, &derived.member_folders, &apart);
     let repository = &snapshot.repository;
-    let mut groups: Vec<Part> = town_roots
+    let key_of = |root: &str| {
+        if root.is_empty() {
+            repository.clone()
+        } else {
+            format!("{repository}/{root}")
+        }
+    };
+    // The nearest root strictly holding a root, or the main town's: sorted, a root's ancestors come before it, nearest
+    // last.
+    let parent_of = |root: &str| {
+        key_of(
+            roots
+                .iter()
+                .rev()
+                .find(|r| *r != root && is_inside(root, r))
+                .map_or("", String::as_str),
+        )
+    };
+    let mut separate_parts: Vec<Part> = roots
         .iter()
-        .map(|t| Part {
-            name: t.clone(),
-            key: format!("{repository}/{t}"),
-            root: t.clone(),
-            exclude: vec![],
-            first_seen: snapshot.folder_first_seen(t),
+        .map(|r| Part {
+            name: r.clone(),
+            key: key_of(r),
+            root: r.clone(),
+            exclude: nearest_inside(r, &roots),
+            first_seen: snapshot.folder_first_seen(r),
+            parent: parent_of(r),
         })
         .collect();
-    groups.sort_by(|a, b| {
+    separate_parts.sort_by(|a, b| {
         a.first_seen
             .cmp(&b.first_seen)
             .then_with(|| compare_keys(&a.name, &b.name))
@@ -587,10 +666,15 @@ pub fn lay(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -> Res
         name: repository.clone(),
         key: repository.clone(),
         root: String::new(),
-        exclude: town_roots.clone(),
+        exclude: nearest_inside("", &roots),
         first_seen: 0,
+        parent: repository.clone(),
     };
-    let parts = std::iter::once(main).chain(groups);
+    // Each part's parent, by key, to find the town a town's highway joins.
+    let parents: HashMap<String, String> = std::iter::once((main.key.clone(), main.parent.clone()))
+        .chain(separate_parts.iter().map(|p| (p.key.clone(), p.parent.clone())))
+        .collect();
+    let parts = std::iter::once(main).chain(separate_parts);
     let tree_options = |part: &Part| TreeOptions {
         root: part.root.clone(),
         exclude: part.exclude.clone(),
@@ -784,11 +868,25 @@ pub fn lay(snapshot: &Snapshot, state: &mut FoldState, options: &Options) -> Res
     if let Some(cache) = cache.as_mut() {
         cache.derived = Some(derived);
     }
+    // Each town after the first joins its parent part's town: the nearest laid one up the chain, else the first town.
+    let joined_to = |town: &str| -> usize {
+        let mut at = town;
+        loop {
+            let parent = &parents[at];
+            if parent == at {
+                return 0;
+            }
+            if let Some(i) = towns.iter().position(|t| t == parent) {
+                return i;
+            }
+            at = parent;
+        }
+    };
+    let joins: Vec<usize> = towns.iter().skip(1).map(|t| joined_to(t)).collect();
     *current = Some(Current {
-        repository: repository.clone(),
-        commit: snapshot.commit.clone(),
+        snapshot: snapshot.clone(),
         towns,
-        files: snapshot.files.clone(),
+        joins,
     });
     Ok(events)
 }
@@ -815,6 +913,7 @@ mod tests {
     use crate::fold::initial_state;
     use crate::json::canonical_json;
     use crate::land_use::default_land_uses;
+    use crate::region::separate::DEFAULT_SEPARATIONS;
     use crate::testing::{files, snapshot_with, sources};
     use crate::toggles::DEFAULT_TOGGLES;
 
@@ -826,7 +925,7 @@ mod tests {
             jog: Jog::TopLevel,
             warp: false,
             loops: true,
-            split: vec!["apps".into()],
+            separate: DEFAULT_SEPARATIONS.to_vec(),
             toggles: DEFAULT_TOGGLES.to_vec(),
         }
     }
@@ -1016,13 +1115,13 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error.code, ErrorCode::PlatSettingMismatch);
-        let unsplit = Options {
-            split: vec![],
+        let together = Options {
+            separate: vec![],
             ..options()
         };
         let error = lay_city(
             &at(0, &sources("", 3, 0)),
-            &mut initial_state(&unsplit, None, true),
+            &mut initial_state(&together, None, true),
             &options(),
         )
         .unwrap_err();
@@ -1041,28 +1140,63 @@ mod tests {
         let land = land_key(&default_land_uses());
         assert_eq!(
             setting_key(&options()),
-            format!("{land}|split:apps|toggles:corridor,tiers")
+            format!("{land}|separate:workspaces,submodules,apps|toggles:corridor,tiers")
         );
         assert_eq!(
             setting_key(&Options {
-                split: vec!["packages".into(), "apps".into()],
+                separate: vec![Separation::Plugins, Separation::Apps],
                 toggles: vec![Toggle::Quarters, Toggle::Archipelago],
                 ..options()
             }),
-            format!("{land}|split:apps,packages|toggles:archipelago,quarters")
+            format!("{land}|separate:apps,plugins|toggles:archipelago,quarters")
         );
-        assert_eq!(setting_key(&untoggled), format!("{land}|split:apps|toggles:"));
+        assert_eq!(
+            setting_key(&Options {
+                separate: vec![],
+                toggles: vec![],
+                ..options()
+            }),
+            format!("{land}|separate:|toggles:")
+        );
+    }
+
+    fn separating(separate: &[Separation]) -> Options {
+        Options {
+            separate: separate.to_vec(),
+            ..options()
+        }
+    }
+
+    fn laid(snapshot: &Snapshot, options: &Options) -> City {
+        lay_city(snapshot, &mut initial_state(options, None, true), options)
+            .expect("a city")
+            .0
+    }
+
+    fn declared() -> Snapshot {
+        Snapshot {
+            workspaces: Some(Arc::new(vec![
+                "apps/web".into(),
+                "packages/a".into(),
+                "packages/b".into(),
+            ])),
+            ..at(0, &monorepo(&[]))
+        }
+    }
+
+    /// True when a point lies within a town's outline's bounding box.
+    fn near(town: &Town, p: Pt) -> bool {
+        let xs = town.outline.iter().map(|q| q.x);
+        let ys = town.outline.iter().map(|q| q.y);
+        (xs.clone().min().expect("an outline")..=xs.max().expect("an outline")).contains(&p.x)
+            && (ys.clone().min().expect("an outline")..=ys.max().expect("an outline")).contains(&p.y)
     }
 
     #[test]
-    fn splits_the_groups_it_is_asked_to_and_keeps_a_split_group_s_own_files_home() {
-        let both = Options {
-            split: vec!["apps".into(), "packages".into()],
-            ..options()
-        };
-        let (city, _) = lay_city(&at(0, &monorepo(&[])), &mut initial_state(&both, None, true), &both).expect("a city");
+    fn lays_packages_apart_too_when_asked_and_nothing_apart_when_asked() {
+        let both = separating(&[Separation::Apps, Separation::Packages]);
         assert_eq!(
-            keys(&city),
+            keys(&laid(&at(0, &monorepo(&[])), &both)),
             [
                 "demo",
                 "demo/apps/api",
@@ -1071,37 +1205,116 @@ mod tests {
                 "demo/packages/b"
             ]
         );
-        let none = Options {
-            split: vec![],
-            ..options()
-        };
-        let (city, _) = lay_city(&at(0, &monorepo(&[])), &mut initial_state(&none, None, true), &none).expect("a city");
-        assert_eq!(keys(&city), ["demo", "demo/apps", "demo/packages"]);
-        let shared = monorepo(&sources("apps/shared", 20, 900));
-        let (city, _) =
-            lay_city(&at(0, &shared), &mut initial_state(&options(), None, true), &options()).expect("a city");
         assert_eq!(
-            city.towns[0]
-                .lots
-                .iter()
-                .filter(|l| l.path.starts_with("apps/shared/"))
-                .count(),
-            20
+            keys(&laid(&at(0, &monorepo(&[])), &separating(&[]))),
+            ["demo", "demo/apps", "demo/packages"]
         );
     }
 
     #[test]
-    fn takes_members_from_the_manifests_when_the_snapshot_carries_them() {
-        let declared = Snapshot {
-            workspaces: Some(Arc::new(vec![
-                "apps/web".into(),
-                "packages/a".into(),
-                "packages/b".into(),
-            ])),
-            ..at(0, &monorepo(&[]))
+    fn keeps_a_folder_kind_s_own_files_outside_its_members_in_the_main_town() {
+        let city = laid(&at(0, &monorepo(&sources("apps", 20, 900))), &options());
+        let own = city.towns[0]
+            .lots
+            .iter()
+            .filter(|l| l.path.strip_prefix("apps/").is_some_and(|rest| !rest.contains('/')))
+            .count();
+        assert_eq!(own, 20);
+    }
+
+    #[test]
+    fn lays_every_declared_member_apart_the_manifests_deciding_apps_and_records_it_on_the_city() {
+        let city = laid(&declared(), &options());
+        // apps/api is no member: with workspaces declared, apps stand apart only as the manifests say.
+        assert_eq!(
+            keys(&city),
+            ["demo", "demo/apps/web", "demo/packages/a", "demo/packages/b"]
+        );
+        assert_eq!(
+            city.separable,
+            Some(vec![Separation::Workspaces, Separation::Apps, Separation::Packages])
+        );
+        assert_eq!(city.declared, Some(true));
+    }
+
+    #[test]
+    fn keeps_declared_members_in_groups_as_before_with_the_workspaces_separation_off() {
+        assert_eq!(keys(&laid(&declared(), &separating(&[]))), ["demo", "demo/packages"]);
+    }
+
+    #[test]
+    fn records_nothing_on_a_city_without_separations_or_declarations() {
+        let city = laid(&at(0, &sources("src", 5, 0)), &options());
+        assert_eq!((city.separable, city.declared), (None, None));
+    }
+
+    #[test]
+    fn nests_a_separate_town_inside_another_taking_its_files_joined_by_highway_to_the_town_it_lies_in() {
+        let options = separating(&[Separation::Apps, Separation::Plugins, Separation::Submodules]);
+        let mut extra = sources("apps/web/plugins/maps", 30, 900);
+        extra.extend(sources("vendor/x", 20, 950));
+        let snapshot = Snapshot {
+            submodules: Some(Arc::new(vec!["vendor/x".into()])),
+            ..at(0, &monorepo(&extra))
         };
-        let (city, _) = lay_city(&declared, &mut initial_state(&options(), None, true), &options()).expect("a city");
-        assert_eq!(keys(&city), ["demo", "demo/packages"]);
+        let city = laid(&snapshot, &options);
+        assert_eq!(
+            keys(&city),
+            [
+                "demo",
+                "demo/apps/api",
+                "demo/apps/web",
+                "demo/apps/web/plugins/maps",
+                "demo/packages",
+                "demo/vendor/x"
+            ]
+        );
+        let town = |key: &str| city.towns.iter().find(|t| t.key == key).expect("a town");
+        let (web, maps) = (town("demo/apps/web"), town("demo/apps/web/plugins/maps"));
+        assert!(!web.lots.iter().any(|l| l.path.contains("/plugins/")));
+        assert_eq!(maps.stats.lots, 30);
+        // Unwarped, a highway runs straight from a road end of one town to a road end of the other.
+        let joins = |a: &Town, b: &Town| {
+            city.highways
+                .iter()
+                .any(|h| near(a, h.pts[0]) && near(b, *h.pts.last().expect("a highway")))
+        };
+        assert!(joins(web, maps));
+        assert_eq!(city.highways.len(), 5);
+    }
+
+    #[test]
+    fn lays_no_town_for_a_group_any_of_whose_members_stands_apart() {
+        let city = laid(
+            &at(0, &monorepo(&sources("packages", 4, 950))),
+            &separating(&[Separation::Packages]),
+        );
+        assert_eq!(keys(&city), ["demo", "demo/apps", "demo/packages/a", "demo/packages/b"]);
+        let home = city.towns[0]
+            .lots
+            .iter()
+            .filter(|l| l.path.starts_with("packages/"))
+            .count();
+        assert_eq!(home, 4);
+    }
+
+    #[test]
+    fn joins_every_town_to_the_first_town_laid_when_the_main_town_has_no_land() {
+        let mut only = sources("apps/api", 30, 0);
+        only.extend(sources("apps/web", 20, 100));
+        let city = laid(&at(0, &only), &options());
+        assert_eq!(keys(&city), ["demo/apps/api", "demo/apps/web"]);
+        assert_eq!(city.highways.len(), 1);
+    }
+
+    #[test]
+    fn joins_a_town_whose_parent_lays_no_town_to_the_first_town_laid() {
+        // apps/web holds nothing of its own beyond its plugin, so it lays no town.
+        let mut only = sources("src", 40, 0);
+        only.extend(sources("apps/web/plugins/p", 10, 100));
+        let city = laid(&at(0, &only), &separating(&[Separation::Apps, Separation::Plugins]));
+        assert_eq!(keys(&city), ["demo", "demo/apps/web/plugins/p"]);
+        assert_eq!(city.highways.len(), 1);
     }
 
     #[test]

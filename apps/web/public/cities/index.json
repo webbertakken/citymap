@@ -133,24 +133,58 @@
   },
   {
     "name": "redux",
+    "separable": [
+      "plugins"
+    ],
     "variants": [
       {
         "toggles": [],
-        "file": "redux/none.json",
+        "separate": [],
+        "file": "redux/none~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/none~plugins.json",
         "lots": 158
       },
       {
         "toggles": [
           "corridor"
         ],
-        "file": "redux/corridor.json",
+        "separate": [],
+        "file": "redux/corridor~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/corridor~plugins.json",
         "lots": 158
       },
       {
         "toggles": [
           "archipelago"
         ],
-        "file": "redux/archipelago.json",
+        "separate": [],
+        "file": "redux/archipelago~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/archipelago~plugins.json",
         "lots": 158
       },
       {
@@ -158,14 +192,37 @@
           "corridor",
           "archipelago"
         ],
-        "file": "redux/corridor-archipelago.json",
+        "separate": [],
+        "file": "redux/corridor-archipelago~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/corridor-archipelago~plugins.json",
         "lots": 158
       },
       {
         "toggles": [
           "quarters"
         ],
-        "file": "redux/quarters.json",
+        "separate": [],
+        "file": "redux/quarters~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/quarters~plugins.json",
         "lots": 158
       },
       {
@@ -173,7 +230,19 @@
           "corridor",
           "quarters"
         ],
-        "file": "redux/corridor-quarters.json",
+        "separate": [],
+        "file": "redux/corridor-quarters~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/corridor-quarters~plugins.json",
         "lots": 158
       },
       {
@@ -181,7 +250,19 @@
           "archipelago",
           "quarters"
         ],
-        "file": "redux/archipelago-quarters.json",
+        "separate": [],
+        "file": "redux/archipelago-quarters~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/archipelago-quarters~plugins.json",
         "lots": 158
       },
       {
@@ -190,14 +271,38 @@
           "archipelago",
           "quarters"
         ],
-        "file": "redux/corridor-archipelago-quarters.json",
+        "separate": [],
+        "file": "redux/corridor-archipelago-quarters~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/corridor-archipelago-quarters~plugins.json",
         "lots": 158
       },
       {
         "toggles": [
           "tiers"
         ],
-        "file": "redux/tiers.json",
+        "separate": [],
+        "file": "redux/tiers~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/tiers~plugins.json",
         "lots": 158
       },
       {
@@ -205,7 +310,19 @@
           "corridor",
           "tiers"
         ],
-        "file": "redux/corridor-tiers.json",
+        "separate": [],
+        "file": "redux/corridor-tiers~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/corridor-tiers~plugins.json",
         "lots": 158
       },
       {
@@ -213,7 +330,19 @@
           "archipelago",
           "tiers"
         ],
-        "file": "redux/archipelago-tiers.json",
+        "separate": [],
+        "file": "redux/archipelago-tiers~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/archipelago-tiers~plugins.json",
         "lots": 158
       },
       {
@@ -222,7 +351,20 @@
           "archipelago",
           "tiers"
         ],
-        "file": "redux/corridor-archipelago-tiers.json",
+        "separate": [],
+        "file": "redux/corridor-archipelago-tiers~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/corridor-archipelago-tiers~plugins.json",
         "lots": 158
       },
       {
@@ -230,7 +372,19 @@
           "quarters",
           "tiers"
         ],
-        "file": "redux/quarters-tiers.json",
+        "separate": [],
+        "file": "redux/quarters-tiers~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/quarters-tiers~plugins.json",
         "lots": 158
       },
       {
@@ -239,7 +393,20 @@
           "quarters",
           "tiers"
         ],
-        "file": "redux/corridor-quarters-tiers.json",
+        "separate": [],
+        "file": "redux/corridor-quarters-tiers~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/corridor-quarters-tiers~plugins.json",
         "lots": 158
       },
       {
@@ -248,7 +415,20 @@
           "quarters",
           "tiers"
         ],
-        "file": "redux/archipelago-quarters-tiers.json",
+        "separate": [],
+        "file": "redux/archipelago-quarters-tiers~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/archipelago-quarters-tiers~plugins.json",
         "lots": 158
       },
       {
@@ -258,31 +438,149 @@
           "quarters",
           "tiers"
         ],
-        "file": "redux/corridor-archipelago-quarters-tiers.json",
+        "separate": [],
+        "file": "redux/corridor-archipelago-quarters-tiers~none.json",
+        "lots": 158
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "redux/corridor-archipelago-quarters-tiers~plugins.json",
         "lots": 158
       }
     ]
   },
   {
     "name": "game-ci-cli",
+    "separable": [
+      "workspaces",
+      "plugins"
+    ],
+    "declared": true,
     "variants": [
       {
         "toggles": [],
-        "file": "game-ci-cli/none.json",
+        "separate": [],
+        "file": "game-ci-cli/none~none.json",
+        "lots": 839
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/none~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/none~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/none~workspaces-plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [],
+        "file": "game-ci-cli/corridor~none.json",
         "lots": 839
       },
       {
         "toggles": [
           "corridor"
         ],
-        "file": "game-ci-cli/corridor.json",
-        "lots": 839
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/corridor~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor~workspaces-plugins.json",
+        "lots": 847
       },
       {
         "toggles": [
           "archipelago"
         ],
-        "file": "game-ci-cli/archipelago.json",
+        "separate": [],
+        "file": "game-ci-cli/archipelago~none.json",
+        "lots": 844
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/archipelago~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/archipelago~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/archipelago~workspaces-plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [],
+        "file": "game-ci-cli/corridor-archipelago~none.json",
         "lots": 844
       },
       {
@@ -290,14 +588,81 @@
           "corridor",
           "archipelago"
         ],
-        "file": "game-ci-cli/corridor-archipelago.json",
-        "lots": 844
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/corridor-archipelago~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-archipelago~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-archipelago~workspaces-plugins.json",
+        "lots": 847
       },
       {
         "toggles": [
           "quarters"
         ],
-        "file": "game-ci-cli/quarters.json",
+        "separate": [],
+        "file": "game-ci-cli/quarters~none.json",
+        "lots": 839
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/quarters~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/quarters~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/quarters~workspaces-plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [],
+        "file": "game-ci-cli/corridor-quarters~none.json",
         "lots": 839
       },
       {
@@ -305,15 +670,86 @@
           "corridor",
           "quarters"
         ],
-        "file": "game-ci-cli/corridor-quarters.json",
-        "lots": 839
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/corridor-quarters~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-quarters~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-quarters~workspaces-plugins.json",
+        "lots": 847
       },
       {
         "toggles": [
           "archipelago",
           "quarters"
         ],
-        "file": "game-ci-cli/archipelago-quarters.json",
+        "separate": [],
+        "file": "game-ci-cli/archipelago-quarters~none.json",
+        "lots": 844
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/archipelago-quarters~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/archipelago-quarters~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/archipelago-quarters~workspaces-plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [],
+        "file": "game-ci-cli/corridor-archipelago-quarters~none.json",
         "lots": 844
       },
       {
@@ -322,14 +758,83 @@
           "archipelago",
           "quarters"
         ],
-        "file": "game-ci-cli/corridor-archipelago-quarters.json",
-        "lots": 844
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/corridor-archipelago-quarters~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-archipelago-quarters~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-archipelago-quarters~workspaces-plugins.json",
+        "lots": 847
       },
       {
         "toggles": [
           "tiers"
         ],
-        "file": "game-ci-cli/tiers.json",
+        "separate": [],
+        "file": "game-ci-cli/tiers~none.json",
+        "lots": 839
+      },
+      {
+        "toggles": [
+          "tiers"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/tiers~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/tiers~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/tiers~workspaces-plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "game-ci-cli/corridor-tiers~none.json",
         "lots": 839
       },
       {
@@ -337,15 +842,86 @@
           "corridor",
           "tiers"
         ],
-        "file": "game-ci-cli/corridor-tiers.json",
-        "lots": 839
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/corridor-tiers~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-tiers~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-tiers~workspaces-plugins.json",
+        "lots": 847
       },
       {
         "toggles": [
           "archipelago",
           "tiers"
         ],
-        "file": "game-ci-cli/archipelago-tiers.json",
+        "separate": [],
+        "file": "game-ci-cli/archipelago-tiers~none.json",
+        "lots": 844
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/archipelago-tiers~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/archipelago-tiers~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/archipelago-tiers~workspaces-plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "game-ci-cli/corridor-archipelago-tiers~none.json",
         "lots": 844
       },
       {
@@ -354,15 +930,88 @@
           "archipelago",
           "tiers"
         ],
-        "file": "game-ci-cli/corridor-archipelago-tiers.json",
-        "lots": 844
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/corridor-archipelago-tiers~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-archipelago-tiers~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-archipelago-tiers~workspaces-plugins.json",
+        "lots": 847
       },
       {
         "toggles": [
           "quarters",
           "tiers"
         ],
-        "file": "game-ci-cli/quarters-tiers.json",
+        "separate": [],
+        "file": "game-ci-cli/quarters-tiers~none.json",
+        "lots": 839
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/quarters-tiers~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/quarters-tiers~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/quarters-tiers~workspaces-plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "game-ci-cli/corridor-quarters-tiers~none.json",
         "lots": 839
       },
       {
@@ -371,8 +1020,36 @@
           "quarters",
           "tiers"
         ],
-        "file": "game-ci-cli/corridor-quarters-tiers.json",
-        "lots": 839
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/corridor-quarters-tiers~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-quarters-tiers~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-quarters-tiers~workspaces-plugins.json",
+        "lots": 847
       },
       {
         "toggles": [
@@ -380,7 +1057,56 @@
           "quarters",
           "tiers"
         ],
-        "file": "game-ci-cli/archipelago-quarters-tiers.json",
+        "separate": [],
+        "file": "game-ci-cli/archipelago-quarters-tiers~none.json",
+        "lots": 844
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/archipelago-quarters-tiers~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/archipelago-quarters-tiers~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/archipelago-quarters-tiers~workspaces-plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "game-ci-cli/corridor-archipelago-quarters-tiers~none.json",
         "lots": 844
       },
       {
@@ -390,8 +1116,38 @@
           "quarters",
           "tiers"
         ],
-        "file": "game-ci-cli/corridor-archipelago-quarters-tiers.json",
-        "lots": 844
+        "separate": [
+          "workspaces"
+        ],
+        "file": "game-ci-cli/corridor-archipelago-quarters-tiers~workspaces.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-archipelago-quarters-tiers~plugins.json",
+        "lots": 847
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "game-ci-cli/corridor-archipelago-quarters-tiers~workspaces-plugins.json",
+        "lots": 847
       }
     ]
   },
@@ -529,24 +1285,171 @@
   },
   {
     "name": "livediagram",
+    "separable": [
+      "workspaces",
+      "apps",
+      "packages"
+    ],
+    "declared": true,
     "variants": [
       {
         "toggles": [],
-        "file": "livediagram/none.json",
+        "separate": [],
+        "file": "livediagram/none~none.json",
+        "lots": 4243
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/none~apps.json",
+        "lots": 4285
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/none~workspaces-apps.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/none~packages.json",
+        "lots": 4196
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/none~apps-packages.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [],
+        "file": "livediagram/corridor~none.json",
+        "lots": 4243
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/corridor~apps.json",
         "lots": 4285
       },
       {
         "toggles": [
           "corridor"
         ],
-        "file": "livediagram/corridor.json",
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/corridor~workspaces-apps.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/corridor~packages.json",
+        "lots": 4196
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/corridor~apps-packages.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [],
+        "file": "livediagram/archipelago~none.json",
+        "lots": 4217
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/archipelago~apps.json",
         "lots": 4285
       },
       {
         "toggles": [
           "archipelago"
         ],
-        "file": "livediagram/archipelago.json",
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/archipelago~workspaces-apps.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/archipelago~packages.json",
+        "lots": 4170
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/archipelago~apps-packages.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [],
+        "file": "livediagram/corridor-archipelago~none.json",
+        "lots": 4217
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/corridor-archipelago~apps.json",
         "lots": 4285
       },
       {
@@ -554,14 +1457,104 @@
           "corridor",
           "archipelago"
         ],
-        "file": "livediagram/corridor-archipelago.json",
-        "lots": 4285
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/corridor-archipelago~workspaces-apps.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/corridor-archipelago~packages.json",
+        "lots": 4170
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/corridor-archipelago~apps-packages.json",
+        "lots": 4238
       },
       {
         "toggles": [
           "quarters"
         ],
-        "file": "livediagram/quarters.json",
+        "separate": [],
+        "file": "livediagram/quarters~none.json",
+        "lots": 4244
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/quarters~apps.json",
+        "lots": 4286
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/quarters~workspaces-apps.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/quarters~packages.json",
+        "lots": 4197
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/quarters~apps-packages.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [],
+        "file": "livediagram/corridor-quarters~none.json",
+        "lots": 4244
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/corridor-quarters~apps.json",
         "lots": 4286
       },
       {
@@ -569,7 +1562,54 @@
           "corridor",
           "quarters"
         ],
-        "file": "livediagram/corridor-quarters.json",
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/corridor-quarters~workspaces-apps.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/corridor-quarters~packages.json",
+        "lots": 4197
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/corridor-quarters~apps-packages.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [],
+        "file": "livediagram/archipelago-quarters~none.json",
+        "lots": 4217
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/archipelago-quarters~apps.json",
         "lots": 4286
       },
       {
@@ -577,7 +1617,56 @@
           "archipelago",
           "quarters"
         ],
-        "file": "livediagram/archipelago-quarters.json",
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/archipelago-quarters~workspaces-apps.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/archipelago-quarters~packages.json",
+        "lots": 4170
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/archipelago-quarters~apps-packages.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [],
+        "file": "livediagram/corridor-archipelago-quarters~none.json",
+        "lots": 4217
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/corridor-archipelago-quarters~apps.json",
         "lots": 4286
       },
       {
@@ -586,14 +1675,106 @@
           "archipelago",
           "quarters"
         ],
-        "file": "livediagram/corridor-archipelago-quarters.json",
-        "lots": 4286
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/corridor-archipelago-quarters~workspaces-apps.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/corridor-archipelago-quarters~packages.json",
+        "lots": 4170
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/corridor-archipelago-quarters~apps-packages.json",
+        "lots": 4239
       },
       {
         "toggles": [
           "tiers"
         ],
-        "file": "livediagram/tiers.json",
+        "separate": [],
+        "file": "livediagram/tiers~none.json",
+        "lots": 4243
+      },
+      {
+        "toggles": [
+          "tiers"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/tiers~apps.json",
+        "lots": 4285
+      },
+      {
+        "toggles": [
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/tiers~workspaces-apps.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/tiers~packages.json",
+        "lots": 4196
+      },
+      {
+        "toggles": [
+          "tiers"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/tiers~apps-packages.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "livediagram/corridor-tiers~none.json",
+        "lots": 4243
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/corridor-tiers~apps.json",
         "lots": 4285
       },
       {
@@ -601,7 +1782,54 @@
           "corridor",
           "tiers"
         ],
-        "file": "livediagram/corridor-tiers.json",
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/corridor-tiers~workspaces-apps.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/corridor-tiers~packages.json",
+        "lots": 4196
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/corridor-tiers~apps-packages.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "livediagram/archipelago-tiers~none.json",
+        "lots": 4214
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/archipelago-tiers~apps.json",
         "lots": 4285
       },
       {
@@ -609,7 +1837,56 @@
           "archipelago",
           "tiers"
         ],
-        "file": "livediagram/archipelago-tiers.json",
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/archipelago-tiers~workspaces-apps.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/archipelago-tiers~packages.json",
+        "lots": 4167
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/archipelago-tiers~apps-packages.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "livediagram/corridor-archipelago-tiers~none.json",
+        "lots": 4214
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/corridor-archipelago-tiers~apps.json",
         "lots": 4285
       },
       {
@@ -618,15 +1895,113 @@
           "archipelago",
           "tiers"
         ],
-        "file": "livediagram/corridor-archipelago-tiers.json",
-        "lots": 4285
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/corridor-archipelago-tiers~workspaces-apps.json",
+        "lots": 4238
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/corridor-archipelago-tiers~packages.json",
+        "lots": 4167
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/corridor-archipelago-tiers~apps-packages.json",
+        "lots": 4238
       },
       {
         "toggles": [
           "quarters",
           "tiers"
         ],
-        "file": "livediagram/quarters-tiers.json",
+        "separate": [],
+        "file": "livediagram/quarters-tiers~none.json",
+        "lots": 4244
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/quarters-tiers~apps.json",
+        "lots": 4286
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/quarters-tiers~workspaces-apps.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/quarters-tiers~packages.json",
+        "lots": 4197
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/quarters-tiers~apps-packages.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "livediagram/corridor-quarters-tiers~none.json",
+        "lots": 4244
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/corridor-quarters-tiers~apps.json",
         "lots": 4286
       },
       {
@@ -635,7 +2010,58 @@
           "quarters",
           "tiers"
         ],
-        "file": "livediagram/corridor-quarters-tiers.json",
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/corridor-quarters-tiers~workspaces-apps.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/corridor-quarters-tiers~packages.json",
+        "lots": 4197
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/corridor-quarters-tiers~apps-packages.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "livediagram/archipelago-quarters-tiers~none.json",
+        "lots": 4214
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/archipelago-quarters-tiers~apps.json",
         "lots": 4286
       },
       {
@@ -644,7 +2070,60 @@
           "quarters",
           "tiers"
         ],
-        "file": "livediagram/archipelago-quarters-tiers.json",
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/archipelago-quarters-tiers~workspaces-apps.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/archipelago-quarters-tiers~packages.json",
+        "lots": 4167
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/archipelago-quarters-tiers~apps-packages.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "livediagram/corridor-archipelago-quarters-tiers~none.json",
+        "lots": 4214
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "apps"
+        ],
+        "file": "livediagram/corridor-archipelago-quarters-tiers~apps.json",
         "lots": 4286
       },
       {
@@ -654,130 +2133,1022 @@
           "quarters",
           "tiers"
         ],
-        "file": "livediagram/corridor-archipelago-quarters-tiers.json",
-        "lots": 4286
+        "separate": [
+          "workspaces",
+          "apps"
+        ],
+        "file": "livediagram/corridor-archipelago-quarters-tiers~workspaces-apps.json",
+        "lots": 4239
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "livediagram/corridor-archipelago-quarters-tiers~packages.json",
+        "lots": 4167
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "apps",
+          "packages"
+        ],
+        "file": "livediagram/corridor-archipelago-quarters-tiers~apps-packages.json",
+        "lots": 4239
       }
     ]
   },
   {
     "name": "react",
+    "separable": [
+      "workspaces",
+      "packages",
+      "plugins"
+    ],
+    "declared": true,
     "variants": [
       {
         "toggles": [],
-        "file": "react/none.json",
+        "separate": [],
+        "file": "react/none~none.json",
         "lots": 2018
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/none~workspaces.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/none~packages.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/none~plugins.json",
+        "lots": 2018
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/none~workspaces-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/none~packages-plugins.json",
+        "lots": 2048
       },
       {
         "toggles": [
           "corridor"
         ],
-        "file": "react/corridor.json",
+        "separate": [],
+        "file": "react/corridor~none.json",
         "lots": 2013
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/corridor~workspaces.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/corridor~packages.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/corridor~plugins.json",
+        "lots": 2013
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/corridor~workspaces-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/corridor~packages-plugins.json",
+        "lots": 2048
       },
       {
         "toggles": [
           "archipelago"
         ],
-        "file": "react/archipelago.json",
+        "separate": [],
+        "file": "react/archipelago~none.json",
         "lots": 2237
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/archipelago~workspaces.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/archipelago~packages.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/archipelago~plugins.json",
+        "lots": 2237
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/archipelago~workspaces-plugins.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "archipelago"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/archipelago~packages-plugins.json",
+        "lots": 2288
       },
       {
         "toggles": [
           "corridor",
           "archipelago"
         ],
-        "file": "react/corridor-archipelago.json",
+        "separate": [],
+        "file": "react/corridor-archipelago~none.json",
         "lots": 2239
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/corridor-archipelago~workspaces.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/corridor-archipelago~packages.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago~plugins.json",
+        "lots": 2239
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago~workspaces-plugins.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago~packages-plugins.json",
+        "lots": 2288
       },
       {
         "toggles": [
           "quarters"
         ],
-        "file": "react/quarters.json",
+        "separate": [],
+        "file": "react/quarters~none.json",
         "lots": 2018
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/quarters~workspaces.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/quarters~packages.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/quarters~plugins.json",
+        "lots": 2018
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/quarters~workspaces-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "quarters"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/quarters~packages-plugins.json",
+        "lots": 2048
       },
       {
         "toggles": [
           "corridor",
           "quarters"
         ],
-        "file": "react/corridor-quarters.json",
+        "separate": [],
+        "file": "react/corridor-quarters~none.json",
         "lots": 2013
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/corridor-quarters~workspaces.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/corridor-quarters~packages.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/corridor-quarters~plugins.json",
+        "lots": 2013
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/corridor-quarters~workspaces-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/corridor-quarters~packages-plugins.json",
+        "lots": 2048
       },
       {
         "toggles": [
           "archipelago",
           "quarters"
         ],
-        "file": "react/archipelago-quarters.json",
+        "separate": [],
+        "file": "react/archipelago-quarters~none.json",
         "lots": 2237
       },
       {
         "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/archipelago-quarters~workspaces.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/archipelago-quarters~packages.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/archipelago-quarters~plugins.json",
+        "lots": 2237
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/archipelago-quarters~workspaces-plugins.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/archipelago-quarters~packages-plugins.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
           "corridor",
           "archipelago",
           "quarters"
         ],
-        "file": "react/corridor-archipelago-quarters.json",
+        "separate": [],
+        "file": "react/corridor-archipelago-quarters~none.json",
         "lots": 2239
       },
       {
         "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/corridor-archipelago-quarters~workspaces.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/corridor-archipelago-quarters~packages.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago-quarters~plugins.json",
+        "lots": 2239
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago-quarters~workspaces-plugins.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago-quarters~packages-plugins.json",
+        "lots": 2288
+      },
+      {
+        "toggles": [
           "tiers"
         ],
-        "file": "react/tiers.json",
+        "separate": [],
+        "file": "react/tiers~none.json",
         "lots": 2018
       },
       {
         "toggles": [
-          "corridor",
           "tiers"
         ],
-        "file": "react/corridor-tiers.json",
-        "lots": 2013
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/tiers~workspaces.json",
+        "lots": 2048
       },
       {
         "toggles": [
-          "archipelago",
           "tiers"
         ],
-        "file": "react/archipelago-tiers.json",
-        "lots": 2241
+        "separate": [
+          "packages"
+        ],
+        "file": "react/tiers~packages.json",
+        "lots": 2048
       },
       {
         "toggles": [
-          "corridor",
-          "archipelago",
           "tiers"
         ],
-        "file": "react/corridor-archipelago-tiers.json",
-        "lots": 2249
-      },
-      {
-        "toggles": [
-          "quarters",
-          "tiers"
+        "separate": [
+          "plugins"
         ],
-        "file": "react/quarters-tiers.json",
+        "file": "react/tiers~plugins.json",
         "lots": 2018
       },
       {
         "toggles": [
-          "corridor",
-          "quarters",
           "tiers"
         ],
-        "file": "react/corridor-quarters-tiers.json",
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/tiers~workspaces-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "tiers"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/tiers~packages-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "react/corridor-tiers~none.json",
         "lots": 2013
       },
       {
         "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/corridor-tiers~workspaces.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/corridor-tiers~packages.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/corridor-tiers~plugins.json",
+        "lots": 2013
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/corridor-tiers~workspaces-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor",
+          "tiers"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/corridor-tiers~packages-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "react/archipelago-tiers~none.json",
+        "lots": 2241
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/archipelago-tiers~workspaces.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/archipelago-tiers~packages.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/archipelago-tiers~plugins.json",
+        "lots": 2241
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/archipelago-tiers~workspaces-plugins.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/archipelago-tiers~packages-plugins.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "react/corridor-archipelago-tiers~none.json",
+        "lots": 2249
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/corridor-archipelago-tiers~workspaces.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/corridor-archipelago-tiers~packages.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago-tiers~plugins.json",
+        "lots": 2249
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago-tiers~workspaces-plugins.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "tiers"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago-tiers~packages-plugins.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "react/quarters-tiers~none.json",
+        "lots": 2018
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/quarters-tiers~workspaces.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/quarters-tiers~packages.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/quarters-tiers~plugins.json",
+        "lots": 2018
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/quarters-tiers~workspaces-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/quarters-tiers~packages-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [],
+        "file": "react/corridor-quarters-tiers~none.json",
+        "lots": 2013
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/corridor-quarters-tiers~workspaces.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/corridor-quarters-tiers~packages.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/corridor-quarters-tiers~plugins.json",
+        "lots": 2013
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/corridor-quarters-tiers~workspaces-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
+          "corridor",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/corridor-quarters-tiers~packages-plugins.json",
+        "lots": 2048
+      },
+      {
+        "toggles": [
           "archipelago",
           "quarters",
           "tiers"
         ],
-        "file": "react/archipelago-quarters-tiers.json",
+        "separate": [],
+        "file": "react/archipelago-quarters-tiers~none.json",
         "lots": 2241
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/archipelago-quarters-tiers~workspaces.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/archipelago-quarters-tiers~packages.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/archipelago-quarters-tiers~plugins.json",
+        "lots": 2241
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/archipelago-quarters-tiers~workspaces-plugins.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/archipelago-quarters-tiers~packages-plugins.json",
+        "lots": 2291
       },
       {
         "toggles": [
@@ -786,8 +3157,76 @@
           "quarters",
           "tiers"
         ],
-        "file": "react/corridor-archipelago-quarters-tiers.json",
+        "separate": [],
+        "file": "react/corridor-archipelago-quarters-tiers~none.json",
         "lots": 2249
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces"
+        ],
+        "file": "react/corridor-archipelago-quarters-tiers~workspaces.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages"
+        ],
+        "file": "react/corridor-archipelago-quarters-tiers~packages.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago-quarters-tiers~plugins.json",
+        "lots": 2249
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "workspaces",
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago-quarters-tiers~workspaces-plugins.json",
+        "lots": 2291
+      },
+      {
+        "toggles": [
+          "corridor",
+          "archipelago",
+          "quarters",
+          "tiers"
+        ],
+        "separate": [
+          "packages",
+          "plugins"
+        ],
+        "file": "react/corridor-archipelago-quarters-tiers~packages-plugins.json",
+        "lots": 2291
       }
     ]
   }

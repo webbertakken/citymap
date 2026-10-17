@@ -4,6 +4,7 @@ export {
   flatLayer,
   plinths,
   roadRibbon,
+  shortTownName,
   triangulate,
   type Label,
   type Layer,

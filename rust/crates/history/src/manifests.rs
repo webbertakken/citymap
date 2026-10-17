@@ -48,7 +48,7 @@ static GO_USE: LazyLock<Regex> = LazyLock::new(|| regex(r"^use\s*(?:\(([\s\S]*?)
 static WHITESPACE: LazyLock<Regex> = LazyLock::new(|| regex(r"\s+", ""));
 
 /// The characters `String.prototype.trim` removes: ECMAScript white space and line terminators.
-fn is_js_space(c: char) -> bool {
+pub(crate) fn is_js_space(c: char) -> bool {
     matches!(
         c,
         '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'

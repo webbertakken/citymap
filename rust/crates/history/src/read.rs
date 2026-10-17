@@ -17,17 +17,23 @@ use crate::ancestry::{count_commits, resolve_commit};
 use crate::blobs::BlobReader;
 use crate::env::git_command;
 use crate::schedule::{FOLD_STRIDES, Strides, fold_schedule, is_laid, laid_count};
+use crate::submodules::{GITLINK_MODE, Pins, SubmoduleReader, UnreadReason};
 use crate::workspaces::{Change, Workspaces};
 
 /// How many snapshots the reader may run ahead of the fold.
 pub const SNAPSHOT_QUEUE: usize = 64;
-const SUBMODULE: &str = "160000";
 
 /// Something the reader noticed, for logs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HistoryEvent {
-    /// A submodule entry is skipped.
-    SkipSubmodule { path: String, index: i64 },
+    /// A submodule could not be read at its pin: it is laid as its `.gitlink` file.
+    SubmoduleUnavailable {
+        path: String,
+        index: i64,
+        reason: UnreadReason,
+    },
+    /// A submodule was read at its pin: its files, nested submodules' included.
+    Submodule { path: String, index: i64, files: usize },
     /// A root manifest's blob could not be read (a blob-less clone never fetches).
     ManifestUnavailable { path: String, index: i64 },
     /// The fold schedule a read follows: the history's length, its zone boundaries, the first index and how many it lays.
@@ -44,7 +50,8 @@ impl HistoryEvent {
     #[must_use]
     pub const fn code(&self) -> &'static str {
         match self {
-            Self::SkipSubmodule { .. } => "history/skip-submodule",
+            Self::SubmoduleUnavailable { .. } => "history/submodule-unavailable",
+            Self::Submodule { .. } => "history/submodule",
             Self::ManifestUnavailable { .. } => "history/manifest-unavailable",
             Self::Schedule { .. } => "history/schedule",
         }
@@ -54,7 +61,13 @@ impl HistoryEvent {
     #[must_use]
     pub fn line(&self) -> String {
         match self {
-            Self::SkipSubmodule { path, index } | Self::ManifestUnavailable { path, index } => {
+            Self::SubmoduleUnavailable { path, index, reason } => {
+                format!("{} path={path} index={index} reason={}", self.code(), reason.as_str())
+            }
+            Self::Submodule { path, index, files } => {
+                format!("{} path={path} index={index} files={files}", self.code())
+            }
+            Self::ManifestUnavailable { path, index } => {
                 format!("{} path={path} index={index}", self.code())
             }
             Self::Schedule {
@@ -154,19 +167,30 @@ struct Live {
     first_seen: i64,
 }
 
-/// The tree state the log is applied to, and what was last handed over.
+/// The tree state the log is applied to, its gitlinks and their expansions, and what was last handed over.
 struct Tree {
     state: BTreeMap<Arc<str>, Live>,
     folders: HashMap<String, i64>,
     workspaces: Workspaces,
+    pins: Pins,
     files: Option<Arc<Vec<FileEntry>>>,
     folder_map: Option<Arc<HashMap<String, i64>>>,
 }
 
 impl Tree {
+    /// Takes a file out of the tree state, noting it as deleted (by blob) for the renames.
+    fn remove(&mut self, path: &str, deleted: &mut HashMap<String, VecDeque<Live>>) {
+        let Some(live) = self.state.remove(path) else {
+            return;
+        };
+        self.workspaces.remove(path);
+        deleted.entry(live.blob.clone()).or_default().push_back(live);
+    }
+
     /// Applies one commit: deletions, exact renames (equal blobs, paired in path order), additions. True when the set
-    /// of files changed; a commit that only edits files leaves it as it was.
-    fn apply(&mut self, commit: &RawCommit, index: i64, on_event: &mut dyn FnMut(HistoryEvent)) -> Result<bool> {
+    /// of files changed; a commit that only edits files leaves it as it was. Gitlinks go to the pins: a submodule's
+    /// files arrive when its pin is expanded.
+    fn apply(&mut self, commit: &RawCommit, index: i64) -> Result<bool> {
         let mut deleted: HashMap<String, VecDeque<Live>> = HashMap::new();
         let mut added: Vec<&RawEntry> = Vec::new();
         for entry in &commit.entries {
@@ -174,22 +198,22 @@ impl Tree {
             self.workspaces
                 .touch(&entry.path, (!removed).then_some(entry.blob.as_str()));
             if removed {
-                let Some(live) = self.state.remove(entry.path.as_str()) else {
-                    continue;
-                };
-                self.workspaces.remove(&entry.path);
-                deleted.entry(live.blob.clone()).or_default().push_back(live);
-            } else if entry.mode == SUBMODULE {
-                on_event(HistoryEvent::SkipSubmodule {
-                    path: entry.path.clone(),
-                    index,
-                });
-            } else if entry.status == "A" {
-                added.push(entry);
-            } else if let Some(live) = self.state.get_mut(entry.path.as_str()) {
-                live.blob.clone_from(&entry.blob);
+                if self.pins.gitlinks.remove(&entry.path).is_none() {
+                    self.remove(&entry.path, &mut deleted);
+                }
+            } else if entry.mode == GITLINK_MODE {
+                // A file that becomes a gitlink leaves the tree; the gitlink's pin moves.
+                self.remove(&entry.path, &mut deleted);
+                self.pins.gitlinks.insert(entry.path.clone(), entry.blob.clone());
             } else {
-                added.push(entry);
+                // A path the tree does not hold arrives (a birth, or a gitlink turned file); one it holds keeps its
+                // identity.
+                self.pins.gitlinks.remove(&entry.path);
+                if let Some(live) = self.state.get_mut(entry.path.as_str()) {
+                    live.blob.clone_from(&entry.blob);
+                } else {
+                    added.push(entry);
+                }
             }
         }
         added.sort_by(|a, b| compare_keys(&a.path, &b.path));
@@ -403,9 +427,12 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
         state: BTreeMap::new(),
         folders: HashMap::new(),
         workspaces: Workspaces::default(),
+        pins: Pins::new(SubmoduleReader::new(dir)),
         files: None,
         folder_map: None,
     };
+    // Pins are expanded where the uninterrupted fold lays, whatever the resume, so births carry the same indices.
+    let expands_at = |index: i64| is_laid(&schedule, index, None) || Some(index) == from;
     let mut blobs = BlobReader::new(dir);
     let mut parser = RawLogParser::default();
     let mut index = 0;
@@ -428,9 +455,28 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
         } else {
             HashMap::new()
         };
-        if tree.apply(&commit, *index, &mut on_event)? {
+        if tree.apply(&commit, *index)? {
             tree.files = None;
             tree.folder_map = None;
+        }
+        if expands_at(*index) {
+            // The pins that moved, read now, each named by `.gitmodules` as it stands; applied after the commit's own.
+            let names = tree.state.get(".gitmodules").map(|live| live.blob.clone());
+            let mut gitmodules = || -> Result<Option<String>> {
+                let Some(blob) = &names else { return Ok(None) };
+                Ok(blobs.read_all(std::slice::from_ref(blob))?.remove(blob).flatten())
+            };
+            let moved = tree.pins.move_pins(*index, &mut gitmodules, &mut on_event)?;
+            if let Some(entries) = moved {
+                let synthetic = RawCommit {
+                    sha: commit.sha.clone(),
+                    entries,
+                };
+                if tree.apply(&synthetic, *index)? {
+                    tree.files = None;
+                    tree.folder_map = None;
+                }
+            }
         }
         let snapshot = if laid(*index) {
             let workspaces = tree
@@ -443,6 +489,7 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
                 files: tree.files(),
                 folder_first_seen: tree.folder_map(),
                 workspaces,
+                submodules: tree.pins.submodules(),
             })
         } else {
             None

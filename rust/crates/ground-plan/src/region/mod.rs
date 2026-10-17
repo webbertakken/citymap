@@ -2,3 +2,4 @@
 pub mod compose;
 pub mod highway;
 pub mod outline;
+pub mod separate;
