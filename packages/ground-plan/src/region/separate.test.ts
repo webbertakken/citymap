@@ -5,10 +5,12 @@ import {
   DEFAULT_SEPARATIONS,
   SEPARATIONS,
   declaresWorkspaces,
+  effectiveSeparations,
   isSeparation,
   separable,
   separateMembers,
   separationList,
+  separationStates,
   type Separation,
 } from "./separate";
 
@@ -145,5 +147,37 @@ describe("separable and declared", () => {
     expect(declaresWorkspaces(repo(["a"], { workspaces: ["a"] }))).toBe(true);
     expect(declaresWorkspaces(repo(["a"], { workspaces: [] }))).toBe(false);
     expect(declaresWorkspaces(repo(["a"]))).toBe(false);
+  });
+});
+
+describe("effectiveSeparations", () => {
+  it("keeps the separations a city records, in order", () => {
+    expect(effectiveSeparations(["plugins", "apps", "packages"], ["apps", "plugins"], false)).toEqual([
+      "apps",
+      "plugins",
+    ]);
+    expect(effectiveSeparations(DEFAULT_SEPARATIONS, [], false)).toEqual([]);
+  });
+
+  it("gives apps and packages their defaults while declared workspaces decide them", () => {
+    const recorded: Separation[] = ["workspaces", "apps", "packages"];
+    expect(effectiveSeparations(["workspaces", "packages"], recorded, true)).toEqual(["workspaces", "apps"]);
+    expect(effectiveSeparations(["packages"], recorded, true)).toEqual(["packages"]);
+    expect(effectiveSeparations(["workspaces", "packages"], recorded, false)).toEqual(["workspaces", "packages"]);
+  });
+});
+
+describe("separationStates", () => {
+  it("lists every subset of the recorded separations, in binary order", () => {
+    expect(separationStates(["apps", "plugins"], false)).toEqual([[], ["apps"], ["plugins"], ["apps", "plugins"]]);
+    expect(separationStates([], false)).toEqual([[]]);
+  });
+
+  it("leaves out the states declared workspaces make the same as another", () => {
+    const states = separationStates(["workspaces", "apps", "packages"], true);
+    // Workspaces off: apps and packages free; on: apps on and packages off, as their defaults.
+    expect(states).toEqual([[], ["apps"], ["workspaces", "apps"], ["packages"], ["apps", "packages"]]);
+    for (const state of states)
+      expect(effectiveSeparations(state, ["workspaces", "apps", "packages"], true)).toEqual(state);
   });
 });

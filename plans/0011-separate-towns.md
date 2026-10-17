@@ -67,10 +67,10 @@ Branch `feat/separate-towns`, stacked on `local-beside-search` (#36); rebase ont
 
 ## Phase 5: viewer
 
-- [ ] "Separate towns" group: switches, tooltips, disabled Apps and Packages with the line, relevance from the city
-- [ ] Live lays with the separations; bundled variant names and loading; city file disabled
-- [ ] End to end: the group, a local repository with a submodule, axe light and dark
-- [ ] Commit
+- [x] "Separate towns" group: switches, tooltips, disabled Apps and Packages with the line, relevance from the city
+- [x] Live lays with the separations; bundled variant names and loading; city file disabled
+- [x] End to end: the group, a local repository with a submodule, axe light and dark
+- [x] Commit
 
 ## Phase 6: bundled cities
 

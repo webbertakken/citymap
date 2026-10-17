@@ -104,3 +104,25 @@ export function separateMembers(snapshot: Input, separate?: readonly Separation[
 /** The separations that, each alone, lay something apart: the ones a viewer offers for this city. */
 export const separable = (snapshot: Input): Separation[] =>
   SEPARATIONS.filter((s) => separateMembers(snapshot, [s]).length > 0);
+
+/**
+ * The separations a bundled variant is named by: those on that the city records, except that while declared workspaces
+ * decide (workspaces on, the city declaring them) apps and packages take their defaults.
+ */
+export function effectiveSeparations(
+  separate: readonly Separation[] | undefined,
+  recorded: readonly Separation[],
+  declared: boolean,
+): Separation[] {
+  const on = separationList(separate);
+  const decided = declared && on.includes("workspaces");
+  return recorded.filter((s) => (decided && OVERRIDDEN.includes(s) ? DEFAULT_SEPARATIONS.includes(s) : on.includes(s)));
+}
+
+/** Every state of the recorded separations a viewer can name, each once: the variants a bundled city lays. */
+export function separationStates(recorded: readonly Separation[], declared: boolean): Separation[][] {
+  const subsets = Array.from({ length: 2 ** recorded.length }, (_unused, mask) =>
+    recorded.filter((_separation, bit) => (mask >> bit) & 1),
+  );
+  return subsets.filter((state) => effectiveSeparations(state, recorded, declared).join() === state.join());
+}

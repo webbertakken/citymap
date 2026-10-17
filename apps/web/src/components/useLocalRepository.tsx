@@ -1,7 +1,7 @@
 "use client";
 // Opening a repository on the person's machine: the folder dialog (Chromium) or the folder input (Firefox), the read,
 // the lay, and the remembered folder. The city, its status and the notice stay the viewer's.
-import type { Snapshot, Toggle } from "@citymap/ground-plan";
+import type { Separation, Snapshot, Toggle } from "@citymap/ground-plan";
 import type { ThemeName } from "@citymap/themes";
 import {
   useEffect,
@@ -38,6 +38,8 @@ export interface LocalOptions {
   readonly theme: ThemeName;
   /** The layout toggles a folder is laid with. */
   readonly toggles: readonly Toggle[];
+  /** The separations a folder is laid with. */
+  readonly separate: readonly Separation[];
   /** Begins a load on the loading card, ending any other. */
   readonly begin: (source: Source, name: string) => Job;
   readonly status: string;
@@ -69,6 +71,7 @@ export function useLocalRepository({
   lay,
   theme,
   toggles,
+  separate,
   begin,
   status,
   setStatus,
@@ -118,7 +121,7 @@ export function useLocalRepository({
       for (const found of read.submodules.read) log.info("viewer/local-submodule", found);
       for (const missed of read.submodules.unread) log.info("viewer/local-submodule-unread", missed);
       job.step({ phase: "lay", files });
-      const laid = await lay(read.snapshot, { signal: job.signal, onProgress: job.step, theme, toggles });
+      const laid = await lay(read.snapshot, { signal: job.signal, onProgress: job.step, theme, toggles, separate });
       await present(job, laid, name, read.snapshot);
       // Nothing about a local repository goes in the address; a GitHub repository named there before goes.
       window.history.replaceState(null, "", window.location.pathname);

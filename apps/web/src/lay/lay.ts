@@ -24,6 +24,8 @@ export interface LayOptions {
   readonly theme?: ThemeName;
   /** The layout toggles to lay with; the engine's defaults when absent. */
   readonly toggles?: readonly Toggle[];
+  /** The separations to lay with; the engine's defaults when absent. */
+  readonly separate?: readonly Separation[];
 }
 
 /** A scene built in a theme, ready to draw while that theme is the map's. */
@@ -85,10 +87,10 @@ export function throttled<T>(tell: (value: T) => void, ms: number, now: () => nu
 }
 
 /** Lays on the calling thread, and builds the scene when given a theme: in the worker, and in tests. */
-export const layHere: Lay = async (snapshot, { signal, onProgress, theme, toggles } = {}) => {
+export const layHere: Lay = async (snapshot, { signal, onProgress, theme, toggles, separate } = {}) => {
   signal?.throwIfAborted();
   const tell = onProgress && ((progress: LayProgress) => onProgress(layStep(progress)));
-  const options = liveOptions(toggles);
+  const options = liveOptions(toggles, separate);
   const { city } = layCity(snapshot, initialState(options), options, tell);
   if (theme === undefined) return { city, scene: null };
   onProgress?.({ phase: "draw" });
