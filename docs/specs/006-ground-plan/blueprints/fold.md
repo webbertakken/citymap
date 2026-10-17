@@ -85,6 +85,9 @@ Module: `packages/history/src/submodules.ts`; spec: [ground plan](../ground-plan
   name.
 - `Pins.gitlinks`: the tree state's gitlinks, path → pinned commit. A raw entry whose new mode is 160000 sets it (`A`,
   `M`, `T`); a `D` of a path that is a gitlink, or a `T` away from 160000, removes it.
+- The `.gitmodules` in force at a commit is the blob of the root file `.gitmodules` in the tree state
+  (`gitmodulesAfter(entry, before)` follows it through raw entries): a `D` leaves none, and so does a gitlink at
+  `.gitmodules`, which is no file and names nothing.
 - `SubmoduleReader(dir)` finds a submodule's git data: `<common dir>/modules/<name>` (`git rev-parse --git-common-dir`,
   once), else the working tree's `<dir>/<path>/.git` (a directory, or a file `gitdir: <p>` resolved against
   `<dir>/<path>`); nested ones from their parent's git data (`<git data>/modules/<name>`, names from the parent's pinned
@@ -93,8 +96,8 @@ Module: `packages/history/src/submodules.ts`; spec: [ground plan](../ground-plan
   `git --git-dir=<git data> --work-tree=<git data> -c core.quotepath=off ls-tree -r -z <commit>`, each entry's path
   prefixed with `<path>/`; nested gitlinks expand in turn. Every git call on git data names the git data as its own
   working tree: git would otherwise change into its configured `core.worktree` and fail where that folder is gone (a
-  submodule deinitialised, moved or removed), though the objects are all there. Kept per `(git data, commit)` while the
-  read runs (a pin seen again reads nothing).
+  submodule deinitialised, moved or removed), though the objects are all there. The reader keeps each reading (by parent
+  git data, path, name and commit) only until `forget`: a pin asked for twice in one prepare is read once.
 - Unread (no git data, the commit or a tree missing, depth exceeded): the one entry `<path>/.gitlink` with blob id the
   pinned commit, and `history/submodule-unavailable` (path, index, reason: `no-git-data`, `missing-commit`, `depth`,
   `bad-name`).
@@ -103,11 +106,18 @@ Module: `packages/history/src/submodules.ts`; spec: [ground plan](../ground-plan
   difference between the last expansion and this one is applied as one commit at that index (`D` for paths gone, `A` for
   new paths, `M` for changed blobs, exact renames by equal blob ids), after the commit's own entries. So a resumed read
   expands at the same indices as the uninterrupted one, and births carry the same indices.
+- Each reading is named by the `.gitmodules` in force at its own expansion point: a pin that moves away and back while
+  `.gitmodules` renames its submodule is read under each name in turn. Where git's output splits into chunks never
+  changes a reading.
 - `Pins` keeps the gitlinks and their last expansions. `prepare(commits, first, expandsAt, gitmodules, readTexts)` runs
   before a chunk of the log is applied: it follows the chunk's raw entries (gitlinks and `.gitmodules` blobs only, which
-  expansions never change) to every expansion point, and reads each pin that will have moved there, all in parallel,
-  each named by `.gitmodules` as it then stands. `move(index)` is then synchronous: it takes the prepared expansions,
-  emits the events in path order, and returns the changes; a pin not prepared is `engine/invariant`.
+  expansions never change) to every expansion point, and reads each pin that will have moved there, all in parallel. Its
+  readings wait in `ready`, keyed by path, pin and the `.gitmodules` blob in force there, each with the number of
+  expansions that take it; then the reader forgets. `move(index, gitmodules)` is synchronous: it takes each moved pin's
+  reading by the same key, drops a reading its last expansion took, emits the events in path order, and returns the
+  changes; a pin not prepared is `engine/invariant`.
+- Memory: between chunks `ready` is empty and the reader keeps nothing; what stays is each gitlink's last expansion.
+  `Pins.held` counts the readings each holds.
 - A single state expands every gitlink once.
 - `Snapshot.submodules`: the gitlinks' paths (read or not), sorted, when any.
 
@@ -252,7 +262,9 @@ Every spec rule maps to a test, named after the rule (traceability table in the 
 - **Submodules** (`submodules.test.ts`, real repositories made in a temporary folder): `.gitmodules` parsing; a pin read
   through `.git/modules` and through the submodule's own `.git`; nested; not initialised and a missing commit (one
   `.gitlink`, the event); a moved pin's births, deletions and renames; a pin moved twice inside a window read once; a
-  resume expanding at the same indices; `readTree` with each case.
+  resume expanding at the same indices; `readTree` with each case; a working folder gone; a pin moved away and back
+  while `.gitmodules` renames it, read the same whatever the chunks (`read-submodules.test.ts`, `Pins.prepare` with the
+  log split several ways); a `.gitmodules` that is a gitlink; no reading held past its move across 50 moves of one pin.
 - **Property**: determinism (lay twice, compare serialised output); plat round-trip; locality (a commit touching one
   folder leaves every other folder's lots in place); no lot overlaps another (sampled point-in-polygon).
 - **Resumption** (`fold.test.ts`, ported to Rust): on a synthetic history with deletions, renewals and a root switch, a

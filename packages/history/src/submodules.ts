@@ -67,6 +67,16 @@ export class SubmoduleReader {
 
   constructor(private readonly dir: string) {}
 
+  /** How many readings it keeps. */
+  get held(): number {
+    return this.kept.size;
+  }
+
+  /** Lets go of every reading it keeps: a pin asked for again is read again. */
+  forget(): void {
+    this.kept.clear();
+  }
+
   /** The pinned trees of a tree's gitlinks (path → commit), named by its `.gitmodules` text (null when unread). */
   async expandAll(gitlinks: ReadonlyMap<string, string>, gitmodules: string | null): Promise<Map<string, Expanded>> {
     const modules = parseGitmodules(gitmodules ?? "");
@@ -77,7 +87,7 @@ export class SubmoduleReader {
     return new Map(sorted.map(([path], i) => [path, read[i]!]));
   }
 
-  /** One gitlink at its pin, kept for the read: a pin seen again reads nothing. */
+  /** One gitlink at its pin, kept until `forget`: a pin seen again before then reads nothing. */
   expand(parent: string | null, path: string, module: ModuleEntry | undefined, commit: string, depth: number) {
     const key = `${parent ?? ""}\u0000${path}\u0000${module?.name ?? ""}\u0000${commit}`;
     let found = this.kept.get(key);
@@ -207,14 +217,33 @@ interface LogEntry {
 }
 
 /**
+ * The `.gitmodules` blob a raw entry leaves in force: its new blob, or null when it is deleted or is a gitlink (a
+ * gitlink at `.gitmodules` is no file, so it names nothing).
+ */
+export const gitmodulesAfter = (entry: LogEntry, before: string | null): string | null =>
+  entry.path !== ".gitmodules" ? before : entry.status === "D" || entry.mode === GITLINK_MODE ? null : entry.blob;
+
+/** A prepared reading, and how many expansions still take it. */
+interface Prepared {
+  readonly expanded: Expanded;
+  uses: number;
+}
+
+/** The key of a reading: the gitlink's path, its pin, and the `.gitmodules` blob in force where it is expanded. */
+const readingKey = (path: string, pin: string, gitmodules: string | null) =>
+  `${path}\u0000${pin}\u0000${gitmodules ?? ""}`;
+
+/**
  * The fold's gitlinks and what each was last expanded to. `prepare` reads, in parallel, every pin a chunk of commits
  * will expand; `move` then expands the pins that moved since, at once, and says what changed, as one commit's changes
- * sorted by path; nothing moved is null.
+ * sorted by path; nothing moved is null. A reading is keyed by path, pin and the `.gitmodules` blob in force at its
+ * expansion point, so it never depends on where a chunk ends; it is held only until the expansions that take it have
+ * taken it.
  */
 export class Pins {
   readonly gitlinks = new Map<string, string>();
   private readonly expanded = new Map<string, Expanded>();
-  private readonly ready = new Map<string, Expanded>();
+  private readonly ready = new Map<string, Prepared>();
   private list: readonly string[] = [];
 
   constructor(private readonly reader: SubmoduleReader) {}
@@ -224,9 +253,14 @@ export class Pins {
     return this.list;
   }
 
+  /** How many readings each cache holds: prepared and not yet taken, kept by the reader, and last expanded. */
+  get held(): { readonly ready: number; readonly read: number; readonly expanded: number } {
+    return { ready: this.ready.size, read: this.reader.held, expanded: this.expanded.size };
+  }
+
   /**
-   * Reads the pins the commits from index `first` will expand where `expandsAt`, each named by `.gitmodules` as it then
-   * stands (its blob `gitmodules` before the first; texts from `readTexts`).
+   * Reads the pins the commits from index `first` will expand where `expandsAt`, each named by the `.gitmodules` blob in
+   * force there (`gitmodules` before the first; texts from `readTexts`). The reader keeps nothing past it.
    */
   async prepare(
     commits: readonly { readonly entries: readonly LogEntry[] }[],
@@ -237,35 +271,50 @@ export class Pins {
   ): Promise<void> {
     const pins = new Map(this.gitlinks);
     const last = new Map([...this.expanded].map(([path, e]) => [path, e.commit]));
-    const wanted: { path: string; pin: string; names: string | null }[] = [];
+    const wanted = new Map<string, { path: string; pin: string; names: string | null; uses: number }>();
     let names = gitmodules;
     commits.forEach((commit, at) => {
       for (const entry of commit.entries) {
-        if (entry.path === ".gitmodules") names = entry.status === "D" ? null : entry.blob;
+        names = gitmodulesAfter(entry, names);
         if (entry.status === "D") pins.delete(entry.path);
         else if (entry.mode === GITLINK_MODE) pins.set(entry.path, entry.blob);
         else pins.delete(entry.path);
       }
       if (!expandsAt(first + at)) return;
-      for (const [path, pin] of pins)
-        if (last.get(path) !== pin && !this.ready.has(`${path}\u0000${pin}`)) wanted.push({ path, pin, names });
+      for (const [path, pin] of pins) {
+        if (last.get(path) === pin) continue;
+        const key = readingKey(path, pin, names);
+        const held = this.ready.get(key) ?? wanted.get(key);
+        if (held) held.uses++;
+        else wanted.set(key, { path, pin, names, uses: 1 });
+      }
       last.clear();
       for (const [path, pin] of pins) last.set(path, pin);
     });
-    if (wanted.length === 0) return;
-    const blobs = [...new Set(wanted.flatMap((w) => (w.names === null ? [] : [w.names])))];
+    if (wanted.size === 0) return;
+    const blobs = [...new Set([...wanted.values()].flatMap((w) => (w.names === null ? [] : [w.names])))];
     const texts = await readTexts(blobs);
     const modulesOf = (blob: string | null) => {
       const text = blob === null ? null : texts.get(blob);
       return parseGitmodules(typeof text === "string" ? text : "");
     };
+    const list = [...wanted];
     const read = await Promise.all(
-      wanted.map((w) => this.reader.expand(null, w.path, modulesOf(w.names).get(w.path), w.pin, 0)),
+      list.map(([, w]) => this.reader.expand(null, w.path, modulesOf(w.names).get(w.path), w.pin, 0)),
     );
-    wanted.forEach((w, i) => this.ready.set(`${w.path}\u0000${w.pin}`, read[i]!));
+    list.forEach(([key, w], i) => this.ready.set(key, { expanded: read[i]!, uses: w.uses }));
+    this.reader.forget();
   }
 
-  move(index: number, onEvent: (event: SubmoduleRead | SubmoduleUnavailable) => void): PinChange[] | null {
+  /**
+   * Expands the pins that moved, each taken from its prepared reading for the `.gitmodules` blob in force here
+   * (`gitmodules`); a reading no later expansion takes is dropped.
+   */
+  move(
+    index: number,
+    gitmodules: string | null,
+    onEvent: (event: SubmoduleRead | SubmoduleUnavailable) => void,
+  ): PinChange[] | null {
     const moved = [...this.gitlinks]
       .filter(([path, pin]) => this.expanded.get(path)?.commit !== pin)
       .toSorted(([a], [b]) => compareKeys(a, b));
@@ -277,8 +326,11 @@ export class Pins {
     for (const path of gone) this.expanded.delete(path);
     const after = new Map<string, string>();
     for (const [path, pin] of moved) {
-      const found = this.ready.get(`${path}\u0000${pin}`);
-      if (!found) throw new CitymapError("engine/invariant", `the pin of ${path} was not prepared`, { path, index });
+      const key = readingKey(path, pin, gitmodules);
+      const prepared = this.ready.get(key);
+      if (!prepared) throw new CitymapError("engine/invariant", `the pin of ${path} was not prepared`, { path, index });
+      if (--prepared.uses === 0) this.ready.delete(key);
+      const found = prepared.expanded;
       this.expanded.set(path, found);
       for (const [file, blob] of found.files) after.set(file, blob);
       for (const unread of found.unread)

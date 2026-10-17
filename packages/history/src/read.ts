@@ -267,7 +267,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
     await pins.prepare(commits, index, expandsAt, names, (b) => blobs.readAll(b));
     for (const commit of commits) {
       if (apply(state, folders, workspaces, pins.gitlinks, commit, index)) [files, folderMap] = [null, null];
-      const entries = expandsAt(index) ? pins.move(index, onEvent) : null;
+      const entries = expandsAt(index) ? pins.move(index, state.get(".gitmodules")?.blob ?? null, onEvent) : null;
       if (entries && apply(state, folders, workspaces, pins.gitlinks, { sha: commit.sha, entries }, index))
         [files, folderMap] = [null, null];
       if (laid(index)) {

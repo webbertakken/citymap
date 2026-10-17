@@ -153,6 +153,17 @@ impl SubmoduleReader {
         }
     }
 
+    /// How many readings it keeps.
+    #[must_use]
+    pub fn held(&self) -> usize {
+        self.kept.len()
+    }
+
+    /// Lets go of every reading it keeps: a pin asked for again is read again.
+    pub fn forget(&mut self) {
+        self.kept.clear();
+    }
+
     /// The pinned trees of a tree's gitlinks (path → commit), named by its `.gitmodules` text (none when unread), in
     /// path order.
     pub fn expand_all(
@@ -169,7 +180,7 @@ impl SubmoduleReader {
             .collect()
     }
 
-    /// One gitlink at its pin, kept for the read: a pin seen again reads nothing.
+    /// One gitlink at its pin, kept until `forget`: a pin seen again before then reads nothing.
     pub fn expand(
         &mut self,
         parent: Option<&Path>,
@@ -325,14 +336,14 @@ impl SubmoduleReader {
 }
 
 /// The fold's gitlinks and what each was last expanded to. `move_pins` expands the pins that moved since, at once,
-/// and says what changed, as one commit's changes sorted by path; nothing moved is none.
+/// and says what changed, as one commit's changes sorted by path; nothing moved is none. Each pin is read at its own
+/// expansion point, named by the `.gitmodules` in force there, and nothing read outlives the expansion that read it
+/// but the expansions it made.
 pub struct Pins {
     reader: SubmoduleReader,
     /// The tree state's gitlinks: path → pinned commit.
     pub gitlinks: HashMap<String, String>,
     expanded: HashMap<String, Arc<Expanded>>,
-    /// Every pin read so far, by path and pin: a pin read again takes its first reading.
-    ready: HashMap<(String, String), Arc<Expanded>>,
     list: Option<Arc<Vec<String>>>,
 }
 
@@ -343,7 +354,6 @@ impl Pins {
             reader,
             gitlinks: HashMap::new(),
             expanded: HashMap::new(),
-            ready: HashMap::new(),
             list: None,
         }
     }
@@ -354,9 +364,15 @@ impl Pins {
         self.list.clone()
     }
 
+    /// How many readings it holds: the last expansions, and those the reader keeps.
+    #[must_use]
+    pub fn held(&self) -> (usize, usize) {
+        (self.expanded.len(), self.reader.held())
+    }
+
     /// Expands the pins that moved since their last expansion (or are new, or gone), emitting the events in path
-    /// order, and returns the changes; none when nothing moved. A pin not read before is read now, named by
-    /// `.gitmodules` as it stands (`gitmodules` gives its text, asked once and only when a pin is read).
+    /// order, and returns the changes; none when nothing moved. Each moved pin is read now, named by the `.gitmodules`
+    /// in force (`gitmodules` gives its text, asked once and only when a pin moved); the reader keeps nothing past it.
     pub fn move_pins(
         &mut self,
         index: i64,
@@ -390,21 +406,14 @@ impl Pins {
         for path in &gone {
             self.expanded.remove(path);
         }
-        let mut modules: Option<IndexMap<String, ModuleEntry>> = None;
+        let modules = if moved.is_empty() {
+            IndexMap::new()
+        } else {
+            parse_gitmodules(gitmodules()?.as_deref().unwrap_or(""))
+        };
         let mut after: IndexMap<String, String> = IndexMap::new();
         for (path, pin) in moved {
-            let key = (path.clone(), pin.clone());
-            let found = if let Some(found) = self.ready.get(&key) {
-                found.clone()
-            } else {
-                if modules.is_none() {
-                    modules = Some(parse_gitmodules(gitmodules()?.as_deref().unwrap_or("")));
-                }
-                let module = modules.as_ref().and_then(|m| m.get(&path));
-                let found = self.reader.expand(None, &path, module, &pin, 0)?;
-                self.ready.insert(key, found.clone());
-                found
-            };
+            let found = self.reader.expand(None, &path, modules.get(&path), &pin, 0)?;
             for (file, blob) in &found.files {
                 after.insert(file.clone(), blob.clone());
             }
@@ -424,6 +433,7 @@ impl Pins {
             }
             self.expanded.insert(path, found);
         }
+        self.reader.forget();
         let entry = |status: &str, path: &String, blob: &String| RawEntry {
             mode: FILE_MODE.to_owned(),
             blob: blob.clone(),

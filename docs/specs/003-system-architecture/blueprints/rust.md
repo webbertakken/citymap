@@ -189,11 +189,13 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   `.gitmodules`), the same git-data lookup and its containment check (paths resolved lexically, as `path.resolve` and
   `path.relative` do), the same depth limit, the same expansion indices, the same synthetic commit and the same events.
   The tree state's gitlinks live in `Pins.gitlinks`.
-- The reader thread applies one commit at a time, so `Pins` has no `prepare`: at each expansion point `move_pins` reads
-  every moved pin it has not read before, one after another, each named by `.gitmodules` as the tree state then holds it
-  (its blob read through the `BlobReader`, only when a pin is read). A pin read once is kept by path and pin, as
-  TypeScript's prepared readings are, and `SubmoduleReader` keeps every reading for the read; nothing is read twice.
-  TypeScript's invariant for a pin `move` was not prepared for (`engine/invariant`) has no Rust counterpart.
+- The reader thread applies one commit at a time, so `Pins` has no `prepare` and no `ready`: at each expansion point
+  `move_pins` reads every moved pin, one after another, each named by the `.gitmodules` in force there, the blob of the
+  root file in the tree state (a gitlink at `.gitmodules` is no file there, so it names nothing). The text is read
+  through the `BlobReader`, once and only when a pin moved. `SubmoduleReader` keeps its readings (by parent git data,
+  path, name and pin) only until `move_pins` ends and calls `forget`, so what stays is each gitlink's last expansion
+  (`Pins::held`). A reading is a pure function of path, pin and name, so the readings are TypeScript's whatever its
+  chunks. TypeScript's invariant for a pin `move` was not prepared for (`engine/invariant`) has no Rust counterpart.
 
 ## Security and observability
 

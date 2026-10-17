@@ -1,9 +1,10 @@
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { readHistory, type HistoryEvent } from "./read";
+import { BlobReader } from "./blobs";
+import { parseRawLog, readHistory, type HistoryEvent } from "./read";
 import type { Strides } from "./schedule";
-import { Pins, SubmoduleReader } from "./submodules";
+import { Pins, SubmoduleReader, gitmodulesAfter } from "./submodules";
 import { commit, commitIndex, git, repoWith, removeRepos, write } from "./testing/repos";
 
 afterEach(removeRepos);
@@ -162,10 +163,185 @@ describe("readHistory with submodules", () => {
   });
 });
 
+/** The parent's first-parent history as raw commits, as `readHistory` parses git's log. */
+const rawLog = (dir: string) => [
+  ...parseRawLog(
+    git(
+      dir,
+      "log",
+      "--first-parent",
+      "--reverse",
+      "--raw",
+      "-z",
+      "--no-renames",
+      "--no-abbrev",
+      "--format=%x01%H",
+      "HEAD",
+      "--",
+    ).split("\u0000"),
+  ),
+];
+
+/**
+ * A parent whose submodule `vendor/lib` (git data in `.git/modules/one`, no working tree) is pinned at A, moved to B,
+ * then back to A while `.gitmodules` renames it `two`, a name with no git data.
+ */
+function renamed() {
+  const lib = repoWith({ "a.ts": "a" });
+  const a = git(lib, "rev-parse", "HEAD");
+  write(lib, "b.ts", "b");
+  const b = commit(lib, "b");
+  const parent = repoWith({ "main.ts": "m" });
+  git(parent, "submodule", "add", "-q", "--name", "one", lib, "vendor/lib");
+  git(parent, "update-index", "--cacheinfo", `160000,${a},vendor/lib`);
+  commitIndex(parent, "add at a");
+  git(parent, "update-index", "--cacheinfo", `160000,${b},vendor/lib`);
+  commitIndex(parent, "to b");
+  write(parent, ".gitmodules", `[submodule "two"]\n\tpath = vendor/lib\n\turl = ${lib}\n`);
+  git(parent, "add", ".gitmodules");
+  git(parent, "update-index", "--cacheinfo", `160000,${a},vendor/lib`);
+  commitIndex(parent, "rename, back to a");
+  rmSync(join(parent, "vendor/lib"), { recursive: true, force: true });
+  return parent;
+}
+
+/** The pin of `vendor/lib` moved, as a raw entry. */
+const link = (commitId: string) => ({ mode: "160000", blob: commitId, status: "M", path: "vendor/lib" });
+const noTexts = () => Promise.resolve(new Map<string, string | null>());
+const rawEntry = (path: string, mode: string, status: string) => ({ path, mode, status, blob: "x" });
+
+/** What `move` says at each commit when the log is handed to `prepare` in the given chunks, as `readHistory` applies it. */
+async function movesIn(dir: string, sizes: readonly number[]) {
+  const commits = rawLog(dir);
+  const pins = new Pins(new SubmoduleReader(dir));
+  const blobs = new BlobReader(dir);
+  const out: unknown[] = [];
+  let names: string | null = null;
+  const firsts = sizes.map((_, i) => sizes.slice(0, i).reduce((sum, n) => sum + n, 0));
+  // Chunk after chunk, as the reader hands them over: each prepared, then its commits applied and moved in order.
+  await firsts.reduce(async (done, first, i) => {
+    await done;
+    const chunk = commits.slice(first, first + sizes[i]!);
+    await pins.prepare(
+      chunk,
+      first,
+      () => true,
+      names,
+      (b) => blobs.readAll(b),
+    );
+    chunk.forEach((c, at) => {
+      for (const entry of c.entries) {
+        names = gitmodulesAfter(entry, names);
+        if (entry.status === "D") pins.gitlinks.delete(entry.path);
+        else if (entry.mode === "160000") pins.gitlinks.set(entry.path, entry.blob);
+        else pins.gitlinks.delete(entry.path);
+      }
+      const events: unknown[] = [];
+      out.push({ changes: pins.move(first + at, names, (e) => events.push(e)), events });
+    });
+  }, Promise.resolve());
+  await blobs.close();
+  expect(pins.held.ready).toBe(0);
+  return out;
+}
+
+describe("readHistory with a renamed submodule", () => {
+  it("names each reading by the .gitmodules in force at its own commit", async () => {
+    const { events } = await read(renamed());
+    expect(events.filter((e) => e.code.startsWith("history/submodule"))).toEqual([
+      { code: "history/submodule", detail: { path: "vendor/lib", index: 1, files: 1 } },
+      { code: "history/submodule", detail: { path: "vendor/lib", index: 2, files: 2 } },
+      { code: "history/submodule-unavailable", detail: { path: "vendor/lib", index: 3, reason: "no-git-data" } },
+    ]);
+  });
+
+  it("reads the same whatever the chunks the log arrives in", async () => {
+    const dir = renamed();
+    const whole = await movesIn(dir, [4]);
+    expect(await movesIn(dir, [1, 1, 1, 1])).toEqual(whole);
+    expect(await movesIn(dir, [2, 2])).toEqual(whole);
+    expect(await movesIn(dir, [1, 3])).toEqual(whole);
+  });
+
+  it("names nothing by a .gitmodules that is a gitlink", async () => {
+    const lib = repoWith({ "a.ts": "a" });
+    const a = git(lib, "rev-parse", "HEAD");
+    write(lib, "b.ts", "b");
+    const b = commit(lib, "b");
+    const parent = repoWith({ "main.ts": "m" });
+    git(parent, "submodule", "add", "-q", "--name", "custom", lib, "vendor/lib");
+    git(parent, "update-index", "--cacheinfo", `160000,${a},vendor/lib`);
+    commitIndex(parent, "add at a");
+    git(parent, "rm", "-q", "--cached", ".gitmodules");
+    git(parent, "update-index", "--add", "--cacheinfo", `160000,${a},.gitmodules`);
+    git(parent, "update-index", "--cacheinfo", `160000,${b},vendor/lib`);
+    commitIndex(parent, "gitmodules as a gitlink");
+    rmSync(join(parent, "vendor/lib"), { recursive: true, force: true });
+    const { snaps, events } = await read(parent);
+    // Named custom by the file at 1; named by its path, with no git data there, once .gitmodules is a gitlink.
+    expect(events.filter((e) => e.code.startsWith("history/submodule"))).toEqual([
+      { code: "history/submodule", detail: { path: "vendor/lib", index: 1, files: 1 } },
+      { code: "history/submodule-unavailable", detail: { path: ".gitmodules", index: 2, reason: "no-git-data" } },
+      { code: "history/submodule-unavailable", detail: { path: "vendor/lib", index: 2, reason: "no-git-data" } },
+    ]);
+    expect(Object.keys(identities(snaps[2]))).toEqual([".gitmodules/.gitlink", "main.ts", "vendor/lib/.gitlink"]);
+  });
+});
+
+describe("gitmodulesAfter", () => {
+  it("follows the .gitmodules file, and takes a gitlink there for no file", () => {
+    expect(gitmodulesAfter(rawEntry(".gitmodules", "100644", "M"), "w")).toBe("x");
+    expect(gitmodulesAfter(rawEntry(".gitmodules", "100644", "D"), "w")).toBeNull();
+    expect(gitmodulesAfter(rawEntry(".gitmodules", "160000", "A"), "w")).toBeNull();
+    expect(gitmodulesAfter(rawEntry("a.ts", "100644", "A"), "w")).toBe("w");
+  });
+});
+
 describe("Pins", () => {
   it("refuses to move a pin it was not prepared for", () => {
     const pins = new Pins(new SubmoduleReader("/nowhere"));
     pins.gitlinks.set("vendor/lib", "1".repeat(40));
-    expect(() => pins.move(0, () => {})).toThrow("engine/invariant");
+    expect(() => pins.move(0, null, () => {})).toThrow("engine/invariant");
+  });
+
+  it("holds no reading past the move that takes it, across 50 moves of one pin", async () => {
+    const dir = repoWith({ "a.ts": "a" });
+    const pins = new Pins(new SubmoduleReader(dir));
+    // One chunk after another, each moving the pin.
+    await Array.from({ length: 50 }, (_, i) => i).reduce(async (done, i) => {
+      await done;
+      const commitId = String(i % 7).repeat(40);
+      await pins.prepare([{ entries: [link(commitId)] }], i, () => true, null, noTexts);
+      expect(pins.held).toEqual({ ready: 1, read: 0, expanded: Math.min(i, 1) });
+      pins.gitlinks.set("vendor/lib", commitId);
+      pins.move(i, null, () => {});
+      expect(pins.held).toEqual({ ready: 0, read: 0, expanded: 1 });
+    }, Promise.resolve());
+  });
+
+  it("keeps a reading two expansions take until the second, and one prepared twice for both", async () => {
+    const dir = repoWith({ "a.ts": "a" });
+    const pins = new Pins(new SubmoduleReader(dir));
+    const [a, b] = ["a".repeat(40), "b".repeat(40)];
+    // A, B, A in one chunk: the reading of A is taken twice.
+    await pins.prepare(
+      [{ entries: [link(a)] }, { entries: [link(b)] }, { entries: [link(a)] }],
+      0,
+      () => true,
+      null,
+      noTexts,
+    );
+    expect(pins.held.ready).toBe(2);
+    for (const [i, commitId] of [a, b, a].entries()) {
+      pins.gitlinks.set("vendor/lib", commitId);
+      pins.move(i, null, () => {});
+    }
+    expect(pins.held.ready).toBe(0);
+    // Two prepares before their moves: the second counts on the reading the first left.
+    await pins.prepare([{ entries: [link(b)] }], 3, () => true, null, noTexts);
+    await pins.prepare([{ entries: [link(b)] }], 3, () => true, null, noTexts);
+    pins.gitlinks.set("vendor/lib", b);
+    pins.move(3, null, () => {});
+    expect(pins.held.ready).toBe(1);
   });
 });

@@ -6,7 +6,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use citymap_ground_plan::snapshot::Snapshot;
-use citymap_history::submodules::{Expanded, SUBMODULE_DEPTH, SubmoduleReader, Unread, UnreadReason};
+use citymap_history::submodules::{Expanded, Pins, SUBMODULE_DEPTH, SubmoduleReader, Unread, UnreadReason};
 use citymap_history::{HistoryEvent, HistoryItem, ReadOptions, Strides, read_history, read_tree};
 use common::{Repo, git};
 
@@ -597,4 +597,90 @@ fn lays_an_initialised_submodule_s_files_at_its_pin_in_a_single_state_and_says_s
             files: 1
         }]
     );
+}
+
+fn submodule_lines(events: &[HistoryEvent]) -> Vec<String> {
+    submodule_events(events).iter().map(|e| e.line()).collect()
+}
+
+#[test]
+fn names_each_reading_by_the_gitmodules_in_force_at_its_own_commit() {
+    // vendor/lib (git data in .git/modules/one, no working tree) at A, then B, then back to A while .gitmodules
+    // renames it two, a name with no git data.
+    let lib = Repo::with(&[("a.ts", "a")]);
+    let a = lib.git(&["rev-parse", "HEAD"]);
+    lib.write("b.ts", "b");
+    let b = lib.commit("b");
+    let parent = Repo::with(&[("main.ts", "m")]);
+    parent.git(&["submodule", "add", "-q", "--name", "one", &lib.url(), "vendor/lib"]);
+    parent.git(&["update-index", "--cacheinfo", &format!("160000,{a},vendor/lib")]);
+    parent.commit_index("add at a");
+    parent.git(&["update-index", "--cacheinfo", &format!("160000,{b},vendor/lib")]);
+    parent.commit_index("to b");
+    parent.write(
+        ".gitmodules",
+        &format!("[submodule \"two\"]\n\tpath = vendor/lib\n\turl = {}\n", lib.url()),
+    );
+    parent.git(&["add", ".gitmodules"]);
+    parent.git(&["update-index", "--cacheinfo", &format!("160000,{a},vendor/lib")]);
+    parent.commit_index("rename, back to a");
+    std::fs::remove_dir_all(parent.path().join("vendor/lib")).expect("removed");
+    let (_, events) = read(parent.path(), None, None);
+    assert_eq!(
+        submodule_lines(&events),
+        [
+            "history/submodule path=vendor/lib index=1 files=1",
+            "history/submodule path=vendor/lib index=2 files=2",
+            "history/submodule-unavailable path=vendor/lib index=3 reason=no-git-data"
+        ]
+    );
+}
+
+#[test]
+fn names_nothing_by_a_gitmodules_that_is_a_gitlink() {
+    let lib = Repo::with(&[("a.ts", "a")]);
+    let a = lib.git(&["rev-parse", "HEAD"]);
+    lib.write("b.ts", "b");
+    let b = lib.commit("b");
+    let parent = Repo::with(&[("main.ts", "m")]);
+    parent.git(&["submodule", "add", "-q", "--name", "custom", &lib.url(), "vendor/lib"]);
+    parent.git(&["update-index", "--cacheinfo", &format!("160000,{a},vendor/lib")]);
+    parent.commit_index("add at a");
+    parent.git(&["rm", "-q", "--cached", ".gitmodules"]);
+    parent.git(&[
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        &format!("160000,{a},.gitmodules"),
+    ]);
+    parent.git(&["update-index", "--cacheinfo", &format!("160000,{b},vendor/lib")]);
+    parent.commit_index("gitmodules as a gitlink");
+    std::fs::remove_dir_all(parent.path().join("vendor/lib")).expect("removed");
+    let (snaps, events) = read(parent.path(), None, None);
+    // Named custom by the file at 1; named by its path, with no git data there, once .gitmodules is a gitlink.
+    assert_eq!(
+        submodule_lines(&events),
+        [
+            "history/submodule path=vendor/lib index=1 files=1",
+            "history/submodule-unavailable path=.gitmodules index=2 reason=no-git-data",
+            "history/submodule-unavailable path=vendor/lib index=2 reason=no-git-data"
+        ]
+    );
+    assert_eq!(
+        identities(&snaps[2]).into_keys().collect::<Vec<_>>(),
+        [".gitmodules/.gitlink", "main.ts", "vendor/lib/.gitlink"]
+    );
+}
+
+#[test]
+fn holds_no_reading_past_the_move_that_took_it_across_50_moves_of_one_pin() {
+    let repo = Repo::with(&[("a.ts", "a")]);
+    let mut pins = Pins::new(SubmoduleReader::new(repo.path()));
+    for i in 0..50 {
+        let pin = (i % 7).to_string().repeat(40);
+        pins.gitlinks.insert("vendor/lib".into(), pin);
+        let moved = pins.move_pins(i, &mut || Ok(None), &mut |_| {}).expect("a move");
+        assert!(moved.is_some());
+        assert_eq!(pins.held(), (1, 0));
+    }
 }
