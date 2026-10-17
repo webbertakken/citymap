@@ -51,8 +51,9 @@ The Rust implementation of the CLI lives in `rust/`: see
    each on its own shared clone (so no lock lands in the cache), and compares city, SVG, lockfile and log byte for byte.
    The `resume` mode also resumes each fold from a lock saved part way, and must match the uninterrupted fold. `--long`
    adds next.js (minutes on TypeScript); `--repos=a,b` and `--modes=state,fold,resume` narrow it; `--features=mimalloc`
-   builds the Rust CLI with mimalloc; `--toggles=a,b` lays both CLIs with those toggles. Prove a change to a toggle's
-   rules with the defaults, each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`).
+   builds the Rust CLI with mimalloc; `--toggles=a,b` lays both CLIs with those toggles, `--separate=a,b` with those
+   separations. Prove a change to a toggle's rules with the defaults, each toggle alone (`--toggles=corridor` and so on)
+   and none (`--toggles=`); a change to a separation's rules the same way with `--separate=`.
 7. A `parity/differs` line is a bug in one of the two implementations. Both runs' outputs stay in
    `/tmp/citymap-parity-<repo>`: find the first differing byte, then the rule behind it. A `parity/resume-differs` line
    is state a lockfile does not carry: find the first commit where the resumed plat leaves the uninterrupted one.
