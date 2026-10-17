@@ -11,8 +11,9 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --tests             give tests land (the land dimension; default: tests and fixtures take none)
   --density=<pct>     share of land covered by lots, 20 to 80 (default 50)
   --jog=<cuts>        off, top-level or all (default top-level)
-  --split=<groups>    workspace groups whose members each become a town, comma-separated (default apps;
-                      --split=apps,packages splits packages too; --split= splits none)
+  --separate=<kinds>  kinds of folder whose members each become a town, comma-separated: workspaces, submodules, apps, packages, libs,
+                      crates, services, modules, extensions, plugins
+                      (default workspaces,submodules,apps; --separate= lays none apart)
   --toggles=<forms>   archetype toggles on, comma-separated: corridor, archipelago, quarters, tiers
                       (default corridor,tiers; --toggles= turns all off)
   --no-warp           draw the plan without its organic warp

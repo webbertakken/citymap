@@ -470,6 +470,7 @@ mod tests {
     use citymap_ground_plan::fold::initial_state;
     use citymap_ground_plan::land_use::default_land_uses;
     use citymap_ground_plan::region::compose::{Options, lay_city};
+    use citymap_ground_plan::region::separate::DEFAULT_SEPARATIONS;
     use citymap_ground_plan::snapshot::{FileEntry, Snapshot};
     use citymap_ground_plan::town::context::{Jog, Order};
 
@@ -491,6 +492,7 @@ mod tests {
             files: Arc::new(entries),
             folder_first_seen: Arc::new(std::collections::HashMap::new()),
             workspaces: None,
+            submodules: None,
         };
         let options = Options {
             density_pct: 50,
@@ -499,7 +501,7 @@ mod tests {
             jog: Jog::TopLevel,
             warp: true,
             loops: true,
-            split: vec!["apps".into()],
+            separate: DEFAULT_SEPARATIONS.to_vec(),
             toggles: citymap_ground_plan::toggles::DEFAULT_TOGGLES.to_vec(),
         };
         lay_city(&snapshot, &mut initial_state(&options, None, false), &options)
@@ -573,6 +575,8 @@ mod tests {
             commit: "worktree".into(),
             towns: vec![],
             highways: vec![],
+            separable: None,
+            declared: None,
         };
         assert!(render(&empty, "empty", "", Camera::Plan, false).contains(">empty</text>"));
     }

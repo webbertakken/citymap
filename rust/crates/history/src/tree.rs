@@ -107,5 +107,6 @@ pub fn read_tree(
         ),
         folder_first_seen: Arc::new(folders.into_iter().map(|f| (f, 0)).collect::<HashMap<_, _>>()),
         workspaces,
+        submodules: None,
     })
 }

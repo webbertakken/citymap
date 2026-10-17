@@ -131,6 +131,45 @@ fn writes_the_city_as_json_and_svg_and_logs_a_summary() {
 }
 
 #[test]
+fn logs_how_many_towns_each_separation_laid_apart_and_nothing_when_none_did() {
+    let repo = repo(1);
+    for path in ["apps/web/a.ts", "apps/api/b.ts", "lib/plugins/p/c.ts"] {
+        let file = repo.0.join(path);
+        std::fs::create_dir_all(file.parent().expect("a folder")).expect("folders");
+        std::fs::write(&file, path).expect("a file");
+    }
+    git(&repo.0, &["add", "-A"]);
+    git(
+        &repo.0,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "-m",
+            "apart",
+        ],
+    );
+    let mut io = Memory::default();
+    run_lay(
+        &command(&repo.0, &["--separate=apps,plugins"]),
+        &mut io,
+        1000,
+        FOLD_STRIDES,
+    )
+    .expect("a city");
+    assert!(
+        io.lines
+            .contains(&"fold/separate towns=3 by=apps:2,plugins:1".to_owned())
+    );
+    let mut none = Memory::default();
+    run_lay(&command(&repo.0, &["--separate="]), &mut none, 1000, FOLD_STRIDES).expect("a city");
+    assert!(!none.lines.iter().any(|l| l.starts_with("fold/separate")));
+}
+
+#[test]
 fn writes_a_lockfile_and_resumes_from_it_laying_the_same_city() {
     let repo = repo(3);
     let mut first = Memory::default();

@@ -443,6 +443,7 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
                 files: tree.files(),
                 folder_first_seen: tree.folder_map(),
                 workspaces,
+                submodules: None,
             })
         } else {
             None

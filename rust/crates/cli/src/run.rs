@@ -6,6 +6,7 @@ use citymap_ground_plan::fold::initial_state;
 use citymap_ground_plan::land_use::{LandUse, default_land_uses};
 use citymap_ground_plan::lock::{Lockfile, parse_lock, serialise_lock};
 use citymap_ground_plan::region::compose::{FoldState, Options, current_city, lay, setting_key};
+use citymap_ground_plan::region::separate::{separate_members, separation_list};
 use citymap_ground_plan::snapshot::Snapshot;
 use citymap_ground_plan::town::context::Order;
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
@@ -80,7 +81,7 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize, strides
         jog: command.jog,
         warp: command.warp,
         loops: command.loops,
-        split: command.split.clone(),
+        separate: command.separate.clone(),
         toggles: command.toggles.clone(),
     };
     let target = resolve_commit(&repo, &command.to)?;
@@ -91,11 +92,10 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize, strides
     };
     let from = lock.as_ref().map(|l| l.index);
     let mut state = lock.map_or_else(|| initial_state(&options, None, true), |l| l.state);
-    let mut laid_any = false;
+    let mut last: Option<Snapshot> = None;
     let (mut laid_count, mut index) = (0usize, 0i64);
     let mut lay = |snapshot: Snapshot, io: &mut dyn Io, state: &mut FoldState| -> Result<()> {
         let events = lay(&snapshot, state, &options)?;
-        laid_any = true;
         index = snapshot.index;
         laid_count += 1;
         // The lock's own commit is laid again to restore the towns as they stood; its decisions are in the plat.
@@ -107,6 +107,7 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize, strides
         if command.lock && laid_count.is_multiple_of(lock_every) && snapshot.commit != target {
             save_lock(io, &repo, state, &snapshot.commit, index)?;
         }
+        last = Some(snapshot);
         Ok(())
     };
     if command.history {
@@ -133,12 +134,12 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize, strides
         }
         lay(snapshot, io, &mut state)?;
     }
-    if !laid_any {
+    let Some(last) = last else {
         return Err(CitymapError::new(
             ErrorCode::EngineUnexpected,
             "TypeError: no commit was laid",
         ));
-    }
+    };
     let laid = current_city(&mut state, &options)?;
     let lots: i64 = laid.towns.iter().map(|t| t.stats.lots).sum();
     let overflow: i64 = laid.towns.iter().map(|t| t.stats.overflow).sum();
@@ -162,6 +163,17 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize, strides
     }
     if command.lock {
         save_lock(io, &repo, &state, &target, index)?;
+    }
+    // What stood apart at the last commit: how many towns each separation laid.
+    let apart = separate_members(&last, &options.separate);
+    if !apart.is_empty() {
+        let by: Vec<String> = separation_list(&options.separate)
+            .into_iter()
+            .map(|s| (s, apart.iter().filter(|m| m.by == s).count()))
+            .filter(|&(_, n)| n > 0)
+            .map(|(s, n)| format!("{s}:{n}"))
+            .collect();
+        io.log(&format!("fold/separate towns={} by={}", apart.len(), by.join(",")));
     }
     #[allow(clippy::cast_possible_truncation)]
     let ms = (io.now() - started).round() as i64;
