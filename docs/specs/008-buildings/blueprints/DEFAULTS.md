@@ -1,0 +1,39 @@
+# Defaults ledger
+
+One row per value the buildings spec leaves silent or qualitative.
+
+| Default                     | Value                                                                                   | Provenance                                                                   | Safe range        |
+| --------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ----------------- |
+| Measures section version    | `1`                                                                                     | the plat's own versioning: newer is refused                                  | fixed             |
+| Binary test                 | a zero byte in the first 8,000 bytes                                                    | git's own `buffer_is_binary`                                                 | fixed             |
+| Lines                       | newlines, plus one for a last line without one                                          | `wc -l` undercounts that last line; editors show it                          | fixed             |
+| Comment syntax              | nine syntaxes by extension; strings not parsed                                          | a deterministic count both CLIs share; a marker in a string is rare          | fixed             |
+| Marks                       | `TODO`, `FIXME`, `XXX`, upper case, word-bounded, in comment lines                      | spec: the three marks; code identifiers like `TODO_LIST` are not marks       | fixed             |
+| Test and source folders     | `src lib main source test tests __tests__ __test__ spec specs testing unit integration` | research: mirrored trees in the corpus                                       | extend by measure |
+| Folder rule                 | either reduced folder ends the other                                                    | research: 15.7 % of the corpus' sources against 8.4 % for the same folder    | fixed             |
+| Not judged by name          | files that are not source, or of no family                                              | spec: tested by name is about source files                                   | fixed             |
+| Tested with a report        | the report only; files it does not name are unknown                                     | spec: unknown, not 0                                                         | fixed             |
+| Report formats by content   | `{` Istanbul; `<coverage>` Cobertura; `<report>` JaCoCo; `SF:` LCOV                     | each format's own first marks                                                | fixed             |
+| Usual report paths          | eight, at the root and in folders holding a manifest                                    | research: where each tool writes by default                                  | extend            |
+| Largest report              | 256 MB                                                                                  | many times the largest real report; bounds memory                            | 64 MB to 1 GB     |
+| Istanbul line hits          | the largest count of statements starting on the line                                    | Istanbul's own `getLineCoverage`                                             | fixed             |
+| JaCoCo line hits            | covered instructions (`ci`)                                                             | JaCoCo marks a line covered when any instruction ran                         | fixed             |
+| Authors                     | distinct author emails, mailmapped (`%aE`), lower-cased in ASCII                        | one person, several spellings of one address                                 | fixed             |
+| Recency time                | committer time (`%ct`)                                                                  | when the change reached the first-parent line                                | fixed             |
+| Merges                      | one change, by the merge's author                                                       | the first-parent history the fold reads                                      | fixed             |
+| Lot size                    | sum of known sizes; unknown only when none is                                           | a lot of twenty fixtures with one blob missing still has a size              | fixed             |
+| Lot tested                  | the weakest known                                                                       | spec: their weakest                                                          | fixed             |
+| Percentiles                 | nearest rank, over known positive values                                                | integer ranks, no interpolation; both ends exact                             | fixed             |
+| Floors                      | rounded to the nearest whole floor                                                      | whole floors make whole rows of windows                                      | fixed             |
+| Floor height                | 0.25 u                                                                                  | twelve floors are three street widths, the depth of a lot                    | 0.15 to 0.4 u     |
+| Window pitch                | 0.25 u; a window the middle half, 30 % to 80 % of its floor                             | two windows across a lot's 0.5 u frontage                                    | 0.15 to 0.5 u     |
+| Wall seam                   | 0.03 u, darker, at each wall's ends                                                     | buildings of one height in a row still read apart                            | 0 to 0.06 u       |
+| Wall shading                | 0.72 to 0.95 of the colour, lit from the north west                                     | the map's convention for relief                                              | fixed             |
+| Hatched roof                | stripes 0.2 u, 30 % darker                                                              | reads as "not known" at a glance                                             | fixed             |
+| Lot table width             | 1,024 texels                                                                            | within every WebGL 2 texture limit (at least 2,048)                          | 256 to 2,048      |
+| Ray step                    | 0.1 u of height                                                                         | the ray moves 0.17 u across the ground per step, a third of a lot's frontage | 0.05 to 0.15 u    |
+| Ramps                       | the blueprint's table                                                                   | research: Okabe and Ito, viridis, cividis, magma, cut to clear the ground    | fixed             |
+| Colour by                   | folder, on every visit                                                                  | spec: folder by default                                                      | fixed             |
+| Files listed on a card      | 7, then "and N more"                                                                    | the viewer's seven-choice rule                                               | fixed             |
+| Folder contents limit       | 50,000,000 bytes of tracked files                                                       | spec: under 50 MB                                                            | fixed             |
+| Files read at once (folder) | 8                                                                                       | the walk's own `WALK_IN_FLIGHT`                                              | 4 to 16           |

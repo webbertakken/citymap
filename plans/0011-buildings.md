@@ -10,10 +10,10 @@ folder, or the CLI with its history and coverage reports. Spec: [buildings](../d
 - [x] Webber's choices: 3D returns as the Buildings view; height is size; windows are floors with the lit share tested;
       colour is folder by default, measures on a switch
 - [x] Spec: measures, sources, availability, a lot of several files, channels, the city file, privacy; viewer changes
-- [ ] Research: coverage report formats in the wild (LCOV, Istanbul JSON, Cobertura, JaCoCo; their path forms), test
+- [x] Research: coverage report formats in the wild (LCOV, Istanbul JSON, Cobertura, JaCoCo; their path forms), test
       naming conventions per language over the corpus (how often "tested by name" finds a test that exists),
       colour-blind safe ramps per theme, drawing windows on facades in three.js at 75,000 buildings
-- [ ] Blueprint (new `docs/specs/008-buildings/blueprints/`): the measures section of the city file (fields, units,
+- [x] Blueprint (new `docs/specs/008-buildings/blueprints/`): the measures section of the city file (fields, units,
       unknown, versioning), the measure readers per source, the by-name rule as a pure shared function, the report
       parsers and path matching, aggregation, scales, the facade shader, the colour ramps; error codes, logs; defaults
       and completeness
