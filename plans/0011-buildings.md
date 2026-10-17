@@ -23,9 +23,9 @@ folder, or the CLI with its history and coverage reports. Spec: [buildings](../d
 - [ ] City file: a measures section beside the layout, read and written by both CLIs; a city without it still opens
       (tests first; parity unchanged for cities without measures)
 - [ ] Tested by name and kind from paths (pure, shared; TypeScript and Rust)
-- [ ] CLI: size (lines and bytes) at the laid commit without fetching missing objects; recency, churn and authors from
+- [x] CLI: size (lines and bytes) at the laid commit without fetching missing objects; recency, churn and authors from
       the history the fold already reads; comments and TODOs
-- [ ] CLI: coverage reports (`--coverage=<file>` and the usual paths), four formats, paths matched; unknown where not
+- [x] CLI: coverage reports (`--coverage=<file>` and the usual paths), four formats, paths matched; unknown where not
       covered
 - [ ] Rust: the same, byte for byte; `bun run parity` with measures on every mode
 - [ ] Layout untouched: cities and locks byte-identical with and without measures on the corpus
