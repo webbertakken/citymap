@@ -206,7 +206,6 @@ async function foldFixture(file: string, toggles: readonly Toggle[], toggled: bo
     jog: "top-level",
     warp: true,
     loops: true,
-    split: ["apps"],
     toggles,
   };
   const snapshots = history(toggled);

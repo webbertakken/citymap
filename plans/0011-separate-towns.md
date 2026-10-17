@@ -28,14 +28,15 @@ Branch `feat/separate-towns`, stacked on `local-beside-search` (#36); rebase ont
 
 ## Phase 1: TypeScript engine
 
-- [ ] `Separation` type, `SEPARATIONS`, `DEFAULT_SEPARATIONS`; `Options.separate` replaces `split`; `settingKey`
-- [ ] Members per separation from a snapshot (pure, test-first): workspaces (declared only), submodules, folder kinds
+- [x] `Separation` type, `SEPARATIONS`, `DEFAULT_SEPARATIONS`; `Options.separate` replaces `split`; `settingKey`
+- [x] Members per separation from a snapshot (pure, test-first): workspaces (declared only), submodules, folder kinds
       (root child folders; `plugins` at any depth), the override, outermost per separation, one town per folder
-- [ ] Parts: nested separate towns, each excluding the towns beneath it; highways to the parent town
-- [ ] `separable(snapshot)` and `declared` on the city; city schema and `parseCity`
-- [ ] Defaults change: golden towns and fixtures re-derived; every separation off lays what `split: []` laid
-- [ ] Gate: format, lint, typecheck, coverage
-- [ ] Commit
+- [x] Parts: nested separate towns, each excluding the towns beneath it; highways to the parent town
+- [x] `separable(snapshot)` and `declared` on the city; city schema and `parseCity`
+- [x] Defaults change: golden towns unchanged (no separate member in them); every separation off lays the towns
+      `split: []` laid (compose tests); Rust fixtures re-derived with the port (Phase 3)
+- [x] Gate: format, lint, typecheck, coverage
+- [x] Commit
 
 ## Phase 2: TypeScript history and CLI
 
@@ -44,7 +45,7 @@ Branch `feat/separate-towns`, stacked on `local-beside-search` (#36); rebase ont
       nested; unreachable as one file; `history/submodule-unavailable`
 - [ ] Fold (`read.ts`): a moved gitlink's tree difference (births, deletions, exact renames), inside windows too; resume
       from a lock
-- [ ] `--separate=` replaces `--split=` (usage, validation); parity and stability scripts
+- [x] `--separate=` replaces `--split=` (usage, validation); parity and stability scripts
 - [ ] Tests on real fixture repositories with submodules (initialised, not initialised, nested, moved)
 - [ ] Parity fixtures regenerated
 - [ ] Commit

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { canonicalJson } from "../plat/canonical";
 import type { City } from "./city";
 import { parseCity, serialiseCity } from "./serialise";
 
@@ -38,5 +39,16 @@ describe("serialiseCity and parseCity", () => {
   it("rejects a city whose towns share a key", () => {
     const twice = { ...city, towns: [city.towns[0]!, { ...city.towns[0]!, name: "demo old town", old: true }] };
     expect(() => parseCity(serialiseCity(twice))).toThrow("city/bad-shape: /towns");
+  });
+
+  it("round-trips the separations a city records and its declaration", () => {
+    const recorded: City = { ...city, separable: ["workspaces", "plugins"], declared: true };
+    expect(parseCity(serialiseCity(recorded))).toEqual(recorded);
+  });
+
+  it("rejects recorded separations that are unknown, repeated, out of order or none, and a false declaration", () => {
+    for (const separable of [["split"], ["apps", "apps"], ["plugins", "apps"], []])
+      expect(() => parseCity(canonicalJson({ ...city, separable }))).toThrow("city/bad-shape: /separable");
+    expect(() => parseCity(canonicalJson({ ...city, declared: false }))).toThrow("city/bad-shape: /declared");
   });
 });

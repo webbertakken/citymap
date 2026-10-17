@@ -1,5 +1,16 @@
 import { parseArgs } from "node:util";
-import { CitymapError, TOGGLES, isToggle, toggleList, type Toggle } from "@citymap/ground-plan";
+import {
+  CitymapError,
+  DEFAULT_SEPARATIONS,
+  SEPARATIONS,
+  TOGGLES,
+  isSeparation,
+  isToggle,
+  separationList,
+  toggleList,
+  type Separation,
+  type Toggle,
+} from "@citymap/ground-plan";
 import type { Camera } from "@citymap/svg";
 import { THEME_NAMES } from "@citymap/themes";
 
@@ -21,8 +32,8 @@ export interface LayCommand {
   readonly voronoi: boolean;
   /** Fold the history (true), or lay the tree at `to` once, as if every file arrived together (false). */
   readonly history: boolean;
-  /** Workspace groups whose members each become a town. */
-  readonly split: readonly string[];
+  /** The separations on: kinds of folder whose members each become a town, in their own order. */
+  readonly separate: readonly Separation[];
   /** The archetype toggles on, in their own order. */
   readonly toggles: readonly Toggle[];
 }
@@ -42,8 +53,9 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --tests             give tests land (the land dimension; default: tests and fixtures take none)
   --density=<pct>     share of land covered by lots, 20 to 80 (default 50)
   --jog=<cuts>        off, top-level or all (default top-level)
-  --split=<groups>    workspace groups whose members each become a town, comma-separated (default apps;
-                      --split=apps,packages splits packages too; --split= splits none)
+  --separate=<kinds>  kinds of folder whose members each become a town, comma-separated: ${SEPARATIONS.slice(0, 5).join(", ")},
+                      ${SEPARATIONS.slice(5).join(", ")}
+                      (default ${DEFAULT_SEPARATIONS.join(",")}; --separate= lays none apart)
   --toggles=<forms>   archetype toggles on, comma-separated: corridor, archipelago, quarters, tiers
                       (default corridor,tiers; --toggles= turns all off)
   --no-warp           draw the plan without its organic warp
@@ -69,6 +81,15 @@ function togglesOf(text: string): Toggle[] {
   if (unknown !== undefined)
     usage(`--toggles takes ${TOGGLES.slice(0, -1).join(", ")} and ${TOGGLES.at(-1)}, not ${unknown}`);
   return toggleList(names.filter(isToggle));
+}
+
+/** The separations a comma-separated list names, each one known. */
+function separationsOf(text: string): Separation[] {
+  const names = text.split(",").filter((name) => name !== "");
+  const unknown = names.find((name) => !isSeparation(name));
+  if (unknown !== undefined)
+    usage(`--separate takes ${SEPARATIONS.slice(0, -1).join(", ")} and ${SEPARATIONS.at(-1)}, not ${unknown}`);
+  return separationList(names.filter(isSeparation));
 }
 
 /** The command a command line asks for, or a named rejection. */
@@ -103,7 +124,7 @@ export function parseCommandLine(argv: readonly string[]): Command {
     loops: !values["no-loops"],
     voronoi: values.voronoi,
     history: !values["no-history"],
-    split: values.split.split(",").filter((group) => group !== ""),
+    separate: separationsOf(values.separate),
     toggles: togglesOf(values.toggles),
   };
 }
@@ -128,7 +149,7 @@ function parse(argv: readonly string[]) {
       "no-loops": { type: "boolean", default: false },
       voronoi: { type: "boolean", default: false },
       "no-history": { type: "boolean", default: false },
-      split: { type: "string", default: "apps" },
+      separate: { type: "string", default: DEFAULT_SEPARATIONS.join(",") },
       toggles: { type: "string", default: "corridor,tiers" },
       help: { type: "boolean", default: false },
     },

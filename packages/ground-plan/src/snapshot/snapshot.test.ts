@@ -27,6 +27,13 @@ describe("parseSnapshot", () => {
     expect(() => parseSnapshot({ ...valid(), workspaces: ["../x"] })).toThrow("snapshot/bad-shape");
   });
 
+  it("keeps the submodules' folders, sorted, and rejects any that is not a folder path", () => {
+    expect(parseSnapshot({ ...valid(), submodules: ["vendor/b", "ext/a"] }).submodules).toEqual(["ext/a", "vendor/b"]);
+    expect(parseSnapshot(valid()).submodules).toBeUndefined();
+    expect(() => parseSnapshot({ ...valid(), submodules: "ext" })).toThrow("snapshot/bad-shape");
+    expect(() => parseSnapshot({ ...valid(), submodules: ["/ext"] })).toThrow("snapshot/bad-shape");
+  });
+
   it("accepts the working tree as a commit", () => {
     expect(parseSnapshot({ ...valid(), commit: "worktree" }).commit).toBe("worktree");
   });

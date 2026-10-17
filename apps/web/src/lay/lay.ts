@@ -2,13 +2,13 @@
 // `citymap --no-history --toggles=…` does.
 import {
   DEFAULT_LAND_USES,
-  DEFAULT_SPLIT,
   initialState,
   layCity,
   type City,
   type LayProgress,
   type Options,
   type Snapshot,
+  type Separation,
   type Toggle,
 } from "@citymap/ground-plan";
 import { buildScene, type Scene } from "@citymap/scene";
@@ -46,16 +46,16 @@ export const buffersOf = (scene: Scene): ArrayBuffer[] =>
     .flatMap((l) => [l.positions.buffer, l.colours.buffer, l.indices.buffer])
     .filter((b): b is ArrayBuffer => b instanceof ArrayBuffer);
 
-/** The CLI's defaults, with the toggles chosen (the engine's defaults when none are). */
-export const liveOptions = (toggles?: readonly Toggle[]): Options => ({
+/** The CLI's defaults, with the toggles and separations chosen (the engine's defaults when none are). */
+export const liveOptions = (toggles?: readonly Toggle[], separate?: readonly Separation[]): Options => ({
   densityPct: 50,
   landUses: DEFAULT_LAND_USES,
   order: "centre-out",
   jog: "top-level",
   warp: true,
   loops: true,
-  split: DEFAULT_SPLIT,
   ...(toggles ? { toggles } : {}),
+  ...(separate ? { separate } : {}),
 });
 
 /** The engine's progress as a step: placing and shaping each fill half the bar; the words count lots placed. */

@@ -3,6 +3,7 @@ import { DISTRICT_FORMS, FORMS } from "../archetype/forms";
 import { ROAD_CLASSES } from "../constants";
 import { LAND_USES } from "../land-use/land-use";
 import { int, nat } from "../plat/schema";
+import { SEPARATIONS } from "../region/separate";
 
 export const ptSchema = v.strictObject({ x: int, y: int });
 const ptsSchema = v.array(ptSchema);
@@ -63,4 +64,16 @@ export const citySchema = v.strictObject({
     v.check((towns) => new Set(towns.map((t) => t.key)).size === towns.length, "every town has a key of its own"),
   ),
   highways: v.array(roadSchema),
+  separable: v.exactOptional(
+    v.pipe(
+      v.array(v.picklist(SEPARATIONS)),
+      v.check(
+        (list) =>
+          list.length > 0 &&
+          list.every((s, i) => i === 0 || SEPARATIONS.indexOf(list[i - 1]!) < SEPARATIONS.indexOf(s)),
+        "the separations a city records are named once each, in order",
+      ),
+    ),
+  ),
+  declared: v.exactOptional(v.literal(true)),
 });

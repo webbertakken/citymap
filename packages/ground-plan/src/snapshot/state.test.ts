@@ -20,4 +20,12 @@ describe("stateSnapshot", () => {
   it("leaves workspaces out when none are declared", () => {
     expect(stateSnapshot("demo", "abc", ["a.ts"])).not.toHaveProperty("workspaces");
   });
+
+  it("keeps the submodules' folders, sorted, and leaves them out when there are none", () => {
+    expect(stateSnapshot("demo", "abc", ["x/.gitlink", "a/b.ts"], undefined, ["x", "a"]).submodules).toEqual([
+      "a",
+      "x",
+    ]);
+    expect(stateSnapshot("demo", "abc", ["a.ts"], undefined, [])).not.toHaveProperty("submodules");
+  });
 });

@@ -71,7 +71,7 @@ export async function runLay(
     jog: command.jog,
     warp: command.warp,
     loops: command.loops,
-    split: command.split,
+    separate: command.separate,
     toggles: command.toggles,
   };
   const target = await resolveCommit(repo, command.to);

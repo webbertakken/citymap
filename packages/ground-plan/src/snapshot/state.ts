@@ -12,6 +12,7 @@ export function stateSnapshot(
   commit: string,
   paths: readonly string[],
   workspaces?: readonly string[],
+  submodules: readonly string[] = [],
 ): Snapshot {
   const folders = new Set<string>([""]);
   for (const path of paths)
@@ -24,5 +25,6 @@ export function stateSnapshot(
     files: paths.toSorted(compareKeys).map((path) => ({ path, identity: `${path}@0`, firstSeen: 0 })),
     folderFirstSeen: new Map([...folders].toSorted(compareKeys).map((f) => [f, 0])),
     ...(workspaces === undefined ? {} : { workspaces: workspaces.toSorted(compareKeys) }),
+    ...(submodules.length === 0 ? {} : { submodules: submodules.toSorted(compareKeys) }),
   };
 }
