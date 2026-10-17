@@ -44,6 +44,8 @@ const build = run(buildArgs(settings.features), join(root, "rust"));
 if (build.code !== 0) throw new Error(`parity/build-failed ${build.stderr.split("\n", 1)[0]}`);
 console.log(`parity/built rust/target/release/citymap features=${settings.features.join(",") || "none"}`);
 
+/** The lockfile a fold writes at the clone's root. */
+const LOCK = "citymap.lock.json";
 const results: Result[] = [];
 let resumeFailed = false;
 for (const repo of settings.repos) {
@@ -118,7 +120,7 @@ function compare(repo: string, source: string, mode: Mode, dir: string): Result 
     if (laid.code !== 0)
       throw new Error(`parity/cli-failed side=${side} repo=${repo} mode=${mode} ${laid.stderr.split("\n", 1)[0]}`);
     writeFileSync(join(out, "log.txt"), withoutTimings(laid.stdout));
-    if (mode !== "state") copyFileSync(join(clone, "citymap.lock.json"), join(out, "citymap.lock.json"));
+    if (OUTPUTS[mode].includes(LOCK)) copyFileSync(join(clone, LOCK), join(out, LOCK));
     ms[side] = laid.ms;
   }
   const differs = OUTPUTS[mode].filter(
