@@ -48,8 +48,8 @@ Each TypeScript module has one Rust module of the same name (snake case); functi
 
 `packages/history/src/{read,schedule,tree,blobs,manifests,workspaces,ancestry,env,contents,file-history}.ts` map to
 `citymap-history`'s modules of the same names (`file_history.rs`);
-`packages/measures/src/{section,by-name,language,text,lots}.ts` and `coverage/{xml,report,match}.ts` to
-`citymap-measures` (`by_name.rs`, `coverage/matching.rs`; aggregation and scales are the viewer's, TypeScript only);
+`packages/measures/src/{section,by-name,language,text,lots}.ts` and `reports/{xml,report,match}.ts` to
+`citymap-measures` (`by_name.rs`, `reports/matching.rs`; aggregation and scales are the viewer's, TypeScript only);
 `packages/themes/src/{themes,colour}.ts` to `citymap-themes`; `packages/svg/src/render.ts` to `citymap-svg`;
 `apps/cli/src/{args,run,main,bin,measures}.ts` to `citymap-cli`'s `args.rs`, `run.rs`, `main.rs` and `measures.rs`. The
 history reader hands the files' history over as its last item (`HistoryItem::Files`) when asked.

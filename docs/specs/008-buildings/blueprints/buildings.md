@@ -161,7 +161,7 @@ interface CityFile {
   - Without a known syntax: `lines` only. Bytes are scanned as bytes (every marker is ASCII), so TypeScript and Rust
     count alike whatever the encoding.
 
-## Coverage reports (`packages/measures/src/coverage/`)
+## Coverage reports (`packages/measures/src/reports/`)
 
 ```ts
 interface ReportFile {
@@ -175,9 +175,10 @@ interface Report {
 }
 ```
 
-- `parseReport(text, name)` tells the format by its content: text whose first non-blank character is `{` is Istanbul
-  JSON; one whose first element (after the XML declaration, comments and a doctype) is `coverage` is Cobertura, `report`
-  JaCoCo; text holding a line starting `SF:` is LCOV. Anything else is `coverage/unreadable` (detail `name`).
+- `parseReport(text, name)` tells the format by its content: text whose first non-blank character is `{` or `[` is
+  Istanbul JSON (an array is not an object of files: `coverage/unreadable`); one whose first element (after the XML
+  declaration, comments and a doctype) is `coverage` is Cobertura, `report` JaCoCo; text holding a line starting `SF:`
+  is LCOV. Anything else is `coverage/unreadable` (detail `name`).
 - **LCOV**: per record (`SF:` to `end_of_record`): `DA:<line>,<hits>[,…]`; a line repeated takes the larger count;
   negative or non-numeric counts are 0; a record without `DA` lines is left out. Several records for one path join.
 - **Istanbul JSON**: an object of files (a value may be wrapped as `{ data: … }`); the path is the value's `path`, else
@@ -196,9 +197,10 @@ interface Report {
   `coverage/cobertura-coverage.xml`, `coverage.xml`, `cobertura.xml`, `target/site/jacoco/jacoco.xml`,
   `build/reports/jacoco/test/jacocoTestReport.xml`. A report over `MAX_REPORT_BYTES` (256 MB) is skipped and logged.
 - `matchReports(reports, paths)`: each report path is normalised (`\` to `/`, a `file://` prefix dropped, `.` segments
-  dropped, `..` folding into its parent, a leading `/` remembered) and matched, the first that finds a path winning:
+  dropped, `..` folding into its parent, a leading `/` or drive remembered) and matched, the first that finds a path
+  winning. A Cobertura file is tried joined to each of its roots first (absolute or relative), then as written.
   1. relative: joined to each base, deepest first: the report's own folder and every folder above it (for a report from
-     outside the repository, only the root), then each Cobertura root that lies inside the repository;
+     outside the repository, only the root);
   2. its longest ending, at a segment boundary, that is a path of the repository;
   3. the one path of the repository that it ends (JaCoCo's package paths); with several, the one under the report's
      deepest base, if exactly one; else unmatched.
@@ -217,26 +219,28 @@ interface Report {
 - `readHistory(dir, { fileHistory })` records into it while reading; every commit is recorded, resumed folds included (a
   resume applies every earlier commit too), so a resumed city's measures match the uninterrupted fold's.
 - Merges are counted once, by the merge's author: the history read is the first-parent one the fold reads.
-- `readContents(dir, commit, onFile)` (`contents.ts`): `git ls-tree -r -z` at the commit (submodules left out), then
-  `git cat-file --batch` for the blobs the repository holds (`BlobReader.readBytes`; a partial clone's missing blobs are
-  never asked for, so nothing is fetched). Each distinct blob is counted once (`countText`) and its facts given to every
-  path that holds it; a blob not held gives the path no size, no lines, no comments.
+- `listTree(dir, commit)` (`contents.ts`): `git ls-tree -r -z` at the commit, submodules left out;
+  `readBlobs(dir, blobs, onBlob)`: `git cat-file --batch` for each distinct blob the repository holds
+  (`BlobReader.readBytes`, the answer's chunks joined once when whole; a partial clone's missing blobs are never asked
+  for, so nothing is fetched). The CLI counts each blob's bytes (`countText`) for every path that holds it; a blob not
+  held gives the path no size, no lines, no comments. In Rust the history reader hands the files' history over as its
+  last item (`HistoryItem::Files`).
 
 ## The CLI (`apps/cli`, `rust/crates/cli`)
 
 - Flags: `--coverage=<file>` (repeatable; a report to read instead of the usual paths), `--no-measures` (write the city
   without its measures section, as before).
-- After the fold, unless `--no-measures`: the target's contents (`readContents`), tests by name over the last snapshot's
-  paths (only when no report matches), the reports (the named ones, or those at the usual paths, read from the working
-  directory, sorted by path), the file history (folds only), the lots' files
+- After the fold, unless `--no-measures`: the target's contents (`listTree`, `readBlobs`), tests by name over the last
+  snapshot's paths (only when no report matches), the reports (the named ones, or those at the usual paths, read from
+  the working directory, sorted by path), the file history (folds only), the lots' files
   (`lotFiles(city, state.plat, snapshot.files)`), and the section (`buildMeasures`). The plat, the lock and the city's
   layout are computed before and never read back: they are byte-identical with and without measures.
 - Rejections: a named `--coverage` file that does not exist is `coverage/missing` (exit 1); one that cannot be read as a
   report is `coverage/unreadable` (exit 1). A report at a usual path that cannot be read is skipped and logged.
 - Logs (both CLIs, same lines): `measures/report path=<as found> format=<f> files=<n> matched=<m>` per report read;
   `measures/report-skipped path=<p> reason=<unreadable|too-large>`; then
-  `measures/done source=cli size=lines tested=<coverage|name> lots=<n> files=<n> held=<n> missing=<n>` before
-  `fold/done`.
+  `measures/done source=cli size=lines tested=<coverage|name> lots=<n> files=<n> read=<n> unread=<n>` (files on lots;
+  tree files read and not held) before `fold/done`.
 
 ## Lots (`packages/measures/src/lots.ts`)
 
@@ -247,7 +251,7 @@ interface Report {
 - `buildMeasures({ source, size, history, comments, city, lots, factsOf, authorsAcross })` assembles the section;
   `factsOf(path)` returns the file's fields, and `available` follows from `source`, `history` and `comments`.
 
-## Buildings, aggregation and scales (`packages/measures/src/building.ts`, `scale.ts`)
+## Buildings, aggregation and scales (`packages/measures/src/building.ts`)
 
 - `aggregate(lot)` → `Building`: `size` the sum of the files' sizes in the city's unit (`lines` or `bytes`), unknown
   only when every file's is; `tested` the smallest share among files with a value (`covered / executable`, or `named` as
@@ -290,7 +294,7 @@ interface Report {
   `FLOOR_HEIGHT` 0.25 u, columns every `WINDOW_PITCH` 0.25 u (at least one per wall), each window the middle 50 % of its
   column and 30 % to 80 % of its floor. Window `k` (row by row from the ground, `k = floor · columns + column`) is lit
   when `floor((k + 1) · s + ε) > floor(k · s + ε)`; lit windows are `WINDOW_LIT` (warm), unlit the wall's colour at 40
-  %, unknown (`s < 0`) `WINDOW_UNKNOWN` (a neutral grey of the theme).
+  %, unknown (`s < 0`) `windowUnknown(theme)` (a neutral grey of the theme).
 - Picking in the Buildings view (`hitAt`): from the height of the tallest building down to 0, in steps of `RAY_STEP` 0.1
   u of height, the ray's ground point is picked; the first lot hit whose height reaches the step's height is the hit;
   below every building, the ground pick at height 0 answers. Plan view picks the ground as before.
@@ -298,10 +302,9 @@ interface Report {
 
 ## Colour by (`packages/scene/src/colour-by.ts`, `apps/web/src/components/Legend.tsx`)
 
-- `ColourBy` is `folder` (default, on every visit) or a measure of `COLOUR_MEASURES`
-  (`tested size kind recency churn authors`). A building's colour: folder, `theme.lot(district, use === "source")`;
-  kind, `KIND_COLOURS[use]`; a measure, its ramp at `shareOf(value, scale)` (tested: the share itself); unknown, the
-  theme's `UNKNOWN` grey.
+- `ColourBy` is one of `COLOUR_BY` (`folder tested size kind recency churn authors`), `folder` by default, on every
+  visit. A building's colour: folder, `theme.lot(district, use === "source")`; kind, `KIND_COLOURS[use]`; a measure, its
+  ramp at `shareOf(value, scale)` (tested: the share itself); unknown, the theme's `unknownColour(theme)` grey.
 - Ramps, five stops each, linear between them in sRGB, per theme brightness (`theme.dark`):
 
 | Measure | Light themes                                                | Dark themes                                                 |
@@ -314,17 +317,20 @@ interface Report {
 
 - `KIND_COLOURS`: source `#0072B2`, config `#E69F00`, assets `#CC79A7`, ci `#56B4E9`, examples `#009E73`, generated
   `#999999`, vendored `#8C6D31`, tests `#D55E00`, fixtures `#F0E442`, docs `#B5B5B5`.
-- `UNKNOWN`: `#9A9A9A` on light themes, `#6E6E6E` on dark ones. `WINDOW_LIT` `#FFD27A`; `WINDOW_UNKNOWN` `#B8BCC2`
+- `unknownColour`: `#9A9A9A` on light themes, `#6E6E6E` on dark ones. `WINDOW_LIT` `#FFD27A`; `windowUnknown` `#B8BCC2`
   (light) and `#8A8F98` (dark).
 - The legend: a "Colour by" button (a `Popover`, its face naming the choice) opens a `<fieldset>`, legend "Colour by",
   of seven radio inputs: "Folder", "Tested", "Size", "Kind", "Recency", "Churn", "Authors"; an unavailable one is
   disabled, its reason beside it as its description (`aria-describedby`). Choosing closes the popover and is logged as
   `viewer/colour-by` (`by`). Below it, the scale of the choice: folder, the legend's swatches as before; a measure, its
   ramp as a gradient with its ends' values ("0 %" and "100 %"; "120 lines" and "9,800 lines"; dates; counts) and the
-  unknown swatch with "Not known"; kind, one swatch per land use present. In the Buildings view, two lines more:
-  "Height: size, 1 to 12 floors" with the floors' ends in the city's unit, and "Lit windows: tested share (by name: all
-  or none)" or "(coverage report)", "Grey windows: not known".
-- On a phone (below 760 px) the legend folds behind a "Legend" button (`aria-expanded`), closed at first.
+  unknown swatch with "Not known"; kind, one swatch per land use present. In the Buildings view, three lines more:
+  "Height: size, 1 to 12 floors (20 lines to 400 lines); a hatched roof, not known", the ends in the city's unit when it
+  has sizes; "Lit windows: tested share (by name: all or none)" or "(coverage report)"; "Grey windows: not known".
+- On a phone (below 760 px) the legend folds behind a "Legend" button (`aria-expanded`), closed at first; both hide
+  while the drawer's sheet is open.
+- The view switch shows its icons only, its words kept as its buttons' names, where the search shares the top row (up to
+  1,300 px wide); on a phone only "Buildings" shows, switching between the views.
 - With no measures, every measure but kind is disabled ("this city file has no measures").
 
 ## Cards (`apps/web/src/card`)
@@ -332,8 +338,11 @@ interface Report {
 - A lot's card (file) gains rows from its building, after its own: "Size" (`1,240 lines` or `12.4 kB`, the other unit as
   its note when both are known), "Tested" (`62 %` noted "coverage report", or "A test names it" / "No test names it"
   noted "by name"), "Changed" (`3 days ago`, the date as its note), "Commits", "Authors", "Comments" (`120 lines`, with
-  the marks: "2 TODOs"). An unknown value says "Not known" with the reason as its note. A lot of several files adds
-  "Files" listing their names (at most `FILES_SHOWN` 7, then "and N more").
+  the marks: "2 TODOs"), each of the last four only when the city has it. An unknown value says "Not known" with why as
+  its note ("Its contents were not read here", "The coverage report does not cover it", "Only source files are judged by
+  name", "No commit read changed it"); measures the city does not have say so in one row each, "Changed, commits,
+  authors" and "Comments", "Not known" with `unavailableReason` as the note. A lot of several files adds "{n} files"
+  listing their names (at most `FILES_SHOWN` 7, then "and N more").
 - With no measures (a city file without them), no measure rows show.
 
 ## Readers in the browser (`apps/web/src/github`, `apps/web/src/local`, `apps/web/src/lay`)
@@ -344,7 +353,7 @@ interface Report {
   the tracked files sum to under `CONTENTS_LIMIT` 50,000,000 bytes, every tracked file is read (`CONTENTS_IN_FLIGHT` 8
   at once) and counted (`countText`): size is lines, comments are available. A folder without git is walked; its files
   are read under the same limit (their sizes known only then). Then the usual report paths, each read if present, and
-  matched. Phase "Reading the files" (`contents`, counting files read of files) and "Reading coverage" (`coverage`).
+  matched. Phase "Reading the files" (`contents`, "{n} of {m} files") and "Looking for coverage reports" (`coverage`).
 - **Lay**: `layHere(snapshot, { facts })` lays, then builds the section from
   `lotFiles(city, state.plat, snapshot.files)`; the worker hands it back beside the city. Nothing read from the folder
   leaves the page.
@@ -355,7 +364,7 @@ interface Report {
 | --------------------------------------------- | -------------------------------------------------------------------------- |
 | City file without `measures`                  | opens; every building one floor, unknown; colour by offers folder and kind |
 | `measures.version` above 1                    | `measures/too-new`; the file is refused as any bad city is                 |
-| Measures whose lots name a town or lot absent | ignored (no building to show them on); logged `viewer/measures-orphans`    |
+| Measures whose lots name a town or lot absent | ignored: no building shows them                                            |
 | Blob not held (partial clone)                 | no size, no lines: unknown, hatched roof, one floor                        |
 | Binary file                                   | bytes only; in a lines city its size is unknown                            |
 | Empty file                                    | 0 lines: one floor                                                         |
@@ -366,13 +375,13 @@ interface Report {
 | Executable 0                                  | no `covered`/`executable`: unknown                                         |
 | Lot of several files, some unknown            | sums and the weakest over the known; unknown only when none is             |
 | Folder over 50 MB of tracked files            | bytes from the index; comments unavailable                                 |
-| A file that vanishes while read (folder)      | that file's facts are unknown; logged once `viewer/local-unread`           |
+| A file that vanishes while read (folder)      | that file's facts are unknown; counted in `viewer/local-contents` `unread` |
 
 ## Observability
 
 - CLI: the `measures/*` lines above. Viewer: `viewer/mode` (`mode`), `viewer/colour-by` (`by`), `viewer/measures`
   (`source`, `size`, `tested`, `lots`) when a city with measures is shown, `viewer/measures-none` when without,
-  `viewer/local-contents` (`files`, `bytes`, `read`, `skipped`), `viewer/local-coverage` (`path`, `format`, `files`,
+  `viewer/local-contents` (`files`, `bytes`, `read`, `unread`), `viewer/local-coverage` (`path`, `format`, `files`,
   `matched`) and `viewer/local-coverage-skipped` (`path`, `reason`).
 
 ## Performance and limits
@@ -392,8 +401,8 @@ interface Report {
   `lotFiles` on a fold with old towns; aggregation, scales and floors at their ends; ramps' ends and unknown; the lot
   table; the view basis, pan, fit and unproject in both modes; ray picking over buildings of known heights; the legend,
   colour by (keyboard, disabled with reasons), and cards with measures.
-- Rust: the same tests, and shared fixtures written by TypeScript (`rust/fixtures/measures.json`: by-name verdicts, text
-  counts and report matches over a fixed set) that both read.
+- Rust: the same tests, case for case (tests by name, text, the XML scanner, the four formats, matching, lots, the
+  section, the CLI's measures on temporary repositories, a partial clone included).
 - Parity: `bun run parity` compares city files with measures on every mode, and a mode with a coverage report written
   into the clone at a usual path in each of the four formats.
 - End to end: the view switch, colour by from the keyboard, unavailable measures, a picked fixture folder with an LCOV
@@ -434,19 +443,19 @@ interface Report {
 
 ## Constants and configuration
 
-| Constant             | Value            | Where                              |
-| -------------------- | ---------------- | ---------------------------------- |
-| `MEASURES_VERSION`   | 1                | `packages/measures/src/section.ts` |
-| `BINARY_PROBE`       | 8,000 bytes      | `packages/measures/src/text.ts`    |
-| `MAX_REPORT_BYTES`   | 268,435,456      | `packages/measures/src/coverage/`  |
-| `USUAL_REPORTS`      | eight paths      | `packages/measures/src/coverage/`  |
-| `FLOORS`             | 1 to 12          | `packages/measures/src/scale.ts`   |
-| `PERCENTILES`        | 5 and 99         | `packages/measures/src/scale.ts`   |
-| `FLOOR_HEIGHT`       | 0.25 u           | `packages/scene/src/buildings.ts`  |
-| `WINDOW_PITCH`       | 0.25 u           | `packages/scene/src/buildings.ts`  |
-| `DATA_COLUMNS`       | 1,024            | `packages/scene/src/buildings.ts`  |
-| `RAY_STEP`           | 0.1 u            | `apps/web/src/view/hover.ts`       |
-| `ELEVATION`, `YAW`   | 30°, 45°         | `apps/web/src/view/view.ts`        |
-| `CONTENTS_LIMIT`     | 50,000,000 bytes | `apps/web/src/local/contents.ts`   |
-| `CONTENTS_IN_FLIGHT` | 8                | `apps/web/src/local/contents.ts`   |
-| `FILES_SHOWN`        | 7                | `apps/web/src/card/measures.ts`    |
+| Constant             | Value            | Where                               |
+| -------------------- | ---------------- | ----------------------------------- |
+| `MEASURES_VERSION`   | 1                | `packages/measures/src/section.ts`  |
+| `BINARY_PROBE`       | 8,000 bytes      | `packages/measures/src/text.ts`     |
+| `MAX_REPORT_BYTES`   | 268,435,456      | `packages/measures/src/reports/`    |
+| `USUAL_REPORTS`      | eight paths      | `packages/measures/src/reports/`    |
+| `FLOORS`             | 1 to 12          | `packages/measures/src/building.ts` |
+| `PERCENTILES`        | 5 and 99         | `packages/measures/src/building.ts` |
+| `FLOOR_HEIGHT`       | 0.25 u           | `packages/scene/src/buildings.ts`   |
+| `WINDOW_PITCH`       | 0.25 u           | `packages/scene/src/buildings.ts`   |
+| `DATA_COLUMNS`       | 1,024            | `packages/scene/src/buildings.ts`   |
+| `RAY_STEP`           | 0.1 u            | `apps/web/src/view/hover.ts`        |
+| `ELEVATION`, `YAW`   | 30°, 45°         | `apps/web/src/view/view.ts`         |
+| `CONTENTS_LIMIT`     | 50,000,000 bytes | `apps/web/src/local/contents.ts`    |
+| `CONTENTS_IN_FLIGHT` | 8                | `apps/web/src/local/contents.ts`    |
+| `FILES_SHOWN`        | 7                | `apps/web/src/card/measures.ts`     |
