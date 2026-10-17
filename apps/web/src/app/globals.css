@@ -395,6 +395,22 @@ mark {
   color: var(--accent-ink);
   background: var(--accent);
 }
+/* Where the search shares the top row, the view switch shows its icons only; its words stay its names. */
+@media (max-width: 1300px) {
+  .segmented button {
+    justify-content: center;
+    width: calc(var(--control) - 6px);
+    padding: 0;
+  }
+  .segmented button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 .popover-root {
   position: relative;
 }
@@ -1173,14 +1189,9 @@ mark {
   .viewer:has(.drawer[data-open="true"]) .legend {
     display: none;
   }
-  .segmented button:first-of-type,
-  .segmented button span {
+  /* On a phone the Buildings button alone switches between the views. */
+  .segmented button:first-of-type {
     display: none;
-  }
-  .segmented button {
-    justify-content: center;
-    width: calc(var(--control) - 6px);
-    padding: 0;
   }
   .tooltip {
     position: static;

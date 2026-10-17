@@ -19,7 +19,10 @@ export interface Buildings {
   readonly lots: Float32Array;
   /** Two floats per vertex: the distance along its wall and the wall's length, in street widths; −1 and −1 on a roof. */
   readonly facades: Float32Array;
+  /** Roofs first, then walls, every triangle wound to face outwards (counter-clockwise seen from outside). */
   readonly indices: Uint32Array;
+  /** How many of the indices draw roofs: plan view draws only these, as no wall shows from straight above. */
+  readonly roofIndices: number;
   readonly order: readonly LotRef[];
 }
 
@@ -39,7 +42,8 @@ export class BuildingsBuilder {
   private readonly positions: number[] = [];
   private readonly lots: number[] = [];
   private readonly facades: number[] = [];
-  private readonly indices: number[] = [];
+  private readonly roofs: number[] = [];
+  private readonly walls: number[] = [];
   private readonly order: LotRef[] = [];
 
   private vertex(p: Pt, ring: 0 | 1, lot: number, along: number, length: number) {
@@ -48,14 +52,23 @@ export class BuildingsBuilder {
     this.facades.push(along, length);
   }
 
-  /** A lot's roof and walls, its polygon in fixed units. */
+  /** A lot's roof and walls, its polygon in fixed units (convex, either way round). */
   add(pts: readonly Pt[], ref: LotRef) {
     if (pts.length < 3) return;
     const lot = this.order.length;
     this.order.push(ref);
+    // Twice the signed area with y north: positive when the polygon runs anticlockwise, as it then does seen from
+    // above in the scene too (z = −y, north up), so its roof and walls face outwards as built; the other way round,
+    // every triangle is turned.
+    let area2 = 0;
+    pts.forEach((a, k) => {
+      const b = pts[(k + 1) % pts.length]!;
+      area2 += a.x * b.y - b.x * a.y;
+    });
+    const flip = area2 < 0;
     const roof = this.positions.length / 3;
     for (const p of pts) this.vertex(p, 1, lot, -1, -1);
-    this.indices.push(...triangulate(pts.length, roof));
+    this.roofs.push(...oriented(triangulate(pts.length, roof), flip));
     pts.forEach((a, k) => {
       const b = pts[(k + 1) % pts.length]!;
       const length = Math.hypot(b.x - a.x, b.y - a.y) / UNIT;
@@ -64,7 +77,7 @@ export class BuildingsBuilder {
       this.vertex(b, 0, lot, length, length);
       this.vertex(b, 1, lot, length, length);
       this.vertex(a, 1, lot, 0, length);
-      this.indices.push(...triangulate(4, base));
+      this.walls.push(...oriented(triangulate(4, base), flip));
     });
   }
 
@@ -73,10 +86,19 @@ export class BuildingsBuilder {
       positions: Float32Array.from(this.positions),
       lots: Float32Array.from(this.lots),
       facades: Float32Array.from(this.facades),
-      indices: Uint32Array.from(this.indices),
+      indices: Uint32Array.from([...this.roofs, ...this.walls]),
+      roofIndices: this.roofs.length,
       order: this.order,
     };
   }
+}
+
+/** Triangles as given, or each turned the other way round. */
+function oriented(indices: readonly number[], flip: boolean): number[] {
+  if (!flip) return [...indices];
+  const out: number[] = [];
+  for (let i = 0; i < indices.length; i += 3) out.push(indices[i]!, indices[i + 2]!, indices[i + 1]!);
+  return out;
 }
 
 /** What the lot table says of one building. */

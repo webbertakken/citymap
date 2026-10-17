@@ -29,13 +29,17 @@ people switch and read it lives in the [viewer](../004-interface-design/viewer.m
 - **Tested by name**: a source file counts as tested (1) when a test file names it by the common conventions of its
   language: `foo.ts` and `foo.test.ts`, `foo.spec.ts` or `__tests__/foo.ts`; `foo.py` and `test_foo.py` or
   `foo_test.py`; `foo.go` and `foo_test.go`; `Foo.java` and `FooTest.java`; `foo.rs` and `tests/foo.rs` (tests inside a
-  file are not knowable by name). Otherwise 0. It is a proxy and says so wherever it shows.
+  file are not knowable by name). The test may sit beside the file, or in a mirrored test tree: the two folders, with
+  their source and test folders (`src`, `lib`, `main`, `test`, `tests`, `__tests__`, `spec` and the like) left out, are
+  the same, or one ends the other (`tests/components/x/test_sensor.py` names `homeassistant/components/x/sensor.py`).
+  Otherwise 0. Only source files are judged; others are unknown. It is a proxy and says so wherever it shows.
 - **Coverage report**: the share of a file's executable lines that its tests ran, read from a report already on the
   machine: LCOV (`lcov.info`), Istanbul JSON (`coverage-final.json`), Cobertura XML and JaCoCo XML, found at their usual
   paths or named on the CLI (`--coverage=<file>`). Report paths are matched to the repository's paths; a file the report
   does not mention is unknown, not 0.
 - **Size** counts lines when the file's contents are at hand and the repository is small enough to read them (the picked
-  folder reads contents under 50 MB of tracked files; the CLI always); otherwise bytes. A city says which.
+  folder reads contents under 50 MB of tracked files, or, without git, until it has read 50 MB; the CLI always, for
+  every file its clone holds); otherwise bytes. A city says which. A binary file has no lines.
 - **Unknown** is a value of its own: a measure a source cannot give, or a file a report does not cover, is unknown, and
   every channel and card shows it as unknown, never as zero.
 
@@ -56,15 +60,18 @@ recency their newest, churn their sum, authors the people across them, comments 
   every building by one measure on a ramp of its theme, colour-blind safe and readable on light and dark: tested (red
   through amber to green, with unknown grey), size, kind (the land use colours), recency, churn and authors. Folder plus
   six measures: seven choices.
-- A measure the source cannot give is shown in the switch, unavailable, with its reason ("needs the CLI's history",
-  "needs a coverage report").
-- Buildings stand in the Buildings view (3D). In plan view the lots stay flat; the colour switch works in both.
+- A measure the source cannot give is shown in the switch, unavailable, with its reason ("Needs the CLI's history",
+  "Laid without history (--no-history)", "This city file has no measures").
+- Buildings stand in the Buildings view (3D). In plan view the lots stay flat; the colour switch works in both. Colour
+  by kind and by folder need no measures.
 
 ## The city file
 
-- Measures live in their own section of the city, beside the layout, keyed by lot: the source, which measures are
-  available, how size is counted, and each lot's values. The layout, the plat and the lockfile are untouched: a city
-  with measures lays exactly as one without, and both CLIs write the same bytes (parity).
+- Measures live in their own section of the city, beside the layout, keyed by town and lot (an old town keeps its lots'
+  keys): the source, which measures are available, how size is counted, whether tested comes from a coverage report or
+  from names, and each lot's files with their values (and, from history, the people across them). The layout, the plat
+  and the lockfile are untouched: a city with measures lays exactly as one without, and both CLIs write the same bytes
+  (parity).
 - Measures change at every commit; the layout stays stable. A lot's building may grow, shrink or light up between
   commits, while the lot itself stays where it is.
 - A city file written without measures still opens; its buildings stand one floor high, unknown.

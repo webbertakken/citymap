@@ -29,6 +29,32 @@ describe("BuildingsBuilder", () => {
     expect(Array.from(b.positions.slice(12, 24)).filter((_, i) => i % 3 === 1)).toEqual([0, 0, 1, 1]);
     expect(b.indices.length).toBe(2 * (2 * 3 + 4 * 6));
     expect(Math.max(...b.indices)).toBe(b.positions.length / 3 - 1);
+    // Roofs come first, so plan view can draw them alone.
+    expect(b.roofIndices).toBe(2 * 2 * 3);
+    expect(Math.max(...b.indices.slice(0, b.roofIndices).map((i) => b.positions[3 * i + 1]!))).toBe(1);
+  });
+
+  it("winds every face outwards, whichever way round the lot runs", () => {
+    /** The outward normal's direction test: each triangle's normal points away from the lot's middle, or up. */
+    const outward = (pts: typeof square) => {
+      const builder = new BuildingsBuilder();
+      builder.add(pts, ref);
+      const b = builder.done();
+      const at = (i: number) => [b.positions[3 * i]!, b.positions[3 * i + 1]!, b.positions[3 * i + 2]!] as const;
+      const middle = [1, 0.5, -0.5];
+      const verdicts: boolean[] = [];
+      for (let i = 0; i < b.indices.length; i += 3) {
+        const [p, q, r] = [at(b.indices[i]!), at(b.indices[i + 1]!), at(b.indices[i + 2]!)];
+        const u = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];
+        const v = [r[0] - p[0], r[1] - p[1], r[2] - p[2]];
+        const n = [u[1]! * v[2]! - u[2]! * v[1]!, u[2]! * v[0]! - u[0]! * v[2]!, u[0]! * v[1]! - u[1]! * v[0]!];
+        const away = [p[0] + q[0] + r[0] - 3 * middle[0]!, 0, p[2] + q[2] + r[2] - 3 * middle[2]!];
+        verdicts.push(i < b.roofIndices ? n[1]! > 0 : n[0]! * away[0]! + n[2]! * away[2]! > 0);
+      }
+      return verdicts;
+    };
+    expect(outward(square).every(Boolean)).toBe(true);
+    expect(outward(square.toReversed()).every(Boolean)).toBe(true);
   });
 });
 

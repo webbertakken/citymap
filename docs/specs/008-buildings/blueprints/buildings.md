@@ -272,8 +272,13 @@ interface Report {
 - `buildScene` draws vacant lots flat in the reserve colour (layer `vacant`) and every other lot into `Scene.buildings`:
   - `positions` (x, ring, z): the ring is 0 at the foot and 1 at the top; `lots` (one float per vertex, the lot's
     index); `facades` (two floats per vertex: the distance along its wall, and the wall's length; −1 and −1 on a roof);
-    `indices`; `order`: per lot `{ town, key, district, use }` in index order.
-  - One roof (a fan) and one wall per edge (a quad, its own four vertices), as the plinths were.
+    `indices`, roofs first (`roofIndices` of them), then walls; `order`: per lot `{ town, key, district, use }` in index
+    order.
+  - One roof (a fan) and one wall per edge (a quad, its own four vertices), as the plinths were; every triangle wound to
+    face outwards (a lot running clockwise with y north has each triangle turned), so the material draws front faces
+    only and a wall facing away costs nothing.
+  - Two geometries share the vertices: every face for the Buildings view, the roofs alone for plan view, where no wall
+    shows from straight above.
 - `lotTable(order, buildings, colourBy, theme)` → `Float32Array` of `4 × DATA_COLUMNS × rows`: per lot `floors`, the lit
   share (−1 unknown), the colour packed as `r · 65536 + g · 256 + b` (exact in a float), and flags (1: size unknown).
   Uploaded as an RGBA float `DataTexture` of `DATA_COLUMNS` 1,024 columns.

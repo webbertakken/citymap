@@ -70,7 +70,10 @@ repositories at their heads, 126,827 source files of a known language), with thr
   `TestFoo`; Rust `tests/foo.rs`, `foo_test.rs`; Ruby `foo_spec.rb`, `foo_test.rb`; C# `FooTests.cs`; PHP `FooTest.php`;
   C and C++ `foo_test.cc`, `foo_unittest.cc`, `test_foo.c`; Swift `FooTests.swift`; Dart `foo_test.dart`; Elixir
   `foo_test.exs` for `foo.ex`.
-- Measured with the shipped rule, and against a real coverage report, in the blueprint's measurements (citymap itself).
+- The shipped rule (`testNames` and `namedBy` in `packages/measures`, which also leave out vendored, generated and
+  fixture files as tests) finds 15.5 % of 127,170 sources over the same 23 repositories: home-assistant 72.8 %,
+  livediagram 46.6 %, kubernetes 38.0 %, spring-boot 38.1 %, vscode 21.0 %, bitcoin 20.0 %, flutter 14.3 %, react
+  1.6 %, linux 0.5 %.
 
 ## Colours everyone can read
 

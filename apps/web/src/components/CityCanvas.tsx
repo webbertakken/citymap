@@ -22,6 +22,7 @@ import {
   DataTexture,
   DoubleSide,
   FloatType,
+  FrontSide,
   GLSL3,
   NearestFilter,
   RGBAFormat,
@@ -96,12 +97,13 @@ in float vLength;
 in float vLit;
 in float vFlags;
 in float vFloors;
+out vec4 fragColour;
 void main() {
   vec3 colour = vColour;
   if (vLength < 0.0) {
     if (uBuildings > 0.5 && mod(vFlags, 2.0) >= 1.0 && fract((vWorld.x + vWorld.z) / ${(2 * HATCH).toFixed(4)}) < 0.5)
       colour *= 0.7;
-    gl_FragColor = vec4(colour, 1.0);
+    fragColour = vec4(colour, 1.0);
     return;
   }
   vec3 normal = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
@@ -125,7 +127,7 @@ void main() {
       }
     }
   }
-  gl_FragColor = vec4(colour, 1.0);
+  fragColour = vec4(colour, 1.0);
 }`;
 
 /** Every lot's building in one mesh, its look from the lot table: plinths in plan view, standing in the Buildings view. */
@@ -140,15 +142,29 @@ function Buildings({
   readonly mode: Mode;
   readonly theme: Theme;
 }) {
-  const geometry = useMemo(() => {
-    const g = new BufferGeometry();
-    g.setAttribute("position", new BufferAttribute(buildings.positions, 3));
-    g.setAttribute("lot", new BufferAttribute(buildings.lots, 1));
-    g.setAttribute("facade", new BufferAttribute(buildings.facades, 2));
-    g.setIndex(new BufferAttribute(buildings.indices, 1));
-    return g;
+  // Two geometries over the same vertices: every face for the Buildings view, the roofs alone for plan view, where no
+  // wall shows; the vertices are uploaded once and shared.
+  const geometries = useMemo(() => {
+    const attributes = {
+      position: new BufferAttribute(buildings.positions, 3),
+      lot: new BufferAttribute(buildings.lots, 1),
+      facade: new BufferAttribute(buildings.facades, 2),
+    };
+    const over = (indices: Uint32Array) => {
+      const g = new BufferGeometry();
+      for (const [name, attribute] of Object.entries(attributes)) g.setAttribute(name, attribute);
+      g.setIndex(new BufferAttribute(indices, 1));
+      return g;
+    };
+    return { buildings: over(buildings.indices), plan: over(buildings.indices.subarray(0, buildings.roofIndices)) };
   }, [buildings]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(
+    () => () => {
+      geometries.buildings.dispose();
+      geometries.plan.dispose();
+    },
+    [geometries],
+  );
   const texture = useMemo(() => {
     const rows = table.length / (DATA_COLUMNS * LOT_FLOATS);
     const t = new DataTexture(table, DATA_COLUMNS, rows, RGBAFormat, FloatType);
@@ -165,7 +181,8 @@ function Buildings({
       glslVersion: GLSL3,
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,
-      side: DoubleSide,
+      // Every face is wound outwards, so a wall facing away is never drawn.
+      side: FrontSide,
       uniforms: {
         uTable: { value: texture },
         uBuildings: { value: mode === "buildings" ? 1 : 0 },
@@ -177,7 +194,7 @@ function Buildings({
   }, [texture, mode, theme]);
   useEffect(() => () => material.dispose(), [material]);
   // Heights come from the texture, so the geometry's own bounds say nothing of them: never culled.
-  return <mesh geometry={geometry} material={material} frustumCulled={false} />;
+  return <mesh geometry={geometries[mode]} material={material} frustumCulled={false} />;
 }
 
 /** The city in WebGL: an orthographic camera from the view, drawn only when something changes. */
