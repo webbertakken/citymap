@@ -29,13 +29,14 @@ stays clear for the city.
 - **Top centre, the search box**: finds folders and files of the city shown, and lays a GitHub repository when the text
   is `owner/name` or a GitHub URL. `/` puts the cursor in it from anywhere. Right beside it, the button that opens a
   local repository, where the browser can (see [local repositories](../007-local-repositories/local-repositories.md)).
-- **Top right, three controls**: the theme menu, the settings cog (the layout toggles), and More (the bundled cities,
-  opening a city file, opening the last local repository again). The viewer shows plan view only; the 2:1 dimetric view
-  stays in the CLI's SVG export (`--camera`).
+- **Top right, four controls**: the view switch (Plan, Buildings), the theme menu, the settings cog (the layout
+  toggles), and More (the bundled cities, opening a city file, opening the last local repository again).
 - **Right, the drawer**: what is selected, then the towns (seven, then "Show all"), each with "Show only this town". It
   can be closed to give the map the whole page. On a phone it becomes a sheet at the bottom, closed at first.
 - **Bottom right, zoom**: in, out, and fit.
-- **Bottom left, the legend**: what the colours mean. Hidden on a phone.
+- **Bottom left, the legend**: what the colours mean, with "Colour by" to switch what they mean (folder, or one of the
+  [building](../008-buildings/buildings.md) measures, unavailable ones shown with their reason); in the Buildings view
+  also what height and lit windows mean, with their scales. On a phone it folds behind a "Legend" button.
 - A city fitted to the map, or a place flown to, lands in the part the cards leave free.
 - Empty state: no city loaded says how to make one (`citymap <repository> --out=city.json`) or to type a repository.
 - Loading state: a progress card over the map (see Loading); the status line names the phase too.
@@ -154,11 +155,17 @@ Every control meets measurable rules:
 ## Map
 
 - One scene: town grounds, blocks, roads (casing and fill), water, parks and plazas flat; lots as low plinths.
-- The camera is orthographic and looks straight down (plan view).
+- The camera is orthographic. Plan view, the default, looks straight down with lots flat. The Buildings view looks from
+  30° elevation and 45° yaw and stands a building on every lot, its height, windows and colour as the buildings spec
+  says. Switching keeps the centre and the zoom; the map's names stay readable in both.
+- In the Buildings view the city stays responsive on a phone with linux's 75,000 buildings: windows are drawn on the
+  facades, not built one by one.
 - Pan by dragging or the arrow keys; zoom by the wheel, a pinch, or `+` and `-`; `0` fits the city to the window.
 - Town names and the largest district names float over the map as text, never as images, and never overlap. A name shown
   once is not repeated nearby, whatever its letter case (`NET` and `net` are the same name), and smaller names appear
   only as the map is zoomed in far enough to read them.
+- A town's name is as large as its land on screen allows: in full where the town is wide enough for it, at a district
+  name's size where only that fits, and otherwise once the map is zoomed in. The largest town always shows its name.
 - Styles are the five themes of the ground plan; the viewer and the SVG export share their colours.
 
 ## Drill down
@@ -195,6 +202,9 @@ what it means, so a person who has never read this spec understands the map.
     districts, the boulevard through a city, a highway between towns), and for a highway the towns it joins;
   - a folder's ground: the folder, where it is, how many lots and folders it holds, and its layout in words;
   - a town: its name, its lots and districts, and its form in words (e.g. "a radial town: districts round a centre").
+- **Measures**: a lot's card adds its building's facts as rows, each with where it came from: "Size 1,240 lines",
+  "Tested 62 % (coverage report)" or "Tested: a test names it (by name)", "Changed 3 days ago", "142 commits", "5
+  authors", "2 TODOs"; unknown says so and why ("needs the CLI's history"). A lot of several files lists them.
 - **A hint at the foot**: "Click to select" on a pointer; what selecting offers.
 - The card follows the pointer, never covers it, and goes with Escape or when the pointer leaves the map.
 - A click (or a tap) selects what is under the pointer: the drawer shows the same details under "Selected", where

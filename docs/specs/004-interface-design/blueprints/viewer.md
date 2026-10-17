@@ -358,9 +358,12 @@ phone), so nothing the cards do moves the map or each other.
 - `Label` carries `extent`: the scene-unit width of the town's or district's bounding box (the smaller side).
 - A label's width is its characters times its size times an advance: 0.62 em, plus its letter spacing (0.15 em for a
   town, 0.08 em for a district).
-- `declutter` keeps a label only when, in this order: it lies inside the viewport; a district or minor label's extent on
-  screen is at least its width times `LABEL_FIT` 0.6; no label of the same text, compared without regard to case
-  (`toLowerCase`), was kept within `REPEAT_PX` 240 px; it overlaps no label kept before.
+- `declutter` first sizes each town label: `town` (20 px) when its extent on screen is at least its width at that size
+  times `LABEL_FIT`, else `district` (13 px) when that fits, else left out; the town label of the largest extent (the
+  first such, on a tie) always stays at `town` size. It then keeps a label only when, in this order: it lies inside the
+  viewport; a district or minor label's extent on screen is at least its width times `LABEL_FIT` 0.6; no label of the
+  same text, compared without regard to case (`toLowerCase`), was kept within `REPEAT_PX` 240 px; it overlaps no label
+  kept before.
 
 ## Hover cards (`apps/web/src/card`)
 
