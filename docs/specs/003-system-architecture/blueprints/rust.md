@@ -180,6 +180,8 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   process that ends mid-answer replaced for the next blob, as in TypeScript. Commits that change no root manifest read
   nothing. A blob that cannot be read sends `resolve` back through the manifest's older blobs, newest first, read
   through `read_more` (TypeScript reads them per chunk, `Workspaces.fallbacks`); the answer is the same.
+- Submodules: `submodules.rs` (`parse_gitmodules`, `Gitlinks`, `SubmoduleReader`, `expand`) mirrors `submodules.ts`: the
+  same git calls, the same expansion indices, the same synthetic commit, the same events.
 
 ## Security and observability
 
@@ -194,6 +196,8 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
 - `args.rs` parses the command line by hand, as `node:util` `parseArgs` does in strict mode: `--name=value` or
   `--name value` for string options, bare booleans (a value is an error), positionals anywhere, `--` ends options.
   Messages and the usage text are the TypeScript ones.
+- `--separate=<list>` names the separations on (`workspaces,submodules,apps` by default, empty for none), as the
+  TypeScript CLI does; an unknown name is `cli/usage` with the TypeScript message.
 - `--toggles=<list>` names the archetype toggles on, as the TypeScript CLI does: `corridor,tiers` by default, empty for
   none, an unknown name `cli/usage` with the TypeScript message.
 - `run.rs` takes an `Io` trait (read file, write file, log, clock) as `Io` is injected in TypeScript.

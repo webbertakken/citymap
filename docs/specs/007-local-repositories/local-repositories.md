@@ -23,9 +23,11 @@ installing anything, and without anything about the repository leaving the machi
 ## What is read
 
 - The files are what git tracks: the page reads the repository's index (`.git/index`), which lists every tracked path,
-  so `node_modules`, build output and everything `.gitignore` excludes stay out, exactly as git decides. Submodules are
-  left out, as the CLI leaves them out. Workspace members come from the root manifests in the working tree, as for a
-  GitHub repository.
+  so `node_modules`, build output and everything `.gitignore` excludes stay out, exactly as git decides. A submodule's
+  files are what its own index tracks, read from its git data inside the picked folder (`.git/modules/<name>`, or its
+  own `.git`); a submodule not checked out is one file, `.gitlink`, in its folder, as in the CLI (see
+  [ground plan](../006-ground-plan/ground-plan.md) § Submodules). Workspace members come from the root manifests in the
+  working tree, as for a GitHub repository.
 - The index is read in versions 2, 3 and 4, with either object format (SHA-1 or SHA-256); extensions git marks as
   optional are passed over.
 - A folder without git is laid from its files, honouring its `.gitignore` files: each applies to the folder it sits in

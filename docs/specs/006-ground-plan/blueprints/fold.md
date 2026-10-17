@@ -46,7 +46,7 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
 - The tree state is a sorted map path → { blob, identity, firstSeen }; each commit's raw entries apply in order: `A`
   adds (identity `${path}@${index}`), `D` deletes, `M`/`T` keep identity. Exact renames: within one commit, deleted and
   added paths with equal blob ids pair up in `compareKeys` order of the added path; the added path takes the deleted
-  identity. Submodules (mode 160000) are skipped and counted.
+  identity. Gitlinks (mode 160000) are not files: they move submodules (§ Submodules).
 - `folderFirstSeen`: the first index at which a folder holds any file, kept for folders ever seen.
 - Workspace manifests: when a commit adds or changes a root `package.json`, `pnpm-workspace.yaml`, `lerna.json`,
   `Cargo.toml`, `go.work`, `pyproject.toml` or `deno.json(c)`, its blob is read (`git cat-file blob`) and its member
@@ -66,14 +66,42 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
   those are asked for. A batch process that exits mid-answer (git before 2.44 on a failed fetch) marks that blob
   unavailable and the rest go to a fresh one.
 - A single state: `readTree(dir, commit)` reads one commit's tree (`git ls-tree -r`) as a snapshot at index 0, every
-  file and folder born at 0 (`identity = path@0`), submodules skipped, members from its root manifests. The CLI's
-  `--no-history` lays it once instead of folding (no lock): the scale corpus is shown this way.
+  file and folder born at 0 (`identity = path@0`), submodules read at their pins (§ Submodules), members from its root
+  manifests. The CLI's `--no-history` lays it once instead of folding (no lock): the scale corpus is shown this way.
 - `GIT_NO_LAZY_FETCH=1` is set, and blob reads allow no protocol (`GIT_ALLOW_PROTOCOL=none`, which every git honours),
   so a blob-less clone never fetches.
 - Every git call clears the variables a git hook sets (`GIT_DIR`, `GIT_INDEX_FILE` and the like), so a fold run from a
   hook reads the folder it was given.
 - Failures: `history/git-failed` (exit code, stderr's first line), `history/parse` (offset), `history/bad-schedule` (a
   count or strides the schedule cannot use).
+
+## Submodules
+
+Module: `packages/history/src/submodules.ts`; spec: [ground plan](../ground-plan.md) § Submodules.
+
+- `.gitmodules` at the root is read as the manifests are (its blob, at the commits that change it, newest readable blob
+  as fallback) and parsed by `parseGitmodules(text)`: `[submodule "<name>"]` sections with `path` and `url` (quoted or
+  bare values, `#` and `;` comments), giving `Map<path, { name, url }>`. A gitlink not named there takes its path as its
+  name.
+- `Gitlinks`: the tree state's gitlinks, path → pinned commit. A raw entry whose new mode is 160000 sets it (`A`, `M`,
+  `T`); a `D` of a path that is a gitlink, or a `T` away from 160000, removes it.
+- `SubmoduleReader(dir)` finds a submodule's git data: `<common dir>/modules/<name>` (`git rev-parse --git-common-dir`,
+  once), else the working tree's `<dir>/<path>/.git` (a directory, or a file `gitdir: <p>` resolved against
+  `<dir>/<path>`); nested ones from their parent's git data (`<git data>/modules/<name>`, names from the parent's pinned
+  `.gitmodules`), down to `SUBMODULE_DEPTH` = 8 levels.
+- `expand(path, commit)`: the pinned tree, `git --git-dir=<git data> -c core.quotepath=off ls-tree -r -z <commit>`, each
+  entry's path prefixed with `<path>/`; nested gitlinks expand in turn. Kept per `(git data, commit)` while the read
+  runs (a pin seen again reads nothing).
+- Unread (no git data, the commit or a tree missing, depth exceeded): the one entry `<path>/.gitlink` with blob id the
+  pinned commit, and `history/submodule-unavailable` (path, index, reason: `no-git-data`, `missing-commit`, `depth`,
+  `bad-name`).
+- In the fold, a submodule is expanded at each commit the schedule lays, judged without the resume's `from`
+  (`isLaid(schedule, at)`), and at `from`, when its pin moved since its last expansion (or it is new, or gone): the
+  difference between the last expansion and this one is applied as one commit at that index (`D` for paths gone, `A` for
+  new paths, `M` for changed blobs, exact renames by equal blob ids), after the commit's own entries. So a resumed read
+  expands at the same indices as the uninterrupted one, and births carry the same indices.
+- A single state expands every gitlink once.
+- `Snapshot.submodules`: the gitlinks' paths (read or not), sorted, when any.
 
 ## Fold schedule
 
@@ -125,24 +153,25 @@ function countCommits(dir: string, commit: string): Promise<number>; // ancestry
 Every decision point emits a structured event, collected in `events` and printed by the CLI with `--verbose`; the
 fingerprint is the first token:
 
-| Event                          | When                                                                 |
-| ------------------------------ | -------------------------------------------------------------------- |
-| `plat/switch`                  | a folder's form changes (path, from, to, mass)                       |
-| `plat/recut`                   | a remembered cut moves (key, reason, demands, caps)                  |
-| `plat/radial-resector`         | a radial layout re-sectors (path)                                    |
-| `plat/renew`                   | a neighbourhood renews (key, vacant, remembered)                     |
-| `plat/narrow`                  | a neighbourhood narrows its lot class (key, from, to)                |
-| `plat/regrid`                  | a neighbourhood lays its grid afresh (key)                           |
-| `plat/reclass`                 | a laid road changes class with its land's tier (key, from, to)       |
-| `plat/repark`                  | a neighbourhood lays its park line afresh to seat its lots (key)     |
-| `plat/grow`                    | a town's outline grows (key, from, to)                               |
-| `plat/old-town`                | an archetype switch freezes an old town (key, from, to, lots)        |
-| `plat/forget`                  | remembered records are dropped (key, count)                          |
-| `plat/tier`, `plat/gateway`, … | the toggles' decisions: [toggles](toggles.md) § Observability        |
-| `town/overflow`                | lots without room (key, count)                                       |
-| `history/skip-submodule`       | a submodule entry is skipped (path)                                  |
-| `history/manifest-unavailable` | a root manifest blob cannot be read (path, index)                    |
-| `history/schedule`             | the fold schedule, once per read (commits, coarse, tail, from, laid) |
+| Event                           | When                                                                 |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `plat/switch`                   | a folder's form changes (path, from, to, mass)                       |
+| `plat/recut`                    | a remembered cut moves (key, reason, demands, caps)                  |
+| `plat/radial-resector`          | a radial layout re-sectors (path)                                    |
+| `plat/renew`                    | a neighbourhood renews (key, vacant, remembered)                     |
+| `plat/narrow`                   | a neighbourhood narrows its lot class (key, from, to)                |
+| `plat/regrid`                   | a neighbourhood lays its grid afresh (key)                           |
+| `plat/reclass`                  | a laid road changes class with its land's tier (key, from, to)       |
+| `plat/repark`                   | a neighbourhood lays its park line afresh to seat its lots (key)     |
+| `plat/grow`                     | a town's outline grows (key, from, to)                               |
+| `plat/old-town`                 | an archetype switch freezes an old town (key, from, to, lots)        |
+| `plat/forget`                   | remembered records are dropped (key, count)                          |
+| `plat/tier`, `plat/gateway`, …  | the toggles' decisions: [toggles](toggles.md) § Observability        |
+| `town/overflow`                 | lots without room (key, count)                                       |
+| `history/submodule-unavailable` | a submodule's pin cannot be read (path, index, reason)               |
+| `history/submodule`             | a submodule expanded (path, index, files, ms)                        |
+| `history/manifest-unavailable`  | a root manifest blob cannot be read (path, index)                    |
+| `history/schedule`              | the fold schedule, once per read (commits, coarse, tail, from, laid) |
 
 Each run ends with one summary line: `fold/done repository=… commits=… laid=… lots=… overflow=… ms=…`, where `commits`
 counts the commits the run folded (from the first laid index to the last, inclusive) and `laid` the snapshots it laid.
@@ -154,6 +183,9 @@ counts the commits the run folded (from the first laid index to the last, inclus
   with the locality cache, laid commit by commit (`EVERY_COMMIT`) so it times the lay machinery, not the schedule; linux
   HEAD under 5 s and its full fold cached incrementally on disk; the rest of the scale corpus at HEAD, vscode (~20 k
   files) under 800 ms and godot (~14 k files) under 400 ms.
+- Submodules: one `ls-tree` per distinct pin a laid commit reaches, kept for the read; a pin moved many times inside a
+  window costs one read. A blob-less clone without submodule data costs nothing but the unread events. Budget: a fold of
+  a repository with submodules initialised spends under 10 % of its time in `expand` (measured on deno, Phase 7).
 - Incremental lays: the history reader hands over the same `files` array and `folderFirstSeen` map while a commit only
   edits files (snapshots are immutable). `layCity` keeps, per file list (a `WeakMap`), its land uses, workspace groups
   and members, and live identities, and per file list, tree options, input shares and folder map, its built tree; layout
@@ -190,6 +222,10 @@ counts the commits the run folded (from the first laid index to the last, inclus
 
 - Repository paths are untrusted data: never interpolated into shell strings, regexes or HTML (renderers escape).
 - `git` runs with an argument array, a fixed set of flags, and no hooks (`-c core.hooksPath=/dev/null`).
+- A submodule name or path from `.gitmodules` that is absolute, holds a `..` segment, a backslash or NUL is not followed
+  (git refuses such names too): the submodule is unread (`reason: bad-name`). A `gitdir:` line is followed only when it
+  resolves inside the repository's folder or its common git dir. Git data found is only read (`ls-tree`, `cat-file`),
+  never written.
 - The engine bounds work by the limits above, so a hostile tree cannot exhaust the machine silently.
 
 ## Testing
@@ -205,6 +241,10 @@ Every spec rule maps to a test, named after the rule (traceability table in the 
   resumes, `laidCount` against a brute-force count, every rejection; the reader on small strides: laid indices, renames
   chained inside a window, a file born and deleted inside one, births keeping their own index, a manifest changed inside
   a window, a resume, and `history/schedule`.
+- **Submodules** (`submodules.test.ts`, real repositories made in a temporary folder): `.gitmodules` parsing; a pin read
+  through `.git/modules` and through the submodule's own `.git`; nested; not initialised and a missing commit (one
+  `.gitlink`, the event); a moved pin's births, deletions and renames; a pin moved twice inside a window read once; a
+  resume expanding at the same indices; `readTree` with each case.
 - **Property**: determinism (lay twice, compare serialised output); plat round-trip; locality (a commit touching one
   folder leaves every other folder's lots in place); no lot overlaps another (sampled point-in-polygon).
 - **Resumption** (`fold.test.ts`, ported to Rust): on a synthetic history with deletions, renewals and a root switch, a

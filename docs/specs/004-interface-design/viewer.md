@@ -16,7 +16,8 @@ The viewer shows a city: one generated scene, styled by a theme, that people loo
    [local repositories](../007-local-repositories/local-repositories.md)).
 5. They look around in plan view: pan and zoom. Hovering names anything on the map and says what it means.
 6. They change the theme; the viewer starts in Paper atlas, or in Night atlas when the system prefers dark.
-7. They change how the city is laid out: four archetype toggles behind a settings cog, each explained by its tooltip.
+7. They change how the city is laid out: four archetype toggles behind a settings cog, each explained by its tooltip,
+   and which kinds of folder stand apart as towns of their own.
 8. They read the city: town and district names on the map, and the same names as a list beside it.
 
 ## Layout
@@ -65,6 +66,32 @@ The settings cog opens a popover, "City layout", of four switches: the ground pl
   file keeps the layout it was laid with."
 - The switches start at their defaults on every visit.
 - A variant that fails to load leaves the last city in place and says so in a notice.
+
+## Separate towns
+
+Under the toggles, the same popover holds a second group, "Separate towns": a switch per separation
+([ground plan](../006-ground-plan/ground-plan.md) § Separate towns), in the ground plan's order, each with its tooltip.
+
+| Switch     | Tooltip                                                                                                         |
+| ---------- | --------------------------------------------------------------------------------------------------------------- |
+| Workspaces | every workspace member the root manifests declare is a town of its own; the manifests decide apps and packages. |
+| Submodules | every submodule is a town of its own, laid from the commit it is pinned to.                                     |
+| Apps       | each folder in `apps/` is a town of its own.                                                                    |
+| Packages   | each folder in `packages/` is a town of its own.                                                                |
+| Libs       | each folder in `libs/` is a town of its own.                                                                    |
+| Crates     | each folder in `crates/` is a town of its own.                                                                  |
+| Services   | each folder in `services/` is a town of its own.                                                                |
+| Modules    | each folder in `modules/` is a town of its own.                                                                 |
+| Extensions | each folder in `extensions/` is a town of its own.                                                              |
+| Plugins    | each folder in any `plugins/` folder is a town of its own.                                                      |
+
+- The group lists only the separations the city shown records as changing its layout; a city with none shows no group.
+- While Workspaces is on and the city declares workspaces, Apps and Packages are disabled, with the line "Declared
+  workspaces decide; turn Workspaces off to choose."
+- The switches behave as the toggles do: at once, the popover staying open, tooltips on hover and focus, defaults on
+  every visit, disabled for a city file.
+- A bundled city precomputes, for each combination of the four toggles, the combinations of the separations it records;
+  the viewer loads the variant its switches name.
 
 ## Search
 
@@ -144,6 +171,9 @@ Every control meets measurable rules:
 - The city is the repository's single state at its default branch: its tree, every file laid at once, workspace members
   from its root manifests. It is not folded over history, so it is not stable from one commit to the next; the status
   line says so ("single state, not folded").
+- A submodule hosted on GitHub is read from its own repository at its pinned commit, as the tree is; one hosted
+  elsewhere, or that cannot be read, is one file, `.gitlink`, in its folder (see
+  [ground plan](../006-ground-plan/ground-plan.md) § Submodules). The loading card counts its requests with the rest.
 - Everything runs in the browser, from GitHub's public API, without signing in. A tree too large for one answer is read
   folder by folder until complete; the loading card counts the folders and the requests as they go.
 - Errors are one sentence each, and the last city stays: a repository that does not exist or is private, GitHub's hourly

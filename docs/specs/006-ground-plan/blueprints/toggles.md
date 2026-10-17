@@ -26,8 +26,8 @@ Modules: `packages/ground-plan/src/archetype/`, `src/town/{corridor,archipelago,
 
 - `Options.toggles?: readonly Toggle[]`, `DEFAULT_TOGGLES` when absent. `toggleList(options)` is `TOGGLES` filtered to
   those named: one canonical order, duplicates gone.
-- `settingKey(options)` = `${landKey}|split:${groups}|toggles:${toggleList.join(",")}`; the default ends in
-  `|toggles:corridor,tiers`, all off in `|toggles:`.
+- `settingKey(options)` = `${landKey}|separate:${separations}|toggles:${toggleList.join(",")}` (see
+  [separations](./separations.md)); the default ends in `|toggles:corridor,tiers`, all off in `|toggles:`.
 - `LayoutOptions.toggles?: readonly Toggle[]`, resolved as `Options.toggles` is; `layoutTown` keeps the canonical list
   in `Ctx.toggles`, which tells a rule whether it applies.
 - The CLIs (`--toggles=`), the bench, the stability script and the viewer build `Options` with it; the plat's `setting`

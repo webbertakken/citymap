@@ -13,6 +13,7 @@ interface Snapshot {
   readonly files: readonly FileEntry[]; // sorted by compareKeys(path)
   readonly folderFirstSeen: ReadonlyMap<string, number>; // folder path -> first commit index holding it
   readonly workspaces?: readonly string[]; // member folders declared by the root workspace manifests, when read
+  readonly submodules?: readonly string[]; // submodule folders (gitlinks), sorted, when the tree holds any
 }
 interface FileEntry {
   readonly path: string; // repo-relative, "/" separated, no leading "./"
@@ -23,7 +24,11 @@ interface FileEntry {
 
 - `parseSnapshot(unknown)` validates and returns a `Snapshot` or a named rejection: `snapshot/not-sorted`,
   `snapshot/duplicate-path`, `snapshot/bad-path` (empty segment, `.` or `..`, leading `/`, NUL, or over 4,096 bytes),
-  `snapshot/too-large` (over `MAX_FILES` = 2,000,000 files), `snapshot/bad-index`.
+  `snapshot/too-large` (over `MAX_FILES` = 2,000,000 files), `snapshot/bad-index`, `snapshot/bad-submodules` (not
+  sorted, repeated, or a bad path).
+- `stateSnapshot(repository, commit, paths, workspaces?, submodules?)` builds a single state; `submodules` is kept only
+  when not empty.
+- A submodule's files are ordinary entries under its folder; an unread one is `<folder>/.gitlink`.
 - The root folder's path is `""`. A folder's path is its file's path up to the last `/`.
 
 ## Land use and weight
@@ -89,8 +94,8 @@ interface LotSeed {
 ```ts
 interface Plat {
   readonly version: 1;
-  readonly setting: string; // landKey(uses) + "|split:" + groups, sorted, comma-joined + "|toggles:" + toggles
-  towns: Record<string, TownPlat>; // key: repository name, or `${name}/${group}`
+  readonly setting: string; // landKey(uses) + "|separate:" + separations + "|toggles:" + toggles
+  towns: Record<string, TownPlat>; // key: repository name, or `${name}/${root}` (a group or a member)
   old: Record<string, OldTown[]>;
   rootForms: Record<string, Form>;
 }

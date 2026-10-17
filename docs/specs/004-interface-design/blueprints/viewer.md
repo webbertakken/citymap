@@ -99,19 +99,31 @@ in `BufferGeometry`.
   2. `GET /repos/{owner}/{name}/git/trees/{tree}?recursive=1`. When `truncated`, the tree is read folder by folder
      instead: a folder's tree without `recursive` lists its entries; each subtree is then read with `recursive=1`, and
      any still truncated is split the same way. At most `IN_FLIGHT` 4 requests are in flight.
-  3. Entries: `blob` is a file (path joined from its folder), `commit` a submodule (skipped), `tree` a folder.
+  3. Entries: `blob` is a file (path joined from its folder), `commit` a submodule's gitlink (its pinned commit), `tree`
+     a folder.
   4. Root workspace manifests (`isManifest`) are read from
      `https://raw.githubusercontent.com/{owner}/{name}/{sha}/{path}` with the signal (not counted against the API
      limit), parsed with `patternsOf` and resolved with `resolveWorkspaces`; one that cannot be read is left out.
-  5. The snapshot is `stateSnapshot(name, sha, paths, workspaces)` from `@citymap/ground-plan`, the same builder the
-     CLI's `--no-history` and the bench use, so the browser lays exactly what `citymap --no-history` lays.
-- Laying (`lay/`): `Lay = (snapshot, { signal, onProgress, theme, toggles }) => Promise<Laid>`,
+  5. Submodules (`github/submodules.ts`), when there are gitlinks: `.gitmodules` is read from
+     `raw.githubusercontent.com` as the manifests are and parsed with `parseGitmodules` (from `@citymap/history`'s pure
+     module, shared). A gitlink's `url` names a GitHub repository when it is `https://github.com/o/r(.git)`, `http://…`,
+     `git@github.com:o/r(.git)`, `ssh://git@github.com/o/r(.git)`, or relative (`../r.git`, `./x`, resolved against
+     `https://github.com/{owner}/{name}`). Each such submodule's tree is read as step 2 reads the repository's, at the
+     pinned commit (`git/trees/{commit}?recursive=1`, folder by folder when truncated), its paths under the gitlink's
+     folder; its own gitlinks follow down to `SUBMODULE_DEPTH` 8 levels. A url on another host, a 404, or a depth beyond
+     is the one file `<folder>/.gitlink`, logged `viewer/github-submodule-unread path reason` (`host`, `not-found`,
+     `depth`, `no-url`); a spent allowance fails the whole read as anywhere (`github/rate-limited`). The loading card's
+     `tree` phase counts their folders and requests with the rest.
+  6. The snapshot is `stateSnapshot(name, sha, paths, workspaces, submodules)` from `@citymap/ground-plan`, the same
+     builder the CLI's `--no-history` and the bench use, so the browser lays exactly what `citymap --no-history` lays.
+- Laying (`lay/`): `Lay = (snapshot, { signal, onProgress, theme, toggles, separate }) => Promise<Laid>`,
   `Laid = { city, scene }`. `layHere` lays on the calling thread,
   `layCity(snapshot, initialState(options), options, onProgress)` with the CLI's default options and the chosen toggles
-  (`liveOptions(toggles)`, the engine's defaults when none are given), and, given a `theme`, posts a `draw` step and
-  builds the scene there too (`scene: { theme, scene }`, else null). `layInWorker` (the default; `layHere` in tests)
-  runs it in a module Web Worker (`lay/worker.ts`) sent `{ snapshot, theme, toggles }`; the scene's buffers come back
-  transferred (`buffersOf`), not copied. See Loading for the progress it posts and how it ends.
+  and separations (`liveOptions(toggles, separate)`, the engine's defaults when none are given), and, given a `theme`,
+  posts a `draw` step and builds the scene there too (`scene: { theme, scene }`, else null). `layInWorker` (the default;
+  `layHere` in tests) runs it in a module Web Worker (`lay/worker.ts`) sent `{ snapshot, theme, toggles, separate }`;
+  the scene's buffers come back transferred (`buffersOf`), not copied. See Loading for the progress it posts and how it
+  ends.
 - `Viewer` keeps the worker's scene (`drawn`: the city, the theme, the scene) and uses it while that city is shown in
   that theme; any other city or theme builds its scene on the main thread as before.
 - A repository is laid from the search box (below). While it loads, the status line names the phase ("{name}: {phase}…";
@@ -339,19 +351,37 @@ phone), so nothing the cards do moves the map or each other.
   snapshot in the worker (`relay`, under the same title, so a local repository's stays private); a city file disables
   every switch and shows "A city file keeps the layout it was laid with."; with nothing shown the switches only change.
   A city shown again in another layout keeps the view and the town shown when it has a town of that key (`relaid`).
-- `cities.ts`: `CityEntry { name, variants }`, each variant `{ toggles, file, lots }`; `isEntry` checks sixteen distinct
-  variants whose toggles are known, files `^\w[\w.-]*/\w[\w.-]*\.json$` (no `..`); `variantOf(entry, toggles)` finds the
-  variant with exactly those toggles, in any order; `loadCity(fetcher, entry, toggles, base)`. "More" lists each city
-  with the lots of the variant the toggles name, the one shown marked by its name.
-- Logs: `viewer/toggles on` (the list, `none` when empty) on every change; `viewer/variant-failed name reason` when a
-  variant cannot load (also a notice; the last city stays).
+- `cities.ts`: `CityEntry { name, separable?, declared?, variants }`, each variant `{ toggles, separate?, file, lots }`;
+  `isEntry` checks sixteen distinct toggle sets times each of `separationStates(separable, declared)`, all known, files
+  `^\w[\w.-]*/\w[\w.-]*\.json$` (no `..`); `variantOf(entry, toggles)` finds the variant with exactly those toggles and
+  `effectiveSeparations`, in any order; `loadCity(fetcher, entry, toggles, base)`. "More" lists each city with the lots
+  of the variant the toggles name, the one shown marked by its name.
+- Separate towns: `Toggles` takes `separate`, the city's `separable` and `declared`, and `onSeparate`; under the four
+  switches, a second `<fieldset>`, legend "Separate towns", of a switch per separation in `separable` (in `SEPARATIONS`
+  order), named `SEPARATION_LABELS` ("Workspaces" … "Plugins"), each described by its tooltip (`SEPARATION_TOOLTIPS`,
+  the spec's text word for word), as the toggles are. No `separable` (a city file written before, or none recorded): no
+  fieldset. With `declared` and Workspaces on, Apps and Packages are `disabled` and the fieldset shows "Declared
+  workspaces decide; turn Workspaces off to choose." (`.toggles-note`) before its list. A city file disables the
+  fieldset as it does the toggles.
+- `Viewer` holds `separate` (`DEFAULT_SEPARATIONS` at start; not remembered). A change re-opens what is shown as a
+  toggle change does: a live repository lays again with `{ toggles, separate }`; a bundled city loads
+  `variantOf(entry, toggles, separate)`.
+- `effectiveSeparations(separate, separable, declared)` (`cities.ts`): `separate` ∩ `separable`, except that with
+  `declared` and `workspaces` on, `apps` and `packages` take their defaults; the bundled variant is named by it.
+- Logs: `viewer/separate on` (the list, `none` when empty) on every change; `viewer/toggles on` (the list, `none` when
+  empty) on every change; `viewer/variant-failed name reason` when a variant cannot load (also a notice; the last city
+  stays).
 - `scripts/bundle-cities.ts` lays every combination (`combinations()` in `scripts/bundle/bundle.ts`, the sixteen subsets
   of `TOGGLES` in binary order) of each public city from `~/.cache/citymap/repos/<name>` with the Rust CLI
   (`rust/target/release/citymap <repo> --toggles=<list> --out=…`, a full fold, no lock), into
-  `public/cities/<name>/<variant>.json`, where `variantName(toggles)` joins the toggles with `-`, or is `none`; then
-  writes the index. One line per lay: `bundle/laid name variant lots bytes gzip ms`; at the end
-  `bundle/done cities variants bytes gzip`. The six cities' 96 variants take 62.2 MB (10.0 MB gzipped, 1.7 MB in a git
-  pack); a visitor loads one at a time, 35 to 320 kB gzipped.
+  `public/cities/<name>/<variant>.json`, where `variantName(toggles, separate?)` joins the toggles with `-`, or is
+  `none`, and for a city that records separations adds `~` and the effective separations joined with `-` (or `none`);
+  then writes the index. A city's separations are learnt from a first lay with the defaults (its `separable` and
+  `declared`); `separationStates(separable, declared)` lists every subset of `separable`, less those with `declared`,
+  `workspaces` on and `apps` or `packages` off their defaults; each lay passes `--separate=` the state plus the defaults
+  of the separations the city does not record. One line per lay: `bundle/laid name variant lots bytes gzip ms`; at the
+  end `bundle/done cities variants bytes gzip`. The six cities' 96 variants take 62.2 MB (10.0 MB gzipped, 1.7 MB in a
+  git pack); a visitor loads one at a time, 35 to 320 kB gzipped.
 
 ## Labels
 

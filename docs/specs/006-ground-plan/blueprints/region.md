@@ -5,10 +5,10 @@ Reference: `docs/research/city-layout/variants/region.ts`. Module: `packages/gro
 
 ## Towns
 
-1. Parts: the main town (key = repository name, root `""`, excluding every workspace group), then one town per workspace
-   group (key `${name}/${group}`), groups by `(folderFirstSeen, compareKeys)`. A group named in `Options.split` (default
-   `["apps"]`) gives one town per member instead (key `${name}/${member}`, named by the member's path), members by
-   `(folderFirstSeen, compareKeys)`; the group's own files outside its members stay in the main town.
+1. Parts: the main town (key = repository name, root `""`), then one town per root: each workspace group that is a town
+   and each separate member (key `${name}/${root}`, named by the root's path), by `(folderFirstSeen, compareKeys)`. Each
+   part excludes its nearest nested roots. Members, groups that stay towns, nesting and parents:
+   [separations](./separations.md) § Parts.
 2. Files held by a part's old towns are excluded from its tree; each tree is built with the region's workspace members
    (`TreeOptions.members`), which mark packages.
 3. Root form: classified over the whole part (old towns' files included) with `plat.rootForms[key]` as previous and the
@@ -38,7 +38,8 @@ Reference: `docs/research/city-layout/variants/region.ts`. Module: `packages/gro
 
 ## Highways
 
-- Each group town joins the main town; each old town joins its successor.
+- Each town after the first joins its parent part's town ([separations](./separations.md) § Highways); each old town
+  joins its successor.
 - End candidates per town: road ends at least 80 % of the town's reach from its centroid (all ends when none). A town
   without roads first gains an approach street from its outline vertex nearest the other town to its centroid.
 - Class: the highest class both towns offer at their candidates. Gates: the closest pair of candidates of that class
