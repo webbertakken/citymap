@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-const cityFile = join(import.meta.dirname, "../public/cities/redux/corridor-tiers.json");
+const cityFile = join(import.meta.dirname, "../public/cities/redux/corridor-tiers~none.json");
 
 /** Presses Tab n times, in order, naming each element that takes focus. */
 async function tabThrough(page: Page, n: number, seen: string[] = []): Promise<string[]> {

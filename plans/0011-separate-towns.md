@@ -74,8 +74,10 @@ Branch `feat/separate-towns`, stacked on `local-beside-search` (#36); rebase ont
 
 ## Phase 6: bundled cities
 
-- [ ] `scripts/bundle/` names variants by toggles and separations; lays only the separations each city records
-- [ ] Lay the bundled cities; measure raw, gzipped and git pack sizes; surface the trade-off if unreasonable
+- [x] `scripts/bundle/` names variants by toggles and separations; lays only the separations each city records
+- [x] Lay the bundled cities; measure raw, gzipped and git pack sizes; surface the trade-off if unreasonable (304
+      variants: 311 MB raw, 49.6 MB gzipped, 4.1 MB in a git pack, from 62 MB, 10 MB and 2.0 MB; one variant at a time,
+      at most 202 kB gzipped: reasonable, reported)
 - [ ] Commit
 
 ## Phase 7: verification and fold-back
