@@ -1,6 +1,15 @@
 import { TOGGLES } from "@citymap/ground-plan";
 import { describe, expect, it } from "vitest";
-import { combinations, indexEntry, layArgs, summary, variantFile, variantName } from "./bundle.ts";
+import {
+  combinations,
+  indexEntry,
+  layArgs,
+  separateFor,
+  statesOf,
+  summary,
+  variantFile,
+  variantName,
+} from "./bundle.ts";
 
 describe("combinations", () => {
   it("lists all sixteen subsets of the toggles, none first, each in the toggles' own order", () => {
@@ -10,7 +19,7 @@ describe("combinations", () => {
     expect(all[1]).toEqual(["corridor"]);
     expect(all[9]).toEqual(["corridor", "tiers"]);
     expect(all[15]).toEqual([...TOGGLES]);
-    expect(new Set(all.map(variantName)).size).toBe(16);
+    expect(new Set(all.map((toggles) => variantName(toggles))).size).toBe(16);
   });
 });
 
@@ -19,6 +28,32 @@ describe("variant names", () => {
     expect(variantName([])).toBe("none");
     expect(variantName(["corridor", "tiers"])).toBe("corridor-tiers");
     expect(variantFile("takken.io", ["quarters"])).toBe("takken.io/quarters.json");
+  });
+
+  it("adds the separations of a state after a tilde, or none", () => {
+    expect(variantName(["tiers"], ["workspaces", "apps"])).toBe("tiers~workspaces-apps");
+    expect(variantFile("react", [], [])).toBe("react/none~none.json");
+  });
+});
+
+describe("separation states", () => {
+  it("lays a city that records none once, with the defaults, and one that records some in each state", () => {
+    expect(statesOf({ separable: [], declared: false })).toEqual([null]);
+    expect(statesOf({ separable: ["workspaces", "packages"], declared: true })).toEqual([
+      [],
+      ["workspaces"],
+      ["packages"],
+    ]);
+  });
+
+  it("lays a state with the defaults of the separations the city does not record", () => {
+    const recorded = { separable: ["packages", "plugins"] as const, declared: false };
+    expect(separateFor(["plugins"], { ...recorded, separable: [...recorded.separable] })).toEqual([
+      "workspaces",
+      "submodules",
+      "apps",
+      "plugins",
+    ]);
   });
 });
 
@@ -33,14 +68,16 @@ describe("layArgs", () => {
     expect(layArgs("/r/citymap", "/c/redux", "/o/x.json", ["corridor", "tiers"]).at(-1)).toBe(
       "--toggles=corridor,tiers",
     );
+    expect(layArgs("/r/citymap", "/c/redux", "/o/x.json", [], ["apps"]).at(-1)).toBe("--separate=apps");
+    expect(layArgs("/r/citymap", "/c/redux", "/o/x.json", [], []).at(-1)).toBe("--separate=");
   });
 });
 
 describe("indexEntry", () => {
   it("names a city and every variant with its file and lots", () => {
-    const entry = indexEntry("redux", [
-      { toggles: [], lots: 10 },
-      { toggles: ["tiers"], lots: 12 },
+    const entry = indexEntry("redux", { separable: [], declared: false }, [
+      { toggles: [], state: null, lots: 10 },
+      { toggles: ["tiers"], state: null, lots: 12 },
     ]);
     expect(entry).toEqual({
       name: "redux",
@@ -48,6 +85,18 @@ describe("indexEntry", () => {
         { toggles: [], file: "redux/none.json", lots: 10 },
         { toggles: ["tiers"], file: "redux/tiers.json", lots: 12 },
       ],
+    });
+  });
+
+  it("records a city's separations and its declaration, and names each variant's state", () => {
+    const entry = indexEntry("react", { separable: ["workspaces", "packages"], declared: true }, [
+      { toggles: [], state: ["workspaces"], lots: 10 },
+    ]);
+    expect(entry).toEqual({
+      name: "react",
+      separable: ["workspaces", "packages"],
+      declared: true,
+      variants: [{ toggles: [], separate: ["workspaces"], file: "react/none~workspaces.json", lots: 10 }],
     });
   });
 });
