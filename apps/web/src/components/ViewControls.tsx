@@ -17,7 +17,7 @@ export interface ViewControlsProps {
   readonly onTheme: (theme: ThemeName) => void;
   readonly onCity: (entry: CityEntry) => void;
   readonly onFile: (file: File) => void;
-  /** Opening a local repository, offered in More after the city file. */
+  /** The local repository group in More, after the city file: the last folder again, or why Safari cannot. */
   readonly local?: LocalRepository;
   /** The layout toggles on, whether the city shown can change with them, and a change. */
   readonly toggles: readonly Toggle[];
