@@ -41,13 +41,14 @@ Each TypeScript module has one Rust module of the same name (snake case); functi
 | `plat/` (plat, canonical, lock, schema)                                    | `plat.rs`, `json.rs`, `lock.rs`                                                                             |
 | `city/`                                                                    | `city.rs`                                                                                                   |
 | `town/` (context, cut, partition, neighbourhood, connectors, grid, layout) | `town/` (same names)                                                                                        |
-| `region/` (compose, outline, highway)                                      | `region/` (same names)                                                                                      |
+| `region/` (compose, outline, highway, separate)                            | `region/` (same names)                                                                                      |
 | `fold/`                                                                    | `fold.rs`                                                                                                   |
 | `organic/` (delaunay, regions)                                             | `organic/` (same names)                                                                                     |
 
-`packages/history/src/{read,schedule,tree,blobs,manifests,workspaces,ancestry,env}.ts` map to `citymap-history`'s
-modules of the same names; `packages/themes/src/{themes,colour}.ts` to `citymap-themes`; `packages/svg/src/render.ts` to
-`citymap-svg`; `apps/cli/src/{args,run,main,bin}.ts` to `citymap-cli`'s `args.rs`, `run.rs` and `main.rs`.
+`packages/history/src/{read,schedule,tree,blobs,manifests,workspaces,gitmodules,submodules,ancestry,env}.ts` map to
+`citymap-history`'s modules of the same names; `packages/themes/src/{themes,colour}.ts` to `citymap-themes`;
+`packages/svg/src/render.ts` to `citymap-svg`; `apps/cli/src/{args,run,main,bin}.ts` to `citymap-cli`'s `args.rs`,
+`run.rs` and `main.rs`.
 
 ## Types
 
@@ -154,12 +155,14 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
 - A neighbourhood's grid (`KeptGrid`): the cells and slots of a grid laid on some land, kept while the grid's direction,
   origin and pitches and the land are the same.
 - Land use per path, for a million paths (`USE_MEMORY`); the derived workspace groups and members per file list (`Arc`
-  identity in place of `WeakMap`); the memoised warp per town and diameter.
+  identity in place of `WeakMap`); the separate members per file list, declared workspaces, submodules and separations
+  (`KeptMembers`, as TypeScript's `membersOf`); the memoised warp per town and diameter.
 - Drawing waits: `lay` makes every plan decision and updates the plat, and keeps each town as a `TownDraft`
   (`LastTown`). `current_city` draws the city of the last lay: loop connectors, the warp, tints and labels, old towns
-  lit by the last snapshot's files, the highways, and the extent check. `lay_city` is `lay` then `current_city`, as
-  TypeScript's `layCity`. An archetype switch draws the town it freezes from its draft. The CLI draws once, after the
-  fold.
+  lit by the last snapshot's files, the highways (each town to the town its part joins, found by `lay` and kept as
+  `Current.joins`), the extent check, and the city's record of its separations (`separable`, `declared`) from the last
+  snapshot. `lay_city` is `lay` then `current_city`, as TypeScript's `layCity`. An archetype switch draws the town it
+  freezes from its draft. The CLI draws once, after the fold.
 - Every `lay` checks the drawn outlines of its towns and old towns against `COORD_LIMIT` (`check_outlines`); the
   highways are checked when the city is drawn.
 
@@ -180,8 +183,17 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   process that ends mid-answer replaced for the next blob, as in TypeScript. Commits that change no root manifest read
   nothing. A blob that cannot be read sends `resolve` back through the manifest's older blobs, newest first, read
   through `read_more` (TypeScript reads them per chunk, `Workspaces.fallbacks`); the answer is the same.
-- Submodules: `submodules.rs` (`parse_gitmodules`, `Gitlinks`, `SubmoduleReader`, `expand`) mirrors `submodules.ts`: the
-  same git calls, the same expansion indices, the same synthetic commit, the same events.
+- Submodules: `gitmodules.rs` (`parse_gitmodules`, `is_safe_module_path`, its patterns on `regress`) and `submodules.rs`
+  (`SubmoduleReader`, `expand_all`, `expand`, `Pins`) mirror `gitmodules.ts` and `submodules.ts`: the same git calls
+  (`rev-parse --git-common-dir` once, `--git-dir=<data> ls-tree -r -z`, `cat-file blob` for a nested `.gitmodules`), the
+  same git-data lookup and its containment check (paths resolved lexically, as `path.resolve` and `path.relative` do),
+  the same depth limit, the same expansion indices, the same synthetic commit and the same events. The tree state's
+  gitlinks live in `Pins.gitlinks`.
+- The reader thread applies one commit at a time, so `Pins` has no `prepare`: at each expansion point `move_pins` reads
+  every moved pin it has not read before, one after another, each named by `.gitmodules` as the tree state then holds it
+  (its blob read through the `BlobReader`, only when a pin is read). A pin read once is kept by path and pin, as
+  TypeScript's prepared readings are, and `SubmoduleReader` keeps every reading for the read; nothing is read twice.
+  TypeScript's invariant for a pin `move` was not prepared for (`engine/invariant`) has no Rust counterpart.
 
 ## Security and observability
 
@@ -219,6 +231,10 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   `parity/resume-differs repo=… saved=… files=<side>:<file>,…` (exit 1).
 - `--toggles=<list>` passes the same flag to both CLIs, so one run proves one toggle setting: the defaults (no flag),
   each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`).
+- `--separate=<list>` passes the same flag to both CLIs, as `--toggles=` does: the defaults (no flag), each separation
+  alone and none (`--separate=`). The shared clones carry no `.git/modules` and no working tree, so a cached
+  repository's submodules read there as unread (`.gitlink` files); initialised and nested submodules are proved by
+  running both CLIs on copies of a repository that holds their git data.
 - One line per run: `parity/same repo=… mode=… ts-ms=… rs-ms=…` or `parity/differs repo=… mode=… files=… …` (exit 1),
   the second followed by `parity/kept repo=… dir=…` where every mode's outputs for the repository stay; a missing
   repository is `parity/skipped reason=no-repository`. The run ends with a Markdown table of outputs and timings.
@@ -236,9 +252,9 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   test writes them.
 - Parity fixtures under `rust/fixtures/` are written by `scripts/parity-fixtures.ts` from the TypeScript engine:
   `land-use.tsv` (every path in `react-head-paths.txt` and a list of edge cases), `fold.json` (a synthetic history of
-  groups, split apps, edits, deletions, a rename and a root switch, its events per commit, its city and its plat, with
-  every toggle off), `fold-defaults.json` and `fold-all.json` (that history grown by a corridor, an app of plugins and
-  four packages, folded with the default toggles and with all four), `colours.tsv` (every colour of every theme for
+  groups, separate apps, edits, deletions, a rename and a root switch, its events per commit, its city and its plat,
+  with every toggle off), `fold-defaults.json` and `fold-all.json` (that history grown by a corridor, an app of plugins
+  and four packages, folded with the default toggles and with all four), `colours.tsv` (every colour of every theme for
   every district class and form), `svg.tsv` and `city.svg` (the folded city drawn in every theme, camera and region
   setting, as lengths and digests, one whole) and `usage.txt`.
 - The toggles' forms are laid whole in `town/toggled.rs`, the TypeScript `town/toggles.test.ts` case by case.

@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use citymap_ground_plan::ErrorCode;
 use citymap_ground_plan::snapshot::Snapshot;
 use citymap_history::read::parse_raw_log;
+use citymap_history::submodules::UnreadReason;
 use citymap_history::{HistoryEvent, HistoryItem, ReadOptions, Strides, read_history, read_tree};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -194,7 +195,7 @@ fn follows_only_the_first_parent_of_a_merge_as_one_step() {
 }
 
 #[test]
-fn skips_submodules_reports_them_and_lays_a_file_that_replaces_one() {
+fn lays_an_unread_submodule_as_its_gitlink_file_and_a_file_that_replaces_it() {
     let repo = Repo::new();
     repo.write("a.ts", "a");
     repo.commit("one");
@@ -205,7 +206,7 @@ fn skips_submodules_reports_them_and_lays_a_file_that_replaces_one() {
     repo.write("sub", "now a file");
     repo.commit("replace");
     let (snaps, events) = collect(repo.path(), 0);
-    assert_eq!(identities(&snaps[1]), ["a.ts@0"]);
+    assert_eq!(identities(&snaps[1]), ["a.ts@0", "sub/.gitlink@1"]);
     assert_eq!(
         events,
         [
@@ -216,13 +217,17 @@ fn skips_submodules_reports_them_and_lays_a_file_that_replaces_one() {
                 from: 0,
                 laid: 3
             },
-            HistoryEvent::SkipSubmodule {
+            HistoryEvent::SubmoduleUnavailable {
                 path: "sub".into(),
-                index: 1
+                index: 1,
+                reason: UnreadReason::NoGitData
             }
         ]
     );
-    assert_eq!(events[1].line(), "history/skip-submodule path=sub index=1");
+    assert_eq!(
+        events[1].line(),
+        "history/submodule-unavailable path=sub index=1 reason=no-git-data"
+    );
     assert_eq!(identities(&snaps[2]), ["a.ts@0", "sub@2"]);
 }
 
@@ -941,11 +946,17 @@ fn reads_one_commit_s_files_as_born_together_with_every_folder_and_its_members()
     let mut events = Vec::new();
     let tree = read_tree(repo.path(), &sub, None, &mut |e| events.push(e)).expect("a tree");
     assert!(tree.repository.starts_with("citymap-history-"));
+    assert!(files(&tree).iter().any(|(path, _, _)| path == "vendor/lib/.gitlink"));
+    assert_eq!(
+        tree.submodules.as_deref().map(Vec::as_slice),
+        Some(&["vendor/lib".to_owned()][..])
+    );
     assert_eq!(
         events,
-        [HistoryEvent::SkipSubmodule {
+        [HistoryEvent::SubmoduleUnavailable {
             path: "vendor/lib".into(),
-            index: 0
+            index: 0,
+            reason: UnreadReason::NoGitData
         }]
     );
 }

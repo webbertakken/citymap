@@ -19,7 +19,22 @@ const REPOSITORY_VARIABLES: [&str; 8] = [
 #[must_use]
 pub fn git_command(dir: &Path, args: &[&str]) -> Command {
     let mut command = Command::new("git");
-    command.arg("-C").arg(dir).args(args).env("GIT_NO_LAZY_FETCH", "1");
+    command.arg("-C").arg(dir);
+    with_environment(command, args)
+}
+
+/// A git command on a repository's git data itself (`--git-dir=<data>`), in the same environment as `git_command`.
+#[must_use]
+pub fn git_data_command(git_dir: &Path, args: &[&str]) -> Command {
+    let mut flag = std::ffi::OsString::from("--git-dir=");
+    flag.push(git_dir);
+    let mut command = Command::new("git");
+    command.arg(flag);
+    with_environment(command, args)
+}
+
+fn with_environment(mut command: Command, args: &[&str]) -> Command {
+    command.args(args).env("GIT_NO_LAZY_FETCH", "1");
     for name in REPOSITORY_VARIABLES {
         command.env_remove(name);
     }

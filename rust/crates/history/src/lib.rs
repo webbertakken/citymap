@@ -3,9 +3,11 @@
 pub mod ancestry;
 pub mod blobs;
 pub mod env;
+pub mod gitmodules;
 pub mod manifests;
 pub mod read;
 pub mod schedule;
+pub mod submodules;
 pub mod tree;
 pub mod workspaces;
 
