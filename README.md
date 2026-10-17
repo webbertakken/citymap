@@ -83,7 +83,7 @@ keeps the name to your own screen.
   reports in LCOV, Istanbul JSON, Cobertura and JaCoCo (`--coverage=<file>`, or where your tools write them). What is
   not known says so, never zero.
 
-  ![takken.io in the Buildings view: plan and buildings, then coloured by tested, size and recency](docs/img/buildings.png)
+  ![livediagram in plan view and in the Buildings view, then coloured by how tested each file is (light), and takken.io's card for a building with its measures](docs/img/buildings.png)
 
 - **Themes and views.** Five themes (Paper atlas, Night atlas, Beck, Nolli, Dracula), plan view and the Buildings view
   in the viewer, plan or 2:1 dimetric 3D in the SVG export, and optional Voronoi district regions.

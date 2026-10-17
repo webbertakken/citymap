@@ -324,6 +324,9 @@ describe("parseRawLog", () => {
       },
       { sha: "b".repeat(40), time: 0, author: "", entries: [] },
     ]);
+    // A time beyond what a number holds exactly reads 0, as an absent one does.
+    const [late] = [...parseRawLog(["\u0001" + "c".repeat(40) + "\u000299999999999999999"])];
+    expect(late?.time).toBe(0);
   });
 
   it("rejects a stream that does not start with a commit", () => {
