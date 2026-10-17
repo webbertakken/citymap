@@ -452,6 +452,26 @@ describe("Viewer and a GitHub repository", () => {
   };
   afterEach(() => window.history.replaceState(null, "", "/"));
 
+  it("logs each submodule it lays as its .gitlink, and why", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const tree = {
+      tree: [
+        { path: "src/a.ts", type: "blob", sha: "a" },
+        { path: "ext/x", type: "commit", sha: "p" },
+      ],
+    };
+    const withSubmodule = github({ [`${API}/git/trees/t9?recursive=1`]: () => new Response(JSON.stringify(tree)) });
+    render(<Viewer Canvas={StubCanvas} fetcher={withSubmodule} lay={layHere} />);
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    type("acme/widgets");
+    fireEvent.keyDown(searchField(), { key: "Enter" });
+    // The load is done once the status says how it was laid.
+    expect(await screen.findByText(/single state, not folded$/)).toBeTruthy();
+    expect(info.mock.calls.map(([line]) => String(line))).toContain(
+      "viewer/github-submodule-unread path=ext/x reason=no-url",
+    );
+  });
+
   it("lays a named repository's single state from the search, says so, and puts it in the address", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     render(<Viewer Canvas={StubCanvas} fetcher={github()} lay={layHere} />);

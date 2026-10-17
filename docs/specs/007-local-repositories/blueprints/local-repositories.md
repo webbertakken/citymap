@@ -119,8 +119,8 @@ Returns
    lists its tracked paths, prefixed with the gitlink's folder; its own gitlinks follow down to `SUBMODULE_DEPTH` 8
    levels. A folder that is missing or empty (not checked out), git data outside the picked folder, no index, an index
    of a kind not read, or a depth beyond is the one file `<folder>/.gitlink`, logged
-   `viewer/local-submodule-unread path reason` (`not-checked-out`, `outside`, `no-index`, `index`, `depth`); it never
-   fails the read. Submodule paths count towards `MAX_FILES` and `MAX_PATH_BYTES` as any.
+   `viewer/local-submodule-unread path reason` (`not-checked-out`, `outside`, `bad-git-file`, `no-index`, `index`,
+   `depth`); it never fails the read. Submodule paths count towards `MAX_FILES` and `MAX_PATH_BYTES` as any.
 5. The snapshot is `stateSnapshot(folder.name, commit, paths, members, gitlinks)`, the builder `citymap --no-history`
    uses.
 

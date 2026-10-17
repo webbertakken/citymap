@@ -115,6 +115,8 @@ export function useLocalRepository({
       if (read.head) log.info("viewer/local-commit", { how: read.head });
       if (read.source === "walk") log.info("viewer/local-walk", { files });
       for (const path of read.unread) log.info("viewer/local-manifest-unread", { path });
+      for (const found of read.submodules.read) log.info("viewer/local-submodule", found);
+      for (const missed of read.submodules.unread) log.info("viewer/local-submodule-unread", missed);
       job.step({ phase: "lay", files });
       const laid = await lay(read.snapshot, { signal: job.signal, onProgress: job.step, theme, toggles });
       await present(job, laid, name, read.snapshot);

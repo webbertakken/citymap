@@ -59,11 +59,11 @@ Branch `feat/separate-towns`, stacked on `local-beside-search` (#36); rebase ont
 
 ## Phase 4: web readers
 
-- [ ] Local: submodule entries from the index, `.gitmodules`, each submodule's index through its git data inside the
+- [x] Local: submodule entries from the index, `.gitmodules`, each submodule's index through its git data inside the
       picked folder (handle and folder input); unreachable as one file; logs
-- [ ] GitHub: `commit` tree entries, `.gitmodules` read, github.com submodules' trees at their pinned commit (folder by
+- [x] GitHub: `commit` tree entries, `.gitmodules` read, github.com submodules' trees at their pinned commit (folder by
       folder when truncated), other hosts as one file; requests counted
-- [ ] Commit
+- [x] Commit
 
 ## Phase 5: viewer
 

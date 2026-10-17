@@ -291,6 +291,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
             requests = step.requests;
             load.step(step);
           },
+          onUnread: (path, reason) => log.info("viewer/github-submodule-unread", { path, reason }),
         });
         load.step({ phase: "lay", files: snapshot.files.length });
         const laid = await lay(snapshot, { signal: load.signal, onProgress: load.step, theme, toggles });

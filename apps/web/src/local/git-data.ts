@@ -22,7 +22,7 @@ const fileText = async (folder: Folder, path: string) =>
   (await folder.kind(path)) === "file" ? text(folder, path) : null;
 
 /** A `gitdir:` path as a path inside the folder, or null when it is absolute or climbs out. */
-function inside(path: string): string | null {
+export function inside(path: string): string | null {
   if (/^(?:[/\\]|[A-Za-z]:)/.test(path)) return null;
   const kept: string[] = [];
   for (const segment of path.split(/[/\\]/)) {
