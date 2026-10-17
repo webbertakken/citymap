@@ -24,8 +24,8 @@ interface FileEntry {
 
 - `parseSnapshot(unknown)` validates and returns a `Snapshot` or a named rejection: `snapshot/not-sorted`,
   `snapshot/duplicate-path`, `snapshot/bad-path` (empty segment, `.` or `..`, leading `/`, NUL, or over 4,096 bytes),
-  `snapshot/too-large` (over `MAX_FILES` = 2,000,000 files), `snapshot/bad-index`, `snapshot/bad-submodules` (not
-  sorted, repeated, or a bad path).
+  `snapshot/too-large` (over `MAX_FILES` = 2,000,000 files), `snapshot/bad-index`; `workspaces` or `submodules` that are
+  not arrays of folder paths are `snapshot/bad-shape`, and both are kept sorted.
 - `stateSnapshot(repository, commit, paths, workspaces?, submodules?)` builds a single state; `submodules` is kept only
   when not empty.
 - A submodule's files are ordinary entries under its folder; an unread one is `<folder>/.gitlink`.

@@ -83,8 +83,8 @@ Module: `packages/history/src/submodules.ts`; spec: [ground plan](../ground-plan
   as fallback) and parsed by `parseGitmodules(text)`: `[submodule "<name>"]` sections with `path` and `url` (quoted or
   bare values, `#` and `;` comments), giving `Map<path, { name, url }>`. A gitlink not named there takes its path as its
   name.
-- `Gitlinks`: the tree state's gitlinks, path → pinned commit. A raw entry whose new mode is 160000 sets it (`A`, `M`,
-  `T`); a `D` of a path that is a gitlink, or a `T` away from 160000, removes it.
+- `Pins.gitlinks`: the tree state's gitlinks, path → pinned commit. A raw entry whose new mode is 160000 sets it (`A`,
+  `M`, `T`); a `D` of a path that is a gitlink, or a `T` away from 160000, removes it.
 - `SubmoduleReader(dir)` finds a submodule's git data: `<common dir>/modules/<name>` (`git rev-parse --git-common-dir`,
   once), else the working tree's `<dir>/<path>/.git` (a directory, or a file `gitdir: <p>` resolved against
   `<dir>/<path>`); nested ones from their parent's git data (`<git data>/modules/<name>`, names from the parent's pinned
@@ -177,7 +177,7 @@ fingerprint is the first token:
 | `plat/tier`, `plat/gateway`, …  | the toggles' decisions: [toggles](toggles.md) § Observability        |
 | `town/overflow`                 | lots without room (key, count)                                       |
 | `history/submodule-unavailable` | a submodule's pin cannot be read (path, index, reason)               |
-| `history/submodule`             | a submodule expanded (path, index, files, ms)                        |
+| `history/submodule`             | a submodule expanded (path, index, files)                            |
 | `history/manifest-unavailable`  | a root manifest blob cannot be read (path, index)                    |
 | `history/schedule`              | the fold schedule, once per read (commits, coarse, tail, from, laid) |
 
