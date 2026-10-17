@@ -54,15 +54,15 @@ folder, or the CLI with its history and coverage reports. Spec: [buildings](../d
 
 ## Phase 6: proof
 
-- [ ] Unit tests at 100 %; `bun run check`; parity
+- [x] Unit tests at 100 %; `bun run check`; parity
 - [x] End-to-end: Buildings view, colour switch by keyboard, unavailable measures, a picked fixture folder with a
       coverage report, cards with measures, axe light and dark, no card overlap at every width, vitals
-- [ ] Measured: corpus share of sources tested by name against real coverage where the corpus has it; linux's draw time
+- [x] Measured: corpus share of sources tested by name against real coverage where the corpus has it; linux's draw time
       and memory in the Buildings view; city file sizes before and after
 - [x] Screenshots: plan and Buildings, each colour, light and dark, a phone
 
 ## Phase 7: ship
 
 - [x] README: buildings, with pictures
-- [ ] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
+- [x] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
 - [ ] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`

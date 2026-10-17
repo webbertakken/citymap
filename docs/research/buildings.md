@@ -104,3 +104,18 @@ mesh per layer: about 20 vertices per lot, 1.5 million vertices in all.
 - Picking stays on the CPU: the screen point's ray is walked down from the tallest building's top, and at each step the
   plan's own pick index answers which lot lies under the ray there; the first lot whose building reaches that height is
   hit. At most a few dozen look-ups per pointer move.
+
+## Measured, as shipped
+
+- Tests by name against a real report: citymap's own sources against its Vitest LCOV report (every source fully
+  covered): 92 of 126 judged sources are named by a test (73.0 %); none is named whose tests do not run it. The rest are
+  exercised through other files' tests.
+- Layouts and locks: with and without measures, the Rust CLI wrote byte-identical layouts and locks for takken.io,
+  redux, game-ci-cli, livediagram, react, next.js and linux, as a single state and as a fold (`scripts/untouched.ts`),
+  and the 96 bundled cities are byte-identical once their measures are set aside.
+- City files grow by 26 % (linux) to 44 % (next.js) as a single state, and by 37 % (linux) to 56 % (game-ci-cli) folded;
+  the bundled cities by 50 %, from 62 MB to 93 MB (13.6 MB gzipped). Reading the measures adds about 2 s to a single
+  state of linux (listing what the clone holds) and 3 % to its fold (85 s to 88 s).
+- linux in the Buildings view (75,256 buildings, sizes drawn from a fixed seed as its clone holds no contents), on the
+  phone profile with the processor slowed fourfold and the machine's integrated GPU: the switch drew in 1.7 s, every
+  answer came within 120 ms, and the heap held 239 MB.
