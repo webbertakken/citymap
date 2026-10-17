@@ -85,5 +85,5 @@ Branch `feat/separate-towns`, stacked on `local-beside-search` (#36); rebase ont
 - [x] Run it: the CLI on rust and deno with submodules; the viewer on a local repository with submodules, on GitHub (a
       repository with github.com submodules), and on the bundled cities; read the logs
 - [x] `bun run check`; e2e; parity
-- [ ] PR with images; `~/PR_RESULTS.md`
+- [x] PR with images; `~/PR_RESULTS.md` (#37, stacked on #36)
 - [x] Fold-back: spec reconciled to what shipped, blueprints re-derived, every symbol, file and reference verified
