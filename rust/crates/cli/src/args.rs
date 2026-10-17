@@ -32,6 +32,10 @@ pub struct LayCommand {
     pub split: Vec<String>,
     /// The archetype toggles on, in their own order.
     pub toggles: Vec<Toggle>,
+    /// Write the measures section beside the layout.
+    pub measures: bool,
+    /// Coverage reports to read instead of those at the usual paths.
+    pub coverage: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -60,6 +64,9 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --no-warp           draw the plan without its organic warp
   --no-loops          leave dead ends unjoined (default: nearby dead ends are joined by lanes)
   --no-history        lay the tree at --to once, every file at once, without folding its history (no --lock)
+  --coverage=<file>   a coverage report (LCOV, Istanbul JSON, Cobertura or JaCoCo) to read instead of the usual
+                      paths; repeat it for several
+  --no-measures       write the city without its measures (size, tested, history)
   --voronoi           fill each folder's region, the land nearer its lots than any other's, in the SVG
   --verbose           log every plan decision
   --help              show this help";
@@ -67,6 +74,8 @@ Folds the repository's first-parent history into its ground plan and writes the 
 const STRINGS: [&str; 9] = [
     "to", "out", "svg", "theme", "camera", "density", "jog", "split", "toggles",
 ];
+/// Options that may be given many times, each value kept in order.
+const LISTS: [&str; 1] = ["coverage"];
 
 /// The toggles a comma-separated list names, each one known.
 fn toggles_of(text: &str) -> Result<Vec<Toggle>> {
@@ -92,8 +101,8 @@ const BOOLEANS: [&str; 9] = [
     "no-loops",
     "voronoi",
     "no-history",
+    "no-measures",
     "help",
-    "",
 ];
 
 fn usage(message: impl Into<String>) -> CitymapError {
@@ -104,6 +113,7 @@ fn usage(message: impl Into<String>) -> CitymapError {
 #[derive(Default)]
 struct Parsed {
     strings: std::collections::HashMap<&'static str, String>,
+    lists: std::collections::HashMap<&'static str, Vec<String>>,
     booleans: std::collections::HashSet<&'static str>,
     positionals: Vec<String>,
 }
@@ -131,7 +141,7 @@ fn parse(argv: &[String]) -> std::result::Result<Parsed, String> {
         let (name, inline) = option
             .split_once('=')
             .map_or((option, None), |(n, v)| (n, Some(v.to_owned())));
-        if let Some(&known) = STRINGS.iter().find(|&&s| s == name) {
+        if let Some(&known) = STRINGS.iter().chain(LISTS.iter()).find(|&&s| s == name) {
             let value = if let Some(value) = inline {
                 value
             } else {
@@ -148,8 +158,12 @@ fn parse(argv: &[String]) -> std::result::Result<Parsed, String> {
                 i += 1;
                 next.clone()
             };
-            parsed.strings.insert(known, value);
-        } else if let Some(&known) = BOOLEANS.iter().find(|&&b| b == name && !b.is_empty()) {
+            if LISTS.contains(&known) {
+                parsed.lists.entry(known).or_default().push(value);
+            } else {
+                parsed.strings.insert(known, value);
+            }
+        } else if let Some(&known) = BOOLEANS.iter().find(|&&b| b == name) {
             if inline.is_some() {
                 return Err(format!(
                     "TypeError [ERR_PARSE_ARGS_INVALID_OPTION_VALUE]: Option '--{name}' does not take an argument"
@@ -213,6 +227,12 @@ pub fn parse_command_line(argv: &[String]) -> Result<Command> {
     if flag("no-history") && flag("lock") {
         return Err(usage("--lock folds history; it cannot go with --no-history"));
     }
+    let coverage = parsed.lists.get("coverage").cloned().unwrap_or_default();
+    if flag("no-measures") && !coverage.is_empty() {
+        return Err(usage(
+            "--coverage is read for the measures; it cannot go with --no-measures",
+        ));
+    }
     let density_text = text("density", "50");
     let density = integer(&density_text).filter(|d| (20..=80).contains(d));
     let Some(density_pct) = density else {
@@ -251,6 +271,8 @@ pub fn parse_command_line(argv: &[String]) -> Result<Command> {
             .map(str::to_owned)
             .collect(),
         toggles: toggles_of(&text("toggles", "corridor,tiers"))?,
+        measures: !flag("no-measures"),
+        coverage,
     })))
 }
 
@@ -291,6 +313,8 @@ mod tests {
                 history: true,
                 split: vec!["apps".into()],
                 toggles: vec![Toggle::Corridor, Toggle::Tiers],
+                measures: true,
+                coverage: vec![],
             }
         );
     }
@@ -315,6 +339,9 @@ mod tests {
             "--voronoi",
             "--split=apps,packages",
             "--toggles=tiers,archipelago",
+            "--coverage=a.info",
+            "--coverage",
+            "b.xml",
         ]);
         assert_eq!(
             (command.to.as_str(), command.out.as_deref(), command.svg.as_deref()),
@@ -329,6 +356,8 @@ mod tests {
         assert_eq!(command.toggles, [Toggle::Archipelago, Toggle::Tiers]);
         assert_eq!(lay(&["repo", "--toggles="]).toggles, []);
         assert!(!lay(&["repo", "--no-history"]).history);
+        assert_eq!(command.coverage, ["a.info", "b.xml"]);
+        assert!(!lay(&["repo", "--no-measures"]).measures);
     }
 
     #[test]
@@ -339,7 +368,7 @@ mod tests {
 
     #[test]
     fn rejects_bad_command_lines_by_name() {
-        let cases: [(&[&str], &str); 11] = [
+        let cases: [(&[&str], &str); 12] = [
             (&[], "cli/usage: name one repository"),
             (
                 &["a", "--toggles=corridor,gridiron"],
@@ -354,6 +383,10 @@ mod tests {
             (&["a", "--bogus"], "cli/usage:"),
             (&["a", "--lock=yes"], "cli/usage:"),
             (&["a", "--no-history", "--lock"], "cli/usage: --lock folds history"),
+            (
+                &["a", "--no-measures", "--coverage=x"],
+                "cli/usage: --coverage is read for the measures",
+            ),
         ];
         for (argv, message) in cases {
             let error = parse_command_line(&args(argv)).expect_err("a rejection");

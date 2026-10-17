@@ -48,7 +48,8 @@ const SUBMODULE = "160000";
 /** A commit's header, "<sha>\x02<time>\x02<email>" after its \x01 mark; a time that is no number reads 0. */
 function headerOf(token: string): { sha: string; time: number; author: string; entries: RawEntry[] } {
   const [sha = "", time = "", author = ""] = token.slice(1).split("\u0002");
-  return { sha, time: /^\d+$/.test(time) ? Number(time) : 0, author, entries: [] };
+  const seconds = /^\d+$/.test(time) ? Number(time) : 0;
+  return { sha, time: Number.isSafeInteger(seconds) ? seconds : 0, author, entries: [] };
 }
 
 /** Parses git's `log --raw -z` tokens (split at NUL) into commits. */

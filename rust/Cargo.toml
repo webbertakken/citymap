@@ -12,6 +12,7 @@ publish = false
 [workspace.dependencies]
 citymap-ground-plan = { path = "crates/ground-plan" }
 citymap-history = { path = "crates/history" }
+citymap-measures = { path = "crates/measures" }
 citymap-themes = { path = "crates/themes" }
 citymap-svg = { path = "crates/svg" }
 ethnum = "1.5.3"

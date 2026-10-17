@@ -86,6 +86,9 @@ const BY_NAME: ReadonlyMap<string, Language> = new Map([
   ["Rakefile", { name: "Ruby", syntax: "hash" }],
 ]);
 
+/** Text lower-cased in ASCII only, so every implementation folds it alike. */
+export const asciiLower = (text: string) => text.replace(/[A-Z]/g, (c) => c.toLowerCase());
+
 /** The file's name and its extension (lower case), or no extension for a name without a dot or with only a first one. */
 export function nameParts(path: string): { readonly file: string; readonly stem: string; readonly ext: string } {
   const file = path.slice(path.lastIndexOf("/") + 1);
@@ -96,5 +99,5 @@ export function nameParts(path: string): { readonly file: string; readonly stem:
 /** The language of a path, by its file name, else its extension; null when neither is known. */
 export function languageOf(path: string): Language | null {
   const { file, ext } = nameParts(path);
-  return BY_NAME.get(file) ?? BY_EXTENSION.get(ext.toLowerCase()) ?? null;
+  return BY_NAME.get(file) ?? BY_EXTENSION.get(asciiLower(ext)) ?? null;
 }

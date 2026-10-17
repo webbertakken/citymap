@@ -1,7 +1,7 @@
 // Tested by name: a source file counts as tested when a test file's name says it tests it, by the conventions of its
 // language. A proxy, found from paths alone; tests inside a file are not knowable this way.
 import { classifyLandUse } from "@citymap/ground-plan";
-import { nameParts } from "./language";
+import { asciiLower, nameParts } from "./language";
 
 type Family = "js" | "py" | "go" | "jvm" | "rs" | "rb" | "cs" | "php" | "c" | "swift" | "dart" | "ex";
 
@@ -54,14 +54,14 @@ export interface TestNames {
   readonly endings: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
-const familyOf = (path: string): Family | undefined => FAMILY_OF.get(nameParts(path).ext.toLowerCase());
+const familyOf = (path: string): Family | undefined => FAMILY_OF.get(asciiLower(nameParts(path).ext));
 const folderOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")));
 
 /** A folder with its source and test folders left out. */
 const reduced = (folder: string) =>
   folder
     .split("/")
-    .filter((segment) => segment !== "" && !ROOT_FOLDERS.has(segment.toLowerCase()))
+    .filter((segment) => segment !== "" && !ROOT_FOLDERS.has(asciiLower(segment)))
     .join("/");
 
 /** A folder's endings at segment boundaries, itself and the empty one included. */
@@ -77,14 +77,14 @@ function stemsNamed(path: string, family: Family): string[] {
   const markers = MARKERS[family];
   const stems: string[] = [];
   for (const suffix of markers.suffixes)
-    if (stem.length > suffix.length && stem.endsWith(suffix)) stems.push(stem.slice(0, -suffix.length));
+    if (stem !== suffix && stem.endsWith(suffix)) stems.push(stem.slice(0, -suffix.length));
   if (use === "tests") {
     for (const prefix of markers.prefixes)
-      if (stem.length > prefix.length && stem.startsWith(prefix)) stems.push(stem.slice(prefix.length));
+      if (stem !== prefix && stem.startsWith(prefix)) stems.push(stem.slice(prefix.length));
     if (
       folderOf(path)
         .split("/")
-        .some((segment) => TEST_FOLDERS.has(segment.toLowerCase()))
+        .some((segment) => TEST_FOLDERS.has(asciiLower(segment)))
     )
       stems.push(stem);
   }

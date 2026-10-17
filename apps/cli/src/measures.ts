@@ -1,6 +1,6 @@
 // The city's measures as the CLI reads them: the laid commit's contents, its history, and coverage reports, joined to
 // the lots the fold left. The layout is laid before and never read back, so it is the same with or without them.
-import { relative, isAbsolute } from "node:path";
+import { isAbsolute, relative, sep } from "node:path";
 import { CitymapError, type City, type Plat, type Snapshot } from "@citymap/ground-plan";
 import { listTree, readBlobs, type FileHistory } from "@citymap/history";
 import {
@@ -31,7 +31,8 @@ const tooLarge = (text: string) => Buffer.byteLength(text, "utf8") > MAX_REPORT_
 /** Where a file named on the command line lies in the repository, or null when outside it. */
 function inside(repo: string, file: string): string | null {
   const path = relative(repo, file);
-  return path === "" || path.startsWith("..") || isAbsolute(path) ? null : path.replaceAll("\\", "/");
+  const outside = path === "" || path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path);
+  return outside ? null : path.replaceAll("\\", "/");
 }
 
 /** Reads the reports `--coverage` names: a missing one is `coverage/missing`, an unreadable one `coverage/unreadable`. */
