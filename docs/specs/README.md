@@ -11,5 +11,5 @@ Follow the references below only as needed; never upfront.
 - ./006-ground-plan/ground-plan.md - when working on districts, streets, blocks, lots, edges or the plat
 - ./006-ground-plan/blueprints/README.md - when implementing the ground plan engine
 - ./007-local-repositories/local-repositories.md - when opening a repository from the machine: a picked folder
-- ./008-buildings/buildings.md - when working on buildings, measures (size, tested, history) and their channels
 - ./007-local-repositories/blueprints/README.md - when implementing opening a local repository in the viewer
+- ./008-buildings/buildings.md - when working on buildings, measures (size, tested, history) and their channels
