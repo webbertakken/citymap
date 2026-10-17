@@ -519,7 +519,13 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
 - `e2e/vitals.spec.ts` runs in its own projects (`vitals-desktop`, `vitals-phone`) once the journeys are done, so no
   other test draws at the same time; it reports the slowest interaction as an annotation. It records
   `largest-contentful-paint`, `layout-shift` and `event` entries (from 16 ms) through `PerformanceObserver` before the
-  page's scripts run, and asserts the three budgets.
+  page's scripts run, and asserts the three budgets. The phone journey ends in the Buildings view, coloured by size.
+- `e2e/vitals-linux.spec.ts` (the same projects) opens linux's city from a file the CLI laid (`CITYMAP_LINUX_CITY`;
+  skipped without one, as it is too large to bundle), stands its buildings, taps, zooms, pans and recolours on the
+  slowed phone, and asserts every answer under 200 ms; it writes the switch's time, the slowest answer and the heap to
+  `linux.json`. It asks for the machine's own graphics (`--use-angle=gl-egl`): a phone draws on its graphics processor,
+  while a headless browser's software drawing (SwiftShader) times the processor instead (linux's plan view alone takes
+  about 290 ms a frame there, against 24 ms on an integrated GPU).
 
 ## Tests
 

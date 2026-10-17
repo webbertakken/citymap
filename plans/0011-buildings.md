@@ -27,7 +27,7 @@ folder, or the CLI with its history and coverage reports. Spec: [buildings](../d
       the history the fold already reads; comments and TODOs
 - [x] CLI: coverage reports (`--coverage=<file>` and the usual paths), four formats, paths matched; unknown where not
       covered
-- [ ] Rust: the same, byte for byte; `bun run parity` with measures on every mode
+- [x] Rust: the same, byte for byte; `bun run parity` with measures on every mode
 - [x] Layout untouched: cities and locks byte-identical with and without measures on the corpus
 - [x] Bundled cities rebuilt with measures
 
