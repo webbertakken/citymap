@@ -4,6 +4,7 @@ import {
   PARITY,
   buildArgs,
   cliArgs,
+  coverageReports,
   resumePoint,
   resumeVerdict,
   saveArgs,
@@ -18,7 +19,7 @@ describe("parseSettings", () => {
   it("covers the parity repositories in both modes by default, and next.js with --long", () => {
     expect(parseSettings([])).toEqual({
       repos: [...PARITY],
-      modes: ["state", "fold", "resume"],
+      modes: ["state", "fold", "resume", "coverage"],
       features: [],
       toggles: null,
     });
@@ -39,7 +40,7 @@ describe("parseSettings", () => {
 
   it("rejects a mode it does not know", () => {
     expect(() => parseSettings(["--modes=state,quick"])).toThrow(
-      "parity/usage: --modes takes state, fold and resume, not quick",
+      "parity/usage: --modes takes state, fold, resume and coverage, not quick",
     );
   });
 });
@@ -132,5 +133,36 @@ describe("table", () => {
         "| redux | fold | differs: city.json | 0.90 s | 0.00 s | – |",
       ].join("\n"),
     );
+  });
+});
+
+describe("coverageReports", () => {
+  it("writes the four formats over a quarter of the sources each, by their usual paths", () => {
+    const sources = Array.from({ length: 7 }, (_, i) => `src/a&<"/f${i}.ts`);
+    const paths = ["README.md", "top.ts", ...sources.slice(0, 3), "pkg/x.py", ...sources.slice(3)];
+    const reports = coverageReports(paths, "demo");
+    expect(Object.keys(reports)).toEqual([
+      "coverage/lcov.info",
+      "coverage/coverage-final.json",
+      "coverage.xml",
+      "target/site/jacoco/jacoco.xml",
+    ]);
+    expect(reports["coverage/lcov.info"]).toContain(
+      'SF:/home/runner/work/demo/demo/src/a&<"/f0.ts\nDA:1,0\nend_of_record',
+    );
+    expect(reports["coverage/lcov.info"]).toContain("SF:/home/runner/work/demo/demo/nowhere/at/all.ts");
+    expect(JSON.parse(reports["coverage/coverage-final.json"]!)).toMatchObject({
+      '/home/runner/work/demo/demo/src/a&<"/f1.ts': { s: { 0: 0 } },
+    });
+    expect(reports["coverage.xml"]).toContain('filename="src/a&amp;&lt;&quot;/f2.ts"');
+    expect(reports["target/site/jacoco/jacoco.xml"]).toContain(
+      '<package name="a&amp;&lt;&quot;"><sourcefile name="f6.ts">',
+    );
+    expect(reports["target/site/jacoco/jacoco.xml"]).toContain('<package name=""><sourcefile name="x.py">');
+    const many = coverageReports(
+      Array.from({ length: 2000 }, (_, i) => `s/f${i}.go`),
+      "big",
+    );
+    expect(many["coverage/lcov.info"]!.split("SF:").length - 1).toBe(101);
   });
 });

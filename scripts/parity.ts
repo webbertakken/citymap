@@ -5,12 +5,13 @@
 // under PM2: folds take minutes.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   OUTPUTS,
   RESUMED,
   buildArgs,
   cliArgs,
+  coverageReports,
   parseSettings,
   resumePoint,
   resumeVerdict,
@@ -88,6 +89,24 @@ function compare(repo: string, source: string, mode: Mode, dir: string): Result 
     mkdirSync(join(dir, side), { recursive: true });
     const cloned = run(["git", "clone", "--shared", "--no-checkout", "--quiet", source, clone]);
     if (cloned.code !== 0) throw new Error(`parity/clone-failed repo=${repo} ${cloned.stderr.split("\n", 1)[0]}`);
+    if (mode === "coverage") {
+      const listed = run([
+        "git",
+        "-C",
+        clone,
+        "-c",
+        "core.quotepath=off",
+        "ls-tree",
+        "-r",
+        "-z",
+        "--name-only",
+        "HEAD",
+      ]);
+      for (const [path, text] of Object.entries(coverageReports(listed.stdout.split("\0").filter(Boolean), repo))) {
+        mkdirSync(dirname(join(clone, path)), { recursive: true });
+        writeFileSync(join(clone, path), text);
+      }
+    }
     const out = join(dir, `${side}-out`);
     mkdirSync(out);
     if (mode === "resume") {
