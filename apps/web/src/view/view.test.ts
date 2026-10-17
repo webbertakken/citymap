@@ -106,6 +106,26 @@ describe("declutter", () => {
     expect(declutter(labels, { ...view, zoom: 50 }, viewport).map((l) => l.text)).toContain("narrow-and-long");
   });
 
+  it("sizes a town's name to its land on screen, the largest town keeping its name in full", () => {
+    const view: View = { centre: { x: 0, z: 0 }, zoom: 10 };
+    const labels = [
+      { text: "REACT", x: 0, z: 0, size: "town", extent: 30 },
+      // 300 px of land: room for 9 letters at 20 px.
+      { text: "SERVER", x: -30, z: -15, size: "town", extent: 30 },
+      // 40 px: too narrow at 20 px (about 55 px at the fit share), room at 13 px (about 33 px).
+      { text: "CLIENT", x: 30, z: -15, size: "town", extent: 4 },
+      // 10 px: room for neither, until zoomed in.
+      { text: "TINY", x: 30, z: 15, size: "town", extent: 1 },
+    ] as const;
+    const sizes = (at: View) => Object.fromEntries(declutter(labels, at, viewport).map((l) => [l.text, l.size]));
+    expect(sizes(view)).toEqual({ REACT: "town", SERVER: "town", CLIENT: "district" });
+    // Zoomed in on it, its 25 px of land fit its name at 13 px, and at 40 px in full.
+    expect(sizes({ centre: { x: 30, z: 15 }, zoom: 25 })).toMatchObject({ TINY: "district" });
+    expect(sizes({ centre: { x: 30, z: 15 }, zoom: 40 })).toMatchObject({ TINY: "town" });
+    // The largest town keeps its name in full however small it is on screen.
+    expect(declutter([labels[3]], view, viewport)).toMatchObject([{ text: "TINY", size: "town" }]);
+  });
+
   it("counts a town name's letter spacing, so a wide name near the edge is left out rather than cut", () => {
     // 18 characters of 20 px with 0.15 em spacing: about 277 px; centred 130 px from the right edge, it does not fit.
     const view: View = { centre: { x: 0, z: 0 }, zoom: 10 };

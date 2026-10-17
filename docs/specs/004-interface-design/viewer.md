@@ -192,6 +192,8 @@ Every control meets measurable rules:
   breadcrumb keep the whole path, as two towns may share a last folder. A name shown once is not repeated nearby,
   whatever its letter case (`NET` and `net` are the same name), and smaller names appear only as the map is zoomed in
   far enough to read them.
+- A town's name is as large as its land on screen allows: in full where the town is wide enough for it, at a district
+  name's size where only that fits, and otherwise once the map is zoomed in. The largest town always shows its name.
 - Styles are the five themes of the ground plan; the viewer and the SVG export share their colours.
 
 ## Drill down
