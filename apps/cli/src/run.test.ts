@@ -2,8 +2,8 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseCity } from "@citymap/ground-plan";
 import { gitEnvironment, type Strides } from "@citymap/history";
+import { parseCityFile } from "@citymap/measures";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseCommandLine, type LayCommand } from "./args";
 import { LOCKFILE, runLay, type Io } from "./run";
@@ -55,7 +55,7 @@ describe("runLay", () => {
       command(dir, "--out=city.json", "--svg=map.svg", "--theme=night-atlas", "--verbose", "--voronoi"),
       io,
     );
-    expect(parseCity(files["city.json"]!)).toEqual(city);
+    expect(parseCityFile(files["city.json"]!).city).toEqual(city);
     expect(files["map.svg"]).toContain("<svg ");
     expect(files["map.svg"]).toContain(`class="region"`);
     expect(lines.at(-1)).toMatch(/^fold\/done repository=citymap-cli-\S+ commits=3 laid=3 lots=36 overflow=0 ms=\d+$/);
@@ -156,7 +156,7 @@ describe("runLay", () => {
     const { io, files, lines } = memoryIo();
     const city = await runLay(command(dir, "--no-history", "--out=city.json"), io);
     expect(lines.at(-1)).toMatch(/^fold\/done repository=citymap-cli-\S+ commits=1 laid=1 lots=36 overflow=0 ms=\d+$/);
-    expect(parseCity(files["city.json"]!)).toEqual(city);
+    expect(parseCityFile(files["city.json"]!).city).toEqual(city);
     // The state of an earlier commit, and a lockfile left alone.
     const earlier = await runLay(
       command(dir, "--no-history", `--to=${git(dir, "rev-list", "--reverse", "HEAD").split("\n")[0]}`),
@@ -178,5 +178,138 @@ describe("runLay", () => {
   it("rejects a ref that names no commit", async () => {
     const dir = repo(1);
     await expect(runLay(command(dir, "--to=nope"), memoryIo().io)).rejects.toThrow("history/git-failed");
+  });
+});
+
+/** A repository of sources, a test that names one, a manifest and an image, by two people. */
+function measured(): string {
+  const dir = mkdtempSync(join(tmpdir(), "citymap-cli-measures-"));
+  dirs.push(dir);
+  git(dir, "init", "-q", "-b", "main");
+  const as = (email: string) => {
+    git(dir, "add", "-A");
+    git(dir, "-c", `user.email=${email}`, "-c", "user.name=x", "commit", "-q", "-m", email);
+  };
+  mkdirSync(join(dir, "src"), { recursive: true });
+  writeFileSync(join(dir, "src/a.ts"), "// TODO: a\nexport const a = 1;\n");
+  writeFileSync(join(dir, "src/b.ts"), "export const b = 2;\n");
+  writeFileSync(join(dir, "src/copy.ts"), "export const b = 2;\n");
+  writeFileSync(join(dir, "src/a.test.ts"), "test();\n");
+  writeFileSync(join(dir, "package.json"), "{}\n");
+  as("ann@x.org");
+  writeFileSync(join(dir, "src/a.ts"), "// TODO: a\nexport const a = 1;\nexport const c = 3;\n");
+  writeFileSync(join(dir, "logo.png"), Buffer.from([0x89, 0, 1, 2]));
+  as("bob@x.org");
+  return dir;
+}
+const fileOf = (text: string, path: string) =>
+  Object.values(parseCityFile(text).measures!.lots)
+    .flatMap((town) => Object.values(town))
+    .flatMap((lot) => lot.files)
+    .find((f) => f.path === path);
+
+describe("runLay's measures", () => {
+  it("writes sizes, comments, tests by name and history beside the layout, which stays as it was", async () => {
+    const dir = measured();
+    const { io, files, lines } = memoryIo();
+    const city = await runLay(command(dir, "--out=city.json"), io);
+    const text = files["city.json"]!;
+    const { measures } = parseCityFile(text);
+    expect(measures).toMatchObject({ source: "cli", size: "lines", tested: "name" });
+    expect(measures!.available).toEqual(["size", "tested", "kind", "recency", "churn", "authors", "comments"]);
+    expect(fileOf(text, "src/a.ts")).toMatchObject({
+      bytes: 51,
+      lines: 3,
+      comments: 1,
+      todos: 1,
+      named: true,
+      commits: 2,
+      authors: 2,
+    });
+    expect(fileOf(text, "src/b.ts")).toMatchObject({ named: false, commits: 1, authors: 1 });
+    expect(fileOf(text, "src/copy.ts")).toMatchObject({ bytes: 20, lines: 1 });
+    expect(fileOf(text, "logo.png")).toMatchObject({ bytes: 4 });
+    expect(fileOf(text, "logo.png")?.lines).toBeUndefined();
+    expect(lines.at(-2)).toBe("measures/done source=cli size=lines tested=name lots=5 files=5 read=6 unread=0");
+    const bare = memoryIo();
+    await runLay(command(dir, "--out=city.json", "--no-measures"), bare.io);
+    expect(bare.files["city.json"]).toBe(text.replace(/"measures":\{.*\},"repository"/, `"repository"`));
+    expect(parseCityFile(bare.files["city.json"]!)).toEqual({ city, measures: null });
+  });
+
+  it("reads coverage named on the command line, or at the usual paths, and says which it skipped", async () => {
+    const dir = measured();
+    const lcov = "SF:src/a.ts\nDA:1,1\nDA:2,0\nend_of_record\nSF:gone.ts\nDA:1,1\nend_of_record\n";
+    const report = join(dir, "report.info");
+    const named = memoryIo({ [report]: lcov });
+    await runLay(command(dir, "--out=city.json", `--coverage=${report}`), named.io);
+    expect(parseCityFile(named.files["city.json"]!).measures?.tested).toBe("coverage");
+    expect(fileOf(named.files["city.json"]!, "src/a.ts")).toMatchObject({ covered: 1, executable: 2 });
+    expect(fileOf(named.files["city.json"]!, "src/b.ts")?.named).toBeUndefined();
+    expect(named.lines).toContain(`measures/report path=${report} format=lcov files=2 matched=1`);
+    const outside = memoryIo({ "/elsewhere/lcov.info": lcov });
+    await runLay(command(dir, "--out=city.json", "--coverage=/elsewhere/lcov.info"), outside.io);
+    expect(fileOf(outside.files["city.json"]!, "src/a.ts")).toMatchObject({ covered: 1, executable: 2 });
+    const usual = memoryIo({
+      [`${dir}/coverage/lcov.info`]: lcov,
+      [`${dir}/coverage.xml`]: "<html/>",
+      [`${dir}/lcov.info`]: "x".repeat(300 * 1024 * 1024),
+    });
+    await runLay(command(dir, "--out=city.json", "--no-history"), usual.io);
+    expect(usual.lines).toContain("measures/report-skipped path=lcov.info reason=too-large");
+    expect(usual.lines).toContain("measures/report-skipped path=coverage.xml reason=unreadable");
+    expect(usual.lines).toContain("measures/report path=coverage/lcov.info format=lcov files=2 matched=1");
+    expect(parseCityFile(usual.files["city.json"]!).measures!.available).toEqual([
+      "size",
+      "tested",
+      "kind",
+      "comments",
+    ]);
+    expect(fileOf(usual.files["city.json"]!, "src/a.ts")?.commits).toBeUndefined();
+  });
+
+  it("rejects a named report that is missing, unreadable or too large, before the fold", async () => {
+    const dir = measured();
+    await expect(runLay(command(dir, "--out=c.json", "--coverage=/nowhere"), memoryIo().io)).rejects.toThrow(
+      "coverage/missing",
+    );
+    await expect(
+      runLay(command(dir, "--out=c.json", "--coverage=r.xml"), memoryIo({ "r.xml": "<x/>" }).io),
+    ).rejects.toThrow("coverage/unreadable");
+    await expect(
+      runLay(command(dir, "--out=c.json", "--coverage=r"), memoryIo({ r: "x".repeat(300 * 1024 * 1024) }).io),
+    ).rejects.toThrow("coverage/unreadable: r is larger than");
+  });
+
+  it("measures a partial clone without fetching: what it does not hold is unknown", async () => {
+    const source = measured();
+    git(source, "config", "uploadpack.allowFilter", "true");
+    const clone = mkdtempSync(join(tmpdir(), "citymap-cli-partial-"));
+    dirs.push(clone);
+    execFileSync("git", ["clone", "-q", "--no-checkout", "--filter=blob:none", `file://${source}`, clone], {
+      env: gitEnvironment(),
+    });
+    const { io, files, lines } = memoryIo();
+    await runLay(command(clone, "--out=city.json"), io);
+    expect(lines.at(-2)).toBe("measures/done source=cli size=lines tested=name lots=5 files=5 read=0 unread=6");
+    expect(fileOf(files["city.json"]!, "src/a.ts")).toEqual({
+      path: "src/a.ts",
+      named: true,
+      changed: expect.any(Number),
+      commits: 2,
+      authors: 2,
+    });
+  });
+
+  it("propagates a failure that is not a report's", async () => {
+    const dir = measured();
+    const io: Io = {
+      ...memoryIo().io,
+      readFile: (path) => {
+        if (path.endsWith("coverage/lcov.info")) throw new Error("disk on fire");
+        return null;
+      },
+    };
+    await expect(runLay(command(dir, "--out=c.json", "--no-history"), io)).rejects.toThrow("disk on fire");
   });
 });

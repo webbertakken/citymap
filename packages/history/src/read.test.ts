@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { gitEnvironment } from "./env";
+import { FileHistory } from "./file-history";
 import { parseRawLog, readHistory, type HistoryEvent } from "./read";
 import type { Strides } from "./schedule";
 
@@ -306,11 +307,22 @@ describe("parseRawLog", () => {
 
   it("skips empty tokens and yields every commit", () => {
     const commits = [
-      ...parseRawLog(["\u0001" + "a".repeat(40), "", "\n:100644 100644 x y M", "f.ts", "\n\u0001" + "b".repeat(40)]),
+      ...parseRawLog([
+        "\u0001" + "a".repeat(40) + "\u000212\u0002A@B",
+        "",
+        "\n:100644 100644 x y M",
+        "f.ts",
+        "\n\u0001" + "b".repeat(40) + "\u0002soon",
+      ]),
     ];
     expect(commits).toEqual([
-      { sha: "a".repeat(40), entries: [{ mode: "100644", blob: "y", status: "M", path: "f.ts" }] },
-      { sha: "b".repeat(40), entries: [] },
+      {
+        sha: "a".repeat(40),
+        time: 12,
+        author: "A@B",
+        entries: [{ mode: "100644", blob: "y", status: "M", path: "f.ts" }],
+      },
+      { sha: "b".repeat(40), time: 0, author: "", entries: [] },
     ]);
   });
 
@@ -352,5 +364,52 @@ describe("readHistory bounds", () => {
     git(dir, "update-index", "--add", "--cacheinfo", `100644,${blob},${long}`);
     git(dir, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "long");
     await expect(collect(dir)).rejects.toThrow("snapshot/bad-path");
+  });
+});
+
+describe("readHistory with a file history", () => {
+  it("records each file's last change, commits and authors, through renames, from every commit", async () => {
+    const dir = repo();
+    const as = (email: string, time: number, message: string) => {
+      git(dir, "add", "-A");
+      git(
+        dir,
+        "-c",
+        `user.email=${email}`,
+        "-c",
+        "user.name=x",
+        "commit",
+        "-q",
+        "--allow-empty",
+        `--date=@${time} +0000`,
+        "-m",
+        message,
+      );
+    };
+    write(dir, "a.ts", "1");
+    write(dir, "b.ts", "1");
+    process.env.GIT_COMMITTER_DATE = "@1000 +0000";
+    as("Ann@X.org", 1000, "one");
+    write(dir, "a.ts", "2");
+    process.env.GIT_COMMITTER_DATE = "@2000 +0000";
+    as("ann@x.org", 2000, "two");
+    git(dir, "mv", "a.ts", "c.ts");
+    write(dir, "sub/.keep", "");
+    process.env.GIT_COMMITTER_DATE = "@3000 +0000";
+    as("bob@x.org", 3000, "three");
+    git(dir, "rm", "-q", "b.ts");
+    process.env.GIT_COMMITTER_DATE = "@4000 +0000";
+    as("cy@x.org", 4000, "four");
+    delete process.env.GIT_COMMITTER_DATE;
+    const files = new FileHistory();
+    const snaps = [];
+    for await (const s of readHistory(dir, { fileHistory: files })) snaps.push(s);
+    const last = snaps.at(-1)!;
+    const identity = (path: string) => last.files.find((f) => f.path === path)!.identity;
+    expect(files.of(identity("c.ts"))).toEqual({ changed: 3000, commits: 3, authors: 2 });
+    expect(files.of(identity("sub/.keep"))).toEqual({ changed: 3000, commits: 1, authors: 1 });
+    expect(files.of("b.ts@0")).toEqual({ changed: 1000, commits: 1, authors: 1 });
+    expect(files.of("nothing@0")).toBeUndefined();
+    expect(files.authorsAcross([identity("c.ts"), "b.ts@0", "nothing@0"])).toBe(2);
   });
 });

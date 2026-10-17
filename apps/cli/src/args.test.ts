@@ -22,6 +22,8 @@ describe("parseCommandLine", () => {
       history: true,
       split: ["apps"],
       toggles: ["corridor", "tiers"],
+      measures: true,
+      coverage: [],
     });
   });
 
@@ -44,6 +46,8 @@ describe("parseCommandLine", () => {
       "--voronoi",
       "--split=apps,packages",
       "--toggles=tiers,archipelago",
+      "--coverage=a.info",
+      "--coverage=b.xml",
     ]);
     expect(parsed).toMatchObject({
       to: "main",
@@ -61,7 +65,9 @@ describe("parseCommandLine", () => {
       voronoi: true,
       split: ["apps", "packages"],
       toggles: ["archipelago", "tiers"],
+      coverage: ["a.info", "b.xml"],
     });
+    expect(parseCommandLine(["repo", "--no-measures"])).toMatchObject({ measures: false, coverage: [] });
     expect(parseCommandLine(["repo", "--toggles="])).toMatchObject({ toggles: [] });
     expect(parseCommandLine(["repo", "--split="])).toMatchObject({ split: [] });
     expect(parseCommandLine(["repo", "--no-history"])).toMatchObject({ history: false });
@@ -88,6 +94,7 @@ describe("parseCommandLine", () => {
     [["a", "--jog=some"], "cli/usage: --jog"],
     [["a", "--bogus"], "cli/usage:"],
     [["a", "--no-history", "--lock"], "cli/usage: --lock folds history"],
+    [["a", "--no-measures", "--coverage=x"], "cli/usage: --coverage is read for the measures"],
   ])("rejects %j", (argv, message) => {
     expect(() => parseCommandLine(argv)).toThrow(message);
   });

@@ -25,6 +25,10 @@ export interface LayCommand {
   readonly split: readonly string[];
   /** The archetype toggles on, in their own order. */
   readonly toggles: readonly Toggle[];
+  /** Write the measures section beside the layout. */
+  readonly measures: boolean;
+  /** Coverage reports to read instead of those at the usual paths. */
+  readonly coverage: readonly string[];
 }
 
 export type Command = LayCommand | { readonly kind: "help" };
@@ -49,6 +53,9 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --no-warp           draw the plan without its organic warp
   --no-loops          leave dead ends unjoined (default: nearby dead ends are joined by lanes)
   --no-history        lay the tree at --to once, every file at once, without folding its history (no --lock)
+  --coverage=<file>   a coverage report (LCOV, Istanbul JSON, Cobertura or JaCoCo) to read instead of the usual
+                      paths; repeat it for several
+  --no-measures       write the city without its measures (size, tested, history)
   --voronoi           fill each folder's region, the land nearer its lots than any other's, in the SVG
   --verbose           log every plan decision
   --help              show this help`;
@@ -83,6 +90,8 @@ export function parseCommandLine(argv: readonly string[]): Command {
   if (values.help) return { kind: "help" };
   if (positionals.length !== 1) return usage("name one repository");
   if (values["no-history"] && values.lock) return usage("--lock folds history; it cannot go with --no-history");
+  if (values["no-measures"] && values.coverage.length > 0)
+    return usage("--coverage is read for the measures; it cannot go with --no-measures");
   const density = Number(values.density);
   if (!Number.isInteger(density) || density < 20 || density > 80)
     usage(`--density is an integer from 20 to 80, not ${values.density}`);
@@ -105,6 +114,8 @@ export function parseCommandLine(argv: readonly string[]): Command {
     history: !values["no-history"],
     split: values.split.split(",").filter((group) => group !== ""),
     toggles: togglesOf(values.toggles),
+    measures: !values["no-measures"],
+    coverage: values.coverage,
   };
 }
 
@@ -130,6 +141,8 @@ function parse(argv: readonly string[]) {
       "no-history": { type: "boolean", default: false },
       split: { type: "string", default: "apps" },
       toggles: { type: "string", default: "corridor,tiers" },
+      coverage: { type: "string", multiple: true, default: [] },
+      "no-measures": { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
   });
