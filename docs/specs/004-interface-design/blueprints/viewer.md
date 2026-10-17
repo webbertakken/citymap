@@ -22,7 +22,10 @@ in `BufferGeometry`.
 - `plinths(lots, colours)`: each lot extruded to `LOT_HEIGHT` = 0.12 u: a top face and side quads; vacant lots flat at
   block height in the reserve colour.
 - `buildScene(city, theme)` → `{ layers: { name, positions, colours, indices }[], labels, bounds }`; labels are town
-  names and the districts the SVG renderer would label (same rule), at their centroids.
+  names, each by `shortTownName` (the text after its last `/`, so `apps/web old town` is `web old town`), and the
+  districts the SVG renderer would label (same rule), at their centroids. The SVG export keeps whole town names. The
+  town card's title is `shortTownName` too, with a "Folder" row holding the whole name when the two differ; the drawer,
+  the breadcrumb and the cards' place lines keep the whole name.
 - Budgets: next.js (about 8,000 lots) builds in under 300 ms and under 64 MB of arrays.
 
 ## Picking (`packages/scene`)

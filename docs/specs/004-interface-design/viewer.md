@@ -187,9 +187,11 @@ Every control meets measurable rules:
 - One scene: town grounds, blocks, roads (casing and fill), water, parks and plazas flat; lots as low plinths.
 - The camera is orthographic and looks straight down (plan view).
 - Pan by dragging or the arrow keys; zoom by the wheel, a pinch, or `+` and `-`; `0` fits the city to the window.
-- Town names and the largest district names float over the map as text, never as images, and never overlap. A name shown
-  once is not repeated nearby, whatever its letter case (`NET` and `net` are the same name), and smaller names appear
-  only as the map is zoomed in far enough to read them.
+- Town names and the largest district names float over the map as text, never as images, and never overlap. A town whose
+  name is a path (`packages/react-reconciler`) is labelled by its last folder (`REACT-RECONCILER`); the drawer and the
+  breadcrumb keep the whole path, as two towns may share a last folder. A name shown once is not repeated nearby,
+  whatever its letter case (`NET` and `net` are the same name), and smaller names appear only as the map is zoomed in
+  far enough to read them.
 - Styles are the five themes of the ground plan; the viewer and the SVG export share their colours.
 
 ## Drill down
@@ -225,7 +227,9 @@ what it means, so a person who has never read this spec understands the map.
   - a road: its class with its meaning (a lane inside a neighbourhood, a street, a collector or avenue between
     districts, the boulevard through a city, a highway between towns), and for a highway the towns it joins;
   - a folder's ground: the folder, where it is, how many lots and folders it holds, and its layout in words;
-  - a town: its name, its lots and districts, and its form in words (e.g. "a radial town: districts round a centre").
+  - a town: its name, its lots and districts, and its form in words (e.g. "a radial town: districts round a centre");
+    for a town whose name is a path (a workspace group's or a separate town), its last folder as the title and the whole
+    path as its folder.
 - **A hint at the foot**: "Click to select" on a pointer; what selecting offers.
 - The card follows the pointer, never covers it, and goes with Escape or when the pointer leaves the map.
 - A click (or a tap) selects what is under the pointer: the drawer shows the same details under "Selected", where

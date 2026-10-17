@@ -1,5 +1,5 @@
 // A hit, said in plain words: the one description the hover card and the drawer's selection both show.
-import { folderOf, parseAddress, type Hit } from "@citymap/scene";
+import { folderOf, parseAddress, shortTownName, type Hit } from "@citymap/scene";
 import { BLOCK, HIGHWAY, LAYOUT, OLD, ROAD, TOWN_FORM, USE, VACANT } from "./words";
 
 export type CardKind =
@@ -135,10 +135,11 @@ export function describeHit(hit: Hit): Card {
   return {
     kind: "town",
     eyebrow: hit.old ? "Old town" : "Town",
-    title: hit.town,
+    title: shortTownName(hit.town),
     place: [],
     meaning: hit.old ? `${TOWN_FORM[hit.form]} ${OLD}` : TOWN_FORM[hit.form],
     rows: [
+      ...(shortTownName(hit.town) === hit.town ? [] : [{ label: "Folder", value: hit.town }]),
       { label: "Lots", value: hit.lots.toLocaleString("en-GB") },
       { label: "Districts", value: hit.districts.toLocaleString("en-GB") },
     ],
