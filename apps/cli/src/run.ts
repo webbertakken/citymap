@@ -7,9 +7,12 @@ import {
   parseLock,
   serialiseCity,
   serialiseLock,
+  separateMembers,
+  separationList,
   type City,
   type FoldState,
   type Options,
+  type Snapshot,
 } from "@citymap/ground-plan";
 import { FOLD_STRIDES, isAncestor, readHistory, readTree, resolveCommit, type Strides } from "@citymap/history";
 import { renderCity } from "@citymap/svg";
@@ -92,7 +95,9 @@ export async function runLay(
     : (async function* () {
         yield await readTree(repo, target, { onEvent });
       })();
+  let last: Snapshot | null = null;
   for await (const snapshot of snapshots) {
+    last = snapshot;
     const laid = layCity(snapshot, state, options);
     state = laid.state;
     city = laid.city;
@@ -118,6 +123,16 @@ export async function runLay(
       }),
     );
   if (command.lock) saveLock(target, index);
+  // What stood apart at the last commit: how many towns each separation laid.
+  const apart = separateMembers(last!, options.separate);
+  if (apart.length > 0)
+    io.log(
+      `fold/separate towns=${apart.length} by=${separationList(options.separate)
+        .map((s) => [s, apart.filter((m) => m.by === s).length] as const)
+        .filter(([, n]) => n > 0)
+        .map(([s, n]) => `${s}:${n}`)
+        .join(",")}`,
+    );
   // The commits folded, the lock's own included; windows lay fewer of them.
   const commits = index + 1 - (lock?.index ?? 0);
   io.log(

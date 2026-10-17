@@ -115,8 +115,9 @@ lockfile written under `split:` is set aside by the setting mismatch and folded 
 
 ## Observability
 
-- `layCity` emits `plat/separate` once per lay that lays any separate town, with `towns` (count) and `by` (counts per
-  separation, `SEPARATIONS` order, e.g. `workspaces:12,submodules:2`); the CLI logs it with the other plat events.
+- The CLI logs `fold/separate towns=<n> by=<separation>:<count>,…` once, after the fold, for the last commit laid
+  (`SEPARATIONS` order, separations laying none left out); nothing when no town stands apart. `layCity` emits no event
+  of its own for it, so a fold's log does not grow by a line per commit.
 
 ## Testing
 

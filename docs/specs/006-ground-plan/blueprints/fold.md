@@ -100,6 +100,11 @@ Module: `packages/history/src/submodules.ts`; spec: [ground plan](../ground-plan
   difference between the last expansion and this one is applied as one commit at that index (`D` for paths gone, `A` for
   new paths, `M` for changed blobs, exact renames by equal blob ids), after the commit's own entries. So a resumed read
   expands at the same indices as the uninterrupted one, and births carry the same indices.
+- `Pins` keeps the gitlinks and their last expansions. `prepare(commits, first, expandsAt, gitmodules, readTexts)` runs
+  before a chunk of the log is applied: it follows the chunk's raw entries (gitlinks and `.gitmodules` blobs only, which
+  expansions never change) to every expansion point, and reads each pin that will have moved there, all in parallel,
+  each named by `.gitmodules` as it then stands. `move(index)` is then synchronous: it takes the prepared expansions,
+  emits the events in path order, and returns the changes; a pin not prepared is `engine/invariant`.
 - A single state expands every gitlink once.
 - `Snapshot.submodules`: the gitlinks' paths (read or not), sorted, when any.
 

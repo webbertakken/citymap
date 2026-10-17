@@ -40,18 +40,18 @@ Branch `feat/separate-towns`, stacked on `local-beside-search` (#36); rebase ont
 
 ## Phase 2: TypeScript history and CLI
 
-- [ ] `.gitmodules` parsed (path, name, url) at the commits that change it, as manifests are
-- [ ] Single state (`tree.ts`): a gitlink's pinned tree read from `.git/modules/<name>` or the submodule's `.git`;
+- [x] `.gitmodules` parsed (path, name, url) at the commits that change it, as manifests are
+- [x] Single state (`tree.ts`): a gitlink's pinned tree read from `.git/modules/<name>` or the submodule's `.git`;
       nested; unreachable as one file; `history/submodule-unavailable`
-- [ ] Fold (`read.ts`): a moved gitlink's tree difference (births, deletions, exact renames), inside windows too; resume
+- [x] Fold (`read.ts`): a moved gitlink's tree difference (births, deletions, exact renames), inside windows too; resume
       from a lock
 - [x] `--separate=` replaces `--split=` (usage, validation); parity and stability scripts
-- [ ] Tests on real fixture repositories with submodules (initialised, not initialised, nested, moved)
-- [ ] Parity fixtures regenerated
-- [ ] Commit
+- [x] Tests on real fixture repositories with submodules (initialised, not initialised, nested, moved)
+- [x] Commit
 
 ## Phase 3: Rust
 
+- [ ] Parity fixtures regenerated (the defaults changed; Rust follows in this phase)
 - [ ] Port separations, parts, city fields, `.gitmodules`, submodule trees in single state and fold, `--separate=`
 - [ ] Rust tests; `bun run rust:check`
 - [ ] `bun run parity` with the defaults, each separation alone, and none; a repository with submodules (rust, deno)
