@@ -50,6 +50,11 @@ const isFile = (path: string) => {
     return false;
   }
 };
+/**
+ * Git pointed at a submodule's git data. Its working tree is named as the git data itself: git would otherwise change into
+ * the configured `core.worktree`, and fail where that folder is gone (a submodule deinitialised, moved or removed).
+ */
+const onGitData = (gitData: string) => [`--git-dir=${gitData}`, `--work-tree=${gitData}`];
 const within = (path: string, root: string) => {
   const r = relative(root, path);
   return r === "" || (!r.startsWith("..") && !isAbsolute(r));
@@ -157,7 +162,7 @@ export class SubmoduleReader {
     try {
       const { stdout } = await run(
         "git",
-        [`--git-dir=${gitData}`, "-c", "core.quotepath=off", "ls-tree", "-r", "-z", commit],
+        [...onGitData(gitData), "-c", "core.quotepath=off", "ls-tree", "-r", "-z", commit],
         { env: gitEnvironment(), maxBuffer: 1 << 30 },
       );
       return stdout
@@ -175,7 +180,7 @@ export class SubmoduleReader {
 
   private async catBlob(gitData: string, blob: string): Promise<string> {
     try {
-      const { stdout } = await run("git", [`--git-dir=${gitData}`, "cat-file", "blob", blob], {
+      const { stdout } = await run("git", [...onGitData(gitData), "cat-file", "blob", blob], {
         env: gitEnvironment(),
       });
       return stdout;

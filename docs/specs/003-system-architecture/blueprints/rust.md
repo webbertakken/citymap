@@ -185,10 +185,10 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   through `read_more` (TypeScript reads them per chunk, `Workspaces.fallbacks`); the answer is the same.
 - Submodules: `gitmodules.rs` (`parse_gitmodules`, `is_safe_module_path`, its patterns on `regress`) and `submodules.rs`
   (`SubmoduleReader`, `expand_all`, `expand`, `Pins`) mirror `gitmodules.ts` and `submodules.ts`: the same git calls
-  (`rev-parse --git-common-dir` once, `--git-dir=<data> ls-tree -r -z`, `cat-file blob` for a nested `.gitmodules`), the
-  same git-data lookup and its containment check (paths resolved lexically, as `path.resolve` and `path.relative` do),
-  the same depth limit, the same expansion indices, the same synthetic commit and the same events. The tree state's
-  gitlinks live in `Pins.gitlinks`.
+  (`rev-parse --git-common-dir` once, `--git-dir=<data> --work-tree=<data> ls-tree -r -z`, `cat-file blob` for a nested
+  `.gitmodules`), the same git-data lookup and its containment check (paths resolved lexically, as `path.resolve` and
+  `path.relative` do), the same depth limit, the same expansion indices, the same synthetic commit and the same events.
+  The tree state's gitlinks live in `Pins.gitlinks`.
 - The reader thread applies one commit at a time, so `Pins` has no `prepare`: at each expansion point `move_pins` reads
   every moved pin it has not read before, one after another, each named by `.gitmodules` as the tree state then holds it
   (its blob read through the `BlobReader`, only when a pin is read). A pin read once is kept by path and pin, as

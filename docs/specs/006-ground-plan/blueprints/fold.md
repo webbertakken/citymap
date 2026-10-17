@@ -89,9 +89,12 @@ Module: `packages/history/src/submodules.ts`; spec: [ground plan](../ground-plan
   once), else the working tree's `<dir>/<path>/.git` (a directory, or a file `gitdir: <p>` resolved against
   `<dir>/<path>`); nested ones from their parent's git data (`<git data>/modules/<name>`, names from the parent's pinned
   `.gitmodules`), down to `SUBMODULE_DEPTH` = 8 levels.
-- `expand(path, commit)`: the pinned tree, `git --git-dir=<git data> -c core.quotepath=off ls-tree -r -z <commit>`, each
-  entry's path prefixed with `<path>/`; nested gitlinks expand in turn. Kept per `(git data, commit)` while the read
-  runs (a pin seen again reads nothing).
+- `expand(path, commit)`: the pinned tree,
+  `git --git-dir=<git data> --work-tree=<git data> -c core.quotepath=off ls-tree -r -z <commit>`, each entry's path
+  prefixed with `<path>/`; nested gitlinks expand in turn. Every git call on git data names the git data as its own
+  working tree: git would otherwise change into its configured `core.worktree` and fail where that folder is gone (a
+  submodule deinitialised, moved or removed), though the objects are all there. Kept per `(git data, commit)` while the
+  read runs (a pin seen again reads nothing).
 - Unread (no git data, the commit or a tree missing, depth exceeded): the one entry `<path>/.gitlink` with blob id the
   pinned commit, and `history/submodule-unavailable` (path, index, reason: `no-git-data`, `missing-commit`, `depth`,
   `bad-name`).

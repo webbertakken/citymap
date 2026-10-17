@@ -34,6 +34,16 @@ describe("SubmoduleReader", () => {
     expect(lib.unread).toEqual([]);
   });
 
+  it("reads a submodule whose working folder is gone from its git data", async () => {
+    const { parent, pin } = withSubmodule();
+    // The git data names the folder as its working tree; the reader does not need it.
+    rmSync(join(parent, "vendor/lib"), { recursive: true, force: true });
+    const lib = (await new SubmoduleReader(parent).expandAll(gitlinks(parent), gitmodules(parent))).get("vendor/lib")!;
+    expect(lib.commit).toBe(pin);
+    expect([...lib.files.keys()]).toEqual(["vendor/lib/src/a.ts", "vendor/lib/src/b.ts"]);
+    expect(lib.unread).toEqual([]);
+  });
+
   it("lays a submodule without git data as one .gitlink file, its blob the pin", async () => {
     const { parent, pin } = withSubmodule();
     const clone = repo();

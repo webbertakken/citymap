@@ -78,6 +78,23 @@ fn reads_an_initialised_submodule_s_pinned_tree_from_git_modules_under_its_folde
 }
 
 #[test]
+fn reads_a_submodule_whose_working_folder_is_gone_from_its_git_data() {
+    let (parent, _lib, pin) = with_submodule("vendor/lib");
+    // The git data names the folder as its working tree; the reader does not need it.
+    std::fs::remove_dir_all(parent.path().join("vendor/lib")).expect("removed");
+    let names = gitmodules(parent.path());
+    let lib = expand_one(
+        &mut SubmoduleReader::new(parent.path()),
+        &gitlinks(parent.path()),
+        Some(&names),
+        "vendor/lib",
+    );
+    assert_eq!(lib.commit, pin);
+    assert_eq!(keys(&lib), ["vendor/lib/src/a.ts", "vendor/lib/src/b.ts"]);
+    assert_eq!(lib.unread, []);
+}
+
+#[test]
 fn lays_a_submodule_without_git_data_as_one_gitlink_file_its_blob_the_pin() {
     let (parent, _lib, pin) = with_submodule("vendor/lib");
     let clone = Repo::new();
