@@ -84,6 +84,14 @@
         "@citymap/ground-plan": "workspace:*",
       },
     },
+    "packages/measures": {
+      "name": "@citymap/measures",
+      "version": "0.0.0",
+      "dependencies": {
+        "@citymap/ground-plan": "workspace:*",
+        "valibot": "1.5.0",
+      },
+    },
     "packages/scene": {
       "name": "@citymap/scene",
       "version": "0.0.0",
@@ -136,6 +144,8 @@
     "@citymap/ground-plan": ["@citymap/ground-plan@workspace:packages/ground-plan"],
 
     "@citymap/history": ["@citymap/history@workspace:packages/history"],
+
+    "@citymap/measures": ["@citymap/measures@workspace:packages/measures"],
 
     "@citymap/scene": ["@citymap/scene@workspace:packages/scene"],
 

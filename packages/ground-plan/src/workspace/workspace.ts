@@ -15,7 +15,9 @@ const MANIFESTS = new Set([
 const MANIFEST_SUFFIXES = [".csproj", ".gemspec"];
 
 const folderOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")));
-const isManifest = (name: string) => MANIFESTS.has(name) || MANIFEST_SUFFIXES.some((suffix) => name.endsWith(suffix));
+/** Whether a file name is a package manifest: a workspace member is a folder directly holding one. */
+export const isManifestName = (name: string) =>
+  MANIFESTS.has(name) || MANIFEST_SUFFIXES.some((suffix) => name.endsWith(suffix));
 /** The folders with no other folder of the set above them, sorted: linear in the set, walking each one's ancestors. */
 function outermost(folders: ReadonlySet<string>): string[] {
   const nested = (folder: string) => {
@@ -31,7 +33,7 @@ export function workspaceMembers(paths: readonly string[], declared?: readonly s
   const folders = new Set<string>();
   for (const path of paths) {
     const folder = folderOf(path);
-    if (folder !== "" && isManifest(path.slice(path.lastIndexOf("/") + 1))) folders.add(folder);
+    if (folder !== "" && isManifestName(path.slice(path.lastIndexOf("/") + 1))) folders.add(folder);
   }
   return outermost(folders);
 }
