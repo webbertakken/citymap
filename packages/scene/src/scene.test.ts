@@ -1,7 +1,7 @@
 import { DEFAULT_LAND_USES, initialState, layCity, type City, type Pt } from "@citymap/ground-plan";
 import { THEMES } from "@citymap/themes";
 import { describe, expect, it } from "vitest";
-import { buildScene, flatLayer, plinths, roadRibbon, triangulate, LOT_HEIGHT } from "./scene";
+import { buildScene, flatLayer, roadRibbon, triangulate } from "./scene";
 
 const square: Pt[] = [
   { x: 0, y: 0 },
@@ -92,14 +92,6 @@ describe("roadRibbon", () => {
   });
 });
 
-describe("plinths", () => {
-  it("extrudes each lot: a top and a side quad per edge", () => {
-    const layer = plinths([square], ["#00ff00"], 0.1);
-    expect(layer.positions.length / 3).toBe(4 + 4 * 4);
-    expect(Math.max(...[...layer.positions].filter((_, i) => i % 3 === 1))).toBeCloseTo(0.1 + LOT_HEIGHT);
-  });
-});
-
 /** The road layer's vertex positions. */
 const roadPositions = (c: City) =>
   buildScene(c, THEMES["paper-atlas"]).layers.find((l) => l.name === "roads")!.positions;
@@ -141,6 +133,17 @@ describe("buildScene", () => {
     expect(scene.labels[0]!.extent).toBeCloseTo(side, 9);
     expect(scene.labels.every((l) => l.extent > 0)).toBe(true);
     expect(scene.bounds.max.x).toBeGreaterThan(scene.bounds.min.x);
+    // Every lot that holds files is a building: a roof and four walls of its own, in the city's order.
+    const lots = city.towns.flatMap((t) => t.lots.filter((l) => !l.vacant));
+    expect(scene.buildings.order).toHaveLength(lots.length);
+    expect(scene.buildings.order[0]).toEqual({
+      town: city.towns[0]!.key,
+      key: lots[0]!.key,
+      district: lots[0]!.district,
+      use: lots[0]!.use,
+    });
+    expect(scene.buildings.positions.length / 3).toBe(lots.reduce((n, l) => n + 5 * l.pts.length, 0));
+    expect(scene.layers.find((l) => l.name === "lots")!.positions.length).toBe(0);
   });
 
   it("draws a road at its own width when its right of way narrows it", () => {
@@ -158,8 +161,10 @@ describe("buildScene", () => {
       ...city,
       towns: [{ ...town, lots: town.lots.map((l) => Object.assign({}, l, { vacant: true })) }],
     };
-    const lots = buildScene(vacant, THEMES.nolli).layers.find((l) => l.name === "lots")!;
+    const drawn = buildScene(vacant, THEMES.nolli);
+    const lots = drawn.layers.find((l) => l.name === "lots")!;
     expect(lots.positions.length / 3).toBe(town.lots.reduce((sum, l) => sum + l.pts.length, 0));
+    expect(drawn.buildings.order).toEqual([]);
     const empty = buildScene({ repository: "x", commit: "worktree", towns: [], highways: [] }, THEMES.dracula);
     expect(empty.layers.every((l) => l.positions.length === 0)).toBe(true);
     expect(empty.bounds).toEqual({ min: { x: 0, z: 0 }, max: { x: 0, z: 0 } });

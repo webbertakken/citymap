@@ -6,6 +6,8 @@ export type LocalPhase =
   | { readonly phase: "index" }
   | { readonly phase: "folder"; readonly files: number }
   | { readonly phase: "manifests" }
+  | { readonly phase: "contents"; readonly done: number; readonly of: number }
+  | { readonly phase: "coverage" }
   | { readonly phase: "laying"; readonly files: number }
   | { readonly phase: "drawing" };
 
@@ -17,6 +19,8 @@ export function localStep(phase: LocalPhase): Step {
   switch (phase.phase) {
     case "folder":
       return { phase: "folder", done: phase.files };
+    case "contents":
+      return { phase: "contents", done: phase.done, of: phase.of };
     case "laying":
       return { phase: "lay", files: phase.files };
     case "drawing":

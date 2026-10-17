@@ -22,6 +22,8 @@ interface InTown {
 export type Hit =
   | (InTown & {
       readonly kind: "lot";
+      /** The lot's key: with its town's, it names the lot's building and measures. */
+      readonly key: string;
       /** The file's path; empty for a vacant lot. */
       readonly path: string;
       readonly use: LandUse;
@@ -192,6 +194,7 @@ export function pickIndex(city: City): PickIndex {
       const hit: Hit = {
         kind: "lot",
         ...where,
+        key: lot.key,
         path: lot.path,
         use: lot.use,
         address: lot.address,

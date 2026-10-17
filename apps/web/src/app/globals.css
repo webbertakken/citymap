@@ -369,6 +369,32 @@ mark {
   display: flex;
   gap: 8px;
 }
+/* The view switch: Plan and Buildings, the pressed one in the accent. */
+.segmented {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 3px;
+  border: 0;
+}
+.segmented button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: calc(var(--control) - 6px);
+  padding: 0 12px;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  transition: background-color var(--motion);
+}
+.segmented button:hover {
+  background: var(--hover);
+}
+.segmented button[aria-pressed="true"] {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
 .popover-root {
   position: relative;
 }
@@ -416,6 +442,25 @@ mark {
 .choices input {
   margin: 0;
   accent-color: var(--accent);
+}
+.choices label.unavailable {
+  cursor: default;
+}
+.choices .choice {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+.choices .reason {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+/* A popover that opens above its button, from its left edge: the legend's, at the bottom left. */
+.popover.above {
+  top: auto;
+  right: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
 }
 .menu {
   margin: 0;
@@ -671,9 +716,70 @@ mark {
   bottom: var(--gap);
   left: var(--gap);
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 280px;
   padding: 8px 12px;
   font-size: 12px;
   color: var(--ink-soft);
+}
+.legend p {
+  margin: 0;
+}
+.legend .colour-by {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 8px;
+  margin: 0 -8px;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+}
+.legend .colour-by:hover {
+  background: var(--hover);
+}
+.colour-by-label {
+  color: var(--ink-soft);
+}
+.legend .scale {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.legend .scale p:last-child {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.ramp {
+  display: block;
+  height: 12px;
+  border: 1px solid var(--glass-line);
+  border-radius: 3px;
+}
+.legend .ends {
+  display: flex;
+  justify-content: space-between;
+}
+.legend .buildings-key {
+  padding-top: 8px;
+  border-top: 1px solid var(--glass-line);
+}
+.legend-button {
+  position: absolute;
+  bottom: var(--gap);
+  left: var(--gap);
+  z-index: 10;
+  display: none;
+  gap: 8px;
+  align-items: center;
+  height: var(--control);
+  padding: 0 12px;
+  border-radius: var(--radius-control);
 }
 .legend ul {
   display: flex;
@@ -994,9 +1100,9 @@ mark {
   :root {
     --gap: 8px;
   }
-  /* The title takes the row's width left of the controls: three 48 px buttons with gaps, 152 px on a touch screen. */
+  /* The title takes the row's width left of the controls: four 48 px buttons with gaps, 204 px on a touch screen. */
   .card-title {
-    right: calc(2 * var(--gap) + 152px);
+    right: calc(2 * var(--gap) + 204px);
     width: auto;
     padding: 8px 12px;
   }
@@ -1054,7 +1160,27 @@ mark {
     display: none;
   }
   .legend {
+    bottom: calc(var(--gap) + var(--control) + 8px);
+    width: min(280px, calc(100% - 2 * var(--gap)));
+  }
+  .legend[data-open="false"] {
     display: none;
+  }
+  .legend-button {
+    display: flex;
+  }
+  .viewer:has(.drawer[data-open="true"]) .legend-button,
+  .viewer:has(.drawer[data-open="true"]) .legend {
+    display: none;
+  }
+  .segmented button:first-of-type,
+  .segmented button span {
+    display: none;
+  }
+  .segmented button {
+    justify-content: center;
+    width: calc(var(--control) - 6px);
+    padding: 0;
   }
   .tooltip {
     position: static;

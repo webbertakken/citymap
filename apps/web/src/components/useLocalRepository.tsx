@@ -16,6 +16,7 @@ import {
 import type { Lay, Laid } from "../lay/lay";
 import type { Source } from "../load/progress";
 import type { Job } from "../load/useLoading";
+import { localFacts } from "../local/contents";
 import { describeLocal } from "../local/describe";
 import { LocalError } from "../local/errors";
 import { handleFolder, listedFolder, localised, type Folder } from "../local/folder";
@@ -25,6 +26,7 @@ import { readLocal } from "../local/read";
 import { mayRead, type PermissionHandle } from "../local/remember";
 import type { LocalSupport } from "../local/support";
 import { log, reasonOf } from "../log";
+import type { LiveFacts } from "../measures/live";
 
 /** The tab's title for a local repository: browser history keeps titles, and may sync them. */
 export const LOCAL_TITLE = "Local repository";
@@ -43,8 +45,9 @@ export interface LocalOptions {
   readonly status: string;
   readonly setStatus: Dispatch<SetStateAction<string>>;
   readonly setError: (message: string) => void;
-  /** Draws the laid city under the folder's name, and ends the load; the snapshot lays it again in another layout. */
-  readonly present: (job: Job, laid: Laid, name: string, snapshot: Snapshot) => Promise<void>;
+  /** Draws the laid city under the folder's name, and ends the load; the snapshot and facts lay it again in another
+   * layout. */
+  readonly present: (job: Job, laid: Laid, name: string, snapshot: Snapshot, facts: LiveFacts) => Promise<void>;
 }
 
 export interface LocalRepository {
@@ -115,9 +118,11 @@ export function useLocalRepository({
       if (read.head) log.info("viewer/local-commit", { how: read.head });
       if (read.source === "walk") log.info("viewer/local-walk", { files });
       for (const path of read.unread) log.info("viewer/local-manifest-unread", { path });
+      const facts = await localFacts(folder, read, (phase) => job.step(localStep(phase)));
+      job.signal.throwIfAborted();
       job.step({ phase: "lay", files });
-      const laid = await lay(read.snapshot, { signal: job.signal, onProgress: job.step, theme, toggles });
-      await present(job, laid, name, read.snapshot);
+      const laid = await lay(read.snapshot, { signal: job.signal, onProgress: job.step, theme, toggles, facts });
+      await present(job, laid, name, read.snapshot, facts);
       // Nothing about a local repository goes in the address; a GitHub repository named there before goes.
       window.history.replaceState(null, "", window.location.pathname);
       log.info("viewer/local-read", { source: read.source, files, ms: Math.round(performance.now() - started) });

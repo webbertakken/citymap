@@ -4,7 +4,7 @@ import type { Lay, Laid } from "./lay";
 
 type Message = { readonly step: Step } | Laid | { readonly error: string };
 
-export const layInWorker: Lay = (snapshot, { signal, onProgress, theme, toggles } = {}) =>
+export const layInWorker: Lay = (snapshot, { signal, onProgress, theme, toggles, facts } = {}) =>
   new Promise<Laid>((resolve, reject) => {
     if (signal?.aborted) {
       reject(signal.reason);
@@ -34,5 +34,5 @@ export const layInWorker: Lay = (snapshot, { signal, onProgress, theme, toggles 
       end();
       reject(new Error(event.message || "the layout worker failed"));
     });
-    worker.postMessage({ snapshot, theme, toggles }, { transfer: [] });
+    worker.postMessage({ snapshot, theme, toggles, facts }, { transfer: [] });
   });

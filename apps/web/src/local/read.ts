@@ -11,6 +11,8 @@ import { walkFolder } from "./walk";
 
 export interface LocalRead {
   readonly snapshot: Snapshot;
+  /** Each tracked path's size in bytes, from the git index; empty for a folder without git. */
+  readonly sizes: ReadonlyMap<string, number>;
   readonly source: "index" | "walk";
   /** The index read, for the log; null for a folder without git. */
   readonly index: { readonly version: number; readonly entries: number; readonly submodules: number } | null;
@@ -42,12 +44,14 @@ export async function readLocal(
   onPhase({ phase: "index" });
   const git = await findGit(folder);
   let paths: readonly string[];
+  let sizes: ReadonlyMap<string, number> = new Map();
   let commit = "worktree";
   let index: LocalRead["index"] = null;
   let head: LocalRead["head"] = null;
   if (git) {
     const read = await fromIndex(folder, git.dir, git.idBytes);
     paths = read.paths;
+    sizes = new Map(read.paths.map((path, i) => [path, read.listing.sizes[i]!]));
     commit = read.head.commit;
     head = read.head.how;
     index = { version: read.listing.version, entries: read.paths.length, submodules: read.listing.submodules };
@@ -84,6 +88,7 @@ export async function readLocal(
   const members = patterns.length > 0 ? resolveWorkspaces(patterns, folders) : undefined;
   return {
     snapshot: stateSnapshot(folder.name, commit, paths, members),
+    sizes,
     source: git ? "index" : "walk",
     index,
     head,

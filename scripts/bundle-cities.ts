@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { parseCity } from "@citymap/ground-plan";
+import { parseCityFile } from "@citymap/measures";
 import { combinations, indexEntry, layArgs, summary, variantFile, variantName } from "./bundle/bundle.ts";
 
 const PUBLIC = ["takken.io", "redux", "game-ci-cli", "studio-worker", "livediagram", "react"] as const;
@@ -36,7 +36,7 @@ try {
       const started = performance.now();
       run(layArgs(cli, clone, out, toggles));
       const text = readFileSync(out, "utf8");
-      const lots = parseCity(text).towns.reduce((sum, t) => sum + t.stats.lots, 0);
+      const lots = parseCityFile(text).city.towns.reduce((sum, t) => sum + t.stats.lots, 0);
       const size = { bytes: Buffer.byteLength(text), gzip: gzipSync(text).length };
       sizes.push(size);
       console.log(

@@ -78,6 +78,7 @@ describe("pick", () => {
       town: "demo",
       townKey: "k/demo",
       root: "",
+      key: "a@0",
       path: "src/a.ts",
       use: "source",
       address: "src:0.0.0.0",

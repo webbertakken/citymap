@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@citymap/ground-plan": "workspace:*",
+    "@citymap/measures": "workspace:*",
     "@citymap/themes": "workspace:*"
   },
   "scripts": {
