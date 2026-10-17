@@ -347,15 +347,17 @@ phone), so nothing the cards do moves the map or each other.
 - `Viewer` holds `toggles` (`DEFAULT_TOGGLES` at start; not remembered) and the `origin` of the city shown (a bundled
   entry; a live repository's name, snapshot, status note and tab title, from GitHub or the person's machine; or a file).
   A change re-opens what is shown in the new variant as a load of its own, with the loading card and the status naming
-  its phases (Loading): a bundled city loads `variantOf(entry, toggles)`; a live repository is laid again from its kept
-  snapshot in the worker (`relay`, under the same title, so a local repository's stays private); a city file disables
-  every switch and shows "A city file keeps the layout it was laid with."; with nothing shown the switches only change.
-  A city shown again in another layout keeps the view and the town shown when it has a town of that key (`relaid`).
+  its phases (Loading): a bundled city loads `variantOf(entry, { toggles, separate })`; a live repository is laid again
+  from its kept snapshot in the worker (`relay`, under the same title, so a local repository's stays private); a city
+  file disables every switch and shows "A city file keeps the layout it was laid with."; with nothing shown the switches
+  only change. A city shown again in another layout keeps the view and the town shown when it has a town of that key
+  (`relaid`).
 - `cities.ts`: `CityEntry { name, separable?, declared?, variants }`, each variant `{ toggles, separate?, file, lots }`;
   `isEntry` checks sixteen distinct toggle sets times each of `separationStates(separable, declared)`, all known, files
-  `^\w[\w.-]*/\w[\w.-]*\.json$` (no `..`); `variantOf(entry, toggles)` finds the variant with exactly those toggles and
-  `effectiveSeparations`, in any order; `loadCity(fetcher, entry, toggles, base)`. "More" lists each city with the lots
-  of the variant the toggles name, the one shown marked by its name.
+  `^\w[\w.-]*/\w[\w.-]*\.json$` (no `..`); `variantOf(entry, layout)` (`Layout { toggles, separate? }`) finds the
+  variant with exactly those toggles, in any order, and the `effectiveSeparations` of the separations;
+  `loadCity(fetcher, entry, layout, base)`. "More" lists each city with the lots of the variant the toggles name, the
+  one shown marked by its name.
 - Separate towns: `Toggles` takes `separate`, the city's `separable` and `declared`, and `onSeparate`; under the four
   switches, a second `<fieldset>`, legend "Separate towns", of a switch per separation in `separable` (in `SEPARATIONS`
   order), named `SEPARATION_LABELS` ("Workspaces" … "Plugins"), each described by its tooltip (`SEPARATION_TOOLTIPS`,
@@ -365,9 +367,10 @@ phone), so nothing the cards do moves the map or each other.
   fieldset as it does the toggles.
 - `Viewer` holds `separate` (`DEFAULT_SEPARATIONS` at start; not remembered). A change re-opens what is shown as a
   toggle change does: a live repository lays again with `{ toggles, separate }`; a bundled city loads
-  `variantOf(entry, toggles, separate)`.
-- `effectiveSeparations(separate, separable, declared)` (`cities.ts`): `separate` ∩ `separable`, except that with
-  `declared` and `workspaces` on, `apps` and `packages` take their defaults; the bundled variant is named by it.
+  `variantOf(entry, { toggles, separate })`.
+- `effectiveSeparations(separate, separable, declared)` (`@citymap/ground-plan`, `region/separate.ts`, beside
+  `separationStates`, which the bundle uses): `separate` ∩ `separable`, except that with `declared` and `workspaces` on,
+  `apps` and `packages` take their defaults; the bundled variant is named by it.
 - Logs: `viewer/separate on` (the list, `none` when empty) on every change; `viewer/toggles on` (the list, `none` when
   empty) on every change; `viewer/variant-failed name reason` when a variant cannot load (also a notice; the last city
   stays).

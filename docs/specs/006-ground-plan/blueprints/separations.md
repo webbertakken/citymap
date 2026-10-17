@@ -24,9 +24,9 @@ export const SEPARATIONS = [
 export type Separation = (typeof SEPARATIONS)[number];
 export const DEFAULT_SEPARATIONS: readonly Separation[] = ["workspaces", "submodules", "apps"];
 /** Separations named by a root folder of their own name. */
-export const ROOT_KINDS = ["apps", "packages", "libs", "crates", "services", "modules", "extensions"] as const;
+export const ROOT_KINDS: readonly Separation[] = ["apps", "packages", "libs", "crates", "services", "modules", "extensions"];
 /** Declared workspaces override these. */
-export const OVERRIDDEN = ["apps", "packages"] as const;
+export const OVERRIDDEN: readonly Separation[] = ["apps", "packages"];
 export const GITLINK_FILE = ".gitlink";
 export const isSeparation = (name: string): name is Separation => ...;
 export const separationList = (separate?: readonly Separation[]) =>
@@ -88,8 +88,9 @@ interface City {
 }
 ```
 
-- Serialised in this field order; `parseCity` checks `separable` (known names, `SEPARATIONS` order, no repeats, not
-  empty) and `declared` (`true` only), rejecting with `city/bad-shape` at `/separable` or `/declared`.
+- Serialised as canonical JSON (keys sorted, as every field of the city); `parseCity` checks `separable` (known names,
+  `SEPARATIONS` order, no repeats, not empty) and `declared` (`true` only), rejecting with `city/bad-shape` at
+  `/separable` or `/declared`.
 - A city file written before carries neither: the viewer shows no "Separate towns" group for it.
 
 ## Setting key
@@ -131,7 +132,7 @@ lockfile written under `split:` is set aside by the setting mismatch and folded 
 | `separable`, `declared` on the city; `parseCity` rejections        | `separate.test.ts`, `city/serialise.test.ts`         |
 | nested parts exclude their nearest roots; highways to the parent   | `region/compose.test.ts`                             |
 | groups with a separate member are no towns                         | `region/compose.test.ts`                             |
-| every separation off lays the towns `split: []` laid               | golden towns (`separate: []`)                        |
+| every separation off lays the towns `split: []` laid               | `region/compose.test.ts` (`separate: []`)            |
 | Rust lays the same bytes                                           | `bun run parity --separate=…`; Rust `separate` tests |
 
 ## Constants and configuration

@@ -59,7 +59,8 @@ The settings cog opens a popover, "City layout", of four switches: the ground pl
   it too. Escape hides a tooltip first, then closes the popover.
 - A switch takes effect at once, and the popover stays open, so several can be changed in a row.
 - A bundled city shows the variant its switches name: the command-line tool lays every combination of the four toggles
-  (16 cities per repository), and the viewer loads the one the switches name, as any opening loads (Loading).
+  (16 cities per repository, times each state of its separations), and the viewer loads the one the switches name, as
+  any opening loads (Loading).
 - A repository laid live, from GitHub or from the person's machine, is laid again off the main thread with the chosen
   switches, under the same title.
 - A city file is shown as it was written: its layout cannot change, so the switches are disabled, with the line "A city

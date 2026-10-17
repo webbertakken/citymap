@@ -60,9 +60,11 @@ The Rust implementation of the CLI lives in `rust/`: see
 
 ## Bundled cities
 
-1. `bun scripts/bundle-cities.ts` under PM2 builds the Rust CLI and folds every public city in `PUBLIC` once per
-   combination of the toggles (16 each), from shared clones of `~/.cache/citymap/repos`, into
-   `apps/web/public/cities/<name>/<variant>.json` with `index.json`.
+1. `bun scripts/bundle-cities.ts` under PM2 builds the Rust CLI, lays each public city in `PUBLIC` once with the
+   defaults to learn the separations it records (`bundle/recorded`), then folds it once per combination of the toggles
+   (16) in each state of those separations, from shared clones of `~/.cache/citymap/repos`, into
+   `apps/web/public/cities/<name>/<variant>.json` with `index.json`; variant files the index no longer names are removed
+   (`bundle/pruned`). The six cities take 304 variants (about 25 minutes).
 2. It logs `bundle/laid` per variant and `bundle/done` with the total bytes, raw and gzipped; commit the folder.
 
 ## Adding a workspace
