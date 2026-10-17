@@ -51,11 +51,11 @@ Branch `feat/separate-towns`, stacked on `local-beside-search` (#36); rebase ont
 
 ## Phase 3: Rust
 
-- [ ] Parity fixtures regenerated (the defaults changed; Rust follows in this phase)
-- [ ] Port separations, parts, city fields, `.gitmodules`, submodule trees in single state and fold, `--separate=`
-- [ ] Rust tests; `bun run rust:check`
-- [ ] `bun run parity` with the defaults, each separation alone, and none; a repository with submodules (rust, deno)
-- [ ] Commit
+- [x] Parity fixtures regenerated (the defaults changed; Rust follows in this phase)
+- [x] Port separations, parts, city fields, `.gitmodules`, submodule trees in single state and fold, `--separate=`
+- [x] Rust tests; `bun run rust:check`
+- [x] `bun run parity` with the defaults, each separation alone, and none; a repository with submodules (rust, deno)
+- [x] Commit
 
 ## Phase 4: web readers
 
