@@ -243,20 +243,46 @@ button.icon-button:not(.glass) {
   font-weight: 700;
 }
 
-/* Top centre: the search box and its matches. */
-.search {
+/* Top centre: the search box and its matches, the local repository button hanging to its right. */
+.finder {
   position: absolute;
   top: var(--gap);
   left: 50%;
   z-index: 20;
+  width: min(520px, calc(100vw - 2 * (2 * var(--gap) + 300px)));
+  transform: translateX(-50%);
+}
+.search {
+  position: relative;
   display: flex;
   gap: 12px;
   align-items: center;
-  width: min(520px, calc(100vw - 2 * (2 * var(--gap) + 300px)));
   height: 48px;
   padding: 0 16px;
-  transform: translateX(-50%);
   color: var(--ink-soft);
+}
+/* Outside the search's box, so the search keeps its place and width whether the button is there or not. */
+.local-button {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 8px);
+}
+.local-button .icon-button {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius);
+}
+.local-button .icon-button:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+/* Under the button, its right edge on the button's: over the map, never over the search. */
+.tooltip.local-tip {
+  top: calc(100% + 8px);
+  right: 0;
+}
+.local-tip code {
+  white-space: nowrap;
 }
 .search input {
   flex: 1;
@@ -975,11 +1001,11 @@ mark {
 
 /* Medium screens: the search narrows between the title and the controls. */
 @media (max-width: 1100px) {
-  .search {
+  .finder {
     top: calc(var(--gap) + 94px + 8px);
     left: var(--gap);
-    /* Up to the drawer: the room left of it, less the gaps. */
-    width: min(440px, calc(100vw - 3 * var(--gap) - var(--drawer)));
+    /* Up to the drawer: the room left of it, less the gaps and the local repository button. */
+    width: min(440px, calc(100vw - 3 * var(--gap) - var(--drawer) - 56px));
     transform: none;
   }
   .notice {
@@ -1006,7 +1032,7 @@ mark {
   .controls {
     gap: 4px;
   }
-  .search {
+  .finder {
     top: calc(var(--gap) + 82px + 8px);
     right: var(--gap);
     left: var(--gap);
@@ -1061,5 +1087,17 @@ mark {
     width: auto;
     margin: 0 8px 8px;
     box-shadow: none;
+  }
+}
+/* A narrow window on a fine pointer may open a local repository: the search leaves the button its room. */
+@media (max-width: 760px) and (pointer: fine) {
+  .finder {
+    right: calc(var(--gap) + 56px);
+  }
+  .tooltip.local-tip {
+    position: absolute;
+    width: min(280px, calc(100vw - 2 * var(--gap)));
+    margin: 0;
+    box-shadow: var(--shadow);
   }
 }

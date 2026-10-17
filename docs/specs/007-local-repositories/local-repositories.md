@@ -8,15 +8,16 @@ installing anything, and without anything about the repository leaving the machi
 
 ## Opening one
 
-- More offers "Open a local repository…". The person picks the repository's folder in the browser's own folder dialog
-  and sees its city. A web page cannot run programs on the machine, so the browser reads the folder itself.
-- The line under the button says what it gives: the repository as it is now, not folded over its history; a folded city
-  comes from the CLI (`citymap <repository> --out=city.json`, then open the file).
+- A button right beside the search box, "Open a local repository", opens one. The person picks the repository's folder
+  in the browser's own folder dialog and sees its city. A web page cannot run programs on the machine, so the browser
+  reads the folder itself.
+- The button's tooltip says what it gives: the repository as it is now, not folded over its history; a folded city comes
+  from the CLI (`citymap <repository> --out=city.json`, then open the file).
 - Where the folder is remembered (Chromium), More also offers "Open {folder} again".
-- On a phone, opening a local repository is not offered.
-- In Safari it is not offered either: Safari hides every name starting with a dot from pages, `.git` and `.gitignore`
-  included, so it would lay ignored files as source. More says so in one line instead, and names the browsers that can
-  (Chrome, Edge, Firefox) and the CLI.
+- On a phone, opening a local repository is not offered: the button is not there.
+- In Safari it is not offered either, and the button is not there: Safari hides every name starting with a dot from
+  pages, `.git` and `.gitignore` included, so it would lay ignored files as source. More says so in one line instead,
+  and names the browsers that can (Chrome, Edge, Firefox) and the CLI.
 - Closing the folder dialog without a folder changes nothing.
 
 ## What is read
