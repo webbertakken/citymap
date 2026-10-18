@@ -63,7 +63,7 @@ describe("the HUD of a ride", () => {
     });
   });
 
-  it("says the helicopter's altitude above the street, its climb, speed and rotor, and what lies under it", () => {
+  it("says the helicopter's altitude above what lies under it, its climb, speed and rotor, and what lies under it", () => {
     const flying = {
       ...standing("h", "helicopter", { x: 0, y: GROUND + 42.4, z: 0 }, 0),
       heli: { ...started(parkedHeli()), grounded: false, rotor: 0.874, velocity: { x: 10, y: -2.46, z: 0 } },
@@ -71,7 +71,7 @@ describe("the HUD of a ride", () => {
     expect(hudOfRide(flying, true, { ...OPEN, under: GROUND + 20 })).toEqual({
       label: "Altitude, climb, speed and rotor",
       rows: [
-        ["Altitude", "42 m"],
+        ["Altitude", "22 m"],
         ["Climb", "−2.5 m/s"],
         ["Speed", "36 km/h"],
         ["Rotor", "87 %"],
@@ -88,6 +88,8 @@ describe("the HUD of a ride", () => {
     ]);
     expect(hudOfRide(flying, true, { ...OPEN, room: false }).rows[4]).toEqual(["Below", "Street, no room"]);
     expect(hudOfRide(flying, true, { ...OPEN, room: false }).flight?.room).toBe(false);
+    // Over the street, its height above the street.
+    expect(hudOfRide(flying, true, OPEN).rows[0]).toEqual(["Altitude", "42 m"]);
     const climbing = { ...flying, heli: { ...flying.heli, velocity: { x: 0, y: 3, z: 0 } } };
     expect(hudOfRide(climbing, true, OPEN).rows[1]).toEqual(["Climb", "+3.0 m/s"]);
     expect(hudOfRide(climbing, true, OPEN).flight).toEqual({

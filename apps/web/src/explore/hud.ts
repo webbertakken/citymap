@@ -53,11 +53,11 @@ const climbOf = (climb: number) => `${climb > 0 ? "+" : climb < 0 ? "−" : ""}$
 
 /**
  * The HUD of a vehicle being ridden; a car's engine is read only on Rapier (`engine`); a helicopter's height is above
- * the street, and what lies below it is `below`.
+ * what lies beneath it, a roof or the street: `below`.
  */
 export function hudOfRide(vehicle: Vehicle, engine: boolean, { under, room, landing }: Below = OPEN): RideHud {
   if (vehicle.kind === "helicopter") {
-    const hud = heliHud(vehicle.heli, vehicle.feet.y - GROUND);
+    const hud = heliHud(vehicle.heli, vehicle.feet.y - under);
     const over = under > GROUND + ROOF_ABOVE ? "roof" : "street";
     return {
       label: "Altitude, climb, speed and rotor",

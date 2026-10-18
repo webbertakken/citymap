@@ -37,10 +37,15 @@ export interface Heli {
 export const HELI_MASS = 2250;
 export const ROTOR_RADIUS = 5.35;
 export const MAST = 3.06;
+/** Its outline's middle lies this far behind its mast: measured from the AS350's mesh (its hub 1.99 m ahead). */
+export const HUB_AHEAD = 1.99;
 /** The cabin and skids, against anything lower than the rotor: a circle this wide about the mast. */
 export const BODY_RADIUS = 1.4;
-/** The most the main rotor lifts at full speed, out of ground effect: 1.5 of its weight, to climb briskly. */
-export const THRUST_MOST = 1.5 * HELI_MASS * GRAVITY;
+/**
+ * The most the main rotor lifts at full speed, out of ground effect: twice its weight (a real one has about 1.3), so a
+ * climb asked for is reached within a second, as an arcade helicopter answers.
+ */
+export const THRUST_MOST = 2 * HELI_MASS * GRAVITY;
 /** The rotor spins up this share of its flying speed a second with the engine on, and down this share with it off. */
 export const SPIN_UP = 0.2;
 export const SPIN_DOWN = 0.08;
@@ -52,18 +57,25 @@ export const LAND_SINK = 1.5;
 export const FLARE = 1.5;
 export const CEILING = 500;
 /**
- * The assist: a climb asked for is reached at `CLIMB_GAIN` a second; a height held is returned to at `HOLD_GAIN` a
- * second. `HEAVE` is the rotor's own damping of a climb or a fall, a second.
+ * The assist: a climb asked for is reached at `CLIMB_GAIN` a second (most of it within a second); a height held is
+ * returned to at `HOLD_GAIN` a second, gently, so ground effect's cushion still lifts a low hover. `HEAVE` is the
+ * rotor's own damping of a climb or a fall, a second.
  */
-export const CLIMB_GAIN = 2;
-export const HOLD_GAIN = 1;
+export const CLIMB_GAIN = 4;
+export const HOLD_GAIN = 0.5;
 export const HEAVE = 0.3;
-/** The disc tilts at most this far nose down (or up) as forward (or back) asks, and banks at most this far. */
-export const PITCH_MOST = 0.3;
+/**
+ * The disc tilts at most this far nose down (or up) as forward (or back) asks, about 29°: 0 to 50 km/h in under three
+ * seconds; and banks at most this far.
+ */
+export const PITCH_MOST = 0.5;
 export const ROLL_MOST = 0.6;
-/** Let go, the disc tilts against any drift, this much per metre a second, at most `HOVER_TILT`: it slows to a hover. */
-export const HOVER_GAIN = 0.04;
-export const HOVER_TILT = 0.2;
+/**
+ * Let go, the disc tilts against any drift, this much per metre a second, at most `HOVER_TILT` (as far back as S tilts
+ * it): it slows to a hover from 50 km/h in about three seconds, coasting on a little.
+ */
+export const HOVER_GAIN = 0.15;
+export const HOVER_TILT = PITCH_MOST;
 /**
  * Sinking with nothing else asked within `PAD_PULL` metres of a marked roof's middle, the cyclic's assist steers over
  * it: an acceleration of `PAD_GAIN` per metre off, less `PAD_DAMPING` per metre a second, as a tilt within the hover's.
@@ -73,8 +85,8 @@ export const PAD_PULL = 10;
 export const PAD_CENTRED = 0.4;
 export const PAD_GAIN = 2;
 export const PAD_DAMPING = 2.8;
-/** The disc follows the tilt asked for as a spring this stiff (radians a second), critically damped. */
-export const TILT_RATE = 5;
+/** The disc follows the tilt asked for as a spring this stiff (radians a second), critically damped: most of it in 0.3 s. */
+export const TILT_RATE = 10;
 /**
  * In a hover the tail rotor turns it at most `YAW_MOST` radians a second; at speed, no faster than its most bank turns
  * it. The yaw rate asked for is reached at `YAW_GAIN` a second, within `TAIL_MOST` radians a second each second; the
@@ -86,7 +98,7 @@ export const TAIL_MOST = 4;
 export const TORQUE = 1.5;
 /** The air's density, and the fuselage's drag areas ahead and to the side, in square metres: about 200 km/h flat out. */
 export const AIR_DENSITY = 1.2;
-export const DRAG_AHEAD = 3.5;
+export const DRAG_AHEAD = 6.5;
 export const DRAG_SIDE = 12;
 /** On the ground, the skids stop a slide at this many metres a second, each second. */
 export const SKID_GRIP = 6;
@@ -354,5 +366,34 @@ export function heliHud(heli: Heli, altitude: number) {
     climb: Math.round(v.y * 10) / 10 || 0,
     speed: Math.round(Math.hypot(v.x, v.z) * 3.6),
     rotor: Math.round(heli.rotor * 100),
+  };
+}
+
+/**
+ * Its shadow, the one cue to how high it flies: darkest (`SHADOW_DARKEST`) on its skids, fading to nothing
+ * `SHADOW_REACH` metres above what lies below; laid `SHADOW_LIFT` above it, so it never flickers into it.
+ */
+export const SHADOW_DARKEST = 0.45;
+export const SHADOW_REACH = 80;
+export const SHADOW_LIFT = 0.03;
+
+/** Where a helicopter's shadow lies, which way it turns, and how dark it is (0 to 1). */
+export interface HeliShadow {
+  readonly at: Vec3;
+  readonly heading: number;
+  readonly opacity: number;
+}
+
+/**
+ * Where its shadow lies, from its feet (under the mast), its heading and the height of what lies below: under its
+ * outline's middle, behind the mast, turned as it faces, as dark as it is low.
+ */
+export function heliShadow(feet: Vec3, heading: number, under: number): HeliShadow {
+  const ahead = facing(heading);
+  const height = Math.max(0, feet.y - under);
+  return {
+    at: { x: feet.x - ahead.x * HUB_AHEAD, y: under + SHADOW_LIFT, z: feet.z - ahead.z * HUB_AHEAD },
+    heading,
+    opacity: SHADOW_DARKEST * Math.max(0, 1 - height / SHADOW_REACH),
   };
 }

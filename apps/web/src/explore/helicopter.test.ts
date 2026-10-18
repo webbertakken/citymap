@@ -6,6 +6,7 @@ import {
   HARD_HIT,
   HELI_MASS,
   HOVER_TILT,
+  HUB_AHEAD,
   LAND_SINK,
   PAD_CENTRED,
   PAD_PULL,
@@ -14,12 +15,16 @@ import {
   ROTOR_RADIUS,
   SINK_MOST,
   SPIN_DOWN,
+  SHADOW_DARKEST,
+  SHADOW_LIFT,
+  SHADOW_REACH,
   SPIN_UP,
   THRUST_MOST,
   YAW_MOST,
   flyHeli,
   groundEffect,
   heliHud,
+  heliShadow,
   hoverShare,
   parkedHeli,
   started,
@@ -388,5 +393,70 @@ describe("the helicopter's HUD", () => {
     const heli = { ...hovering(42.4), rotor: 0.874, velocity: { x: 10, y: -2.46, z: 0 } };
     expect(heliHud(heli, 42.4)).toEqual({ altitude: 42, climb: -2.5, speed: 36, rotor: 87 });
     expect(heliHud({ ...heli, velocity: { x: 0, y: 0.04, z: 0 } }, 0.2).climb).toBe(0);
+  });
+});
+
+/** The first second (from the start of a path) at which a state holds, or Infinity. */
+const firstWhen = (path: readonly Flown[], holds: (s: Flown) => boolean) => {
+  const i = path.findIndex(holds);
+  return i < 0 ? Infinity : (i + 1) * DT;
+};
+const KMH_50 = 50 / 3.6;
+/** A key is answered within this many seconds (the spec's arcade feel). */
+const RESPONSE = 0.3;
+
+describe("responsiveness, arcade", () => {
+  it("climbs at 5 m/s within 0.6 s of Up, and at its most within a second", () => {
+    const path = fly(hovering(80), UP, 2, { y: 80 });
+    expect(firstWhen(path, (s) => s.heli.velocity.y >= 1)).toBeLessThan(RESPONSE);
+    expect(firstWhen(path, (s) => s.heli.velocity.y >= 5)).toBeLessThan(0.6);
+    expect(firstWhen(path, (s) => s.heli.velocity.y >= 0.95 * CLIMB_MOST)).toBeLessThan(1.1);
+  });
+
+  it("sinks at 5 m/s within 0.7 s of Down, and at its most within a second", () => {
+    const path = fly(hovering(80), DOWN, 2, { y: 80 });
+    expect(firstWhen(path, (s) => s.heli.velocity.y <= -1)).toBeLessThan(RESPONSE);
+    expect(firstWhen(path, (s) => s.heli.velocity.y <= -5)).toBeLessThan(0.7);
+    expect(firstWhen(path, (s) => s.heli.velocity.y <= -0.95 * SINK_MOST)).toBeLessThan(1);
+  });
+
+  it("moves off within RESPONSE of forward, its tilt reached within a second, and reaches 50 km/h in under 3 s", () => {
+    const path = fly(hovering(80), { ...STILL, forward: 1 }, 4, { y: 80 });
+    expect(firstWhen(path, (s) => speedOf(s.heli) * 3.6 >= 3)).toBeLessThan(RESPONSE + 0.1);
+    expect(firstWhen(path, (s) => s.heli.pitch >= 0.95 * PITCH_MOST)).toBeLessThan(1);
+    expect(firstWhen(path, (s) => speedOf(s.heli) >= KMH_50)).toBeLessThan(3);
+  });
+
+  it("let go at 50 km/h, slows within RESPONSE and stops within 4 s and 25 m, a little inertia kept", () => {
+    const flying = fly(hovering(80), { ...STILL, forward: 1 }, 10, { y: 80 });
+    const at = flying.find((s) => speedOf(s.heli) >= KMH_50)!;
+    const after = fly(at.heli, STILL, 8, { y: at.y });
+    // Not a dead stop: it coasts on a little, then slows.
+    const fastest = Math.max(...after.map((s) => speedOf(s.heli)));
+    const peak = firstWhen(after, (s) => speedOf(s.heli) === fastest);
+    expect(peak).toBeGreaterThan(0.05);
+    expect(peak).toBeLessThan(RESPONSE);
+    expect(firstWhen(after, (s) => speedOf(s.heli) <= KMH_50 - 3 / 3.6)).toBeLessThan(0.6);
+    const stopped = after.findIndex((s) => speedOf(s.heli) < 0.3);
+    expect((stopped + 1) * DT).toBeLessThan(4);
+    expect(Math.hypot(after[stopped]!.x, after[stopped]!.z)).toBeLessThan(25);
+  });
+});
+
+describe("the helicopter's shadow", () => {
+  it("lies under its outline on what lies below, darkest on its skids, fading as it climbs", () => {
+    const low = heliShadow({ x: 10, y: 3, z: -4 }, 0, 1);
+    // Its outline's middle lies behind the mast; a heading of 0 faces +x.
+    expect(low.at.x).toBeCloseTo(10 - HUB_AHEAD, 10);
+    expect(low.at.y).toBeCloseTo(1 + SHADOW_LIFT, 10);
+    expect(low.at.z).toBeCloseTo(-4, 10);
+    const landed = heliShadow({ x: 0, y: 1, z: 0 }, 0, 1);
+    expect(landed.opacity).toBeCloseTo(SHADOW_DARKEST, 10);
+    expect(low.opacity).toBeLessThan(landed.opacity);
+    expect(heliShadow({ x: 0, y: SHADOW_REACH + 5, z: 0 }, 0, 0).opacity).toBe(0);
+    const turned = heliShadow({ x: 0, y: 0, z: 0 }, Math.PI / 2, 0);
+    // Facing −z, its middle lies behind it, at +z.
+    expect(turned.at.z).toBeCloseTo(HUB_AHEAD, 10);
+    expect(turned.heading).toBe(Math.PI / 2);
   });
 });

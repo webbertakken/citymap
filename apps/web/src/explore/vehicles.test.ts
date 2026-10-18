@@ -2,7 +2,16 @@ import { GROUND, PERSON_RADIUS, cityWalls, type Footprint, type Vec3 } from "@ci
 import { Quaternion, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { FALL_LEAN, HARD_HIT as THROWN_AT, START_GEAR, resting } from "./bicycle";
-import { BODY_RADIUS, HARD_HIT, MAST, ROTOR_RADIUS, started, thrustDirection, type Heli } from "./helicopter";
+import {
+  BODY_RADIUS,
+  HARD_HIT,
+  HUB_AHEAD,
+  MAST,
+  ROTOR_RADIUS,
+  started,
+  thrustDirection,
+  type Heli,
+} from "./helicopter";
 import type { Landing } from "./landing";
 import { parkedMoto } from "./motorbike";
 import { ROOFTOP_MARGIN } from "./rooftops";
@@ -14,7 +23,6 @@ import {
   REACH,
   VEHICLES,
   BELOW_REACH,
-  HUB_AHEAD,
   LEVEL,
   alightFrom,
   belowOf,
@@ -517,8 +525,11 @@ describe("stepVehicle on the helicopter", () => {
 
   it("flies over a building below its skids", () => {
     const walls = cityWalls([tower(20, -50, 40, 50, 10)]);
-    const path = flight(chopper(0, 20, 0, { velocity: { x: 15, y: 0, z: 0 } }), NO_INTENTS, 4, walls);
+    // Flown on ahead: let go, it would slow to a hover short of the building.
+    const ahead = { ...NO_INTENTS, forward: 1 };
+    const path = flight(chopper(0, 20, 0, { velocity: { x: 15, y: 0, z: 0 } }), ahead, 4, walls);
     expect(path.at(-1)!.feet.x).toBeGreaterThan(40);
+    expect(path.every((h) => h.heli.hits === 0)).toBe(true);
   });
 
   it("keeps its cabin off a wall lower than its rotor", () => {
