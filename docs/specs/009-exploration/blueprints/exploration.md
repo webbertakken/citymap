@@ -42,12 +42,15 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
 | parking   | `parkedBy(landing, walls)`, `parkedIn(city, landing, …)`  | the landing's three at its kerbs (`KerbKind`); the city's own parked vehicles      |
 | pool      | `nearestOf`, `assignPool`                                 | which vehicles the canvas draws, and in which of its models                        |
 | pad       | `Pad`, `padOf`, `PadPresses`                              | a gamepad's state as intents, look and presses                                     |
-| pedalling | `pedalsOf`, `reachFor`                                    | where the pedals are; a leg bent to put its foot on one                            |
+| pedalling | `reachFor`, `tiltToReach`, `turnInWorld`                  | a limb bent to put its end on a target; how far the body leans to reach the bars   |
+| contacts  | `hubOf`, `axleOf`, `endsOf`, `topOf`, `seatOf`, `partsOf` | where a rider meets a model, and a wheel's hub and axle, measured from its meshes  |
+| seat      | `Figure`, `figureOf`, `seat`, `release`, `placeVehicle`   | a rider measured once, seated by a model's contacts; a pool model posed            |
+| kickstand | `Kickstand`, `kickstandOf`, `standAfter`, `leanOnStand`   | a two-wheeler's stand: how far down, the lean it holds the machine at              |
 | bell      | `ringBell`                                                | the bicycle's bell, rung by Web Audio                                              |
 | prompt    | `Prompt`, `promptOf`, `promptWords`                       | what E does now, and its words                                                     |
 | motion    | `Motion`, `CLIP_OF`, `motionOf`, `paceOf`                 | idle, walk, sprint, jump, fall, drive; their clips and paces                       |
 | sight     | `cityHits`, `sightOf`, `windowRows`, `inspector`          | what the crosshair meets: a roof, a wall, a window and its file                    |
-| rig       | `Rig`, `RIGS`, `PROCEDURAL_RIGS`, `poseVehicle`, `leanOf` | a model's moving parts and axes; a vehicle posed by them                           |
+| rig       | `Rig`, `Rider`, `RIGS`, `PROCEDURAL_RIGS`, `poseVehicle`  | a model's moving parts, axes, rider's contacts and stand; a vehicle posed by them  |
 | model     | `ModelFile`, `GLTF_MODELS`, `loadModel`, `Loaded`         | a model file, its size and facing; a loaded model's copies, clips and original     |
 | retarget  | `retargetClip`, `WOBBLE_FROM_UAL`, `QUATERNIUS_FROM_UAL`  | a clip carried onto another skeleton by turns from rest                            |
 
@@ -410,10 +413,25 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   - `people/man.glb`, `people/woman.glb`: Wobble Blocks' FBX converted by FBX2glTF, split, and the clips `CLIPS` from
     the Universal Animation Library retargeted (`WOBBLE_FROM_UAL`, rest `A_TPose`, hip `Hips`, 30 fps) and baked.
   - `vehicles/bicycle.glb`, `sedan.glb`, `pickup.glb`: heyheythere's glb with its atlas embedded, filters NEAREST.
+  - The bicycle rigged (`rigBicycle`): the pack leans it 8.0° onto its kickstand, so it is turned upright about its
+    origin (its contact line) by `turnBetween(axle, +x)`, the axle its back wheel's (`hubOf`, across x); every node's
+    place and every mesh turned (`turnWhole`: its nodes unturned, no mesh shared, else `models/turned-node` or
+    `models/shared-mesh`). Its kickstand, the frame's part reaching lowest (`partsOf`), is split off (`splitOff`: the
+    frame's one primitive's triangles parted, each compacted) as `bicycle_red_kickstand` on the frame, pivoted at its
+    hinge (`topOf` within `BICYCLE_CONTACTS.stand` 2 cm), extras `folded` (`turnBetween` from hinge-to-foot to the
+    chainstay, crank to back hub) and `lean` (the measured lean in radians, positive to its left, +x in the file).
+    Contacts as empty nodes: `bicycle_red_grip_left`/`_right` on the fork (`endsOf` across x, `grip` 10 cm; high is
+    left), `bicycle_red_saddle` on the frame (`topOf`, `saddle` 2 cm), `bicycle_red_pedal_left`/`_right` on the crank
+    (`endsOf` across x, `pedal` 6 cm). `prune({ keepLeaves: true })`, so the empty nodes stay. Logged:
+    `[models] bicycle stood up from a lean of 8.0°; kickstand of 12 triangles, hinge …`.
   - `vehicles/motorbike.glb`: Duhgless' `Bike3.glb` (CC0, itch.io, 2,231 KB): each part's turn and scale baked into its
     mesh; the fork hung from `motorbike_head`, at the fork's place, turned about z by its rake (34.9°, from the head to
     the front axle), the front wheel on the fork; parts named `motorbike_frame`, `_fork`, `_wheel_front`, `_wheel_back`;
-    textures 256 px WebP (`EXT_texture_webp`, by sharp), NEAREST: 255 KB.
+    its rider's contacts (`rigMotorbikeRider`, `MOTORBIKE_CONTACTS` in file units of 0.474 m): `motorbike_grip_left`/
+    `_right` on the fork (`endsOf` across z, `grip` 0.21; low is left), `motorbike_seat` on the frame (`seatOf` along
+    z = 0 from the back hub to the head every `step` 0.05, else `models/no-seat`), `motorbike_peg_left`/`_right` on the
+    frame (`endsOf` across z of its points below `below` 0.45, `peg` 0.1); no kickstand (no part reaches the ground);
+    textures 256 px WebP (`EXT_texture_webp`, by sharp), NEAREST, `prune({ keepLeaves: true })`: 256 KB.
   - `vehicles/helicopter.glb`: ArcheoteryxFr's AS350 B2 (CC BY 4.0) through Sketchfab's download API (`sketchfab(uid)`,
     a token from `SKETCHFAB_TOKEN` or `~/.secrets/sketchfab-api-token`, never printed; the glb cached as the others).
     Its centimetre scale dropped and flattened, every part's place baked into its mesh; `helicopter_rotor` hung from the
@@ -443,37 +461,68 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   `explore/clip-missing motion` once and keeps the last.
 - Paces: walk at `speed / WALK_CLIP_SPEED` (1 m/s, measured 0.98), sprint at `speed / SPRINT_CLIP_SPEED` (2.56 m/s,
   measured), each within `SLOWEST` 0.4 and `FASTEST` 2.
-- `poseVehicle(model, rig, { rolled, steer, lean, pitch, crank })`: wheels by `rolled / radius`, the crank by `crank`
-  (the bicycle's own, so it freewheels), fork and front wheels by `steer`; the model leans about its length and pitches
-  nose down by `pitch` about its front contact (`rig.front`, metres ahead of its middle), its position moved so that
-  contact stays put. `Rig.pedals`: `arm` and `out` (the right pedal hangs down at rest): PSX 0.133 and 0.165 m, front
-  0.507 m; procedural 0.17 and 0.13 m, front 0.55 m. `Rig.grips`: the bars' ends in the fork's own frame, so they turn
-  with it: PSX left (0.35, 0.61, −0.14) and right (−0.15, 0.69, −0.14) in the file's axes; procedural (0.02, 0.3,
-  ∓0.25).
-- `Rig.back`: where the back wheel meets the ground behind the middle (a wheelie pivots there; else `front`);
-  `Rig.saddle`: where the rider sits in the model's frame, less its seated hips (the bicycle's `SADDLE` 0.38 m up);
-  `Rig.pegs`: a motorbike's footpegs. `RIGS.pickup` (`pickup_red` wheels, 0.318 m, front 1.37 m); `RIGS.motorbike`
-  (wheels rolling about −z, 0.38 m; the fork `motorbike_fork`; axles 0.786 m ahead and 0.816 m behind; saddle (−0.436,
-  0.2, 0); pegs (0.204, 0.171, ±0.223); grips (−0.145, 0.652, ±0.48) in the fork's raked frame, file units), measured
-  from its mesh at 0.474 m a unit; `PROCEDURAL_RIGS.motorbike` for its stand-in. `poseVehicle` pitches nose up about the
-  back contact for a negative pitch.
-- `pedalsOf(crank, rig)`: from the crank's pivot in the model's frame (+x ahead, +z right), the right pedal at
-  `(-arm sin c, -arm cos c, out)` and the left at `(arm sin c, arm cos c, -out)`.
-- The rider (`models/pedalling.ts`): sat on the bicycle at `SADDLE` 0.38 m up in its model's frame, so it leans and
-  pitches with it; after the clip plays, `reachFor(thigh, shin, foot, target, bend)` turns `UpperLeg` and `LowerLeg`
-  (each side) so the foot is on its pedal, the knee bent towards `bend` (ahead and up), in world space with no
-  assumption about the bones' own axes; out of reach, the leg points straight at the target. A foot down puts the left
-  foot on the ground `FOOT_OUT` 0.25 m left of the crank. The arms (`armsOf`: `UpperArm`, `ForeArm`, `Hand`) reach the
-  grips the same way, elbows `ELBOW_OUT` down, back and out. Thrown, the rider lies beside the bicycle, turned as it
-  lies, `THROWN` 0.9 m ahead and 0.4 m to its side, back in the saddle once it is up.
+- `poseVehicle(model, rig, { rolled, steer, lean, pitch, crank, stand })`: wheels by `rolled / radius`, the crank by
+  `crank` (the bicycle's own, so it freewheels), fork and front wheels by `steer`; a kickstand (`Rig.kickstand`) turned
+  from down towards its `folded` turn by `1 − stand` (slerp); the model leans about its length by
+  `leanOnStand(lean, stand, standLean)` and pitches nose down by `pitch` about its front contact (`rig.front`, metres
+  ahead of its middle), its position moved so that contact stays put. A stand's extras are read once a part
+  (`kickstandOf`: `folded` four numbers, `lean` a number); unreadable, it is no stand (logged once,
+  `explore/kickstand-unreadable name`).
+- `Rig.back`: where the back wheel meets the ground behind the middle (a wheelie pivots there; else `front`).
+  `Rig.rider` (`Rider`): the names of the nodes marking the `saddle`, the `grips` and the `feet` (pedals or pegs), each
+  `{ left, right }`. `RIGS.bicycle`: `bicycle_red_saddle`, `_grip_*`, `_pedal_*`, kickstand `bicycle_red_kickstand`,
+  front 0.507 m. `RIGS.pickup` (`pickup_red` wheels, 0.318 m, front 1.37 m); `RIGS.motorbike` (wheels rolling about −z,
+  0.38 m; the fork `motorbike_fork`; axles 0.786 m ahead and 0.816 m behind, measured from its mesh at 0.474 m a unit;
+  `motorbike_seat`, `_grip_*`, `_peg_*`; no kickstand). The stand-ins mark theirs (`saddle`, `grip-left`/`-right` on
+  `steering`, `pedal-left`/`-right` on `crank` or `peg-left`/`-right`): bicycle saddle (−0.22, 1.03, 0), grips (0.02,
+  0.3, ∓0.25), pedals (0, ±0.17, ∓0.13); motorbike seat (−0.35, 0.94, 0), grips (−0.06, 0.1, ∓0.33), pegs (0, 0.3,
+  ∓0.2). `poseVehicle` pitches nose up about the back contact for a negative pitch.
+- `models/contacts.ts` (pure, file units): `axleOf(points, across)` the normal of the plane they lie nearest (inverse
+  iteration on their covariance from the axis, `SETTLE` 40 rounds, shifted 1e-9 of its trace), along +across;
+  `hubOf(points, across)` from the box's middle and the axis, `RING_ROUNDS` 3 rounds of: the ring within `RING` 3 % of
+  the farthest from the axle, its axle (`axleOf`), its middle (Kasa's circle fit across the axle, halfway between its
+  ends along it); radius the ring's mean distance. `endsOf(points, along, span)` the middles of the points within `span`
+  of each extreme; `topOf(points, depth)` the middle of those within `depth` of the highest, at that height;
+  `surfaceTopAt(positions, indices, x, z)` the highest triangle over a point (barycentric, edge-on skipped) or null;
+  `seatOf(positions, indices, { from, to, step })` the lowest of those tops along z = 0, or null;
+  `partsOf(positions, indices)` triangles joined by shared vertices or places (to 0.1 mm), in first-triangle order;
+  `turnBetween`, `rotated`, `meanOf`.
+- The rider (`models/seat.ts`). `figureOf(person)`, as made (before any clip): its `Hips`, `Spine`, `Head`, each side's
+  arm and leg (`armsOf`, `legsOf`), `Middle1` (knuckles), `ToeBase` (the foot's ball), the `Thumb`, `Index` and `Middle`
+  joints 1 to 3 and their rest turns (no clip moves them); `seat` the hips above the lower hip joint plus a tenth of the
+  thigh, `sole` the ball's height, `standing` the hips' (metres, its own frame); logged
+  `explore/rider-measured seat sole standing`; a figure lacking any, null (`explore/rider-unrigged reason`).
+- `seat(walker, figure, slot, group, vehicle)`: a rig without `rider` leaves the walker as it is; a contact missing from
+  the model leaves it too (`explore/no-contact name`, once a model and name). Thrown, the fingers released, the rider
+  lies `THROWN` 0.9 m ahead and 0.4 m to the side it fell, rolled onto it, sinking from the saddle less
+  `standing − seat` (a stand-in: its `leg-left`'s height). Else turned as the machine, its feet `standing − seat` below
+  the saddle; a rigged figure is then, in the machine's frame: moved so its hips are `seat` above the saddle (`sitOn`);
+  its spine turned about the upright by the bars' line, `atan2(bar.x, bar.z)` (`faceBars`); leant about the machine's +z
+  by the mean of each side's `tiltToReach(spine, shoulder, grip, REACH · arm)` (0.9 of shoulder to elbow to wrist to
+  palm), held within `TILT_FORWARD` 1 rad forward and `TILT_BACK` 0.4 back, the head turned back `HEAD_LEVEL` 0.7 of it
+  (`leanToBars`); moved forward by as far as the farther arm still falls short, at most `SLIDE_MOST` 0.12 m
+  (`slideToBars`); each hand's palm (`PALM` 0.6 from the wrist to the knuckles) put on its grip by `reachFor` `PASSES` 8
+  times, aimed at the grip less where the palm landed from the wrist, elbows `ELBOW_OUT`, the fingers released then each
+  joint turned `CURL` 0.9 rad (the thumb's `THUMB_CURL` 0.5) about the bar's line (`holdBars`); each foot's ball put
+  `sole` above its pedal or peg the same way, knees `KNEE_AHEAD`; at a stop the left on the ground (the group's y = 0,
+  whatever the lean) `FOOT_AHEAD` 0.15 m ahead of the saddle and `FOOT_OUT` 0.25 m to its left (`restFeet`). On foot,
+  the figure's fingers are `release`d.
+- `tiltToReach(pivot, shoulder, grip, reach)` (`models/pedalling.ts`): in the machine's upright plane, the across
+  distance kept, the shoulder turned about the pivot to the angle where it is `reach` from the grip, above the line from
+  the pivot to the grip (law of cosines, clamped: out of reach it leans straight at the grip), the nearest way round.
+  `reachFor(root, middle, end, target, bend)` bends a limb in world space with no assumption about the bones' axes; out
+  of reach, it points straight at the target. `turnInWorld(bone, turn)` turns a bone by a world turn.
+- The kickstand (`models/kickstand.ts`): `standAfter(down, parked, seconds, still)` moves towards 1 parked and 0 ridden
+  by `seconds / STAND_SWING` (0.3 s), at once when `still`; `leanOnStand(lean, down, standLean)` is
+  `lean + standLean · down · max(0, 1 − |lean| / |standLean|)`, so a machine knocked over lies as it lies. The canvas
+  keeps each vehicle's `down` by id (a vehicle first drawn starts down if parked, folded if ridden), `still` from
+  `prefers-reduced-motion`, and logs `explore/kickstand id to still` as a stand begins to swing.
 - The pool (`nearestOf(vehicles, at, most, keep)`): every `POOL_EVERY` 0.25 s the canvas takes the `VEHICLE_POOL`
   nearest drawn as each model (`MODEL_KINDS`: 5 saloons, 3 pickups, 3 motorbikes, 5 bicycles, 1 helicopter, 17 in all)
   to the walker (the ridden one always), and `assignPool(slots, wanted)` keeps a model on a vehicle while it stays
   wanted and gives freed ones to newcomers; a model without a vehicle is hidden. A car's group takes its `attitude`; a
   two-wheeler's its heading, the model leaning and pitching by its `lean` and `pitch`.
-- The rider on a two-wheeler (`seat`): at the rig's saddle in the model's frame, hands on its grips, feet on the
-  bicycle's pedals or the motorbike's pegs (the left on the ground `FOOT_OUT` beside the peg at a stop); thrown, beside
-  it. In a car the walker is hidden.
+- The rider on a two-wheeler: `seat`, above. In a car the walker is hidden.
 
 ## The crosshair
 
@@ -610,6 +659,11 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 | Above the ceiling                   | The climb asked is held to come back to 500 m                                 |
 | Stepping out on a roof's edge       | The side with a floor at the vehicle's level                                  |
 | No Sketchfab token for the build    | The committed helicopter is kept; said in the build's output                  |
+| A model without a rider's contact   | The rider left as it was; `explore/no-contact name` once a model and name     |
+| A kickstand's extras unreadable     | No stand: the machine leans by its own lean; `explore/kickstand-unreadable`   |
+| A figure without the bones to ride  | Seated by its legs' tops, unbent; `explore/rider-unrigged reason`             |
+| Grips beyond the arms' reach        | Leant forward at most 1 rad, then forward along the saddle at most 0.12 m     |
+| A machine knocked over, stand down  | Its own lean past the stand's: drawn as it lies, no lean added                |
 
 ## Observability
 
@@ -620,8 +674,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 `explore/no-hull lot`, `explore/traffic cars`, `explore/garage load` (when the walk ends), `explore/thrown cause speed`
 (the speed thrown at) (cause `hit`, `grip` or `lean`), `explore/up`, `explore/bell`, `explore/bell-silent`,
 `explore/gamepad id` (once, when first read), `explore/helipad x z`, `explore/no-helipad`, `explore/heli-landed on y`
-(`on` `roof` or `street`), `explore/heli-lifted`, `explore/heli-hit lost`, and the loading card's
-`viewer/load-phase source=explore`.
+(`on` `roof` or `street`), `explore/heli-lifted`, `explore/heli-hit lost`, `explore/rider-measured seat sole standing`,
+`explore/rider-unrigged reason`, `explore/no-contact name`, `explore/kickstand id to still`,
+`explore/kickstand-unreadable name`, and the loading card's `viewer/load-phase source=explore`.
 
 ## Performance and limits
 
@@ -640,7 +695,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   traffic (4.6 % alone), about 2 ms of a 16.7 ms frame. JS heap 23 to 27 MB driving, array buffers (Rapier's memory
   among them) 9 MB: within the walk's budget of 64 MB and 32 MB. Drawn in software (SwiftShader, Chromium's default
   headless) the same drive manages 24.5 to 30 fps: the drawing binds there, not the walk.
-- The motorbike's models: 255 KB. Rapier's chunk: 1.6 MB gzipped, now loaded on every walk behind the card.
+- The motorbike's models: 256 KB; the bicycle 161 KB with its kickstand and contacts. Seating a rider: 8 passes of four
+  limbs' reach, once a frame for the one ridden. Rapier's chunk: 1.6 MB gzipped, now loaded on every walk behind the
+  card.
 - The helicopter (Bun, desktop): a flown step through 10,000 buildings 3.2 µs (its four wall moves and the ray down),
   0.04 % of the time at 120 Hz. Its model 107 KB.
 - Parking: `parkedIn` 1.8 ms for takken.io (115 kept) and 2.9 ms for livediagram (4,135 lots, 200 kept); at most
@@ -655,26 +712,38 @@ uneven frame times), camera, input, vehicles, models, retargeting (rest frames, 
 and the Animator; the bicycle: hands-free self-stability within 4.3 to 6 m/s and falling below, turning by leaning,
 countersteering, tracking the aim at every speed, the low-speed wobble, weight transfer and the back wheel lifting, the
 grip limit, cadence and freewheel, gears, resistance, foot down, falls and getting back up; parking from the plan; the
-pool; the pad; the leg reaching its pedal; the bell with a stand-in context. The core: the benchmark's matrices from its
-parameters, the middle, the loads, the wheel lifting and coming down to exactly 0. The motorbike: the wheelie held in
-first until the red line, 0 to 100 km/h, top speed, the throttle's rate, changing down, both brakes, paddling back, a
-slide under braking leaned, tracking the lean at 6 to 40 m/s, riding straight, the foot, falls, the HUD. The engine and
-gearbox. The nearby streets: reach, ties, cells below zero, the plan, re-centring. The garage against real Rapier:
-counted opening, cancelling, a hull it cannot make, the budget, re-centring by a wall 600 m off, pulling away through
-the gears, braking then reversing, the handbrake's slide, a crash, righting, pushing a parked car, two-wheelers in the
-way, letting go and bringing back, traffic, keeping up. The descent's order and every failure; the HUD of each ride. The
-helicopter: spin-up to full in five seconds, staying down with the collective down, spin-down slower, blades turning
-with the rotor, no lift below `hoverShare`; ground effect's cushion and its fade; height held let go, the most climb and
-sink, a soft landing, the ceiling, height kept flying ahead; the cyclic's tilt, about 200 km/h, backwards, levelling to
-a hover; the tail rotor turning on the spot, holding its heading, a banked turn and its levelling; on its skids;
-thrust's axis and `tiltedOf`; contact (a slide, a hard hit, a landing, lifting off, held by its rotor); through walls (a
-wall as high as the rotor, a brush, over a low building, the cabin, a roof landing, perched and eased off, `belowOf`,
-`roomToLand`); the helipad (ahead, past buildings, clear of a parked car, behind, none); boarding, the prompt, the
-camera, landing and spinning down in the session; stepping out onto the roof's side; the view's Up and Down on a roof
-and a hit and landing by keys, logged. End to end: in, spun up, lifted, homed in on the nearest lot (from the helipad's
-place and the HUD's heading) until over a roof with room, landed on it, out on the roof and in reach again, with the
-touch layout measured upright and on its side. End to end: loading once (its four phases), the motorbike (throttle,
-gears, both brakes, off), the car on Rapier (engine, gears, reverse, parked where it stopped), arcade cars without
-WebAssembly, and each ride's touch layout with nothing overlapping, upright and on its side. End to end
+pool; the pad; the leg reaching its pedal; the bell with a stand-in context. The rider on the walk's own models
+(`seat.test.ts`, the files read from `public/models` without their textures by `testing/models.ts`): hips on the saddle,
+palms on the grips and the feet's balls on the pedals within 2 cm round the crank, steered and leaning either way, on
+the motorbike's seat, grips and pegs, the knees bent ahead, fingers closed and released, a foot on the ground at a stop,
+thrown, a figure without bones, a missing contact said once. Each wheel of each ride and stand-in true over a full turn
+(`wheels.test.ts`: hub held within 1 mm, axle within 0.002 rad of across, 24 steps; the pack's leaning bicycle fails it
+by 0.14 rad); the contacts marked; the kickstand on the ground parked, the bicycle leaning 8°, and folded clear of it
+ridden; the measuring functions (`contacts.test.ts`); the stand's swing and lean (`kickstand.test.ts`). The core: the
+benchmark's matrices from its parameters, the middle, the loads, the wheel lifting and coming down to exactly 0. The
+motorbike: the wheelie held in first until the red line, 0 to 100 km/h, top speed, the throttle's rate, changing down,
+both brakes, paddling back, a slide under braking leaned, tracking the lean at 6 to 40 m/s, riding straight, the foot,
+falls, the HUD. The engine and gearbox. The nearby streets: reach, ties, cells below zero, the plan, re-centring. The
+garage against real Rapier: counted opening, cancelling, a hull it cannot make, the budget, re-centring by a wall 600 m
+off, pulling away through the gears, braking then reversing, the handbrake's slide, a crash, righting, pushing a parked
+car, two-wheelers in the way, letting go and bringing back, traffic, keeping up. The descent's order and every failure;
+the HUD of each ride. The helicopter: spin-up to full in five seconds, staying down with the collective down, spin-down
+slower, blades turning with the rotor, no lift below `hoverShare`; ground effect's cushion and its fade; height held let
+go, the most climb and sink, a soft landing, the ceiling, height kept flying ahead; the cyclic's tilt, about 200 km/h,
+backwards, levelling to a hover; the tail rotor turning on the spot, holding its heading, a banked turn and its
+levelling; on its skids; thrust's axis and `tiltedOf`; contact (a slide, a hard hit, a landing, lifting off, held by its
+rotor); through walls (a wall as high as the rotor, a brush, over a low building, the cabin, a roof landing, perched and
+eased off, `belowOf`, `roomToLand`); the helipad (ahead, past buildings, clear of a parked car, behind, none); boarding,
+the prompt, the camera, landing and spinning down in the session; stepping out onto the roof's side; the view's Up and
+Down on a roof and a hit and landing by keys, logged. End to end: in, spun up, lifted, homed in on the nearest lot (from
+the helipad's place and the HUD's heading) until over a roof with room, landed on it, out on the roof and in reach
+again, with the touch layout measured upright and on its side. End to end: loading once (its four phases), the motorbike
+(throttle, gears, both brakes, off), the car on Rapier (engine, gears, reverse, parked where it stopped), arcade cars
+without WebAssembly, and each ride's touch layout with nothing overlapping, upright and on its side. End to end
 (`e2e/explore.spec.ts`): walking by keys and by touch, the loading log, getting on the bicycle and off, riding it
 (pedal, shift, brake, stop with a foot down, the HUD), the Rapier prototype, Wobble Blocks loaded, axe light and dark.
+
+By eye: the ride lab (`/lab/ride?ride=…&pose=parked|stopped|riding|steering&view=side|front|above|behind|grip|pedal`,
+with `theme`, `rolled`, `crank` and `marks=1` dotting the contacts; not linked) seats a rider as the walk does, on a
+plain ground; `apps/web/scripts/ride-shots.ts <origin> <dir> [wheel]` captures each ride, pose and view in a light and a
+dark theme, or the bicycle's wheel turning an eighth of a metre a frame.
