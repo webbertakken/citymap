@@ -78,6 +78,18 @@ describe("loadGltfModels", () => {
     expect(box.getCenter(new Vector3()).z).toBeCloseTo(0, 6);
   });
 
+  it("keeps the file's own scene, untouched by the copies it makes", async () => {
+    const files: GltfFile[] = [];
+    const models = await loadGltfModels("", async (url) => {
+      const file = await read(url);
+      files.push(file);
+      return file;
+    });
+    models.car.make();
+    expect(models.car.original).toBe(files[4]!.scene);
+    expect(models.car.original.rotation.y).toBe(0);
+  });
+
   it("makes a fresh copy each time, that callers may scale without undoing the file's size", async () => {
     const models = await loadGltfModels("", read);
     const one = models.car.make();

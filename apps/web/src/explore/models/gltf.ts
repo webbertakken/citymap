@@ -43,6 +43,11 @@ export type GltfName = keyof typeof GLTF_MODELS;
 export interface Loaded {
   readonly make: () => Object3D;
   readonly clips: readonly AnimationClip[];
+  /**
+   * The file's own scene, as loaded and never drawn: the frame its skeleton was made in, to map other clips onto. A clip
+   * mapped onto it plays on every copy `make` gives, by its bones' names.
+   */
+  readonly original: Object3D;
 }
 
 /** The file's scene, turned, scaled and set down so it matches the procedural frame. */
@@ -113,7 +118,7 @@ export const readGltfWithThree: ReadGltf = (url) => new GLTFLoader().loadAsync(u
 export async function loadModel(base: string, file: ModelFile, read: ReadGltf = readGltfWithThree): Promise<Loaded> {
   const gltf = await read(`${base}/${file.url}`);
   asAuthored(gltf.scene);
-  return { make: () => normalised(clone(gltf.scene), file), clips: gltf.animations };
+  return { make: () => normalised(clone(gltf.scene), file), clips: gltf.animations, original: gltf.scene };
 }
 
 /** Loads every model, under the site's path (`base`), for the model lab. */
