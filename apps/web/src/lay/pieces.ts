@@ -1,7 +1,8 @@
 // A city file crosses from the city's worker to the main thread in pieces, each parsed in its own short task with a
 // yield to input between them, so a large city never holds the page for one long parse: first the head (the city file
-// with every town's lots and the measures' lots emptied), then each town's lots and each town's lot measures, in order.
-import type { City, Lot, Town } from "@citymap/ground-plan";
+// with every town's lots, blocks, roads and districts and the measures' lots emptied), then those of each town and each
+// town's lot measures, in order.
+import type { City, Town } from "@citymap/ground-plan";
 import type { CityFile, LotMeasures, Measures } from "@citymap/measures";
 import { log } from "../log";
 import { yieldToInput } from "../search/slices";
@@ -27,20 +28,26 @@ function packed(items: readonly string[], size: number): string[][] {
   return pieces;
 }
 
-/** A city file as JSON pieces: the head, then the lots by town, then the lot measures by town, each in order. */
+/** The parts of a town that cross in pieces of their own: its largest arrays. */
+const TOWN_PIECES = ["lots", "blocks", "roads", "districts"] as const;
+type TownPiece = (typeof TOWN_PIECES)[number];
+
+/** A city file as JSON pieces: the head, then each town's parts, then the lot measures by town, each in order. */
 export function cityPieces({ city, measures }: CityFile, size = PIECE_BYTES): string[] {
   const head = {
     ...city,
-    towns: city.towns.map((town) => ({ ...town, lots: [] })),
+    towns: city.towns.map((town) => ({ ...town, lots: [], blocks: [], roads: [], districts: [] })),
     ...(measures
       ? { measures: { ...measures, lots: Object.fromEntries(Object.keys(measures.lots).map((key) => [key, {}])) } }
       : {}),
   };
-  const lots = city.towns.flatMap((town, t) =>
-    packed(
-      town.lots.map((lot) => JSON.stringify(lot)),
-      size,
-    ).map((items) => `{"lots":${t},"items":[${items.join(",")}]}`),
+  const parts = city.towns.flatMap((town, t) =>
+    TOWN_PIECES.flatMap((part) =>
+      packed(
+        town[part].map((item) => JSON.stringify(item)),
+        size,
+      ).map((items) => `{"town":${t},"part":"${part}","items":[${items.join(",")}]}`),
+    ),
   );
   const measured = Object.entries(measures?.lots ?? {}).flatMap(([townKey, byKey]) =>
     packed(
@@ -48,19 +55,28 @@ export function cityPieces({ city, measures }: CityFile, size = PIECE_BYTES): st
       size,
     ).map((items) => `{"measures":${JSON.stringify(townKey)},"items":{${items.join(",")}}}`),
   );
-  return [JSON.stringify(head), ...lots, ...measured];
+  return [JSON.stringify(head), ...parts, ...measured];
 }
 
-/** One piece after the head: a town's lots, or a town's lot measures. */
+/** A town's parts as the head holds them, still to fill. */
+type Parts = { -readonly [K in TownPiece]: Town[K][number][] };
+
+/** One piece after the head: a part of a town, or a town's lot measures. */
 type Piece =
-  | { readonly lots: number; readonly items: readonly Lot[] }
+  | { [K in TownPiece]: { readonly town: number; readonly part: K; readonly items: Parts[K] } }[TownPiece]
   | { readonly measures: string; readonly items: Readonly<Record<string, LotMeasures>> };
 
-/** The head as parsed, its towns' lots and its measures' lots still to fill. */
+/** The head as parsed, its towns' parts and its measures' lots still to fill. */
 type Head = Omit<City, "towns"> & {
-  readonly towns: readonly (Omit<Town, "lots"> & { readonly lots: Lot[] })[];
+  readonly towns: readonly (Omit<Town, TownPiece> & Parts)[];
   readonly measures?: Omit<Measures, "lots"> & { readonly lots: Record<string, Record<string, LotMeasures>> };
 };
+
+/** Appends a piece's items to its town's part, in order. */
+function fill<K extends TownPiece>(parts: Parts, part: K, items: Parts[K]) {
+  const into: Parts[K] = parts[part];
+  for (const item of items) into.push(item);
+}
 
 export interface PieceOptions {
   /** Stops between pieces with the signal's reason. */
@@ -89,7 +105,7 @@ export async function cityOfPieces(
     await pause();
     signal?.throwIfAborted();
     const taken: Piece = JSON.parse(piece);
-    if ("lots" in taken) for (const lot of taken.items) parsed.towns[taken.lots]!.lots.push(lot);
+    if ("part" in taken) fill(parsed.towns[taken.town]!, taken.part, taken.items);
     else {
       const byKey = parsed.measures!.lots[taken.measures]!;
       // Own properties, as JSON.parse makes them: a key like "__proto__" stays a key.

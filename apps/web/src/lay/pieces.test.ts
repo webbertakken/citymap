@@ -54,7 +54,8 @@ describe("cityPieces and cityOfPieces", () => {
 
   it("carry a city without measures, and a whole city in a few pieces at the usual size", async () => {
     const bare = { city, measures: null };
-    expect(cityPieces(bare)).toHaveLength(3);
+    // The head, then each town's lots and districts (neither has blocks or roads).
+    expect(cityPieces(bare)).toHaveLength(5);
     expect(PIECE_BYTES).toBe(1_000_000);
     const taken = await cityOfPieces(cityPieces(bare, 300), { pause: still });
     expect(whole(taken)).toBe(whole(bare));
@@ -63,7 +64,8 @@ describe("cityPieces and cityOfPieces", () => {
 
   it("give an item larger than a piece a piece of its own", () => {
     const pieces = cityPieces(file, 1);
-    expect(pieces).toHaveLength(1 + 9 + 7 + 9);
+    // The head, every lot and district of both towns, and every lot's measures.
+    expect(pieces).toHaveLength(1 + (9 + 3) + (7 + 1) + 9);
   });
 
   it("keep a key named like a prototype's as the lot's own", async () => {

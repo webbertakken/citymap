@@ -91,10 +91,12 @@ function open(request: Exclude<Request, Ask>) {
     work = made.work;
     tasks = made.tasks;
     const { file, floors, roofs, buildings } = made.work;
-    const opened = { pieces: cityPieces(file), grid: made.grid, floors, roofs, scales: buildings.scales };
+    // Each piece of the city is a message of its own, so the main thread receives each in its own short task.
+    for (const piece of cityPieces(file)) self.postMessage({ piece }, { transfer: [] });
+    const opened = { grid: made.grid, floors, roofs, scales: buildings.scales, answers: made.answers };
     // The roofs are not made again, so their buffers go; the floors are copied, being small.
     self.postMessage(
-      { opened: { ...opened, answers: made.answers } },
+      { opened },
       { transfer: [...pickBuffers(made.grid), ...roofBuffers(roofs), ...made.answers.flatMap(answerBuffers)] },
     );
     schedule();

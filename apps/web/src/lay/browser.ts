@@ -25,9 +25,9 @@ import type { Request } from "./worker";
 
 type Message =
   | { readonly step: Step }
+  | { readonly piece: string }
   | {
       readonly opened: {
-        readonly pieces: readonly string[];
         readonly grid: PickGrid;
         readonly floors: Uint8Array;
         readonly roofs: Roofs;
@@ -49,6 +49,8 @@ const inWorker = (request: Exclude<Request, Ask>, { signal, onProgress }: OpenOp
     const started = performance.now();
     const worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
     const heard = hearing();
+    // The city's pieces, each received in a task of its own before the city is open.
+    const pieces: string[] = [];
     // What was asked last, so the calling thread can make it again if the worker fails; the opening's look at first.
     let lastLook: Ask = { ask: "look", theme: request.theme, colourBy: request.colourBy, first: request.town };
     let lastTable: Ask | null = null;
@@ -85,6 +87,7 @@ const inWorker = (request: Exclude<Request, Ask>, { signal, onProgress }: OpenOp
     worker.addEventListener("message", (event: MessageEvent<Message>) => {
       const message = event.data;
       if ("step" in message) onProgress?.(message.step);
+      else if ("piece" in message) pieces.push(message.piece);
       else if ("answer" in message) heard.tell(message.answer);
       else if ("failed" in message)
         log.error("viewer/city-task-failed", {
@@ -96,7 +99,7 @@ const inWorker = (request: Exclude<Request, Ask>, { signal, onProgress }: OpenOp
         log.info("viewer/worker", { job: request.job, ms: Math.round(performance.now() - started) });
         const { opened } = message;
         // The city is taken in piece by piece, between inputs; the signal still ends the opening meanwhile.
-        cityOfPieces(opened.pieces, signal ? { signal } : {}).then(
+        cityOfPieces(pieces, signal ? { signal } : {}).then(
           (taken) => {
             signal?.removeEventListener("abort", abort);
             file = taken;
