@@ -128,3 +128,43 @@ export const indexEntry = (
 /** The closing line: how many cities and variants, and their bytes raw and gzipped. */
 export const summary = (sizes: readonly { readonly bytes: number; readonly gzip: number }[], cities: number) =>
   `bundle/done cities=${cities} variants=${sizes.length} bytes=${sizes.reduce((s, v) => s + v.bytes, 0)} gzip=${sizes.reduce((s, v) => s + v.gzip, 0)}`;
+
+/**
+ * How many lays run at once: the machine's cores, or fewer when `CITYMAP_BUNDLE_JOBS` asks (never more: each lay is one
+ * busy core). A count that is not a whole number above zero is refused.
+ */
+export function poolSize(cores: number, asked: string | undefined): number {
+  const most = Math.max(1, cores);
+  if (asked === undefined) return most;
+  if (!/^\d+$/.test(asked) || Number(asked) < 1)
+    throw new Error(`bundle/usage: CITYMAP_BUNDLE_JOBS takes a whole number above 0, not ${asked}`);
+  return Math.min(most, Number(asked));
+}
+
+/**
+ * Runs `task` over the items, at most `limit` at once, each taken as soon as one finishes; the results in the items'
+ * order, so what follows from them never depends on which finished first. Once a task fails no more start, and the pool
+ * fails with it.
+ */
+export async function inPool<T, R>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T, at: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  let next = 0;
+  let failed = false;
+  const worker = async (): Promise<void> => {
+    if (failed || next >= items.length) return;
+    const at = next++;
+    try {
+      results[at] = await task(items[at]!, at);
+    } catch (error) {
+      failed = true;
+      throw error;
+    }
+    return worker();
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}

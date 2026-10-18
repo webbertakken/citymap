@@ -4,8 +4,10 @@ import {
   BUNDLED,
   cloneArgs,
   combinations,
+  inPool,
   indexEntry,
   layArgs,
+  poolSize,
   separateFor,
   statesOf,
   summary,
@@ -146,5 +148,53 @@ describe("summary", () => {
         2,
       ),
     ).toBe("bundle/done cities=2 variants=2 bytes=1500 gzip=300");
+  });
+});
+
+describe("poolSize", () => {
+  it("lays as many at once as the machine has cores, or fewer when asked", () => {
+    expect(poolSize(4, undefined)).toBe(4);
+    expect(poolSize(4, "2")).toBe(2);
+    // Never more than the cores.
+    expect(poolSize(4, "16")).toBe(4);
+    expect(poolSize(0, undefined)).toBe(1);
+  });
+
+  it("refuses a count that is not a whole number above zero", () => {
+    for (const bad of ["0", "-1", "two", "1.5", ""])
+      expect(() => poolSize(4, bad)).toThrow(
+        `bundle/usage: CITYMAP_BUNDLE_JOBS takes a whole number above 0, not ${bad}`,
+      );
+  });
+});
+
+describe("inPool", () => {
+  it("runs at most the limit at once and answers in the items' order, whatever order they finish in", async () => {
+    let running = 0;
+    let most = 0;
+    const done: number[] = [];
+    const results = await inPool([30, 5, 20, 1, 10], 2, async (ms, at) => {
+      running++;
+      most = Math.max(most, running);
+      await new Promise((resolve) => setTimeout(resolve, ms));
+      running--;
+      done.push(at);
+      return ms * 2;
+    });
+    expect(results).toEqual([60, 10, 40, 2, 20]);
+    expect(most).toBe(2);
+    expect(done).not.toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("starts nothing more once a task fails, and fails with it", async () => {
+    const started: number[] = [];
+    const failing = inPool([1, 2, 3, 4], 1, async (n) => {
+      started.push(n);
+      if (n === 2) throw new Error("bundle/failed two");
+      return n;
+    });
+    await expect(failing).rejects.toThrow("bundle/failed two");
+    expect(started).toEqual([1, 2]);
+    expect(await inPool([], 3, async () => 1)).toEqual([]);
   });
 });
