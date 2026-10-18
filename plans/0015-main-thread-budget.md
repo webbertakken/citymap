@@ -20,16 +20,16 @@ Where main's time goes on the phone journey (livediagram, slowed fourfold, profi
 
 ## Phase 1: measure main
 
-- [ ] The phone budget on main, 20 rounds alternating with this branch's baseline (so both see the same machine load),
+- [x] The phone budget on main, 20 rounds alternating with this branch's baseline (so both see the same machine load),
       twice; each miss named with its event and the machine's calibration
 - [x] The phone journey profiled step by step (the drill, back, Buildings, Details, theme, the variant), and linux's
       opening, with source maps; the attribution above confirmed or corrected
 
 ## Phase 2: spec and blueprint
 
-- [ ] Spec: what a person sees while a town's scene, a theme or a colour arrives from off the main thread (nothing new,
+- [x] Spec: what a person sees while a town's scene, a theme or a colour arrives from off the main thread (nothing new,
       if the work is ready before it is asked for); the budget stated for every journey step
-- [ ] Blueprint: the city's worker (the opening's worker kept while its city is shown: its requests, answers, buffers,
+- [x] Blueprint: the city's worker (the opening's worker kept while its city is shown: its requests, answers, buffers,
       lifetime and failures); town scenes built ahead; the theme rebuilt there; the lot table and heights there; the
       measures read per lot on demand; the city taken in by slices; the shader warmed up; logs, constants, tests;
       DEFAULTS and COMPLETENESS

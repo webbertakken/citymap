@@ -243,6 +243,19 @@ what it means, so a person who has never read this spec understands the map.
   opening (a bundled city, another layout, a city file, a repository) is read or laid off the main thread, where the
   map's shapes and its index for the pointer are built too; the main thread only takes the finished city in, and lists
   the city's folders and files for search in short slices between inputs before the city shows, so a city on the map can
-  always be searched. Showing one town alone builds no new index for the pointer. On a phone the longest main-thread
-  task while opening livediagram, or another layout of it, stays under 200 ms.
+  always be searched. Showing one town alone builds no new index for the pointer. A large city reaches the main thread
+  in pieces, each taken in its own short task. On a phone the longest main-thread task while opening livediagram, or
+  another layout of it, stays under 200 ms.
+- Once a city shows, the work that made it stays with it off the main thread, and makes what the map needs next before
+  it is asked for: every town's shapes, in the theme shown, so showing one town alone draws shapes already at hand; and
+  the buildings' heights and colours. A town shown alone before its shapes are ready shows at once all the same, its
+  shapes made on the main thread, as the person asked to see it.
+- Another theme or another colour is made there too: the menu answers at once, and the map keeps its colours until the
+  new ones are ready, then changes as a whole (its background, its names and the legend with it); the theme menu shows
+  the theme chosen meanwhile. A card reads only its own building's measures.
+- The buildings are drawn by one program, compiled with the city's first frame and kept: switching to the Buildings view
+  and back, another colour, another theme or one town alone changes what it draws, never the program.
+- On a phone every step of a visit answers in under 200 ms: a tap on the map, the arrow keys and zoom, another layout, a
+  theme, a search and its pick, Details and Hide details, one town alone and the whole city again, the Buildings view,
+  the legend and a colour by measure.
 - Phones draw at a device pixel ratio of at most 2.
