@@ -137,7 +137,7 @@ const useKey = () => ({ ...newControls(), use: true });
 
 describe("riding", () => {
   // A car parked 2 m east of the walker, facing east; a bicycle far off.
-  const car: Vehicle = { id: "car", kind: "car", feet: { x: 4, y: 0, z: 0 }, heading: 0, speed: 0, steer: 0 };
+  const car: Vehicle = { id: "car", kind: "car", feet: { x: 4, y: 0, z: 0 }, heading: 0, speed: 0, turn: 0, steer: 0 };
   const bicycle: Vehicle = { ...car, id: "bicycle", kind: "bicycle", feet: { x: 100, y: 0, z: 0 } };
   const parked = () => startSession({ x: 1.5, y: 0, z: 0 }, 0, [car, bicycle]);
 
@@ -155,7 +155,9 @@ describe("riding", () => {
     let driving = inside;
     for (let i = 0; i < 60; i++) driving = advanceSession(driving, pressing("KeyW"), 1 / 60, open);
     const moved = ridden(driving)!;
-    expect(moved.speed).toBeCloseTo(VEHICLES.car.accelerate, 1);
+    // A second of throttle from a standstill: nearly its full power all the way.
+    expect(moved.speed).toBeGreaterThan(0.95 * VEHICLES.car.accelerate);
+    expect(moved.speed).toBeLessThan(VEHICLES.car.accelerate);
     expect(driving.body.feet).toEqual(moved.feet);
     expect(driving.speed).toBeCloseTo(moved.speed, 6);
     // Too fast to get out: E does nothing, and the prompt says so.

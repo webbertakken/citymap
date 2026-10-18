@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Landing } from "./landing";
 import {
   BUMP,
+  MAX_STEER,
   PARKING,
   REACH,
   VEHICLES,
@@ -24,6 +25,7 @@ const car = (x = 0, z = 0, heading = 0, speed = 0): Vehicle => ({
   feet: at(x, z),
   heading,
   speed,
+  turn: 0,
   steer: 0,
 });
 const box = (x: number, z: number, w: number, d: number): Footprint => ({
@@ -54,7 +56,7 @@ const landing: Landing = {
 describe("parkedBy", () => {
   it("parks a bicycle and a car at the kerb on the right of the road, ahead, facing along it", () => {
     const [bicycle, motor] = parkedBy(landing, open);
-    expect(bicycle).toMatchObject({ kind: "bicycle", speed: 0, steer: 0, heading: 0 });
+    expect(bicycle).toMatchObject({ kind: "bicycle", speed: 0, turn: 0, steer: 0, heading: 0 });
     expect(bicycle!.feet.x).toBeCloseTo(PARKING.bicycle.ahead, 9);
     // Right of a road running east is south: +z, half the 10 m street less the inset.
     expect(bicycle!.feet.z).toBeCloseTo(5 - PARKING.bicycle.inset, 9);
@@ -96,17 +98,25 @@ describe("distanceTo and reachable", () => {
 });
 
 describe("stepVehicle", () => {
-  it("speeds up under throttle to its top speed, and no faster", () => {
+  it("speeds up under throttle, strongly at first and tapering to its top speed, never past it", () => {
     const moving = ride(car(), { ...NO_INTENTS, forward: 1 });
-    expect(moving.speed).toBeCloseTo(VEHICLES.car.accelerate, 6);
-    expect(moving.feet.x).toBeGreaterThan(1.5);
-    expect(ride(car(0, 0, 0, 24.9), { ...NO_INTENTS, forward: 1 }).speed).toBe(VEHICLES.car.topSpeed);
+    // A second from a standstill: nearly its full power all the way, as speed is still far from the top.
+    expect(moving.speed).toBeGreaterThan(0.95 * VEHICLES.car.accelerate);
+    expect(moving.speed).toBeLessThan(VEHICLES.car.accelerate);
+    expect(moving.feet.x).toBeGreaterThan(3);
+    const flatOut = ride(car(), { ...NO_INTENTS, forward: 1 }, 120 * 60);
+    expect(flatOut.speed).toBeGreaterThan(0.95 * VEHICLES.car.topSpeed);
+    expect(flatOut.speed).toBeLessThanOrEqual(VEHICLES.car.topSpeed);
+    expect(stepVehicle(car(0, 0, 0, 40), { ...NO_INTENTS, forward: 1 }, 1 / 120, open).speed).toBe(
+      VEHICLES.car.topSpeed,
+    );
   });
 
   it("brakes with back, reverses once stopped, and no faster than its reverse", () => {
     expect(ride(car(0, 0, 0, 5), { ...NO_INTENTS, forward: -1 }, 30).speed).toBeCloseTo(5 - VEHICLES.car.brake / 4, 6);
     const reversing = ride(car(), { ...NO_INTENTS, forward: -1 }, 1200);
-    expect(reversing.speed).toBe(-VEHICLES.car.reverseSpeed);
+    expect(reversing.speed).toBeLessThan(-0.9 * VEHICLES.car.reverseSpeed);
+    expect(reversing.speed).toBeGreaterThanOrEqual(-VEHICLES.car.reverseSpeed);
     expect(reversing.feet.x).toBeLessThan(0);
     // Forward while reversing brakes first.
     expect(ride(car(0, 0, 0, -3), { ...NO_INTENTS, forward: 1 }, 12).speed).toBeCloseTo(
@@ -121,14 +131,30 @@ describe("stepVehicle", () => {
     expect(ride(car(0, 0, 0, -0.1)).speed).toBe(0);
   });
 
-  it("turns right for right, round its rear axle, and steers more gently at speed", () => {
-    const slow = ride(car(0, 0, 0, 3), { ...NO_INTENTS, forward: 0.2, right: 1 });
+  it("turns right for right, tight when slow and wide when fast, its wheel angle following", () => {
+    const slow = ride(car(0, 0, 0, 3), { ...NO_INTENTS, forward: 0.2, right: 1 }, 60);
     expect(slow.heading).toBeLessThan(0);
+    expect(slow.turn).toBeLessThan(0);
     expect(slow.steer).toBeLessThan(0);
-    const aimAt = (speed: number) => ride(car(0, 0, 0, speed), { ...NO_INTENTS, right: 1 }, 600).steer;
-    expect(Math.abs(aimAt(20))).toBeLessThan(Math.abs(aimAt(2)));
-    // Let go, and the wheel comes back straight.
-    expect(ride(slow, NO_INTENTS).steer).toBe(0);
+    // Held a second: slow, the tightest radius limits the turn; fast, its fastest rate does.
+    const held = (speed: number) => ride(car(0, 0, 0, speed), { ...NO_INTENTS, right: 1 });
+    const slowly = held(2);
+    expect(slowly.turn).toBeCloseTo(-slowly.speed / VEHICLES.car.turnRadius, 9);
+    expect(held(25).turn).toBeCloseTo(-VEHICLES.car.turnRate, 9);
+    expect(Math.abs(held(25).steer)).toBeLessThan(Math.abs(slowly.steer));
+    // Let go, and it runs straight again, quickly.
+    expect(ride(slow, NO_INTENTS, 30).turn).toBe(0);
+  });
+
+  it("turns the other way reversing, as a car does, and not at all standing still", () => {
+    const back = ride(car(0, 0, 0, -3), { ...NO_INTENTS, right: 1, forward: -0.2 }, 30);
+    expect(back.turn).toBeGreaterThan(0);
+    expect(ride(car(), { ...NO_INTENTS, right: 1 }, 30)).toMatchObject({ turn: 0, steer: 0 });
+  });
+
+  it("holds its wheel angle to its limit", () => {
+    const spun = stepVehicle({ ...car(0, 0, 0, 0.2), turn: 5 }, { ...NO_INTENTS, forward: 0.01 }, 1 / 120, open);
+    expect(spun.steer).toBe(MAX_STEER);
   });
 
   it("bumps off a wall, keeping a little of its speed", () => {

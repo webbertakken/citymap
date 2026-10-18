@@ -12,11 +12,11 @@ export const GEARING = 2.6;
 export const MAX_LEAN = 0.7;
 
 /**
- * How far a bicycle leans into a turn to stay balanced (positive to the left), at a speed with its front wheel turned:
- * the lean whose tilt matches the turn's pull, atan(v² / (r g)), r the turn's radius.
+ * How far a bicycle leans into a turn to stay balanced (positive to the left), at a speed and rate of turn: the lean
+ * whose tilt matches the turn's pull, atan(v ω / g).
  */
-export function leanOf(speed: number, steer: number, wheelbase: number): number {
-  const lean = Math.atan((speed * speed * Math.tan(steer)) / (wheelbase * GRAVITY));
+export function leanOf(speed: number, turn: number): number {
+  const lean = Math.atan((speed * turn) / GRAVITY);
   return Math.max(-MAX_LEAN, Math.min(MAX_LEAN, lean));
 }
 

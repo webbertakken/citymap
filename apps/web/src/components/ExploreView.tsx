@@ -7,7 +7,7 @@ import type { Theme } from "@citymap/themes";
 import { GROUND, type Vec3, type Walls } from "@citymap/world";
 import { Bike, Car, Footprints, X } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState, type ComponentType, type PointerEvent } from "react";
-import { cameraOf } from "../explore/camera";
+import { cameraOf, easeReach, reachOf } from "../explore/camera";
 import { WALK_KEYS, stickAt } from "../explore/input";
 import type { Landing } from "../explore/landing";
 import {
@@ -79,6 +79,8 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
   const [prompt, setPrompt] = useState<Prompt | null>(() => promptOf(start));
   const [riding, setRiding] = useState<VehicleKind | null>(null);
   const said = useRef(JSON.stringify(promptOf(start)));
+  // How far back the camera sits: in at once to a wall, back out gently.
+  const reach = useRef<number | null>(null);
   const session = useRef(start);
   const controls = useRef(newControls());
   // The finger on the stick and where it landed, and the pointer that drags the view.
@@ -100,12 +102,15 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
     const kind = ridden(next)?.kind ?? null;
     if (kind !== riding) setRiding(kind);
     const shown = shownOf(next);
+    const follow = followOf(next);
+    const wanted = reachOf(shown.feet, next.orbit, walls, follow);
+    reach.current = reach.current === null ? wanted : easeReach(reach.current, wanted, seconds);
     return {
       session: next,
       shown,
       vehicles: shownVehicles(next),
       riding: kind,
-      camera: cameraOf(shown.feet, next.orbit, walls, followOf(next)),
+      camera: cameraOf(shown.feet, next.orbit, walls, follow, reach.current),
     };
   };
   const use = () => {

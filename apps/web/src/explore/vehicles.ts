@@ -1,6 +1,7 @@
 // Vehicles parked in the city, to walk up to and ride: where they stand, when a person can reach one, and how one moves
-// under its rider. A first, kinematic handling: a single-track model whose steering grows gentler with speed, bumping off
-// walls. Metres and seconds; headings as the walker's.
+// under its rider. An arcade handling: power that tapers towards top speed, and steering that asks for a rate of turn
+// (tight when slow, wider when fast) which the vehicle follows quickly; it bumps off walls. Metres and seconds; headings
+// as the walker's.
 import { GROUND, PERSON_RADIUS, type Vec3, type Walls } from "@citymap/world";
 import type { Landing } from "./landing";
 import { METRE } from "./street";
@@ -25,17 +26,20 @@ export interface VehicleSpec {
   readonly radius: number;
   /** Between its axles, for how sharply it turns. */
   readonly wheelbase: number;
-  /** Top speeds forward and in reverse, and how fast it gains, sheds (braking) and loses (coasting) speed. */
+  /**
+   * Top speeds forward and in reverse; how fast it gains speed from a standstill (tapering to nothing at top speed),
+   * sheds it braking, and loses it coasting.
+   */
   readonly topSpeed: number;
   readonly reverseSpeed: number;
   readonly accelerate: number;
   readonly brake: number;
   readonly coast: number;
-  /** The front wheel's widest turn at a standstill, in radians; it halves by `steerFade` metres a second. */
-  readonly steer: number;
-  readonly steerFade: number;
-  /** How fast the front wheel turns towards where it is steered, in radians a second. */
-  readonly steerRate: number;
+  /** Its tightest turn's radius, and its fastest turn, in radians a second: slow, the radius limits; fast, the rate. */
+  readonly turnRadius: number;
+  readonly turnRate: number;
+  /** How quickly its turn follows the steering, in radians a second, each second. */
+  readonly turnResponse: number;
   /** Where the camera follows from: how far back and how high above the ground it looks. */
   readonly follow: { readonly distance: number; readonly height: number };
 }
@@ -51,14 +55,14 @@ export const VEHICLES: Readonly<Record<VehicleKind, VehicleSpec>> = {
     width: 0.6,
     radius: 0.35,
     wheelbase: 1.05,
-    topSpeed: 9,
+    topSpeed: 10,
     reverseSpeed: 1,
-    accelerate: 1.6,
-    brake: 5,
-    coast: 0.25,
-    steer: 0.6,
-    steerFade: 4,
-    steerRate: 2.5,
+    accelerate: 4.5,
+    brake: 7,
+    coast: 0.4,
+    turnRadius: 3,
+    turnRate: 2.2,
+    turnResponse: 10,
     follow: { distance: 4.5, height: 1.8 },
   },
   car: {
@@ -71,25 +75,29 @@ export const VEHICLES: Readonly<Record<VehicleKind, VehicleSpec>> = {
     width: 1.8,
     radius: 0.95,
     wheelbase: 2.6,
-    topSpeed: 25,
-    reverseSpeed: 5,
-    accelerate: 4,
-    brake: 9,
-    coast: 0.8,
-    steer: 0.6,
-    steerFade: 8,
-    steerRate: 2,
+    topSpeed: 32,
+    reverseSpeed: 6,
+    accelerate: 9,
+    brake: 14,
+    coast: 1.2,
+    turnRadius: 5.5,
+    turnRate: 1.5,
+    turnResponse: 7,
     follow: { distance: 7, height: 2.2 },
   },
 };
 
-/** A vehicle in the city: which it is, where it stands, which way it faces, its speed and its front wheel's turn. */
+/**
+ * A vehicle in the city: which it is, where it stands, which way it faces, its speed, its rate of turn (radians a
+ * second, anticlockwise from above) and its front wheel's angle, which follows from them.
+ */
 export interface Vehicle {
   readonly id: string;
   readonly kind: VehicleKind;
   readonly feet: Vec3;
   readonly heading: number;
   readonly speed: number;
+  readonly turn: number;
   readonly steer: number;
 }
 
@@ -123,7 +131,7 @@ export function parkedBy(landing: Landing, walls: Walls): Vehicle[] {
     const middle = { x: road.at.x / METRE + along.x * ahead, y: GROUND, z: road.at.z / METRE + along.z * ahead };
     const out = Math.max(0, half - inset);
     const placed = walls.move(middle, { x: right.x * out, y: 0, z: right.z * out }, VEHICLES[kind].radius);
-    return { id: kind, kind, feet: placed.feet, heading, speed: 0, steer: 0 };
+    return { id: kind, kind, feet: placed.feet, heading, speed: 0, turn: 0, steer: 0 };
   });
 }
 
@@ -148,26 +156,35 @@ export function reachable(feet: Vec3, vehicles: readonly Vehicle[]): Vehicle | n
   return best?.vehicle ?? null;
 }
 
+/** The widest a front wheel turns, in radians: what the steering angle shown is held to. */
+export const MAX_STEER = 0.6;
+
 /**
  * One step of `dt` seconds under a rider: forward throttles (and, once stopped, a held back reverses), back brakes,
- * jump brakes hard, right steers right; the vehicle turns about its rear axle by its front wheel, and the walls take
- * what they allow, a hit costing most of its speed.
+ * jump brakes hard; power tapers towards top speed. Right asks for a right turn, as fast as the vehicle turns at this
+ * speed (reversing, the other way, as a car's does), and its turn follows quickly; the front wheel's angle is what that
+ * turn takes. The walls take what they allow, a hit costing most of its speed.
  */
 export function stepVehicle(vehicle: Vehicle, intents: Intents, dt: number, walls: Walls): Vehicle {
   const spec = VEHICLES[vehicle.kind];
   const throttle = intents.forward;
   let speed = vehicle.speed;
+  // Power tapers to nothing at top speed (or reverse speed), so speed rises smoothly to it.
+  const power = (top: number) => spec.accelerate * Math.max(0, 1 - (speed / top) ** 2);
   if (intents.jump) speed = towards(speed, 0, spec.brake * dt);
   else if (throttle > 0)
-    speed = speed < 0 ? towards(speed, 0, spec.brake * dt) : speed + spec.accelerate * throttle * dt;
+    speed = speed < 0 ? towards(speed, 0, spec.brake * dt) : speed + power(spec.topSpeed) * throttle * dt;
   else if (throttle < 0)
-    speed = speed > 0 ? towards(speed, 0, spec.brake * -throttle * dt) : speed + spec.accelerate * throttle * dt;
+    speed =
+      speed > 0 ? towards(speed, 0, spec.brake * -throttle * dt) : speed + power(spec.reverseSpeed) * throttle * dt;
   else speed = towards(speed, 0, spec.coast * dt);
   speed = Math.max(-spec.reverseSpeed, Math.min(spec.topSpeed, speed));
-  // Right turns the heading clockwise from above: a negative turn.
-  const aim = (0 - intents.right * spec.steer) / (1 + Math.abs(speed) / spec.steerFade);
-  const steer = towards(vehicle.steer, aim, spec.steerRate * dt);
-  const heading = vehicle.heading + (speed / spec.wheelbase) * Math.tan(steer) * dt;
+  // Right turns the heading clockwise from above: a negative turn; reversing turns the other way.
+  const fastest = Math.min(Math.abs(speed) / spec.turnRadius, spec.turnRate);
+  const aim = speed === 0 ? 0 : (0 - intents.right) * fastest * Math.sign(speed);
+  const turn = towards(vehicle.turn, aim, spec.turnResponse * dt);
+  const heading = vehicle.heading + turn * dt;
+  const steer = speed === 0 ? 0 : Math.max(-MAX_STEER, Math.min(MAX_STEER, Math.atan((turn * spec.wheelbase) / speed)));
   const ahead = facing(heading);
   const want = Math.abs(speed) * dt;
   const moved = walls.move(
@@ -177,7 +194,7 @@ export function stepVehicle(vehicle: Vehicle, intents: Intents, dt: number, wall
   );
   const got = Math.hypot(moved.feet.x - vehicle.feet.x, moved.feet.z - vehicle.feet.z);
   const hit = want > 0 && got < want / 2;
-  return { ...vehicle, feet: moved.feet, heading, speed: hit ? speed * BUMP : speed, steer };
+  return { ...vehicle, feet: moved.feet, heading, speed: hit ? speed * BUMP : speed, turn, steer };
 }
 
 /**

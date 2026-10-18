@@ -8,9 +8,12 @@ import {
   PITCH_MIN,
   SHOULDER,
   START_PITCH,
+  REACH_EASE,
   WALL_GAP,
   behind,
   cameraOf,
+  easeReach,
+  reachOf,
   turned,
 } from "./camera";
 
@@ -38,6 +41,11 @@ describe("cameraOf", () => {
     expect(eye.z).toBeCloseTo(5 + Math.cos(0.5) * ORBIT_DISTANCE, 9);
   });
 
+  it("stays back when the line to it is clear but for rounding", () => {
+    const rounding = { ...clearFor(Infinity), clearance: () => ORBIT_DISTANCE * (1 - 1e-15) };
+    expect(cameraOf(feet, { yaw: 0, pitch: 0 }, rounding).eye.x).toBeCloseTo(10 - ORBIT_DISTANCE, 9);
+  });
+
   it("pulls in short of a wall, but never into the shoulder", () => {
     expect(cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(2)).eye.x).toBeCloseTo(10 - (2 - WALL_GAP), 9);
     expect(cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(0.1)).eye.x).toBeCloseTo(10 - NEAREST, 9);
@@ -47,6 +55,23 @@ describe("cameraOf", () => {
     const { eye, target } = cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(Infinity), { distance: 7, height: 2 });
     expect(target.y).toBe(2);
     expect(eye.x).toBeCloseTo(10 - 7, 9);
+  });
+});
+
+describe("reachOf and easeReach", () => {
+  it("says how far back the camera can sit", () => {
+    expect(reachOf(feet, { yaw: 0, pitch: 0 }, clearFor(Infinity))).toBe(ORBIT_DISTANCE);
+    expect(reachOf(feet, { yaw: 0, pitch: 0 }, clearFor(2))).toBeCloseTo(2 - WALL_GAP, 9);
+  });
+
+  it("goes in to a wall at once, and back out gently", () => {
+    expect(easeReach(4.5, 2, 0.01)).toBe(2);
+    expect(easeReach(2, 4.5, REACH_EASE)).toBeCloseTo(4.5 - 2.5 * Math.exp(-1), 9);
+    expect(easeReach(2, 4.5, 0)).toBe(2);
+  });
+
+  it("places the camera at the distance given", () => {
+    expect(cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(Infinity), undefined, 3).eye.x).toBeCloseTo(7, 9);
   });
 });
 

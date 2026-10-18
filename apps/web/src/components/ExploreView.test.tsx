@@ -208,8 +208,8 @@ describe("ExploreView", () => {
     toTheKerb(25);
     fireEvent.keyDown(window, { code: "KeyE", key: "e" });
     walk();
-    // A second and a half of pedalling: faster than a rider gets off at, short of the car parked ahead.
-    hold("KeyW", 15);
+    // Most of a second of pedalling: faster than a rider gets off at, short of the car parked ahead.
+    hold("KeyW", 8);
     const slow = screen.getByRole("button", { name: "Slow down to get off the bicycle" });
     expect(slow).toHaveProperty("disabled", true);
   });

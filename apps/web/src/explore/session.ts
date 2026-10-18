@@ -57,7 +57,7 @@ export const STEP = 1 / 120;
 export const LONGEST_FRAME = 0.1;
 /** Riding faster than this, the camera swings round behind the vehicle, by this many seconds to most of the way. */
 export const CHASE_FROM = 1;
-export const CHASE = 0.4;
+export const CHASE = 0.25;
 
 /** A walk starting with feet at a point, facing a heading, the camera behind, with vehicles parked about. */
 export const startSession = (feet: Vec3, heading: number, vehicles: readonly Vehicle[] = []): Session => {
@@ -85,7 +85,7 @@ function use(session: Session, walls: Walls): Session {
   if (vehicle) {
     if (Math.abs(vehicle.speed) >= LEAVE_SPEED) return session;
     const body: Body = { feet: alightFrom(vehicle, walls), rise: 0, heading: vehicle.heading, grounded: true };
-    const parked = session.vehicles.map((v) => (v === vehicle ? { ...v, speed: 0, steer: 0 } : v));
+    const parked = session.vehicles.map((v) => (v === vehicle ? { ...v, speed: 0, turn: 0, steer: 0 } : v));
     return { ...session, body, previous: body, vehicles: parked, previousVehicles: parked, riding: null, speed: 0 };
   }
   if (!session.body.grounded) return session;

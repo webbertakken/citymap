@@ -14,7 +14,6 @@ import { bicycle, car, figure, paletteOf } from "../explore/models/procedural";
 import { leanOf, poseVehicle } from "../explore/models/rig";
 import { poseStride, swingOf } from "../explore/models/stride";
 import { METRE } from "../explore/street";
-import { VEHICLES } from "../explore/vehicles";
 import { log, reasonOf } from "../log";
 import { Buildings, Mesh } from "./CityMeshes";
 import type { ExploreCanvasProps } from "./ExploreView";
@@ -77,14 +76,14 @@ function Walk({
       rolled.current.set(vehicle.id, turned);
       group.position.set(vehicle.feet.x * METRE, vehicle.feet.y * METRE, vehicle.feet.z * METRE);
       group.rotation.set(0, vehicle.heading, 0);
-      const lean = vehicle.kind === "bicycle" ? leanOf(vehicle.speed, vehicle.steer, VEHICLES.bicycle.wheelbase) : 0;
+      const lean = vehicle.kind === "bicycle" ? leanOf(vehicle.speed, vehicle.turn) : 0;
       poseVehicle(group.children[0]!, vehicle.kind, { rolled: turned.rolled, steer: vehicle.steer, lean });
     }
     const riding = now.riding ? now.vehicles.find((v) => v.id === now.session.riding) : undefined;
     walker.visible = now.riding !== "car";
     if (riding) {
       // Sat on the bicycle, leaning with it.
-      const lean = leanOf(riding.speed, riding.steer, VEHICLES.bicycle.wheelbase);
+      const lean = leanOf(riding.speed, riding.turn);
       walker.position.set(riding.feet.x * METRE, (riding.feet.y + SADDLE) * METRE, riding.feet.z * METRE);
       walker.rotation.order = "YXZ";
       walker.rotation.set(-lean, riding.heading, 0);

@@ -38,13 +38,13 @@ export interface Follow {
 
 export const ON_FOOT: Follow = { distance: ORBIT_DISTANCE, height: SHOULDER };
 
-/** Where the camera is and what it looks at, for feet at a point: as far back as the walls allow. */
-export function cameraOf(
-  feet: Vec3,
-  orbit: Orbit,
-  walls: Walls,
-  follow: Follow = ON_FOOT,
-): { readonly eye: Vec3; readonly target: Vec3 } {
+/** A wall nearer than the full distance by less than this is rounding in the measure, not a wall. */
+export const ROUNDING = 1e-6;
+/** Coming back out from a wall, the camera eases most of the way in this many seconds; going in, it goes at once. */
+export const REACH_EASE = 0.3;
+
+/** Where the camera looks at, and the way it looks. */
+function aimOf(feet: Vec3, orbit: Orbit, follow: Follow) {
   const target = { x: feet.x, y: feet.y + follow.height, z: feet.z };
   const look = {
     x: Math.cos(orbit.pitch) * Math.cos(orbit.yaw),
@@ -56,7 +56,29 @@ export function cameraOf(
     y: target.y - look.y * distance,
     z: target.z - look.z * distance,
   });
+  return { target, at };
+}
+
+/** How far back the camera can sit for feet at a point: its full distance, or short of a wall in the way. */
+export function reachOf(feet: Vec3, orbit: Orbit, walls: Walls, follow: Follow = ON_FOOT): number {
+  const { target, at } = aimOf(feet, orbit, follow);
   const clear = walls.clearance(target, at(follow.distance));
-  const distance = clear < follow.distance ? Math.max(NEAREST, clear - WALL_GAP) : follow.distance;
+  return clear < follow.distance - ROUNDING ? Math.max(NEAREST, clear - WALL_GAP) : follow.distance;
+}
+
+/** The camera's distance after a frame: in at once to what the walls allow, so it never looks through one; back out
+ * gently, so it never pops. */
+export const easeReach = (current: number, wanted: number, seconds: number) =>
+  wanted <= current ? wanted : wanted + (current - wanted) * Math.exp(-seconds / REACH_EASE);
+
+/** Where the camera is and what it looks at, for feet at a point: as far back as given, else as the walls allow. */
+export function cameraOf(
+  feet: Vec3,
+  orbit: Orbit,
+  walls: Walls,
+  follow: Follow = ON_FOOT,
+  distance = reachOf(feet, orbit, walls, follow),
+): { readonly eye: Vec3; readonly target: Vec3 } {
+  const { target, at } = aimOf(feet, orbit, follow);
   return { eye: at(distance), target };
 }

@@ -18,15 +18,15 @@ function car() {
 
 describe("leanOf", () => {
   it("leans into a turn as far as balance asks, left for a left turn, upright going straight", () => {
-    expect(leanOf(5, 0, 1)).toBe(0);
-    const left = leanOf(4, 0.1, 1);
-    expect(left).toBeCloseTo(Math.atan((16 * Math.tan(0.1)) / GRAVITY), 9);
-    expect(leanOf(4, -0.1, 1)).toBeCloseTo(-left, 9);
+    expect(leanOf(5, 0)).toBe(0);
+    const left = leanOf(4, 0.5);
+    expect(left).toBeCloseTo(Math.atan(2 / GRAVITY), 9);
+    expect(leanOf(4, -0.5)).toBeCloseTo(-left, 9);
   });
 
   it("never leans past its limit", () => {
-    expect(leanOf(30, 0.5, 1)).toBe(MAX_LEAN);
-    expect(leanOf(30, -0.5, 1)).toBe(-MAX_LEAN);
+    expect(leanOf(30, 2)).toBe(MAX_LEAN);
+    expect(leanOf(30, -2)).toBe(-MAX_LEAN);
   });
 });
 
