@@ -26,6 +26,7 @@ import {
   type Session,
 } from "../explore/session";
 import { sightOf, windowRows, type Sight } from "../explore/sight";
+import { signName, type RoadGrid } from "../explore/signs";
 import { METRE } from "../explore/street";
 import { VEHICLES, parkedBy, type Vehicle, type VehicleKind } from "../explore/vehicles";
 import { log } from "../log";
@@ -53,14 +54,27 @@ export interface ExploreCanvasProps {
   readonly frame: (seconds: number) => ExploreFrame;
   /** The vehicles about, by name and kind, to have a model each before the first frame places them. */
   readonly vehicles: readonly { readonly id: string; readonly kind: VehicleKind }[];
+  /** What signs are made from: every building, its look, the streets, and each building's name. */
+  readonly signs: Signage;
+  /** How many signs show now, as it changes. */
+  readonly onSigns: (count: number) => void;
+}
+
+/** What the canvas signs buildings with. */
+export interface Signage {
+  readonly footprints: readonly Footprint[];
+  readonly roads: RoadGrid;
+  readonly name: (lot: number) => string;
 }
 
 /** The crosshair reads this far, in metres. */
 export const SIGHT_REACH = 150;
 
 export interface ExploreViewProps {
-  /** Every building's footprint, for the crosshair's line of sight. */
+  /** Every building's footprint, for the crosshair's line of sight and the signs. */
   readonly footprints: readonly Footprint[];
+  /** The city's streets, for which wall of a building faces one. */
+  readonly roads: RoadGrid;
   readonly inspect: Inspect;
   readonly name: string;
   readonly scene: Scene;
@@ -112,6 +126,7 @@ export function ExploreView({
   theme,
   walls,
   footprints,
+  roads,
   inspect,
   landing,
   engine,
@@ -119,6 +134,12 @@ export function ExploreView({
   onLeave,
 }: ExploreViewProps) {
   const hits = useMemo(() => cityHits(footprints), [footprints]);
+  // The signs the canvas shows, and how many: a count tests and the log can read.
+  const [signCount, setSignCount] = useState(0);
+  const signage = useMemo(
+    () => ({ footprints, roads, name: (lot: number) => signName(inspect(lot).files) }),
+    [footprints, roads, inspect],
+  );
   // What the crosshair is on, changed only when it changes.
   const [sight, setSight] = useState<Sight | null>(null);
   const seen = useRef("");
@@ -288,6 +309,7 @@ export function ExploreView({
     <div
       ref={box}
       className="map explore"
+      data-signs={signCount}
       role="application"
       aria-label={`Walking in ${name}. W A S D or the arrow keys walk, Shift runs, Space jumps, E gets on or off, click or drag to look around, Escape goes back to the map.`}
       tabIndex={0}
@@ -298,7 +320,15 @@ export function ExploreView({
     >
       <span className="explore-crosshair" aria-hidden="true" />
       {sight && <SightCard sight={sight} inspect={inspect} />}
-      <Canvas scene={scene} table={table} theme={theme} frame={frame} vehicles={start.vehicles} />
+      <Canvas
+        scene={scene}
+        table={table}
+        theme={theme}
+        frame={frame}
+        vehicles={start.vehicles}
+        signs={signage}
+        onSigns={setSignCount}
+      />
       <section className="glass explore-card" aria-label={title}>
         <h2>
           {riding === "car" ? (

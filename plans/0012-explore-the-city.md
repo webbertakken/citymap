@@ -83,18 +83,19 @@ The thinnest path through every layer: world, one mover, intents, camera, render
 - [x] E2E: enter on foot, move by keyboard and by touch, leave; axe light and dark; phone viewport
 - [x] E2E: never pass a wall; run at three selected buildings, each stopped within 12 m and outside it
 - [x] Gate (`bun run check`), commit, local build served for Webber
-- [x] Webber tests on desktop and phone; feedback folded into the spec
+- [x] Webber tests on desktop and phone; feedback folded into the spec; desktop by Webber (jitter, acceleration,
+      steering folded in), phones on the LAN
 
 ## Phase 3: names and the crosshair
 
-; desktop by Webber (jitter, acceleration, steering folded in); phones once hosted (Webber)
-
-- [ ] World ray query: building, face, floor and window column (tests first)
-- [ ] Inspection: crosshair over a window or a building shows its card; a window says what it holds and whether it is
+- [x] World ray query: building, face, floor and window column (tests first)
+- [x] Inspection: crosshair over a window or a building shows its card; a window says what it holds and whether it is
       lit, and why
-- [ ] Signs: the nearest buildings' names on their street-facing walls, pooled, self-hosted font; roofs named in RTS
-- [ ] E2E: aim at a known building and window, read the card; signs never more than the pool
-- [ ] Gate, commit, local build; Webber tests; feedback folded in
+- [x] Signs: the nearest buildings' names on their street-facing walls, pooled, self-hosted font
+- [ ] Roofs named in the turned Buildings view (Phase 4)
+- [x] E2E: aim at a known building and window, read the card; signs never more than the pool
+- [x] Gate, commit, local build; Webber tests; feedback folded in (crosshair: shoulder offset, panel at the right, touch
+      scrolling)
 
 ## Phase 4: cameras, the Buildings view turned and free
 

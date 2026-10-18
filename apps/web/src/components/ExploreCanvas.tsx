@@ -4,18 +4,20 @@
 import type { Theme } from "@citymap/themes";
 import { PerspectiveCamera } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Suspense, use, useMemo, useRef } from "react";
-import type { Object3D } from "three";
+import { Suspense, use, useEffect, useMemo, useRef } from "react";
+import { CanvasTexture, LinearFilter, Mesh as ThreeMesh, MeshBasicMaterial, PlaneGeometry, type Object3D } from "three";
 import { Animator } from "../explore/models/animator";
 import { GLTF_MODELS, loadModel, type Loaded, type ModelFile } from "../explore/models/gltf";
 import { motionOf, paceOf } from "../explore/models/motion";
 import { bicycle, car, figure, paletteOf } from "../explore/models/procedural";
 import { PROCEDURAL_RIGS, RIGS, leanOf, poseVehicle } from "../explore/models/rig";
 import { poseStride, swingOf } from "../explore/models/stride";
+import { BASE, FLOOR } from "../explore/sight";
+import { SIGN_POOL, middleOf, nearestLots, wallFacing, type Wall } from "../explore/signs";
 import { METRE } from "../explore/street";
 import { log, reasonOf } from "../log";
 import { Buildings, Mesh } from "./CityMeshes";
-import type { ExploreCanvasProps } from "./ExploreView";
+import type { ExploreCanvasProps, Signage } from "./ExploreView";
 
 /** The camera sees this far, in street widths (four kilometres), and no nearer than a few centimetres. */
 const FAR = 400;
@@ -25,6 +27,156 @@ const FOG_NEAR = 150;
 const FOG_FAR = 390;
 /** A rider sits this high above the bicycle's ground, in metres: its saddle, less the seated figure's hips. */
 const SADDLE = 0.38;
+
+/** Signs are chosen again this often, in seconds: the walker moves a few metres between. */
+const SIGN_EVERY = 0.25;
+/** A sign's lettering is this tall in metres, on a plaque this much taller; it is at most this share of its wall. */
+const SIGN_HEIGHT = 0.42;
+const SIGN_TEXT_SHARE = 0.62;
+const SIGN_WALL_SHARE = 0.9;
+/** A sign stands this far out from its wall, so it never flickers into it. */
+const SIGN_OUT = 0.04;
+/** The sign's texture: its canvas is this many pixels tall, and as wide as its words need, up to this. */
+const SIGN_PIXELS = 96;
+const SIGN_MAX_PIXELS = 1024;
+
+/** One sign of the pool: its plane, the canvas its words are drawn on, and the building it names (−1 for none). */
+interface Sign {
+  readonly mesh: ThreeMesh<PlaneGeometry, MeshBasicMaterial>;
+  readonly canvas: HTMLCanvasElement;
+  readonly texture: CanvasTexture;
+  lot: number;
+}
+
+function newSign(): Sign {
+  const canvas = document.createElement("canvas");
+  canvas.width = SIGN_MAX_PIXELS;
+  canvas.height = SIGN_PIXELS;
+  const texture = new CanvasTexture(canvas);
+  texture.minFilter = LinearFilter;
+  const mesh = new ThreeMesh(new PlaneGeometry(1, 1), new MeshBasicMaterial({ map: texture, transparent: true }));
+  mesh.visible = false;
+  return { mesh, canvas, texture, lot: -1 };
+}
+
+/** A sign's words drawn on its plaque, in the page's own face: light letters on a dark plaque, as a shop sign. */
+function letter(sign: Sign, words: string): number {
+  const context = sign.canvas.getContext("2d");
+  if (!context) return 0;
+  const face = getComputedStyle(document.body).fontFamily;
+  const size = Math.round(SIGN_PIXELS * SIGN_TEXT_SHARE);
+  context.font = `600 ${size}px ${face}`;
+  const width = Math.min(SIGN_MAX_PIXELS, Math.ceil(context.measureText(words).width + SIGN_PIXELS * 0.6));
+  context.clearRect(0, 0, sign.canvas.width, sign.canvas.height);
+  context.fillStyle = "rgba(18, 20, 26, 0.88)";
+  context.beginPath();
+  context.roundRect(0, 0, width, SIGN_PIXELS, SIGN_PIXELS * 0.18);
+  context.fill();
+  context.fillStyle = "#f5f3ee";
+  context.textBaseline = "middle";
+  context.font = `600 ${size}px ${face}`;
+  context.fillText(words, SIGN_PIXELS * 0.3, SIGN_PIXELS / 2, width - SIGN_PIXELS * 0.6);
+  // Only the part of the canvas the plaque fills is shown.
+  sign.texture.repeat.set(width / SIGN_MAX_PIXELS, 1);
+  sign.texture.needsUpdate = true;
+  return width / SIGN_PIXELS;
+}
+
+/** A sign on a building's wall facing its street, in the band between its ground floor's windows and the next. */
+function place(sign: Sign, wall: Wall, aspect: number, floors: number) {
+  const height = SIGN_HEIGHT / SIGN_TEXT_SHARE;
+  const width = Math.min(aspect * height, wall.length * SIGN_WALL_SHARE);
+  const y = BASE + FLOOR * (floors >= 2 ? 1.05 : 0.9);
+  sign.mesh.position.set((wall.x + wall.nx * SIGN_OUT) * METRE, y * METRE, (wall.z + wall.nz * SIGN_OUT) * METRE);
+  sign.mesh.rotation.set(0, Math.atan2(wall.nx, wall.nz), 0);
+  sign.mesh.scale.set(width * METRE, height * METRE, 1);
+  sign.mesh.visible = true;
+}
+
+/**
+ * The nearest buildings' names, on a pool of signs that never grows: each choice keeps a sign on its building while
+ * that stays near, and letters a freed one afresh for a newcomer. It owns its signs; the canvas only asks it to choose.
+ */
+class SignBoard {
+  readonly signs = Array.from({ length: SIGN_POOL }, newSign);
+  private readonly walls = new Map<number, Wall>();
+
+  /** Signs the nearest buildings to a point (metres); says how many show. */
+  choose(signage: Signage, table: Float32Array, at: { readonly x: number; readonly z: number }): number {
+    const lots = nearestLots(signage.footprints, at);
+    const wanted = new Set(lots);
+    const kept = new Set<number>();
+    for (const sign of this.signs)
+      if (wanted.has(sign.lot)) kept.add(sign.lot);
+      else {
+        sign.lot = -1;
+        sign.mesh.visible = false;
+      }
+    const free = this.signs.filter((sign) => sign.lot === -1);
+    for (const lot of lots) {
+      if (kept.has(lot)) continue;
+      const sign = free.pop();
+      const footprint = signage.footprints[lot];
+      const words = signage.name(lot);
+      if (!sign || !footprint || words === "") continue;
+      sign.lot = lot;
+      place(sign, this.wallOf(signage, lot, footprint), letter(sign, words), table[lot * 4]!);
+    }
+    return this.signs.filter((sign) => sign.lot !== -1).length;
+  }
+
+  /** The wall a building's sign goes on, worked out once: the one facing its nearest street. */
+  private wallOf(signage: Signage, lot: number, footprint: Signage["footprints"][number]): Wall {
+    const known = this.walls.get(lot);
+    if (known) return known;
+    const middle = middleOf(footprint);
+    const wall = wallFacing(footprint, signage.roads.nearest(middle.x, middle.z) ?? middle);
+    this.walls.set(lot, wall);
+    return wall;
+  }
+
+  dispose() {
+    for (const sign of this.signs) {
+      sign.mesh.geometry.dispose();
+      sign.mesh.material.dispose();
+      sign.texture.dispose();
+    }
+  }
+}
+
+/** The signs, chosen again every `SIGN_EVERY` from where the camera stands. */
+function Signs({
+  signs,
+  table,
+  onSigns,
+}: {
+  readonly signs: Signage;
+  readonly table: Float32Array;
+  readonly onSigns: (count: number) => void;
+}) {
+  const board = useMemo(() => new SignBoard(), []);
+  useEffect(() => () => board.dispose(), [board]);
+  const since = useRef(SIGN_EVERY);
+  const shown = useRef(-1);
+  useFrame((state, seconds) => {
+    since.current += seconds;
+    if (since.current < SIGN_EVERY) return;
+    since.current = 0;
+    const at = state.camera.position;
+    const count = board.choose(signs, table, { x: at.x / METRE, z: at.z / METRE });
+    if (count !== shown.current) {
+      shown.current = count;
+      onSigns(count);
+    }
+  });
+  return (
+    <>
+      {board.signs.map((sign) => (
+        <primitive key={sign.mesh.uuid} object={sign.mesh} />
+      ))}
+    </>
+  );
+}
 
 /** A model loaded with this canvas, while the walls rise; null (said in the log) when it cannot load. */
 const loading = (file: ModelFile): Promise<Loaded | null> =>
@@ -132,7 +284,7 @@ function Walk({
   );
 }
 
-export default function ExploreCanvas({ scene, table, theme, frame, vehicles }: ExploreCanvasProps) {
+export default function ExploreCanvas({ scene, table, theme, frame, vehicles, signs, onSigns }: ExploreCanvasProps) {
   const fog = useMemo(() => ({ colour: theme.country, near: FOG_NEAR, far: FOG_FAR }), [theme]);
   return (
     <Canvas className="canvas" dpr={[1, 2]} linear flat aria-hidden="true">
@@ -146,6 +298,7 @@ export default function ExploreCanvas({ scene, table, theme, frame, vehicles }: 
         <Mesh key={layer.name} layer={layer} />
       ))}
       <Buildings buildings={scene.buildings} table={table} mode="buildings" theme={theme} fog={fog} />
+      <Signs signs={signs} table={table} onSigns={onSigns} />
       <Suspense fallback={null}>
         <Walk theme={theme} frame={frame} vehicles={vehicles} />
       </Suspense>

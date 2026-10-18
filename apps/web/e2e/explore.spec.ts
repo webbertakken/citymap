@@ -185,3 +185,23 @@ for (const which of [0.1, 0.5, 0.9])
     expect(travelled).toBeLessThan(12);
     expect(lots.filter((lot) => inside(end, lot.pts)).map((lot) => lot.path)).toEqual([]);
   });
+
+test("names the buildings round the walker on their walls, never more than the pool, and reads the one in sight", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "the search selects the building here");
+  const target = (await lotsOfTakken()).find((lot) => lot.path.endsWith(".tsx"))!;
+  const search = page.getByRole("searchbox");
+  await search.fill(target.path);
+  await search.press("Enter");
+  await page.getByRole("button", { name: "Walk" }).click();
+  await drawn(page);
+  // Signs go up within a quarter of a second, for at most the pool's 24 nearest buildings.
+  const walk = page.locator(".explore");
+  await expect.poll(async () => Number(await walk.getAttribute("data-signs"))).toBeGreaterThan(0);
+  expect(Number(await walk.getAttribute("data-signs"))).toBeLessThanOrEqual(24);
+  // Landed facing the building: the crosshair reads it.
+  const name = target.path.slice(target.path.lastIndexOf("/") + 1);
+  await expect(page.getByRole("region", { name: "In sight" })).toContainText(name);
+});
