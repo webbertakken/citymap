@@ -2,8 +2,8 @@
 
 Derived from [local repositories](../local-repositories.md); measurements in
 [local folders](../../../research/local-folders.md). Code: `apps/web/src/local/` (reading), the viewer's
-`components/useLocalRepository.tsx` and `components/LocalMenu.tsx` (the surface). Nothing here is in the engine or the
-CLI, so the Rust implementation is untouched.
+`components/useLocalRepository.tsx`, `components/LocalButton.tsx` and `components/LocalMenu.tsx` (the surface). Nothing
+here is in the engine or the CLI, so the Rust implementation is untouched.
 
 ## Domain and naming
 
@@ -133,15 +133,15 @@ viewer reads it through `useSyncExternalStore` with `"none"` while prerendering,
 `useLocalRepository({ ports, lay, theme, begin, status, setStatus, setError, present })` holds the remembered handle, a
 busy flag and the status before an opening began; the city, status, notice and loading card stay the viewer's. It
 returns `{ support, busy, pick, again, input }`, `again` being `{ name, open }` or null. `Viewer` takes
-`folders?: LocalPorts` (the browser's by default) and hands the result to `ViewControls` (`local?: LocalRepository`),
-which renders `LocalMenu` in More.
+`folders?: LocalPorts` (the browser's by default) and hands the result to `LocalButton`, beside the search box, and to
+`ViewControls` (`local?: LocalRepository`), which renders `LocalMenu` in More.
 
-1. **Pick** (`"handle"`): the click closes More, then calls `showDirectoryPicker({ id: "citymap-local", mode: "read" })`
-   within the gesture (`PICKER_ID`). `AbortError` (the dialog closed) changes nothing.
-2. **Pick** (`"input"`): the click closes More and clicks a hidden `<input type="file" webkitdirectory>` that lives
-   outside the popover; the status becomes `LISTING` "Listing the folder's files…" until `change` or `cancel`; `cancel`,
-   or a `change` with no files, puts the status back as it was.
-3. **Again**: as above, through the remembered handle and its permission.
+1. **Pick** (`"handle"`): the button's click calls `showDirectoryPicker({ id: "citymap-local", mode: "read" })` within
+   the gesture (`PICKER_ID`). `AbortError` (the dialog closed) changes nothing.
+2. **Pick** (`"input"`): the button's click clicks a hidden `<input type="file" webkitdirectory>` that lives outside the
+   popover; the status becomes `LISTING` "Listing the folder's files…" until `change` or `cancel`; `cancel`, or a
+   `change` with no files, puts the status back as it was.
+3. **Again**: More's item closes More, then as above, through the remembered handle and its permission.
 4. **Read**: a load begins on the viewer's loading card (`begin("local", name)`, source `local`; see the
    [viewer blueprint](../../004-interface-design/blueprints/viewer.md) § Loading), and the status under it is the last
    city's again. `localStep` takes each phase to the card: `index` "Reading the git index", `folder` "Reading the
@@ -156,15 +156,24 @@ which renders `LocalMenu` in More.
 6. **Failed**: the card goes, the notice says the failure's sentence; the last city stays, and the status goes back to
    what it said of it. **Cancelled** (the card's Cancel or Escape): nothing is shown, logged or remembered.
 
-While a read runs, the menu's buttons are disabled, so no second opening starts.
+While a read runs, the button and More's item are disabled, so no second opening starts.
 
 ## Presentation and UX
 
+- `LocalButton`, right beside the search box (`.finder` holds both): with `"handle"` and `"input"`, a glass icon button
+  (icon `FolderGit2`, 48 by 48 px, the search box's height, 8 px to its right) named "Open a local repository", and its
+  tooltip (`role="tooltip"`, `.tooltip.local-tip`, under the button, aligned to its right edge), also its description:
+  "Open a local repository: as it is now, not folded over its history. For a folded city, run
+  `citymap <folder> --out=city.json`, then open the file." The tooltip shows while the pointer rests on the button or
+  the tooltip, and while the button has keyboard focus; Escape hides it. With `"safari"` and `"none"` there is no
+  button.
+- The button hangs outside the search box's box, so the search keeps its place and width whether the button is there or
+  not. Below 1,100 px wide, where the search sits under the title, its width leaves 56 px for the button
+  (`min(440px, 100vw - 3 × 16 px - drawer - 56px)`); below 760 px, on a fine pointer only (a phone has no button), its
+  right edge sits 56 px further in.
 - More, after "Open a city file…": a group headed "Local repository" (`popover-heading`):
-  - `"handle"` and `"input"`: a button "Open a local repository…" (icon `FolderGit2`), described by the line "As it is
-    now, not folded over its history. For a folded city, run `citymap <folder> --out=city.json`, then open the file."
-    (`aria-describedby`, `.menu-note`); with a remembered folder, a second button "Open {name} again" (icon
-    `FolderClock`).
+  - `"handle"` and `"input"` with a remembered folder: a button "Open {name} again" (icon `FolderClock`); without one,
+    no group.
   - `"safari"`: the line "Safari hides a folder's .git and .gitignore from pages: open a local repository in Chrome,
     Edge or Firefox, or run the CLI."
   - `"none"`: nothing.
@@ -192,8 +201,10 @@ While a read runs, the menu's buttons are disabled, so no second opening starts.
 
 ## Accessibility
 
-- Both buttons are native buttons in the menu's list, reachable by keyboard in order, with the menu's focus ring; the
-  explanation is the first button's description, and the Safari line is plain text in the list.
+- The button is a native button after the search field in reading order, with the glass controls' focus ring; the
+  explanation is its description (`aria-describedby`), read by a screen reader whether the tooltip shows or not.
+- "Open {name} again" is a native button in More's list, with the menu's focus ring; the Safari line is plain text in
+  the list.
 - The phases are the loading card's and the status line's text (`aria-live="polite"`, the card announcing nothing), so
   each phase is announced once; a failure is the notice's `role="alert"`.
 - The hidden folder input carries `aria-label="Repository folder"` and is never focusable (`hidden`).
@@ -202,8 +213,9 @@ While a read runs, the menu's buttons are disabled, so no second opening starts.
 
 - Nothing loads until it is used: the reader is part of the page, `ignore` arrives by dynamic import for a folder
   without git, and IndexedDB is opened once, after the first paint, only where support is `"handle"`.
-- The menu's items exist only while More is open and the menu floats, so they shift nothing (CLS 0); the status and the
-  notice already float.
+- The button appears after hydration (support is known only in the browser) and hangs beside the search box, which keeps
+  its place and width, so it shifts nothing (CLS 0); its tooltip floats. The menu's items exist only while More is open
+  and the menu floats; the status and the notice already float.
 - Reading and decoding run on the main thread between awaits (the index of linux decodes in tens of milliseconds);
   laying runs in the layout worker, so input stays answered (INP).
 
@@ -265,6 +277,7 @@ database name, version and key (in `local/remember.ts`); provenance in [DEFAULTS
 | Chromium reads only what it needs                       | `folder.test.ts`: a recording handle; `e2e/local.spec.ts` through an origin private folder         |
 | remembered, permission asked again                      | `remember.test.ts` (fake IndexedDB); end to end after a reload                                     |
 | not on a phone, not in Safari                           | `support.test.ts`; `ViewerLocal.test.tsx`; the phone project end to end                            |
+| the button beside the search box, its tooltip           | `LocalButton.test.tsx`; `e2e/local.spec.ts` measures it beside the search box, search unmoved      |
 | phases, the status, the failures shown and logged       | `ViewerLocal.test.tsx`; `e2e/local.spec.ts` per failure                                            |
 | privacy: no request, no address, no name in the title   | `ViewerLocal.test.tsx`; `e2e/local.spec.ts` watches every request                                  |
 | the folder input path, axe light and dark               | `e2e/local.spec.ts`; `e2e/viewer.spec.ts` judges More with the group open                          |

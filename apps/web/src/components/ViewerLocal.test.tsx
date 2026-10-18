@@ -7,7 +7,7 @@ import { layHere, type Laid, type Lay } from "../lay/lay";
 import type { LocalPorts } from "../local/ports";
 import type { PermissionHandle } from "../local/remember";
 import { fakeHandle, listedFiles, type Tree } from "../local/testing/folders";
-import { StubCanvas, fetcher, fromMore } from "./testing/fixtures";
+import { StubCanvas, fetcher, fromMore, searchField } from "./testing/fixtures";
 import { Viewer } from "./Viewer";
 
 afterEach(() => {
@@ -24,7 +24,10 @@ const repo = (name = "v2"): Tree => ({
   ".git": { HEAD: "ref: refs/heads/main\n", refs: { heads: { main: `${COMMIT}\n` } }, index: index(name) },
   "package.json": '{ "workspaces": ["packages/*"] }\n',
 });
-const PICK = "Open a local repository…";
+const PICK = "Open a local repository";
+/** The button beside the search box that opens a local repository. */
+const pickButton = () => screen.getByRole("button", { name: PICK });
+const pick = () => fireEvent.click(pickButton());
 
 const ports = (over: Partial<LocalPorts> = {}): LocalPorts => ({
   support: () => "handle",
@@ -65,11 +68,10 @@ describe("Viewer, a local repository", () => {
     const counted = await opened(ports({ remember }), lay);
     window.history.replaceState(null, "", "/?repo=acme/widgets");
     const asked = counted.mock.calls.length;
-    fromMore(PICK);
+    pick();
     expect(await screen.findByText("widgets: laying out 10 files…")).toBeTruthy();
-    // While it lays, the menu waits.
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
-    expect(screen.getByRole("button", { name: PICK })).toHaveProperty("disabled", true);
+    // While it lays, the button waits.
+    expect(pickButton()).toHaveProperty("disabled", true);
     await release();
     expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
     expect(await screen.findByText(/^\d+ towns · \d+ lots · local, single state, not folded$/)).toBeTruthy();
@@ -86,9 +88,7 @@ describe("Viewer, a local repository", () => {
     );
     // Remembered, it is offered again.
     fireEvent.click(screen.getByRole("button", { name: "More" }));
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("button", { name: "Open widgets again" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: PICK }).getAttribute("aria-describedby")).toBeTruthy();
   });
 
   it("lays the folder again with other layout toggles, keeping it private", async () => {
@@ -98,7 +98,7 @@ describe("Viewer, a local repository", () => {
       return layHere(snapshot, options);
     };
     await opened(ports(), counting);
-    fromMore(PICK);
+    pick();
     expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Layout" }));
     fireEvent.click(screen.getByRole("switch", { name: "Quarters" }));
@@ -116,7 +116,7 @@ describe("Viewer, a local repository", () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const { lay, release } = held();
     await opened(ports(), lay);
-    fromMore(PICK);
+    pick();
     const card = await screen.findByRole("region", { name: "Loading" });
     expect(card.querySelector("h2")?.textContent).toBe("Opening widgets");
     expect(screen.getByRole("progressbar", { name: "Laying out 10 files" })).toBeTruthy();
@@ -138,7 +138,7 @@ describe("Viewer, a local repository", () => {
   it("changes nothing when the folder dialog closes without a folder", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     await opened(ports({ pickFolder: () => Promise.reject(new DOMException("closed", "AbortError")) }));
-    fromMore(PICK);
+    pick();
     await vi.waitFor(() => expect(lines(info)).toContain("viewer/local-cancelled how=handle"));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByText("1 towns · 1 lots")).toBeTruthy();
@@ -160,7 +160,7 @@ describe("Viewer, a local repository", () => {
   ])("names %s in the notice, logs it and keeps the last city", async (_, folders, sentence, reason) => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     await opened(folders);
-    fromMore(PICK);
+    pick();
     expect((await screen.findByRole("alert")).textContent).toBe(sentence);
     // The last city stays, and so does what the status said of it.
     expect(screen.getByRole("heading", { level: 1, name: "alpha" })).toBeTruthy();
@@ -190,7 +190,7 @@ describe("Viewer, a local repository", () => {
   it("says a lay that fails in the folder's words", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     await opened(ports(), () => Promise.reject(new Error("the layout worker failed")));
-    fromMore(PICK);
+    pick();
     expect((await screen.findByRole("alert")).textContent).toBe("widgets could not be laid: the layout worker failed.");
     expect(lines(error)).toContain('viewer/local-failed reason="Error: the layout worker failed"');
   });
@@ -217,7 +217,7 @@ describe("Viewer, a local repository", () => {
         pickFolder: async () => fakeHandle("widgets", { "a.ts": "" }),
       }),
     );
-    fromMore(PICK);
+    pick();
     expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
     await vi.waitFor(() => expect(lines(error)).toContain('viewer/local-remember-failed reason="Error: no room"'));
     expect(lines(error)).toContain('viewer/local-recall-failed reason="Error: no database"');
@@ -229,12 +229,12 @@ describe("Viewer, a local repository", () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const { "package.json": _, ...withoutManifest } = repo();
     await opened(ports({ pickFolder: async () => fakeHandle("site", { "a.ts": "", ".gitignore": "x\n" }) }));
-    fromMore(PICK);
+    pick();
     expect(await screen.findByRole("heading", { level: 1, name: "site" })).toBeTruthy();
     expect(lines(info)).toContain("viewer/local-walk files=2");
     cleanup();
     await opened(ports({ pickFolder: async () => fakeHandle("widgets", withoutManifest) }));
-    fromMore(PICK);
+    pick();
     expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
     expect(lines(info)).toContain("viewer/local-manifest-unread path=package.json");
   });
@@ -245,18 +245,18 @@ describe("Viewer, a local repository", () => {
     const input = screen.getByLabelText("Repository folder");
     expect(input).toHaveProperty("webkitdirectory", true);
     const click = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
-    fromMore(PICK);
+    pick();
     expect(click).toHaveBeenCalledOnce();
     expect(screen.getByText("Listing the folder's files…")).toBeTruthy();
     fireEvent(input, new Event("cancel"));
     expect(screen.getByText("1 towns · 1 lots")).toBeTruthy();
-    fromMore(PICK);
+    pick();
     fireEvent.change(input, { target: { files: [] } });
     expect(screen.getByText("1 towns · 1 lots")).toBeTruthy();
-    fromMore(PICK);
+    pick();
     fireEvent.change(input, { target: { files: null } });
     expect(screen.getByText("1 towns · 1 lots")).toBeTruthy();
-    fromMore(PICK);
+    pick();
     fireEvent.change(input, { target: { files: listedFiles("widgets", repo()) } });
     expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
     expect(await screen.findByText(/local, single state, not folded$/)).toBeTruthy();
@@ -269,9 +269,22 @@ describe("Viewer, a local repository", () => {
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByText(/^Safari hides a folder's .git and .gitignore from pages/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: PICK })).toBeNull();
+    expect(screen.queryByRole("button", { name: /local repository/ })).toBeNull();
     cleanup();
     await opened(ports({ support: () => "none" }));
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.queryByText("Local repository")).toBeNull();
+    expect(screen.queryByRole("button", { name: PICK })).toBeNull();
+  });
+
+  it("sits right beside the search box, and More only offers the remembered folder again", async () => {
+    await opened(ports());
+    const finder = searchField().closest(".finder")!;
+    expect(finder.contains(pickButton())).toBe(true);
+    expect(finder.querySelector(".search")?.nextElementSibling).toBe(pickButton().parentElement);
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    // Nothing remembered: More holds no local group.
+    expect(screen.queryByText("Local repository")).toBeNull();
+    expect(screen.getAllByRole("button", { name: PICK })).toHaveLength(1);
   });
 });
