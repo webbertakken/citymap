@@ -8,10 +8,14 @@ export interface PopoverProps {
   readonly face: ReactNode;
   /** The popover's content; `close` closes it and returns focus to the button. */
   readonly children: (close: () => void) => ReactNode;
+  /** Opens above its button, from its left edge (the legend's, at the bottom left), instead of below to the left. */
+  readonly above?: boolean;
+  /** The button's own class: an icon button by default. */
+  readonly buttonClass?: string;
 }
 
 /** A button that opens a floating panel; Escape, a pick or a press outside closes it. */
-export function Popover({ label, face, children }: PopoverProps) {
+export function Popover({ label, face, children, above = false, buttonClass = "glass icon-button" }: PopoverProps) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -46,7 +50,7 @@ export function Popover({ label, face, children }: PopoverProps) {
       <button
         id={`${id}-button`}
         type="button"
-        className="glass icon-button"
+        className={buttonClass}
         aria-label={label}
         aria-expanded={open}
         aria-controls={id}
@@ -54,7 +58,7 @@ export function Popover({ label, face, children }: PopoverProps) {
       >
         {face}
       </button>
-      <div id={id} className="glass popover" hidden={!open}>
+      <div id={id} className={above ? "glass popover above" : "glass popover"} hidden={!open}>
         {open && children(close)}
       </div>
     </div>

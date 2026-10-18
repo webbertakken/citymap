@@ -29,9 +29,9 @@ describe("readRepository", () => {
         json({
           truncated: false,
           tree: [
-            entry("package.json", "blob"),
+            { ...entry("package.json", "blob"), size: 25 },
             entry("packages", "tree"),
-            entry("packages/a/index.ts", "blob"),
+            { ...entry("packages/a/index.ts", "blob"), size: 1.5 },
             entry("vendor/lib", "commit"),
             entry("README.md", "blob"),
           ],
@@ -40,7 +40,7 @@ describe("readRepository", () => {
     });
     const steps: Step[] = [];
     const unread: string[] = [];
-    const snap = await readRepository(
+    const { snapshot: snap, sizes } = await readRepository(
       fetcher,
       { owner: "o", name: "r" },
       { onStep: (s) => steps.push(s), onUnread: (path, reason) => unread.push(`${path} ${reason}`) },
@@ -54,6 +54,8 @@ describe("readRepository", () => {
     ]);
     expect(snap.submodules).toEqual(["vendor/lib"]);
     expect(unread).toEqual(["vendor/lib no-url"]);
+    // Sizes come with the tree; one that is not a whole number of bytes is left unknown.
+    expect(sizes).toEqual(new Map([["package.json", 25]]));
     // The root and packages are the folders it lists; the one answer reads both.
     expect(steps).toEqual([
       { phase: "commit", requests: 0 },
@@ -81,7 +83,11 @@ describe("readRepository", () => {
       routes[`${API}/git/trees/${d}-t?recursive=1`] = () => json({ tree: [entry("f.ts", "blob")] });
     const { fetcher } = github(routes);
     const steps: Step[] = [];
-    const snap = await readRepository(fetcher, { owner: "o", name: "r" }, { onStep: (s) => steps.push(s) });
+    const { snapshot: snap } = await readRepository(
+      fetcher,
+      { owner: "o", name: "r" },
+      { onStep: (s) => steps.push(s) },
+    );
     expect(snap.files.map((f) => f.path)).toEqual([
       "d0/deep/x.ts",
       ...folders.slice(1).map((d) => `${d}/f.ts`),
@@ -150,7 +156,7 @@ describe("readRepository", () => {
         throw new Error("offline");
       },
     });
-    const snap = await readRepository(fetcher, { owner: "o", name: "r" });
+    const { snapshot: snap } = await readRepository(fetcher, { owner: "o", name: "r" });
     expect(snap.workspaces).toBeUndefined();
     expect(snap.files).toHaveLength(3);
   });
@@ -217,7 +223,7 @@ describe("readRepository", () => {
     });
     const unread: string[] = [];
     const steps: Step[] = [];
-    const snap = await readRepository(
+    const { snapshot: snap } = await readRepository(
       fetcher,
       { owner: "o", name: "r" },
       { onStep: (s) => steps.push(s), onUnread: (path, reason) => unread.push(`${path} ${reason}`) },
@@ -235,7 +241,7 @@ describe("readRepository", () => {
     expect(unread).toEqual(["vendor/gone not-found", "vendor/lib/deps/x host", `${deepest}/again depth`]);
     expect(asked).toContain(`${LIB}/git/trees/pin1?recursive=1`);
     // Without a listener, a submodule left unread is laid the same.
-    expect((await readRepository(fetcher, { owner: "o", name: "r" })).files).toEqual(snap.files);
+    expect((await readRepository(fetcher, { owner: "o", name: "r" })).snapshot.files).toEqual(snap.files);
     // Every folder it came to know, it read: the bar ends full.
     const last = steps.findLast((s) => s.phase === "tree");
     expect(last && "of" in last && last.done === last.of).toBe(true);

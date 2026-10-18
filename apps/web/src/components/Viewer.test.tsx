@@ -46,16 +46,25 @@ describe("Viewer", () => {
     );
   });
 
-  it("switches city from More and theme from its menu, and shows plan view only", async () => {
+  it("switches city from More, theme from its menu, and the view between Plan and Buildings", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("button", { name: "alpha 1 lots" }).getAttribute("aria-current")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "beta 1 lots" }));
     expect(await screen.findByRole("heading", { level: 1, name: "beta" })).toBeTruthy();
-    // The map is plan view only: no view switch.
-    expect(screen.queryByRole("button", { name: "3D" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Plan" })).toBeNull();
+    // The view switch: plan at first; Buildings stands the buildings up, and pressed again lays them down.
+    const plan = screen.getByRole("button", { name: "Plan" });
+    const buildings = screen.getByRole("button", { name: "Buildings" });
+    expect([plan.getAttribute("aria-pressed"), buildings.getAttribute("aria-pressed")]).toEqual(["true", "false"]);
+    fireEvent.click(buildings);
+    expect(buildings.getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelector("main")?.getAttribute("data-mode")).toBe("buildings");
+    fireEvent.click(buildings);
+    expect(plan.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(buildings);
+    fireEvent.click(plan);
+    expect(document.querySelector("main")?.getAttribute("data-mode")).toBe("plan");
     fireEvent.click(screen.getByRole("button", { name: "Theme" }));
     fireEvent.click(screen.getByRole("radio", { name: "Dracula" }));
     expect(read()).toMatch(/Dracula$/);
@@ -417,6 +426,7 @@ describe("Viewer log", () => {
     const lines = info.mock.calls.map(([line]) => String(line));
     expect(lines.filter((l) => !l.startsWith("viewer/load-"))).toEqual([
       "viewer/index cities=2",
+      "viewer/measures-none name=alpha",
       "viewer/open name=alpha towns=1 lots=1",
       "viewer/town key=alpha",
       "viewer/city",

@@ -13,3 +13,4 @@ Follow the references below only as needed; never upfront.
 - ./007-local-repositories/local-repositories.md - when opening a repository from the machine: a picked folder
 - ./007-local-repositories/blueprints/README.md - when implementing opening a local repository in the viewer
 - ./008-buildings/buildings.md - when working on buildings, measures (size, tested, history) and their channels
+- ./008-buildings/blueprints/README.md - when implementing measures, the Buildings view or colour by

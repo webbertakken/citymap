@@ -16,14 +16,16 @@ in `BufferGeometry`.
 - `UNIT` = 64 fixed units is 1 scene unit (one street width); x east, z south (`z = −y`), y up.
 - `triangulate(polygon)`: a fan from vertex 0 (every polygon of the model is convex), clockwise to the camera above.
 - `flatLayer(polygons, colours, height)`: positions (y = height), colours and indices for flat shapes. Heights: ground
-  0, blocks 0.01, water 0.015, roads 0.02 (casing) and 0.025 (fill), lots on top of their plinths.
+  0, blocks 0.01, water 0.015, roads 0.02 (casing) and 0.025 (fill), vacant lots 0.03 (`LOTS_BASE`).
 - `roadRibbon(polyline, width)`: one quad per segment, offset by half the width along the segment's normal, plus a
   square cap at each joint so turns stay closed.
-- `plinths(lots, colours)`: each lot extruded to `LOT_HEIGHT` = 0.12 u: a top face and side quads; vacant lots flat at
-  block height in the reserve colour.
-- `buildScene(city, theme)` → `{ layers: { name, positions, colours, indices }[], labels, bounds }`; labels are town
-  names, each by `shortTownName` (the text after its last `/`, so `apps/web old town` is `web old town`), and the
-  districts the SVG renderer would label (same rule), at their centroids. The SVG export keeps whole town names. The
+- Every lot that holds files is a building in `Scene.buildings` (one mesh; see the
+  [buildings blueprint](../../008-buildings/blueprints/buildings.md)): a plinth of `LOT_HEIGHT` = 0.12 u in plan view,
+  its floors standing in the Buildings view, its look read from the lot table. Vacant lots lie flat in the reserve
+  colour (layer `lots`).
+- `buildScene(city, theme)` → `{ layers: { name, positions, colours, indices }[], buildings, labels, bounds }`; labels
+  are town names, each by `shortTownName` (the text after its last `/`, so `apps/web old town` is `web old town`), and
+  the districts the SVG renderer would label (same rule), at their centroids. The SVG export keeps whole town names. The
   town card's title is `shortTownName` too, with a "Folder" row holding the whole name when the two differ; the drawer,
   the breadcrumb and the cards' place lines keep the whole name.
 - Budgets: next.js (about 8,000 lots) builds in under 300 ms and under 64 MB of arrays.
@@ -67,13 +69,16 @@ in `BufferGeometry`.
 - Components: `Viewer` (state: city, theme, view), the floating atlas's cards (below), `CityCanvas` (react-three-fiber
   `Canvas` with an `OrthographicCamera`, one `mesh` per layer with vertex colours); labels are HTML over the canvas,
   placed by `MapView`).
-- Camera: plan only, straight above the centre with `up = (0, 0, −1)` (`basis()`: eye `(0, 1, 0)`, screen right
-  `(1, 0, 0)`, screen up `(0, 0, −1)`). A `View` is `{ centre, zoom }`. Zoom fits the bounds on load and on `0`. The
-  dimetric view lives on only in the SVG export (`packages/svg`, the CLI's `--camera`).
-- Hover: `hitAt(index, view, viewport, pointer)` unprojects the pointer to the ground and picks there (in plan, a lot's
-  top lies over its footprint). The hover card is described under Hover cards. Click selects; the drawer's "Selected"
-  section (`aria-live="polite"`) shows the same details. Escape clears both. The selection's place carries a marker (a
-  ring, `aria-hidden`) over the map.
+- Camera: a `Mode`, `plan` (the default, on every visit) or `buildings`. Plan looks straight down with `up = (0, 0, −1)`
+  (`basis("plan")`: eye `(0, 1, 0)`, screen right `(1, 0, 0)`, screen up `(0, 0, −1)`); the Buildings view from
+  `ELEVATION` 30° and `YAW` 45° (`basis("buildings")`: eye `(cos30·sin45, sin30, cos30·cos45)`, `up = (0, 1, 0)`). A
+  `View` is `{ centre, zoom }`; `project`, `pan`, `fit`, `framed`, `onKey`, `declutter` and `unproject` take the mode,
+  plan by default, so switching keeps the centre and the zoom. Zoom fits the bounds' four corners on load and on `0`.
+- Hover: `hitAt(index, view, viewport, pointer, mode, heights)` picks the ground in plan view (a lot's top lies over its
+  footprint); in the Buildings view it walks the view ray down from the tallest top in steps of `RAY_STEP` 0.1 u and
+  answers the first lot whose building reaches that height, else the ground. The hover card is described under Hover
+  cards. Click selects; the drawer's "Selected" section (`aria-live="polite"`) shows the same details. Escape clears
+  both. The selection's place carries a marker (a ring, `aria-hidden`) over the map.
 - Drill down: `focus` (a town key or null). The scene and the pick index are built from the city with only that town (no
   highways); the view refits; the title card shows a breadcrumb (`<nav aria-label="Breadcrumb">`: the city as a button,
   then the town); the panel offers "Show only this town" on each town, and on a selection within a town.
@@ -150,7 +155,8 @@ in `BufferGeometry`.
   - `bundled`: `download` "Downloading", `parse` "Reading the city", `draw`;
   - `file`: `download` "Reading the file", `parse` "Reading the city", `draw`;
   - `local`: `index` "Reading the git index" (or `folder` "Reading the folder", "{n} files found", for a folder without
-    git), `manifests`, `lay`, `draw`, from `localStep` (see
+    git), `manifests`, `contents` "Reading the files" ("{n} of {m} files"), `coverage` "Looking for coverage reports",
+    `lay`, `draw`, from `localStep` (see
     [local repositories](../../007-local-repositories/blueprints/local-repositories.md)).
 - `PHASE_WEIGHTS` (`load/progress.ts`) give each phase its share of the one bar, per source, summing to 1 (see
   `DEFAULTS.md`); a phase's segment starts where the earlier phases' weights end.
@@ -304,13 +310,14 @@ phone), so nothing the cards do moves the map or each other.
     until the first frame; any other move cancels it; under `prefers-reduced-motion: reduce` it is instant. A match in
     another town than the one shown leaves the town first. The match is then selected (a file as the lot hit at its
     centre, a folder as a district hit) and marked with a ring (`.marker`, `aria-hidden`) until the selection changes.
-- `ViewControls` (top right): "Theme" (a popover `<fieldset>`, legend "Map theme", of radio inputs, one per theme); then
-  "More" (a popover headed "Example cities": each bundled city as a button, "{name} {lots} lots", the current one
-  `aria-current`, then "Open a city file…" behind a hidden `<input type="file">` labelled "City file", then the local
-  repository group (opening the last folder again) of
-  [local repositories](../../007-local-repositories/blueprints/local-repositories.md)). A popover (`Popover.tsx`:
-  `aria-expanded`, `aria-controls`) closes on Escape and on a pick, both handing focus back to its button, and on focus
-  or a press outside.
+- `ViewControls` (top right): the view switch (`<fieldset class="glass segmented">`, legend "View": "Plan" and
+  "Buildings", `aria-pressed`; "Buildings" pressed again returns to plan; on a phone only its icon shows); "Theme" (a
+  popover `<fieldset>`, legend "Map theme", of radio inputs, one per theme); then "More" (a popover headed "Example
+  cities": each bundled city as a button, "{name} {lots} lots", the current one `aria-current`, then "Open a city file…"
+  behind a hidden `<input type="file">` labelled "City file", then the local repository group (opening the last folder
+  again) of [local repositories](../../007-local-repositories/blueprints/local-repositories.md)). A popover
+  (`Popover.tsx`: `aria-expanded`, `aria-controls`) closes on Escape and on a pick, both handing focus back to its
+  button, and on focus or a press outside.
 - `Drawer` (`<aside aria-label="Details">`; right, 320 px, from below the top row to 16 px above the bottom): "Selected"
   (the hit's card body, `CardBody`, as on the hover card, then its actions, below), then "Towns" (each town's name and
   lot count, the first `TOWNS_SHOWN` 7 by lots, then "Show all {n} towns" and "Show fewer towns"; each name a button,
@@ -320,10 +327,12 @@ phone), so nothing the cards do moves the map or each other.
   closed on a phone), then `true` or `false`. Below 760 px wide it is a bottom sheet, at most half the height.
 - `ZoomControls` (a `<fieldset>`, legend "Zoom"; bottom right, beside the drawer, or at the right edge when it is
   closed): "Zoom in", "Zoom out", "Fit the city" (the keyboard's `+`, `-`, `0`).
-- `Legend` (`<section aria-label="Legend">`, bottom left): swatches from the map theme, in the cards' words (`LEGEND` in
-  `card/words.ts`): "Lot: a file's land, tinted by folder; source stronger" (two tints of one district), "Park: land for
-  a folder's documentation", and "Reserve plot: room to grow; empty lots too" (the reserve colour, which vacant lots
-  share). Hidden below 760 px wide.
+- `Legend` (`<section aria-label="Legend">`, bottom left, 280 px): "Colour by" (a `Popover` opening above, its seven
+  radios as the [buildings blueprint](../../008-buildings/blueprints/buildings.md) says), then the scale of the choice:
+  for folder, swatches from the map theme in the cards' words (`LEGEND` in `card/words.ts`): "Lot: a file's land, tinted
+  by folder; source stronger" (two tints of one district), "Park: land for a folder's documentation", and "Reserve plot:
+  room to grow; empty lots too"; in the Buildings view, height and windows besides. Below 760 px wide it folds behind a
+  "Legend" button (`aria-expanded`, bottom left), closed at first, and hides while the drawer's sheet is open.
 - `Notice` (top centre, under the search box): an error as `role="alert"` with a "Dismiss" button; floating, so it moves
   nothing.
 - Insets (`view/insets.ts`, `insetsFor(viewport, drawer)`): where the cards cover the map, from the stylesheet's sizes:
@@ -346,7 +355,7 @@ phone), so nothing the cards do moves the map or each other.
   focus, and hides when both end and on Escape: the first Escape while one shows hides it and is marked answered
   (`preventDefault`, as the page's React root may be the document the popover listens on); `Popover` skips an Escape
   already answered, so the next one closes it. A switch never closes the popover.
-- The top right holds three controls (Theme, Layout, More), 152 px of a touch screen's top row.
+- The top right holds four controls (the view switch, Theme, Layout, More), 204 px of a touch screen's top row.
 - `Viewer` holds `toggles` (`DEFAULT_TOGGLES` at start; not remembered) and the `origin` of the city shown (a bundled
   entry; a live repository's name, snapshot, status note and tab title, from GitHub or the person's machine; or a file).
   A change re-opens what is shown in the new variant as a load of its own, with the loading card and the status naming
@@ -378,16 +387,18 @@ phone), so nothing the cards do moves the map or each other.
   empty) on every change; `viewer/variant-failed name reason` when a variant cannot load (also a notice; the last city
   stays).
 - `scripts/bundle-cities.ts` lays every combination (`combinations()` in `scripts/bundle/bundle.ts`, the sixteen subsets
-  of `TOGGLES` in binary order) of each public city from `~/.cache/citymap/repos/<name>` with the Rust CLI
-  (`rust/target/release/citymap <repo> --toggles=<list> --out=…`, a full fold, no lock), into
-  `public/cities/<name>/<variant>.json`, where `variantName(toggles, separate?)` joins the toggles with `-`, or is
+  of `TOGGLES` in binary order) of each public city in `BUNDLED` (a GitHub URL and a pinned commit), from a fresh clone
+  without contents checked out at that commit (`cloneArgs`), with the Rust CLI
+  (`rust/target/release/citymap <repo> --to=<commit> --toggles=<list> --separate=<list> --out=…`, a full fold, no lock),
+  into `public/cities/<name>/<variant>.json`, where `variantName(toggles, separate?)` joins the toggles with `-`, or is
   `none`, and for a city that records separations adds `~` and the effective separations joined with `-` (or `none`);
-  then writes the index. A city's separations are learnt from a first lay with the defaults (its `separable` and
-  `declared`); `separationStates(separable, declared)` lists every subset of `separable`, less those with `declared`,
-  `workspaces` on and `apps` or `packages` off their defaults; each lay passes `--separate=` the state plus the defaults
-  of the separations the city does not record. One line per lay: `bundle/laid name variant lots bytes gzip ms`; at the
-  end `bundle/done cities variants bytes gzip`. The six cities' 96 variants take 62.2 MB (10.0 MB gzipped, 1.7 MB in a
-  git pack); a visitor loads one at a time, 35 to 320 kB gzipped.
+  then writes the index. A city's separations are learnt from a first lay with the defaults at its pin (its `separable`
+  and `declared`, `--no-measures`); `separationStates(separable, declared)` lists every subset of `separable`, less
+  those with `declared`, `workspaces` on and `apps` or `packages` off their defaults; each lay passes `--separate=` the
+  state plus the defaults of the separations the city does not record. One line per lay:
+  `bundle/laid name variant lots bytes gzip ms`; at the end `bundle/done cities variants bytes gzip`. BUNDLE_SIZES They
+  are not committed: `.github/workflows/pages.yml` runs `bun run bundle` before `next build`, and `public/cities/` is
+  ignored.
 
 ## Labels
 
@@ -517,7 +528,7 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
 `load/paint.ts`), `TOWNS_SHOWN` (in `Drawer.tsx`), `PHASE_WEIGHTS`, `ESTIMATE_FROM` and `STEADY_MS` (in
 `load/progress.ts`), `SHOW_AFTER_MS`, `HOLD_MS` and `TICK_MS` (in `load/useLoading.ts`), `POST_MS` (in `lay/worker.ts`),
 `OWNER_TTL_MS` (in `github/owners.ts`), the tooltip's width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in
-`packages/scene`).
+`packages/scene`), `ELEVATION` and `YAW` (in `view/view.ts`), `RAY_STEP` (in `view/hover.ts`).
 
 ## Web experience
 
@@ -547,11 +558,18 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
 - `e2e/vitals.spec.ts` runs in its own projects (`vitals-desktop`, `vitals-phone`) once the journeys are done, so no
   other test draws at the same time; it reports the slowest interaction as an annotation. It records
   `largest-contentful-paint`, `layout-shift` and `event` entries (from 16 ms) through `PerformanceObserver` before the
-  page's scripts run, and asserts the three budgets.
+  page's scripts run, and asserts the three budgets. The phone journey ends in the Buildings view, coloured by size.
+- `e2e/vitals-linux.spec.ts` (the same projects) opens linux's city from a file the CLI laid (`CITYMAP_LINUX_CITY`;
+  skipped without one, as it is too large to bundle), stands its buildings, taps, zooms, pans and recolours on the
+  slowed phone, and asserts every answer under 200 ms; it writes the switch's time, the slowest answer and the heap to
+  `linux.json`. It asks for the machine's own graphics (`--use-angle=gl-egl`): a phone draws on its graphics processor,
+  while a headless browser's software drawing (SwiftShader) times the processor instead (linux's plan view alone takes
+  about 290 ms a frame there, against 24 ms on an integrated GPU).
 
 ## Tests
 
-- `packages/scene`: unit tests for triangulation, ribbons, plinths, layers and labels (Vitest, Node).
+- `packages/scene`: unit tests for triangulation, ribbons, buildings, the lot table, colour by, layers and labels
+  (Vitest, Node).
 - `apps/web`: component tests in jsdom for every card, search, flight, file errors and keyboard handling (the canvas is
   replaced by a stub there; fixtures in `components/testing/`); Playwright end-to-end on a desktop and a phone, in dark
   mode with one light run: loads, switches city and theme, searches and flies, opens a file, shows an error for a bad

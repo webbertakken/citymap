@@ -49,23 +49,31 @@ The Rust implementation of the CLI lives in `rust/`: see
    `bun scripts/parity-fixtures.ts` and commit `rust/fixtures/`. The golden towns are shared with the TypeScript tests.
 6. Prove parity with `bun run parity` under PM2. It runs both CLIs on the repositories under `~/.cache/citymap/repos`,
    each on its own shared clone (so no lock lands in the cache), and compares city, SVG, lockfile and log byte for byte.
-   The `resume` mode also resumes each fold from a lock saved part way, and must match the uninterrupted fold. `--long`
-   adds next.js (minutes on TypeScript); `--repos=a,b` and `--modes=state,fold,resume` narrow it; `--features=mimalloc`
-   builds the Rust CLI with mimalloc; `--toggles=a,b` lays both CLIs with those toggles, `--separate=a,b` with those
-   separations. Prove a change to a toggle's rules with the defaults, each toggle alone (`--toggles=corridor` and so on)
-   and none (`--toggles=`); a change to a separation's rules the same way with `--separate=`.
+   The `resume` mode also resumes each fold from a lock saved part way, and must match the uninterrupted fold. The
+   `checkout` mode folds a clone with a checkout whose working tree `.mailmap` (and `mailmap.file`) merges its authors,
+   and must match the fold of the clone without one. `--long` adds next.js (minutes on TypeScript); `--repos=a,b` and
+   `--modes=state,fold,resume,checkout,coverage` narrow it; `--features=mimalloc` builds the Rust CLI with mimalloc;
+   `--toggles=a,b` lays both CLIs with those toggles, `--separate=a,b` with those separations. Prove a change to a
+   toggle's rules with the defaults, each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`); a
+   change to a separation's rules the same way with `--separate=`.
 7. A `parity/differs` line is a bug in one of the two implementations. Both runs' outputs stay in
    `/tmp/citymap-parity-<repo>`: find the first differing byte, then the rule behind it. A `parity/resume-differs` line
-   is state a lockfile does not carry: find the first commit where the resumed plat leaves the uninterrupted one.
+   is state a lockfile does not carry: find the first commit where the resumed plat leaves the uninterrupted one. A
+   `parity/checkout-differs` line is something read from the working tree or git's settings instead of the history.
 
 ## Bundled cities
 
-1. `bun scripts/bundle-cities.ts` under PM2 builds the Rust CLI, lays each public city in `PUBLIC` once with the
-   defaults to learn the separations it records (`bundle/recorded`), then folds it once per combination of the toggles
-   (16) in each state of those separations, from shared clones of `~/.cache/citymap/repos`, into
-   `apps/web/public/cities/<name>/<variant>.json` with `index.json`; variant files the index no longer names are removed
-   (`bundle/pruned`). The six cities take 304 variants (about 25 minutes).
-2. It logs `bundle/laid` per variant and `bundle/done` with the total bytes, raw and gzipped; commit the folder.
+1. The bundled cities are built, never committed: the Pages workflow builds them before the site, and
+   `apps/web/public/cities/` is ignored. Run `bun run bundle` under PM2 once before `next dev`, a local build or the
+   end-to-end suite (which refuses to start without them).
+2. It builds the Rust CLI, clones every city in `BUNDLED` (`scripts/bundle/bundle.ts`) from GitHub without contents,
+   checks out its pinned commit, lays it once with the defaults to learn the separations it records (`bundle/recorded`),
+   and folds it once per combination of the toggles (16) in each state of those separations into
+   `apps/web/public/cities/<name>/<variant>.json` with `index.json`; BUNDLE_TIME.
+3. It logs `bundle/cloned` per city, `bundle/recorded` per city, `bundle/laid` per variant and `bundle/done` with the
+   total bytes, raw and gzipped.
+4. To show a newer state of a city, move its pin in `BUNDLED` and update the end-to-end expectations that name its
+   numbers, in one PR.
 
 ## Adding a workspace
 

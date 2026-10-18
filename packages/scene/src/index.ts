@@ -1,8 +1,8 @@
 export {
+  LOTS_BASE,
   LOT_HEIGHT,
   buildScene,
   flatLayer,
-  plinths,
   roadRibbon,
   shortTownName,
   triangulate,
@@ -10,5 +10,32 @@ export {
   type Layer,
   type Scene,
 } from "./scene";
+export {
+  BuildingsBuilder,
+  DATA_COLUMNS,
+  FLOOR_HEIGHT,
+  LOT_FLOATS,
+  UNKNOWN_SIZE,
+  WINDOW_PITCH,
+  lotTable,
+  packColour,
+  type Buildings,
+  type LotLook,
+  type LotRef,
+} from "./buildings";
+export {
+  COLOUR_BY,
+  KIND_COLOURS,
+  RAMPS,
+  lookOf,
+  rampColour,
+  rampOf,
+  shareFor,
+  unknownColour,
+  WINDOW_LIT,
+  windowUnknown,
+  type ColourBy,
+  type RampMeasure,
+} from "./colour-by";
 export { folderHit, pick, pickIndex, townRoot, type Hit, type PickIndex } from "./pick";
 export { folderOf, parseAddress, type Address } from "./address";

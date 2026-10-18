@@ -57,6 +57,8 @@ describe("readLocal", () => {
     expect(inner.length).toBeGreaterThan(0);
     expect(result.submodules).toEqual({ read: [{ path: "vendor/sub", files: inner.length }], unread: [] });
     expect(result.snapshot.submodules).toEqual(["vendor/sub"]);
+    // Its files' sizes come from its own index, beside the repository's own.
+    for (const { path } of result.snapshot.files) expect(result.sizes.has(path)).toBe(true);
   });
 
   it("leaves out a tracked manifest missing from the working tree, and names it", async () => {

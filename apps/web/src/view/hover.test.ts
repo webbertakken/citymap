@@ -53,3 +53,25 @@ describe("hitAt", () => {
     expect(hitAt(index, view, viewport, { x: 0, y: 0 })).toBeNull();
   });
 });
+
+describe("hitAt in the Buildings view", () => {
+  const index = pickIndex(city);
+  const view: View = { centre: { x: 22.5, z: -22.5 }, zoom: 20 };
+  // The lot's middle, three street widths up: the top of a twelve-floor building.
+  const roof = project(view, viewport, { x: 1440 / 64, y: 3, z: -1440 / 64 }, "buildings");
+
+  it("hits a building at its top, where the ground under that point is something else", () => {
+    const tall = { top: 3.05, of: (town: string, key: string) => (town === "demo" && key === "a" ? 3.05 : null) };
+    expect(hitAt(index, view, viewport, roof, "buildings", tall)).toMatchObject({ kind: "lot", key: "a" });
+    // The same point with a low building: the ray passes over it and meets the ground beyond.
+    const low = { top: 0.3, of: () => 0.3 };
+    expect(hitAt(index, view, viewport, roof, "buildings", low)?.kind).not.toBe("lot");
+    // Without heights, the ground answers.
+    expect(hitAt(index, view, viewport, roof, "buildings")?.kind).not.toBe("lot");
+  });
+
+  it("passes over a lot the heights do not know", () => {
+    const unknown = { top: 3.05, of: () => null };
+    expect(hitAt(index, view, viewport, roof, "buildings", unknown)?.kind).not.toBe("lot");
+  });
+});

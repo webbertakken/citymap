@@ -1,7 +1,7 @@
 //! A repository's history folded into its city, and the files the command asks for.
 use std::path::{Path, PathBuf};
 
-use citymap_ground_plan::city::{City, serialise_city};
+use citymap_ground_plan::city::City;
 use citymap_ground_plan::fold::initial_state;
 use citymap_ground_plan::land_use::{LandUse, default_land_uses};
 use citymap_ground_plan::lock::{Lockfile, parse_lock, serialise_lock};
@@ -11,9 +11,11 @@ use citymap_ground_plan::snapshot::Snapshot;
 use citymap_ground_plan::town::context::Order;
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
 use citymap_history::{HistoryItem, ReadOptions, Strides, is_ancestor, read_history, read_tree, resolve_commit};
+use citymap_measures::serialise_city_file;
 use citymap_svg::{RenderOptions, render_city};
 
 use crate::args::LayCommand;
+use crate::measures::{MeasureInput, measure_city, read_named_reports};
 
 /// The outside world the CLI touches, injected so runs are testable.
 pub trait Io {
@@ -85,6 +87,12 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize, strides
         toggles: command.toggles.clone(),
     };
     let target = resolve_commit(&repo, &command.to)?;
+    // Named reports are read first, so a bad one fails before the fold.
+    let named = if command.measures {
+        read_named_reports(&repo, &command.coverage, io)?
+    } else {
+        Vec::new()
+    };
     let lock = if command.history {
         read_lock(&repo, &target, &options, io)?
     } else {
@@ -93,6 +101,7 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize, strides
     let from = lock.as_ref().map(|l| l.index);
     let mut state = lock.map_or_else(|| initial_state(&options, None, true), |l| l.state);
     let mut last: Option<Snapshot> = None;
+    let mut file_history = None;
     let (mut laid_count, mut index) = (0usize, 0i64);
     let mut lay = |snapshot: Snapshot, io: &mut dyn Io, state: &mut FoldState| -> Result<()> {
         let events = lay(&snapshot, state, &options)?;
@@ -118,12 +127,14 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize, strides
                 from,
                 strides,
                 repository: None,
+                files: command.measures,
             },
         )?;
         for item in history {
             match item? {
                 HistoryItem::Event(event) => io.log(&event.line()),
                 HistoryItem::Snapshot(snapshot) => lay(snapshot, io, &mut state)?,
+                HistoryItem::Files(files) => file_history = Some(files),
             }
         }
     } else {
@@ -143,8 +154,23 @@ pub fn run_lay(command: &LayCommand, io: &mut dyn Io, lock_every: usize, strides
     let laid = current_city(&mut state, &options)?;
     let lots: i64 = laid.towns.iter().map(|t| t.stats.lots).sum();
     let overflow: i64 = laid.towns.iter().map(|t| t.stats.overflow).sum();
+    let measures = match &command.out {
+        Some(_) if command.measures => Some(measure_city(
+            MeasureInput {
+                repo: &repo,
+                target: &target,
+                city: &laid,
+                plat: &state.plat,
+                snapshot: &last,
+                history: file_history.as_ref(),
+                named,
+            },
+            io,
+        )?),
+        _ => None,
+    };
     if let Some(out) = &command.out {
-        io.write_file(Path::new(out), &serialise_city(&laid)?)?;
+        io.write_file(Path::new(out), &serialise_city_file(&laid, measures.as_ref())?)?;
     }
     if let Some(svg) = &command.svg {
         let short: String = target.chars().take(12).collect();

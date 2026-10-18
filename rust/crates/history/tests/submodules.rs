@@ -339,6 +339,7 @@ fn read(dir: &Path, from: Option<i64>, strides: Option<Strides>) -> (Vec<Snapsho
         match item.expect("an item") {
             HistoryItem::Snapshot(s) => snaps.push(s),
             HistoryItem::Event(e) => events.push(e),
+            HistoryItem::Files(_) => unreachable!("the files' history is not asked for"),
         }
     }
     (snaps, events)

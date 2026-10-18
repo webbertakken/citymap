@@ -9,7 +9,7 @@ export * from "./snapshot/snapshot";
 export * from "./workspace/workspace";
 export * from "./tree/tree";
 export type * from "./city/city";
-export { parseCity, serialiseCity } from "./city/serialise";
+export { parseCity, serialiseCity, validateCity } from "./city/serialise";
 export {
   emptyPlat,
   emptyTownPlat,

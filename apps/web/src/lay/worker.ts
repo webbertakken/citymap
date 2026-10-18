@@ -3,6 +3,7 @@
 import type { Separation, Snapshot, Toggle } from "@citymap/ground-plan";
 import type { ThemeName } from "@citymap/themes";
 import type { Step } from "../load/step";
+import type { LiveFacts } from "../measures/live";
 import { buffersOf, layHere, throttled } from "./lay";
 
 /** The least time between two progress posts, in milliseconds. */
@@ -13,6 +14,7 @@ type Request = {
   theme?: ThemeName;
   toggles?: readonly Toggle[];
   separate?: readonly Separation[];
+  facts?: LiveFacts;
 };
 
 self.addEventListener("message", (event: MessageEvent<Request>) => {
@@ -21,7 +23,7 @@ self.addEventListener("message", (event: MessageEvent<Request>) => {
     POST_MS,
     () => performance.now(),
   );
-  const { snapshot, theme, toggles, separate } = event.data;
+  const { snapshot, theme, toggles, separate, facts } = event.data;
   // Each step posts as it comes when its phase changes; within a phase, at most one per POST_MS.
   let phase = "";
   const onProgress = (step: Step) => {
@@ -36,10 +38,11 @@ self.addEventListener("message", (event: MessageEvent<Request>) => {
     ...(theme === undefined ? {} : { theme }),
     ...(toggles === undefined ? {} : { toggles }),
     ...(separate === undefined ? {} : { separate }),
+    ...(facts === undefined ? {} : { facts }),
   }).then(
-    ({ city, scene }) => {
+    ({ city, measures, scene }) => {
       post.flush();
-      self.postMessage({ city, scene }, { transfer: scene ? buffersOf(scene.scene) : [] });
+      self.postMessage({ city, measures, scene }, { transfer: scene ? buffersOf(scene.scene) : [] });
     },
     (error: unknown) =>
       self.postMessage({ error: error instanceof Error ? error.message : String(error) }, { transfer: [] }),

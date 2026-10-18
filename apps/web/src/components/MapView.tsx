@@ -2,16 +2,29 @@
 import type { Hit, PickIndex, Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
 import { useEffectEvent, useLayoutEffect, useRef, useState, type ComponentType } from "react";
-import { hitAt } from "../view/hover";
-import { NO_INSETS, declutter, onKey, pan, project, type Insets, type View, type Viewport } from "../view/view";
+import { hitAt, type Heights } from "../view/hover";
+import {
+  NO_INSETS,
+  declutter,
+  onKey,
+  pan,
+  project,
+  type Insets,
+  type Mode,
+  type View,
+  type Viewport,
+} from "../view/view";
 import { HoverCard } from "./HoverCard";
 
-/** What the WebGL canvas draws: the scene's layers from the view, filling its parent. */
+/** What the WebGL canvas draws: the scene's layers and buildings from the view, filling its parent. */
 export interface CanvasProps {
   readonly scene: Scene;
   readonly view: View;
   readonly viewport: Viewport;
   readonly theme: Theme;
+  readonly mode: Mode;
+  /** The lot table: each building's floors, lit share, colour and flags. */
+  readonly table: Float32Array;
 }
 
 export interface MapViewProps {
@@ -24,6 +37,11 @@ export interface MapViewProps {
   /** A place to mark on the map (scene units), or null. */
   readonly marker?: { readonly x: number; readonly z: number } | null;
   readonly theme: Theme;
+  /** Plan or Buildings: how the map is seen. */
+  readonly mode?: Mode;
+  /** The lot table the buildings are drawn from, and how tall each stands, for picking at their tops. */
+  readonly table: Float32Array;
+  readonly heights?: Heights | null;
   /** One town is shown alone; the hover card's hint then offers no town. */
   readonly focused?: boolean;
   /** The city came from GitHub; the hover card's hint offers opening a file or folder there. */
@@ -54,6 +72,9 @@ export function MapView({
   insets = NO_INSETS,
   marker = null,
   theme,
+  mode = "plan",
+  table,
+  heights = null,
   focused = false,
   github = false,
   Canvas,
@@ -84,7 +105,7 @@ export function MapView({
       onEscape();
       return;
     }
-    const next = onKey(event.key, view, viewport, scene.bounds, insets);
+    const next = onKey(event.key, view, viewport, scene.bounds, insets, mode);
     if (!next) return;
     event.preventDefault();
     onView(next);
@@ -99,7 +120,7 @@ export function MapView({
     if (!before) {
       // Hovering: name what is under the pointer.
       const at = local(event);
-      const hit = hitAt(index, view, viewport, at);
+      const hit = hitAt(index, view, viewport, at, mode, heights);
       setHover(hit ? { hit, ...at } : null);
       return;
     }
@@ -111,7 +132,7 @@ export function MapView({
       const ratio =
         Math.hypot(now.x - other.x, now.y - other.y) / Math.max(1, Math.hypot(before.x - other.x, before.y - other.y));
       onView({ ...view, zoom: view.zoom * ratio });
-    } else onView(pan(view, before.x - now.x, now.y - before.y));
+    } else onView(pan(view, before.x - now.x, now.y - before.y, mode));
     pointers.current.set(event.pointerId, now);
   });
   const up = useEffectEvent((event: PointerEvent) => {
@@ -120,7 +141,7 @@ export function MapView({
     const start = pressed.current;
     pressed.current = null;
     if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) < CLICK_SLOP)
-      onSelect(hitAt(index, view, viewport, local(event)));
+      onSelect(hitAt(index, view, viewport, local(event), mode, heights));
   });
   const leave = useEffectEvent(() => setHover(null));
   const wheel = useEffectEvent((event: WheelEvent) => {
@@ -160,8 +181,8 @@ export function MapView({
     };
   }, []);
 
-  const labels = declutter(scene.labels, view, viewport);
-  const mark = marker ? project(view, viewport, { x: marker.x, y: 0, z: marker.z }) : null;
+  const labels = declutter(scene.labels, view, viewport, mode);
+  const mark = marker ? project(view, viewport, { x: marker.x, y: 0, z: marker.z }, mode) : null;
   return (
     <div
       ref={box}
@@ -170,7 +191,7 @@ export function MapView({
       aria-label={`Map of ${name}. Arrow keys pan, plus and minus zoom, zero fits the city.`}
       tabIndex={0}
     >
-      <Canvas scene={scene} view={view} viewport={viewport} theme={theme} />
+      <Canvas scene={scene} view={view} viewport={viewport} theme={theme} mode={mode} table={table} />
       <div className="labels" aria-hidden="true">
         {labels.map((l) => (
           <span

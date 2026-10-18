@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  CHECKOUT_AUTHORS,
   LONG,
   PARITY,
   buildArgs,
+  checkoutMailmap,
   cliArgs,
+  sameVerdict,
+  coverageReports,
   resumePoint,
-  resumeVerdict,
   saveArgs,
   parseSettings,
   table,
@@ -18,7 +21,7 @@ describe("parseSettings", () => {
   it("covers the parity repositories in both modes by default, and next.js with --long", () => {
     expect(parseSettings([])).toEqual({
       repos: [...PARITY],
-      modes: ["state", "fold", "resume"],
+      modes: ["state", "fold", "resume", "checkout", "coverage"],
       features: [],
       toggles: null,
       separate: null,
@@ -43,7 +46,7 @@ describe("parseSettings", () => {
 
   it("rejects a mode it does not know", () => {
     expect(() => parseSettings(["--modes=state,quick"])).toThrow(
-      "parity/usage: --modes takes state, fold and resume, not quick",
+      "parity/usage: --modes takes state, fold, resume, checkout and coverage, not quick",
     );
   });
 });
@@ -65,6 +68,7 @@ describe("cliArgs", () => {
     ]);
     expect(cliArgs("/c/redux", "/o", "fold").at(-1)).toBe("--lock");
     expect(cliArgs("/c/redux", "/o", "resume").at(-1)).toBe("--lock");
+    expect(cliArgs("/c/redux", "/o", "checkout").at(-1)).toBe("--lock");
     expect(cliArgs("/c/redux", "/o", "fold", { toggles: "corridor", separate: null }).at(-1)).toBe(
       "--toggles=corridor",
     );
@@ -99,12 +103,26 @@ describe("resumePoint", () => {
   });
 });
 
-describe("resumeVerdict", () => {
-  it("names a resumed fold that matches the uninterrupted one, and the sides and files of one that does not", () => {
-    expect(resumeVerdict("redux", 2130, [])).toBe("parity/resumed repo=redux saved=2130 same");
-    expect(resumeVerdict("redux", 2130, ["ts:citymap.lock.json", "rs:citymap.lock.json"])).toBe(
+describe("sameVerdict", () => {
+  it("names a run that matches the uninterrupted fold, and the sides and files of one that does not", () => {
+    expect(sameVerdict("resume", "redux", [], "saved=2130")).toBe("parity/resumed repo=redux saved=2130 same");
+    expect(sameVerdict("resume", "redux", ["ts:citymap.lock.json", "rs:citymap.lock.json"], "saved=2130")).toBe(
       "parity/resume-differs repo=redux saved=2130 files=ts:citymap.lock.json,rs:citymap.lock.json",
     );
+    expect(sameVerdict("checkout", "react", [])).toBe("parity/checkout repo=react same");
+    expect(sameVerdict("checkout", "react", ["rs:city.json"])).toBe(
+      "parity/checkout-differs repo=react files=rs:city.json",
+    );
+  });
+});
+
+describe("checkoutMailmap", () => {
+  it("maps every author it is given to one, so a CLI that read the working tree would count one person", () => {
+    expect(checkoutMailmap(["ann@x.org", "Bob@x.org", "ann@x.org", "", "a>b@x", "c\nd@x"])).toBe(
+      "Parity <parity@citymap.invalid> <ann@x.org>\nParity <parity@citymap.invalid> <Bob@x.org>\n",
+    );
+    const many = Array.from({ length: CHECKOUT_AUTHORS + 50 }, (_, i) => `p${i}@x`);
+    expect(checkoutMailmap(many).split("\n").length - 1).toBe(CHECKOUT_AUTHORS);
   });
 });
 
@@ -143,5 +161,36 @@ describe("table", () => {
         "| redux | fold | differs: city.json | 0.90 s | 0.00 s | – |",
       ].join("\n"),
     );
+  });
+});
+
+describe("coverageReports", () => {
+  it("writes the four formats over a quarter of the sources each, by their usual paths", () => {
+    const sources = Array.from({ length: 7 }, (_, i) => `src/a&<"/f${i}.ts`);
+    const paths = ["README.md", "top.ts", ...sources.slice(0, 3), "pkg/x.py", ...sources.slice(3)];
+    const reports = coverageReports(paths, "demo");
+    expect(Object.keys(reports)).toEqual([
+      "coverage/lcov.info",
+      "coverage/coverage-final.json",
+      "coverage.xml",
+      "target/site/jacoco/jacoco.xml",
+    ]);
+    expect(reports["coverage/lcov.info"]).toContain(
+      'SF:/home/runner/work/demo/demo/src/a&<"/f0.ts\nDA:1,0\nend_of_record',
+    );
+    expect(reports["coverage/lcov.info"]).toContain("SF:/home/runner/work/demo/demo/nowhere/at/all.ts");
+    expect(JSON.parse(reports["coverage/coverage-final.json"]!)).toMatchObject({
+      '/home/runner/work/demo/demo/src/a&<"/f1.ts': { s: { 0: 0 } },
+    });
+    expect(reports["coverage.xml"]).toContain('filename="src/a&amp;&lt;&quot;/f2.ts"');
+    expect(reports["target/site/jacoco/jacoco.xml"]).toContain(
+      '<package name="a&amp;&lt;&quot;"><sourcefile name="f6.ts">',
+    );
+    expect(reports["target/site/jacoco/jacoco.xml"]).toContain('<package name=""><sourcefile name="x.py">');
+    const many = coverageReports(
+      Array.from({ length: 2000 }, (_, i) => `s/f${i}.go`),
+      "big",
+    );
+    expect(many["coverage/lcov.info"]!.split("SF:").length - 1).toBe(101);
   });
 });

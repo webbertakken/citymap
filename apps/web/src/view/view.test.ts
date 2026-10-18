@@ -1,12 +1,75 @@
 import { describe, expect, it } from "vitest";
-import { basis, declutter, fit, onKey, project, unproject, type View } from "./view";
+import { basis, declutter, fit, onKey, pan, project, unproject, type View } from "./view";
 
 const bounds = { min: { x: -50, z: -20 }, max: { x: 50, z: 20 } };
 const viewport = { width: 1000, height: 500 };
 
+const dot = (a: readonly number[], c: readonly number[]) => a.reduce((s, v, i) => s + v * c[i]!, 0);
+
 describe("basis", () => {
-  it("looks straight down, north up: the viewer shows plan view only", () => {
+  it("looks straight down, north up, in plan view", () => {
     expect(basis()).toEqual({ eye: [0, 1, 0], up: [0, 0, -1], right: [1, 0, 0], screenUp: [0, 0, -1] });
+  });
+
+  it("looks from 30° up and 45° round in the Buildings view, its directions square to each other", () => {
+    const b = basis("buildings");
+    expect(Math.asin(b.eye[1]) * (180 / Math.PI)).toBeCloseTo(30);
+    expect(Math.atan2(b.eye[0], b.eye[2]) * (180 / Math.PI)).toBeCloseTo(45);
+    expect(dot(b.right, b.screenUp)).toBeCloseTo(0);
+    expect(dot(b.right, b.eye)).toBeCloseTo(0);
+    expect(b.right[1]).toBeCloseTo(0);
+    expect(b.screenUp[1]).toBeGreaterThan(0);
+  });
+});
+
+describe("the Buildings view", () => {
+  const view: View = { centre: { x: 10, z: 5 }, zoom: 4 };
+
+  it("keeps the centre in the middle, and stands what is higher further up the screen", () => {
+    expect(project(view, viewport, { x: 10, y: 0, z: 5 }, "buildings")).toEqual({ x: 500, y: 250 });
+    expect(project(view, viewport, { x: 10, y: 2, z: 5 }, "buildings").y).toBeLessThan(250);
+  });
+
+  it("unprojects what it projects, at the ground or at a height", () => {
+    for (const height of [0, 1.5]) {
+      const point = { x: 13, y: height, z: -4 };
+      const screen = project(view, viewport, point, "buildings");
+      const back = unproject(view, viewport, screen, "buildings", height);
+      expect(back.x).toBeCloseTo(13);
+      expect(back.z).toBeCloseTo(-4);
+    }
+  });
+
+  it("pans along the ground so the screen moves as the pointer did", () => {
+    const moved = pan(view, 40, -20, "buildings");
+    const before = project(view, viewport, { x: 0, y: 0, z: 0 }, "buildings");
+    const after = project(moved, viewport, { x: 0, y: 0, z: 0 }, "buildings");
+    expect(before.x - after.x).toBeCloseTo(40);
+    expect(before.y - after.y).toBeCloseTo(20);
+  });
+
+  it("fits the city's corners into the view, keys panning and fitting alike", () => {
+    const fitted = fit(bounds, viewport, undefined, "buildings");
+    expect(fitted.centre.x).toBeCloseTo(0);
+    expect(fitted.centre.z).toBeCloseTo(0);
+    for (const x of [bounds.min.x, bounds.max.x])
+      for (const z of [bounds.min.z, bounds.max.z]) {
+        const corner = project(fitted, viewport, { x, y: 0, z }, "buildings");
+        expect(corner.x).toBeGreaterThanOrEqual(0);
+        expect(corner.x).toBeLessThanOrEqual(viewport.width);
+        expect(corner.y).toBeGreaterThanOrEqual(0);
+        expect(corner.y).toBeLessThanOrEqual(viewport.height);
+      }
+    expect(onKey("0", view, viewport, bounds, undefined, "buildings")).toEqual(fitted);
+    expect(onKey("ArrowRight", view, viewport, bounds, undefined, "buildings")).toEqual(pan(view, 100, 0, "buildings"));
+    expect(onKey("ArrowLeft", view, viewport, bounds, undefined, "buildings")).toEqual(pan(view, -100, 0, "buildings"));
+    expect(onKey("ArrowUp", view, viewport, bounds, undefined, "buildings")).toEqual(pan(view, 0, 50, "buildings"));
+    expect(onKey("ArrowDown", view, viewport, bounds, undefined, "buildings")).toEqual(pan(view, 0, -50, "buildings"));
+  });
+
+  it("places labels by the view's own projection", () => {
+    const labels = [{ text: "A", x: 10, z: 5, size: "town" as const, extent: 100 }];
+    expect(declutter(labels, view, viewport, "buildings")[0]).toMatchObject({ left: 500, top: 250 });
   });
 });
 

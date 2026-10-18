@@ -106,8 +106,10 @@ describe("countWords", () => {
     const local = startProgress("local", "widgets", 0);
     expect(countWords(advance(local, { phase: "folder", done: 12_345 }))).toBe("12,345 files found");
     expect(countWords(advance(local, { phase: "folder", done: 1 }))).toBe("1 file found");
+    expect(countWords(advance(local, { phase: "contents", done: 120, of: 4_096 }))).toBe("120 of 4,096 files");
+    expect(countWords(advance(local, { phase: "contents" }))).toBeNull();
     // A folder with git skips the walk: the bar jumps past it.
-    expect(advance(local, { phase: "manifests" }).fraction).toBeCloseTo(0.3, 9);
+    expect(advance(local, { phase: "manifests" }).fraction).toBeCloseTo(0.25, 9);
   });
 });
 

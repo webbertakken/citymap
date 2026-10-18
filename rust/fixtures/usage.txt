@@ -19,6 +19,9 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --no-warp           draw the plan without its organic warp
   --no-loops          leave dead ends unjoined (default: nearby dead ends are joined by lanes)
   --no-history        lay the tree at --to once, every file at once, without folding its history (no --lock)
+  --coverage=<file>   a coverage report (LCOV, Istanbul JSON, Cobertura or JaCoCo) to read instead of the usual
+                      paths; repeat it for several
+  --no-measures       write the city without its measures (size, tested, history)
   --voronoi           fill each folder's region, the land nearer its lots than any other's, in the SVG
   --verbose           log every plan decision
   --help              show this help

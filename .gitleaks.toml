@@ -5,7 +5,7 @@
 useDefault = true
 
 [[allowlists]]
-description = "Bundled cities: paths of public repositories"
+description = "Bundled cities (built, no longer committed, but in the history): paths of public repositories"
 paths = ['''^apps/web/public/cities/([^/]+/)?[^/]+\.json$''']
 
 [[allowlists]]

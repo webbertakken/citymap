@@ -1,5 +1,9 @@
 import { UNIT, area2, roadWidth, centroid, type City, type Pt } from "@citymap/ground-plan";
 import type { Theme } from "@citymap/themes";
+import { BuildingsBuilder, type Buildings } from "./buildings";
+import { triangulate } from "./triangulate";
+
+export { triangulate } from "./triangulate";
 
 /** One drawable layer: vertex positions and colours (three floats each) and triangle indices. */
 export interface Layer {
@@ -27,13 +31,17 @@ const extentOf = (pts: readonly Pt[]) => {
 
 export interface Scene {
   readonly layers: readonly Layer[];
+  /** Every lot that holds files, as a building: plinths in plan view, standing in the Buildings view. */
+  readonly buildings: Buildings;
   readonly labels: readonly Label[];
   readonly bounds: { readonly min: { x: number; z: number }; readonly max: { x: number; z: number } };
 }
 
-/** The height of a lot's plinth, in street widths. */
+/** The height of a lot's plinth in plan view, in street widths. */
 export const LOT_HEIGHT = 0.12;
 const HEIGHT = { ground: 0, blocks: 0.01, water: 0.015, casings: 0.02, roads: 0.025, lots: 0.03 } as const;
+/** Where buildings stand: the lots' height, above the roads. */
+export const LOTS_BASE = HEIGHT.lots;
 /** A road's casing is this much wider than its fill, in fixed units. */
 const CASING = 16;
 
@@ -42,13 +50,6 @@ const rgb = (hex: string): [number, number, number] => [
   Number.parseInt(hex.slice(3, 5), 16) / 255,
   Number.parseInt(hex.slice(5, 7), 16) / 255,
 ];
-
-/** Triangle indices fanning a convex polygon of n vertices from its first, which sits at index `base`. */
-export function triangulate(n: number, base: number): number[] {
-  const out: number[] = [];
-  for (let i = 1; i < n - 1; i++) out.push(base, base + i, base + i + 1);
-  return out;
-}
 
 /** Growing arrays for one layer. */
 class Builder {
@@ -68,22 +69,6 @@ class Builder {
       this.colours.push(r, g, b);
     }
     this.indices.push(...triangulate(pts.length, base));
-  }
-
-  /** A vertical quad from a to b, between two heights. */
-  side(a: Pt, b: Pt, colour: string, low: number, high: number) {
-    const base = this.positions.length / 3;
-    const [r, g, bl] = rgb(colour);
-    for (const [p, y] of [
-      [a, low],
-      [b, low],
-      [b, high],
-      [a, high],
-    ] as const) {
-      this.positions.push(p.x / UNIT, y, 0 - p.y / UNIT);
-      this.colours.push(r * 0.8, g * 0.8, bl * 0.8);
-    }
-    this.indices.push(...triangulate(4, base));
   }
 
   done(): Layer {
@@ -151,17 +136,6 @@ export function roadRibbon(pts: readonly Pt[], width: number): Pt[][] {
   });
 }
 
-/** Lots as low plinths: a top face at base + LOT_HEIGHT and a side per edge, darker. */
-export function plinths(polygons: readonly (readonly Pt[])[], colours: readonly string[], base: number): Layer {
-  const builder = new Builder("lots");
-  polygons.forEach((pts, i) => {
-    const colour = colours[i]!;
-    builder.flat(pts, colour, base + LOT_HEIGHT);
-    pts.forEach((a, k) => builder.side(a, pts[(k + 1) % pts.length]!, colour, base, base + LOT_HEIGHT));
-  });
-  return builder.done();
-}
-
 /** The city as drawable layers, labels and bounds, in a theme. Pure; no WebGL. */
 export function buildScene(city: City, theme: Theme): Scene {
   const ground = new Builder("ground");
@@ -170,6 +144,7 @@ export function buildScene(city: City, theme: Theme): Scene {
   const casings = new Builder("casings");
   const roads = new Builder("roads");
   const lots = new Builder("lots");
+  const buildings = new BuildingsBuilder();
   const labels: Label[] = [];
   const roadsOf = [...city.highways, ...city.towns.flatMap((t) => t.roads)];
   for (const town of city.towns) {
@@ -187,17 +162,9 @@ export function buildScene(city: City, theme: Theme): Scene {
     }
     for (const w of town.water) water.flat(w, theme.water, HEIGHT.water);
     for (const w of town.canals ?? []) water.flat(w, theme.canal, HEIGHT.water);
-    for (const lot of town.lots) {
-      if (lot.vacant) {
-        lots.flat(lot.pts, theme.reserve(lot.district)[0], HEIGHT.lots);
-        continue;
-      }
-      const colour = theme.lot(lot.district, lot.use === "source");
-      lots.flat(lot.pts, colour, HEIGHT.lots + LOT_HEIGHT);
-      lot.pts.forEach((a, k) =>
-        lots.side(a, lot.pts[(k + 1) % lot.pts.length]!, colour, HEIGHT.lots, HEIGHT.lots + LOT_HEIGHT),
-      );
-    }
+    for (const lot of town.lots)
+      if (lot.vacant) lots.flat(lot.pts, theme.reserve(lot.district)[0], HEIGHT.lots);
+      else buildings.add(lot.pts, { town: town.key, key: lot.key, district: lot.district, use: lot.use });
     const heart = centroid(town.outline);
     labels.push({
       text: shortTownName(town.name).toUpperCase(),
@@ -234,7 +201,12 @@ export function buildScene(city: City, theme: Theme): Scene {
     outline.length > 0
       ? { min: { x: Math.min(...xs), z: Math.min(...zs) }, max: { x: Math.max(...xs), z: Math.max(...zs) } }
       : { min: { x: 0, z: 0 }, max: { x: 0, z: 0 } };
-  return { layers: [ground, blocks, water, casings, roads, lots].map((b) => b.done()), labels, bounds };
+  return {
+    layers: [ground, blocks, water, casings, roads, lots].map((b) => b.done()),
+    buildings: buildings.done(),
+    labels,
+    bounds,
+  };
 }
 
 /**

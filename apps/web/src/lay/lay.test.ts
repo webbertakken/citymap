@@ -65,6 +65,13 @@ describe("layHere", () => {
     expect((await layHere(snapshot)).city).toEqual(city);
   });
 
+  it("builds the measures beside the city when given what the source knows", async () => {
+    const facts = { source: "github", size: "bytes", comments: false, files: new Map(), coverage: new Map() } as const;
+    const { measures } = await layHere(snapshot, { facts });
+    expect(measures).toMatchObject({ source: "github", tested: "name" });
+    expect((await layHere(snapshot)).measures).toBeNull();
+  });
+
   it("draws the scene too when given a theme, saying so first", async () => {
     const steps: Step[] = [];
     const { city, scene } = await layHere(snapshot, { theme: "dracula", onProgress: (s) => steps.push(s) });
@@ -75,7 +82,7 @@ describe("layHere", () => {
   it("lists the scene's buffers, to hand over without a copy", () => {
     const scene = buildScene(cityNamed("x"), THEMES.dracula);
     const buffers = buffersOf(scene);
-    expect(buffers).toHaveLength(scene.layers.length * 3);
+    expect(buffers).toHaveLength(scene.layers.length * 3 + 4);
     expect(buffers[0]).toBe(scene.layers[0]!.positions.buffer);
   });
 

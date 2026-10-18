@@ -18,7 +18,9 @@ const MANIFESTS: &[&str] = &[
 ];
 const MANIFEST_SUFFIXES: &[&str] = &[".csproj", ".gemspec"];
 
-fn is_manifest(name: &str) -> bool {
+/// Whether a file name is a package manifest: a workspace member is a folder directly holding one.
+#[must_use]
+pub fn is_manifest_name(name: &str) -> bool {
     MANIFESTS.contains(&name) || MANIFEST_SUFFIXES.iter().any(|s| name.ends_with(s))
 }
 
@@ -49,7 +51,7 @@ pub fn workspace_members<'a>(paths: impl Iterator<Item = &'a str>, declared: Opt
     for path in paths {
         let folder = folder_of(path);
         let name = path.rsplit_once('/').map_or(path, |(_, n)| n);
-        if !folder.is_empty() && is_manifest(name) {
+        if !folder.is_empty() && is_manifest_name(name) {
             folders.insert(folder);
         }
     }

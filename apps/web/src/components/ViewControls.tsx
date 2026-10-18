@@ -1,15 +1,19 @@
 "use client";
 import type { Separation, Toggle } from "@citymap/ground-plan";
 import { THEMES, THEME_NAMES, type ThemeName } from "@citymap/themes";
-import { Ellipsis, FolderOpen, Palette, Settings } from "lucide-react";
+import { Building2, Ellipsis, FolderOpen, Map as MapIcon, Palette, Settings } from "lucide-react";
 import { useRef, type ChangeEvent } from "react";
 import { variantOf, type CityEntry } from "../cities";
+import type { Mode } from "../view/view";
 import { LocalMenu } from "./LocalMenu";
 import { Popover } from "./Popover";
 import { Toggles } from "./Toggles";
 import type { LocalRepository } from "./useLocalRepository";
 
 export interface ViewControlsProps {
+  /** How the map is seen, and a change of it. */
+  readonly mode: Mode;
+  readonly onMode: (mode: Mode) => void;
   readonly theme: ThemeName;
   readonly cities: readonly CityEntry[];
   /** The bundled city shown, by name; empty for any other. */
@@ -30,7 +34,8 @@ export interface ViewControlsProps {
   readonly onSeparate: (separation: Separation, on: boolean) => void;
 }
 
-/** Top right: the map's theme, the layout toggles, and More (the bundled cities, a city file, a local repository). */
+/** Top right: the view switch, the map's theme, the layout toggles, and More (the bundled cities, a city file, a local
+ * repository). */
 export function ViewControls(props: ViewControlsProps) {
   const input = useRef<HTMLInputElement>(null);
   const picked = (event: ChangeEvent<HTMLInputElement>) => {
@@ -40,6 +45,22 @@ export function ViewControls(props: ViewControlsProps) {
   };
   return (
     <div className="controls">
+      <fieldset className="glass segmented">
+        <legend className="visually-hidden">View</legend>
+        <button type="button" aria-pressed={props.mode === "plan"} onClick={() => props.onMode("plan")}>
+          <MapIcon size={18} aria-hidden="true" />
+          <span>Plan</span>
+        </button>
+        {/* On a phone only this button shows: it switches between the two views. */}
+        <button
+          type="button"
+          aria-pressed={props.mode === "buildings"}
+          onClick={() => props.onMode(props.mode === "buildings" ? "plan" : "buildings")}
+        >
+          <Building2 size={18} aria-hidden="true" />
+          <span>Buildings</span>
+        </button>
+      </fieldset>
       <Popover label="Theme" face={<Palette size={20} aria-hidden="true" />}>
         {(close) => (
           <fieldset className="choices">

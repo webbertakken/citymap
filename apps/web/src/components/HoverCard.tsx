@@ -6,6 +6,7 @@ import { describeHit, hintFor, offersFor, type Card } from "../card/describe";
 import { placeCard } from "../card/place";
 import type { Viewport } from "../view/view";
 import { CardBody } from "./CardBody";
+import { useMeasureRows } from "./MeasureRows";
 
 export interface HoverCardProps {
   readonly hit: Hit;
@@ -50,7 +51,8 @@ function Placed({ card, hint, pointer, map }: PlacedProps) {
 
 /** Beside the pointer: what is there and what it means, placed by its measured size wholly inside the map. */
 export function HoverCard({ hit, pointer, map, focused, github }: HoverCardProps) {
-  const card = describeHit(hit);
+  const rowsOf = useMeasureRows();
+  const card = describeHit(hit, rowsOf(hit));
   const hint = hintFor(offersFor(hit, card, { focused, github }));
   // New words, or a map of another size, are measured afresh.
   const words = `${JSON.stringify(card)}|${hint}|${map.width}x${map.height}`;

@@ -28,6 +28,9 @@ describe("readSubmodules", () => {
   ])("reads a submodule's tracked paths through its own index, under its folder, through %s", async (_, open) => {
     const read = await readSubmodules(open(checkout()), ["vendor/sub"]);
     expect(read.paths).toEqual(tracked("v3").map((p) => `vendor/sub/${p}`));
+    // Each path's size comes from the submodule's own index, under the same path.
+    expect([...read.sizes.keys()]).toEqual(read.paths);
+    expect([...read.sizes.values()].every((size) => Number.isSafeInteger(size) && size >= 0)).toBe(true);
     expect(read.submodules).toEqual(["vendor/sub"]);
     expect(read.unread).toEqual([]);
   });
@@ -55,6 +58,7 @@ describe("readSubmodules", () => {
   ] as const)("lays a submodule as its .gitlink file when %s", async (_, tree, reason) => {
     const read = await readSubmodules(handleFolder(fakeHandle("repo", tree)), ["vendor/sub"]);
     expect(read.paths).toEqual(["vendor/sub/.gitlink"]);
+    expect(read.sizes.size).toBe(0);
     expect(read.submodules).toEqual(["vendor/sub"]);
     expect(read.unread).toEqual([{ path: "vendor/sub", reason }]);
   });
@@ -88,6 +92,7 @@ describe("readSubmodules", () => {
   it("reads nothing when there are no gitlinks", async () => {
     expect(await readSubmodules(handleFolder(fakeHandle("repo", {})), [])).toEqual({
       paths: [],
+      sizes: new Map(),
       submodules: [],
       unread: [],
     });

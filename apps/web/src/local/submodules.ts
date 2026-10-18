@@ -13,6 +13,8 @@ export type SubmoduleUnread = "not-checked-out" | "outside" | "bad-git-file" | "
 export interface SubmoduleRead {
   /** Every submodule's tracked paths, prefixed with its folder; `.gitlink` for one not read. */
   readonly paths: readonly string[];
+  /** Each read path's size in bytes, from its submodule's own index. */
+  readonly sizes: ReadonlyMap<string, number>;
   /** Every submodule folder, nested ones included, sorted. */
   readonly submodules: readonly string[];
   /** Each submodule laid as its `.gitlink` file, and why, by path. */
@@ -53,6 +55,7 @@ async function readOne(folder: Folder, path: string) {
 /** Reads every gitlink's submodule, nested ones in turn; those it cannot read are laid as their `.gitlink` file. */
 export async function readSubmodules(folder: Folder, gitlinks: readonly string[]): Promise<SubmoduleRead> {
   const paths: string[] = [];
+  const sizes = new Map<string, number>();
   const submodules: string[] = [];
   const unread: { path: string; reason: SubmoduleUnread }[] = [];
   const visit = async (path: string, depth: number): Promise<void> => {
@@ -60,7 +63,10 @@ export async function readSubmodules(folder: Folder, gitlinks: readonly string[]
     try {
       if (depth >= SUBMODULE_DEPTH) throw new Unread("depth");
       const listing = await readOne(folder, path);
-      paths.push(...listing.paths.map((p) => `${path}/${p}`));
+      listing.paths.forEach((p, i) => {
+        paths.push(`${path}/${p}`);
+        sizes.set(`${path}/${p}`, listing.sizes[i]!);
+      });
       await Promise.all(listing.gitlinks.map((inner) => visit(`${path}/${inner}`, depth + 1)));
     } catch (error) {
       if (!(error instanceof Unread)) throw error;
@@ -71,6 +77,7 @@ export async function readSubmodules(folder: Folder, gitlinks: readonly string[]
   await Promise.all(gitlinks.map((path) => visit(path, 0)));
   return {
     paths,
+    sizes,
     submodules: submodules.toSorted(compareKeys),
     unread: unread.toSorted((a, b) => compareKeys(a.path, b.path)),
   };

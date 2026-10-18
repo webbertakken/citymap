@@ -17,6 +17,8 @@ interface Entry {
   readonly path: string;
   readonly type: string;
   readonly sha: string;
+  /** A blob's size in bytes, as the tree tells it. */
+  readonly size?: number;
 }
 
 const get = (value: unknown, key: string): unknown =>
@@ -28,11 +30,15 @@ const text = (value: unknown, what: string): string => {
 const entriesOf = (value: unknown): Entry[] => {
   const tree = get(value, "tree");
   if (!Array.isArray(tree)) throw new CitymapError("github/failed", "GitHub's answer has no tree", { what: "tree" });
-  return tree.map((e: unknown) => ({
-    path: text(get(e, "path"), "path"),
-    type: text(get(e, "type"), "type"),
-    sha: text(get(e, "sha"), "sha"),
-  }));
+  return tree.map((e: unknown): Entry => {
+    const size = get(e, "size");
+    const entry = {
+      path: text(get(e, "path"), "path"),
+      type: text(get(e, "type"), "type"),
+      sha: text(get(e, "sha"), "sha"),
+    };
+    return typeof size === "number" && Number.isSafeInteger(size) && size >= 0 ? Object.assign(entry, { size }) : entry;
+  });
 };
 
 /** The folders among a tree's entries, as paths from the repository's root. */
@@ -64,12 +70,18 @@ interface Listing {
   readonly gitlinks: readonly { readonly path: string; readonly pin: string }[];
 }
 
+/** A repository read: the snapshot to lay, and each file's size in bytes from the tree (no request more). */
+export interface GitHubRead {
+  readonly snapshot: Snapshot;
+  readonly sizes: ReadonlyMap<string, number>;
+}
+
 /** Reads a repository's tree at its default branch, telling how far it has come as it goes. */
 export async function readRepository(
   fetcher: Fetcher,
   repo: Repository,
   { signal, onStep = () => {}, onUnread = () => {} }: ReadOptions = {},
-): Promise<Snapshot> {
+): Promise<GitHubRead> {
   let requests = 0;
   const base = `${API}/repos/${repo.owner}/${repo.name}`;
   const missing = () =>
@@ -99,6 +111,15 @@ export async function readRepository(
   const known = new Set([""]);
   const read = new Set<string>();
   const tellTree = () => onStep({ phase: "tree", done: read.size, of: known.size, requests });
+  const sizes = new Map<string, number>();
+  /** A tree's blobs, as paths from the root, their sizes kept: a submodule's files under its folder too. */
+  const blobsIn = (entries: readonly Entry[], prefix: string) =>
+    entries
+      .filter((e) => e.type === "blob")
+      .map((e) => {
+        if (e.size !== undefined) sizes.set(prefix + e.path, e.size);
+        return prefix + e.path;
+      });
   // A whole tree at once (of the repository at `at`, a tree or a commit); one too large for a single answer is read
   // folder by folder.
   const listTree = async (
@@ -109,7 +130,7 @@ export async function readRepository(
   ): Promise<Listing> => {
     const prefix = folder === "" ? "" : `${folder}/`;
     const listing = (entries: readonly Entry[]): Listing => ({
-      blobs: entries.filter((e) => e.type === "blob").map((e) => prefix + e.path),
+      blobs: blobsIn(entries, prefix),
       gitlinks: entries.filter((e) => e.type === "commit").map((e) => ({ path: prefix + e.path, pin: e.sha })),
     });
     const whole = await json(`${at}/git/trees/${treeSha}?recursive=1`, notFound);
@@ -199,5 +220,5 @@ export async function readRepository(
     )
       folders.add(f);
   const members = patterns.length > 0 ? resolveWorkspaces(patterns, folders) : undefined;
-  return stateSnapshot(repo.name, sha, paths, members, submodules);
+  return { snapshot: stateSnapshot(repo.name, sha, paths, members, submodules), sizes };
 }

@@ -1,5 +1,5 @@
 // Flying the view to a place: where it ends, and the eased steps between.
-import { NO_INSETS, framed, type Insets, type View, type Viewport } from "./view";
+import { NO_INSETS, framed, type Insets, type Mode, type View, type Viewport } from "./view";
 
 /** A place flown to fills this share of the map's shorter side. */
 export const FLY_SHARE = 0.4;
@@ -14,10 +14,11 @@ export function flyTo(
   place: { readonly x: number; readonly z: number; readonly extent: number },
   fitted: View,
   insets: Insets = NO_INSETS,
+  mode: Mode = "plan",
 ): View {
   const free = Math.min(viewport.width - insets.left - insets.right, viewport.height - insets.top - insets.bottom);
   const zoom = (Math.max(1, free) * FLY_SHARE) / Math.max(place.extent, FLY_MIN_EXTENT);
-  return framed({ centre: { x: place.x, z: place.z }, zoom: Math.max(zoom, fitted.zoom) }, insets);
+  return framed({ centre: { x: place.x, z: place.z }, zoom: Math.max(zoom, fitted.zoom) }, insets, mode);
 }
 
 /** Cubic ease in and out: still at both ends. */
