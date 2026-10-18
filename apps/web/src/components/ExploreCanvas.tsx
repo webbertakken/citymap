@@ -7,6 +7,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Suspense, use, useMemo, useRef } from "react";
 import type { Object3D } from "three";
 import { Animator } from "../explore/models/animator";
+import { boundOf, runShare, settle } from "../explore/models/bound";
 import { GLTF_MODELS, loadModel, type Loaded } from "../explore/models/gltf";
 import { motionOf, paceOf } from "../explore/models/motion";
 import { figure, paletteOf } from "../explore/models/procedural";
@@ -34,15 +35,22 @@ function Walker({ theme, frame }: { readonly theme: Theme; readonly frame: Explo
   const model = useMemo(() => loaded?.make() ?? figure(paletteOf(theme)), [loaded, theme]);
   const animator = useMemo(() => (loaded ? new Animator(model, loaded.clips) : null), [loaded, model]);
   const placed = useRef<Object3D>(null);
+  // How much the figure bounds, eased so it never snaps up or down as a run starts or stops.
+  const bounding = useRef(0);
   useFrame((state, seconds) => {
     const walker = placed.current;
     if (!walker) return;
     const now = frame(seconds);
-    const { body, walked, speed } = now.session;
+    const { body, speed } = now.session;
     // Drawn between its last two steps, so it moves as smoothly as the frames come.
-    const { feet, heading } = now.shown;
-    walker.position.set(feet.x * METRE, feet.y * METRE, feet.z * METRE);
-    walker.rotation.y = heading;
+    const { feet, heading, walked } = now.shown;
+    bounding.current = settle(bounding.current, body.grounded ? runShare(speed) : 0, seconds);
+    const bound = boundOf(walked, bounding.current);
+    walker.position.set(feet.x * METRE, (feet.y + bound.lift) * METRE, feet.z * METRE);
+    walker.rotation.set(0, heading, -bound.lean);
+    // Squashed or stretched, its volume kept.
+    const across = METRE / Math.sqrt(bound.stretch);
+    walker.scale.set(across, METRE * bound.stretch, across);
     if (animator) {
       const motion = motionOf(speed, body.grounded, body.rise);
       animator.play(motion, paceOf(motion, speed), seconds);

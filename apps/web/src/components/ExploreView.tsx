@@ -15,7 +15,7 @@ import { METRE } from "../explore/street";
 /** One frame of the walk: the session after it, where to draw the walker, and where the camera is and looks. */
 export interface ExploreFrame {
   readonly session: Session;
-  readonly shown: { readonly feet: Vec3; readonly heading: number };
+  readonly shown: { readonly feet: Vec3; readonly heading: number; readonly walked: number };
   readonly camera: { readonly eye: Vec3; readonly target: Vec3 };
 }
 

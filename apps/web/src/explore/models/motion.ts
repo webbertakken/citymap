@@ -1,17 +1,20 @@
 // How an animated figure moves: which of its clips plays for the walker's pace and footing, and how fast, so its feet
 // keep pace with the ground.
 import { RUN_SPEED, WALK_SPEED } from "../walker";
+import { LEAP } from "./bound";
 
 /** The clips a figure plays, by their names in Kenney's characters. */
 export type Motion = "idle" | "walk" | "sprint" | "jump" | "fall";
 
 /** Below this pace, in metres a second, a figure stands. */
 export const STANDING = 0.2;
-/** At normal speed, Kenney's walk covers this many metres a second, and its sprint this many. */
+/** Kenney's sprint takes this long for a stride: both legs forward once. */
+export const SPRINT_CLIP_SECONDS = 0.5;
+/** At normal speed, Kenney's walk covers this many metres a second; a bounding run strides once every two leaps. */
 export const WALK_CLIP_SPEED = 1.5;
-export const SPRINT_CLIP_SPEED = 3.2;
-/** A clip plays no slower than half and no faster than twice its speed. */
-export const SLOWEST = 0.5;
+export const SPRINT_CLIP_SPEED = (2 * LEAP) / SPRINT_CLIP_SECONDS;
+/** A clip plays no slower than this share of its speed and no faster than twice it. */
+export const SLOWEST = 0.4;
 export const FASTEST = 2;
 /** Clips blend into one another over this many seconds. */
 export const BLEND = 0.15;

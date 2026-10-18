@@ -83,6 +83,7 @@ describe("shownOf", () => {
     const session = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0), controls, 1.5 * STEP, open);
     expect(session.previous.feet.x).toBe(0);
     expect(shownOf(session).feet.x).toBeCloseTo(0.5 * STEP * WALK_SPEED, 9);
+    expect(shownOf(session).walked).toBeCloseTo(0.5 * STEP * WALK_SPEED, 9);
   });
 
   it("turns the walker the short way round between its steps", () => {

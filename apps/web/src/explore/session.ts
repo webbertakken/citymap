@@ -63,7 +63,7 @@ export function advanceSession(session: Session, controls: Readonly<Controls>, s
  * next. Steps come at a fixed rate and frames do not, so drawing the last step itself would jolt it by a step whenever a
  * frame holds one step more or less than the one before; drawn between, it moves exactly as far as each frame lasts.
  */
-export function shownOf(session: Session): { readonly feet: Vec3; readonly heading: number } {
+export function shownOf(session: Session): { readonly feet: Vec3; readonly heading: number; readonly walked: number } {
   const share = session.spare / STEP;
   const { previous: a, body: b } = session;
   return {
@@ -73,6 +73,8 @@ export function shownOf(session: Session): { readonly feet: Vec3; readonly headi
       z: a.feet.z + (b.feet.z - a.feet.z) * share,
     },
     heading: a.heading + turnBetween(a.heading, b.heading) * share,
+    // The last step's length is its pace for a step's time.
+    walked: session.walked - session.speed * STEP * (1 - share),
   };
 }
 
