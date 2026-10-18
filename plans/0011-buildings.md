@@ -65,4 +65,4 @@ folder, or the CLI with its history and coverage reports. Spec: [buildings](../d
 
 - [x] README: buildings, with pictures
 - [x] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
-- [ ] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`
+- [x] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`
