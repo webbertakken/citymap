@@ -71,6 +71,8 @@ export interface Session {
   readonly walked: number;
   /** The free camera, while it flies; null while it follows the walker. */
   readonly flyer: Flyer | null;
+  /** Seconds since the person last turned the camera (infinite when never). */
+  readonly sinceLook: number;
 }
 
 /** Everything steps 120 times a second. */
@@ -80,6 +82,9 @@ export const LONGEST_FRAME = 0.1;
 /** Riding faster than this, the camera swings round behind the vehicle, by this many seconds to most of the way. */
 export const CHASE_FROM = 1;
 export const CHASE = 0.25;
+/** A look round holds this long after the last drag, then the chase comes back to full over `LOOK_EASE`. */
+export const LOOK_HOLD = 1.5;
+export const LOOK_EASE = 1;
 
 /** A walk starting with feet at a point, facing a heading, the camera behind, with vehicles parked about. */
 export const startSession = (feet: Vec3, heading: number, vehicles: readonly Vehicle[] = []): Session => {
@@ -95,6 +100,7 @@ export const startSession = (feet: Vec3, heading: number, vehicles: readonly Veh
     spare: 0,
     walked: 0,
     flyer: null,
+    sinceLook: Infinity,
   };
 };
 
@@ -124,8 +130,17 @@ function use(session: Session, walls: Walls): Session {
   }
   if (!session.body.grounded) return session;
   const near = reachable(session.body.feet, session.vehicles);
-  return near ? { ...session, riding: near.id } : session;
+  if (!near) return session;
+  // A two-wheeler shoved over is stood up again, on the walker's ground, to be got on.
+  const up = (v: Vehicle) =>
+    v === near && v.kind !== "car" ? { ...parkedNow(v), feet: { ...v.feet, y: session.body.feet.y } } : v;
+  const vehicles = session.vehicles.map(up);
+  return { ...session, vehicles, previousVehicles: session.previousVehicles.map(up), riding: near.id };
 }
+
+/** What stops a mover on the walls: every vehicle, or with Rapier's garage only the cars (it shoves the rest aside). */
+const inTheWay = (vehicles: readonly Vehicle[], garage: Garage | null) =>
+  garage ? vehicles.filter((v) => v.kind === "car") : vehicles;
 
 /** The ridden bicycle shifted by the gear steps asked for; anything else as it is. */
 function geared(session: Session, steps: number): Session {
@@ -185,16 +200,24 @@ export function advanceSession(
       const moved = vehicles.find((v) => v.id === vehicle.id)!;
       next = { feet: moved.feet, rise: 0, heading: moved.heading, grounded: true };
     } else if (vehicle) {
-      // Other vehicles are in the way of the one ridden: a bump costs most of its speed, a hard one a rider.
+      // Other vehicles are in the way of the one ridden: a bump costs most of its speed, a hard one a rider. With the
+      // garage, the parked two-wheelers are shoved by the ridden one's body instead.
       const stepped = stepVehicle(vehicle, steering, STEP, walls);
-      const clear = clearOfVehicles(stepped.feet, VEHICLES[vehicle.kind].radius, vehicles, vehicle.id);
+      const clear = clearOfVehicles(
+        stepped.feet,
+        VEHICLES[vehicle.kind].radius,
+        inTheWay(vehicles, garage),
+        vehicle.id,
+      );
       const moved = clear.hit ? bumped({ ...stepped, feet: clear.feet }) : stepped;
       vehicles = vehicles.map((v) => (v === vehicle ? moved : v));
+      if (garage) vehicles = garage.drive(vehicles, new Map([[vehicle.id, steering]]), STEP);
       next = { feet: moved.feet, rise: 0, heading: moved.heading, grounded: true };
     } else {
-      // Vehicles are in a walker's way, as walls are.
+      // Vehicles are in a walker's way, as walls are; with the garage, the walker's body shoves two-wheelers aside.
       const stepped = stepWalker(body, steering, orbit.yaw, STEP, walls);
-      next = { ...stepped, feet: clearOfVehicles(stepped.feet, PERSON_RADIUS, vehicles, null).feet };
+      next = { ...stepped, feet: clearOfVehicles(stepped.feet, PERSON_RADIUS, inTheWay(vehicles, garage), null).feet };
+      if (garage) vehicles = garage.drive(vehicles, new Map(), STEP, used.flyer ? null : next.feet);
     }
     const stride = Math.hypot(next.feet.x - body.feet.x, next.feet.z - body.feet.z);
     walked += stride;
@@ -205,15 +228,16 @@ export function advanceSession(
     spare -= STEP;
   }
   const dragged = controls.look.dx !== 0 || controls.look.dy !== 0;
-  const after = { ...used, body, previous, vehicles, previousVehicles, speed, spare, walked, flyer };
+  const sinceLook = dragged ? 0 : used.sinceLook + seconds;
+  const after = { ...used, body, previous, vehicles, previousVehicles, speed, spare, walked, flyer, sinceLook };
   const riding = ridden(after);
-  if (riding && speed > CHASE_FROM && !dragged) {
+  if (riding && speed > CHASE_FROM && sinceLook > LOOK_HOLD) {
+    // A look round is left alone a while; then the camera comes back behind, gently at first.
+    const ease = Math.min(1, (sinceLook - LOOK_HOLD) / LOOK_EASE);
     const chase = VEHICLES[riding.kind].follow.chase ?? CHASE;
     const way = travelOf(after, previous, body, speed);
-    orbit = {
-      ...orbit,
-      yaw: orbit.yaw + turnBetween(orbit.yaw, way) * (1 - Math.exp(-Math.min(seconds, LONGEST_FRAME) / chase)),
-    };
+    const share = (1 - Math.exp(-Math.min(seconds, LONGEST_FRAME) / chase)) * ease * ease;
+    orbit = { ...orbit, yaw: orbit.yaw + turnBetween(orbit.yaw, way) * share };
   }
   return { ...after, orbit };
 }

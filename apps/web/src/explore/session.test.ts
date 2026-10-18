@@ -1,4 +1,4 @@
-import { PERSON_RADIUS, type Walls } from "@citymap/world";
+import { PERSON_RADIUS, type Vec3, type Walls } from "@citymap/world";
 import { describe, expect, it } from "vitest";
 import { START_GEAR, resting, type Cycle } from "./bicycle";
 import { LOOK_SPEED, ON_FOOT, START_PITCH } from "./camera";
@@ -8,6 +8,8 @@ import {
   LONGEST_FRAME,
   STEP,
   CHASE,
+  LOOK_EASE,
+  LOOK_HOLD,
   advanceSession,
   followOf,
   newControls,
@@ -203,6 +205,29 @@ describe("riding", () => {
     const looking = { ...newControls(), look: { dx: 1, dy: 0 } };
     looking.keys.add("KeyW");
     expect(advanceSession(driving, looking, 1 / 60, open).orbit.yaw).toBeCloseTo(swung - LOOK_SPEED, 9);
+  });
+
+  it("holds a look round for a while after the drag, then eases back behind the ride, never snapping", () => {
+    let driving = advanceSession(parked(), useKey(), 0, open);
+    for (let i = 0; i < 60; i++) driving = advanceSession(driving, pressing("KeyW"), 1 / 60, open);
+    // A look a quarter turn round, then hands off the mouse.
+    const looking = { ...newControls(), look: { dx: Math.PI / 2 / LOOK_SPEED, dy: 0 } };
+    looking.keys.add("KeyW");
+    driving = advanceSession(driving, looking, 1 / 60, open);
+    const looked = driving.orbit.yaw;
+    const behindNow = () => Math.abs(driving.orbit.yaw - driving.body.heading);
+    // Held while the person may still be looking.
+    for (let t = 0; t < LOOK_HOLD - 0.05; t += 1 / 60)
+      driving = advanceSession(driving, pressing("KeyW"), 1 / 60, open);
+    expect(driving.orbit.yaw).toBeCloseTo(looked, 9);
+    // Then it starts gently: a tenth of a second on, it has come back only a little of the way.
+    const start = behindNow();
+    for (let t = 0; t < 0.15; t += 1 / 60) driving = advanceSession(driving, pressing("KeyW"), 1 / 60, open);
+    expect(behindNow()).toBeGreaterThan(start * 0.9);
+    // And a few seconds on it is behind again.
+    for (let t = 0; t < LOOK_HOLD + LOOK_EASE + 1.5; t += 1 / 60)
+      driving = advanceSession(driving, pressing("KeyW"), 1 / 60, open);
+    expect(behindNow()).toBeLessThan(0.05);
   });
 
   it("gets out with E once stopped, beside the vehicle, leaving it parked there", () => {
@@ -486,5 +511,77 @@ describe("shown between steps", () => {
     const flipped = { x: -q.x, y: -q.y, z: -q.z, w: -q.w };
     const half = turnBetweenQuats(yawOf(0.1), flipped, 0.5);
     expect(half.y).toBeCloseTo(yawOf(0.2).y, 3);
+  });
+});
+
+/** A garage that records what it is asked each step: who drives, and where the walker's body is. */
+function recordingGarage(): Garage & { readonly steps: { drivers: string[]; walker: Vec3 | null }[] } {
+  const steps: { drivers: string[]; walker: Vec3 | null }[] = [];
+  return {
+    steps,
+    follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+    drive: (vehicles, drivers, _dt, walker = null) => {
+      steps.push({ drivers: [...drivers.keys()], walker });
+      return vehicles;
+    },
+    keepingUp: () => true,
+    load: () => 0,
+    dispose: () => undefined,
+  };
+}
+
+describe("the parked two-wheelers on Rapier", () => {
+  const bike = standing("bike", "bicycle", { x: 3, y: 0, z: 0 }, Math.PI / 2);
+  const parkedCar = standing("car", "car", { x: 3, y: 0, z: 6 }, Math.PI / 2);
+
+  it("are shoved by the walker's body each step, which walks into them rather than stopping", () => {
+    const garage = recordingGarage();
+    let session = startSession({ x: 0, y: 0, z: 0 }, 0, [bike]);
+    for (let i = 0; i < 30; i++) session = advanceSession(session, pressing("KeyW"), 0.1, open, garage);
+    // Past where the bicycle stands: the garage shoves it out of the way, the walls do not stop the walker.
+    expect(session.body.feet.x).toBeGreaterThan(3.5);
+    expect(garage.steps.length).toBeGreaterThan(100);
+    expect(garage.steps.at(-1)!.drivers).toEqual([]);
+    expect(garage.steps.at(-1)!.walker).toEqual(session.body.feet);
+  });
+
+  it("still stop the walker with no garage, and a car stops the walker either way", () => {
+    let alone = startSession({ x: 0, y: 0, z: 0 }, 0, [bike]);
+    for (let i = 0; i < 20; i++) alone = advanceSession(alone, pressing("KeyW"), 0.1, open);
+    expect(alone.body.feet.x).toBeLessThan(3);
+    let byCar = startSession({ x: 0, y: 0, z: 6 }, 0, [parkedCar]);
+    for (let i = 0; i < 20; i++) byCar = advanceSession(byCar, pressing("KeyW"), 0.1, open, recordingGarage());
+    // The car stands across the way, its side 2.1 m east: the walker stops a body's width short of it.
+    expect(byCar.body.feet.x).toBeLessThan(2);
+  });
+
+  it("are shoved by a ridden two-wheeler, which the garage is told is ridden, and the walker's body is out of it", () => {
+    const garage = recordingGarage();
+    const ride = standing("ride", "bicycle", { x: 1, y: 0, z: 0 }, 0);
+    let session = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0, [ride, bike]), useKey(), 0, open, garage);
+    expect(session.riding).toBe("ride");
+    session = advanceSession(session, pressing("KeyW"), 0.1, open, garage);
+    expect(garage.steps.at(-1)).toEqual({ drivers: ["ride"], walker: null });
+  });
+
+  it("leave the walker's body out of the garage while the camera flies", () => {
+    const garage = recordingGarage();
+    const up = advanceSession(
+      startSession({ x: 0, y: 0, z: 0 }, 0, [bike]),
+      { ...newControls(), fly: true },
+      0.1,
+      open,
+      garage,
+    );
+    expect(up.flyer).not.toBeNull();
+    expect(garage.steps.at(-1)!.walker).toBeNull();
+  });
+
+  it("stand a fallen bicycle up when it is got on", () => {
+    const fallen: Vehicle = { ...bike, feet: { x: 1, y: 0.2, z: 0 }, cycle: { ...bike.cycle, lean: Math.PI / 2 } };
+    const session = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0, [fallen]), useKey(), 0, open);
+    const up = asBicycle(ridden(session));
+    expect(up.cycle.lean).toBe(0);
+    expect(up.feet.y).toBe(0);
   });
 });
