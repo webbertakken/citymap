@@ -55,17 +55,48 @@ export interface Loaded {
   readonly original: Object3D;
 }
 
-/** The file's scene, turned, scaled and set down so it matches the procedural frame. */
-function normalised(scene: Object3D, file: ModelFile): Object3D {
+/** How a file's scene is set into the procedural frame: moved (after its turn) and scaled. */
+interface Framing {
+  readonly position: Vector3;
+  readonly scale: number;
+}
+
+/** A file's scene turned, moved and scaled into the procedural frame, inside a group callers place, turn and scale. */
+function framed(scene: Object3D, file: ModelFile, framing: Framing): Object3D {
+  const turned = new Group();
+  scene.rotation.y = file.yaw;
+  scene.position.copy(framing.position);
+  turned.add(scene);
+  const scaled = new Group();
+  scaled.add(turned);
+  scaled.scale.setScalar(framing.scale);
+  // Callers place, turn and scale the outer group; the file's own correction stays inside it.
+  const outer = new Group();
+  outer.add(scaled);
+  posed(outer);
+  return outer;
+}
+
+/** A model's world matrices and skins brought up to date: posed by its skeleton, as it is measured and drawn. */
+function posed(model: Object3D) {
+  model.updateMatrixWorld(true);
+  model.traverse((node) => {
+    if (node instanceof SkinnedMesh) node.skeleton.update();
+  });
+}
+
+/**
+ * How to set a file's scene (measured on a copy, so the file's own stays untouched) into the procedural frame: turned
+ * to face +x, sized, on y = 0 and centred. Measured once per file, said once in the log.
+ */
+function framingOf(original: Object3D, file: ModelFile): Framing {
+  const scene = clone(original);
   const turned = new Group();
   scene.rotation.y = file.yaw;
   turned.add(scene);
   // A rigged model is measured as posed by its skeleton: its raw mesh may be in other units (Quaternius rigs in
   // centimetres under a 100x armature), so its stated bounds say nothing of how it is drawn.
-  turned.updateMatrixWorld(true);
-  turned.traverse((node) => {
-    if (node instanceof SkinnedMesh) node.skeleton.update();
-  });
+  posed(turned);
   const box = new Box3().setFromObject(turned, true);
   const size = box.getSize(new Vector3());
   const along = file.measure === "height" ? size.y : Math.max(size.x, size.z);
@@ -78,14 +109,7 @@ function normalised(scene: Object3D, file: ModelFile): Object3D {
     scale: scale.toFixed(4),
   });
   const centre = box.getCenter(new Vector3());
-  scene.position.set(-centre.x, -box.min.y, -centre.z);
-  const scaled = new Group();
-  scaled.add(turned);
-  scaled.scale.setScalar(scale);
-  // Callers place, turn and scale the outer group; the file's own correction stays inside it.
-  const outer = new Group();
-  outer.add(scaled);
-  return outer;
+  return { position: new Vector3(-centre.x, -box.min.y, -centre.z), scale };
 }
 
 /**
@@ -123,7 +147,8 @@ export const readGltfWithThree: ReadGltf = (url) => new GLTFLoader().loadAsync(u
 export async function loadModel(base: string, file: ModelFile, read: ReadGltf = readGltfWithThree): Promise<Loaded> {
   const gltf = await read(`${base}/${file.url}`);
   asAuthored(gltf.scene);
-  return { make: () => normalised(clone(gltf.scene), file), clips: gltf.animations, original: gltf.scene };
+  const framing = framingOf(gltf.scene, file);
+  return { make: () => framed(clone(gltf.scene), file, framing), clips: gltf.animations, original: gltf.scene };
 }
 
 /** Loads every model, under the site's path (`base`), for the model lab. */

@@ -28,7 +28,7 @@ One row per value the exploration spec leaves silent or qualitative.
 | Balance assist          | 1,500, 300, gone by 4 m/s                | holds it at walking pace, where no steering can                        | taste                     |
 | Low-speed wobble        | 6 N·m, 1.2 Hz, below 3 m/s               | bars swing 0.15 rad at 1.2 m/s and settle above a run                  | taste                     |
 | Gears                   | 7, 1.2 to 3.6, third to start            | a city bicycle's hub: 4 to 11 m/s at 90 rpm                            | taste                     |
-| Rider's pedalling       | 120 N·m, none past 140 rpm               | about 440 W at its best: a city rider pushing hard                     | ±30 %                     |
+| Rider's pedalling       | 150 N·m, none past 140 rpm               | about 550 W at its best: a rider standing on the pedals                | ±30 %                     |
 | Resistance              | 0.006 rolling, 0.5 m² drag               | city tyres on asphalt; an upright rider                                | 0.004 to 0.01, 0.4 to 0.7 |
 | Brakes, grip            | back 600 N, front 850 N, 0.9             | the back skids, the front lifts it (7.7 m/s²); dry asphalt             | grip 0.7 to 1             |
 | Stoppie held at         | 0.3 rad                                  | a rider's hold short of going over the bars (0.67 rad)                 | 0.15 to 0.4 rad           |

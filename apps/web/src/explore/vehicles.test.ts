@@ -72,20 +72,22 @@ const landing: Landing = {
 };
 
 describe("parkedBy", () => {
-  it("parks a bicycle and a car at the kerb on the right of the road, ahead, facing along it", () => {
+  it("parks a bicycle at the kerb on the right, ahead, facing along the road, and a car across the street", () => {
     const [bicycle, motor] = parkedBy(landing, open);
-    expect(bicycle).toMatchObject({ kind: "bicycle", speed: 0, turn: 0, steer: 0, heading: 0, cycle: resting() });
+    expect(bicycle).toMatchObject({ kind: "bicycle", speed: 0, turn: 0, steer: 0, cycle: resting() });
+    expect(Math.cos(bicycle!.heading)).toBeCloseTo(1, 9);
     expect(bicycle!.feet.x).toBeCloseTo(PARKING.bicycle.ahead, 9);
     // Right of a road running east is south: +z, half the 10 m street less the inset.
     expect(bicycle!.feet.z).toBeCloseTo(5 - PARKING.bicycle.inset, 9);
     expect(motor!.feet.x).toBeCloseTo(PARKING.car.ahead, 9);
-    expect(motor!.feet.z).toBeCloseTo(5 - PARKING.car.inset, 9);
+    expect(motor!.feet.z).toBeCloseTo(-(5 - PARKING.car.inset), 9);
+    expect(Math.cos(motor!.heading)).toBeCloseTo(-1, 9);
   });
 
   it("keeps a parked vehicle clear of a building at the kerb", () => {
-    const walls = cityWalls([box(5, 2, 10, 10)]);
+    const walls = cityWalls([box(5, -12, 10, 10)]);
     const [, motor] = parkedBy(landing, walls);
-    expect(motor!.feet.z).toBeCloseTo(2 - VEHICLES.car.radius, 9);
+    expect(motor!.feet.z).toBeCloseTo(-2 + VEHICLES.car.radius, 9);
   });
 
   it("parks in the road's middle when the road is too narrow for the kerb", () => {
@@ -216,11 +218,14 @@ describe("bumped", () => {
   it("keeps a little of the speed, and throws a bicycle's rider when the knock is hard", () => {
     expect(bumped(car(0, 0, 0, 10)).speed).toBeCloseTo(10 * BUMP, 9);
     const hard = asBicycle(bumped(bike(0, 0, 0, HARD_HIT)));
-    expect(hard.cycle.fall?.cause).toBe("hit");
+    expect(hard.cycle.fall).toMatchObject({ cause: "hit", speed: HARD_HIT });
     expect(hard.speed).toBeCloseTo(HARD_HIT * BUMP, 9);
     expect(asBicycle(bumped(bike(0, 0, 0, HARD_HIT - 0.1))).cycle.fall).toBeNull();
     // Already down, a knock is only a knock.
-    const down = { ...bike(0, 0, 0, 5), cycle: { ...resting(), fall: { time: 1, side: 1, cause: "grip" } } } as const;
+    const down = {
+      ...bike(0, 0, 0, 5),
+      cycle: { ...resting(), fall: { time: 1, side: 1, cause: "grip", speed: 6 } },
+    } as const;
     expect(asBicycle(bumped(down)).cycle.fall).toEqual(down.cycle.fall);
   });
 });

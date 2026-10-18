@@ -1364,11 +1364,33 @@ mark {
 .explore-sight .hit-rows {
   margin: 8px 0 0;
 }
-/* Touch only: a stick under the left thumb, a jump button under the right. */
+/* The bicycle's numbers: speed, gear and cadence, at the bottom left, clear of the walk's card. */
+.explore-hud {
+  position: absolute;
+  bottom: var(--gap);
+  left: var(--gap);
+  z-index: 20;
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 8px 16px;
+}
+.explore-hud dt {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.explore-hud dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* Touch only: a stick under the left thumb, a jump button under the right, and the bicycle's buttons beside it. */
 .explore-stick,
 .explore-jump,
 .explore-sink,
-.explore-fly {
+.explore-fly,
+.explore-ride-buttons {
   display: none;
 }
 @media (pointer: coarse) {
@@ -1432,6 +1454,30 @@ mark {
   .explore-fly[aria-pressed="true"] {
     color: var(--accent-ink);
     background: var(--accent);
+  }
+  /* On the bicycle: the numbers stacked at the right above Fly; Ring and the gears in a column beside Brake. */
+  .explore-hud {
+    right: var(--gap);
+    bottom: calc(var(--gap) + 48px + 72px + 16px + 56px + 16px);
+    left: auto;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .explore-ride-buttons {
+    position: absolute;
+    right: calc(var(--gap) + 24px + 72px + 12px);
+    bottom: calc(var(--gap) + 24px);
+    z-index: 20;
+    display: grid;
+    gap: 8px;
+  }
+  .explore-ride-buttons button {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0 12px;
+    font-weight: 600;
+    border-radius: var(--radius-control);
+    touch-action: none;
   }
 }
 /* A finished load holds its card for a moment; its Cancel has nothing left to stop, so it keeps its place unseen. */

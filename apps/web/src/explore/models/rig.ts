@@ -1,13 +1,7 @@
 // A vehicle's moving parts, posed from how it moves: wheels turned by the ground they roll over, front wheels steered,
-// a bicycle's pedals turned through its gearing, and a bicycle leaning into its turns as balance asks. Each model says
-// which of its parts move, and about which of its own axes they roll.
-import type { Object3D } from "three";
-import { GRAVITY } from "../walker";
-
-/** The rear wheel turns this many times for each turn of the pedals: a city bicycle's middle gear. */
-export const GEARING = 2.6;
-/** A bicycle leans at most this far, in radians. */
-export const MAX_LEAN = 0.7;
+// a bicycle's crank at its own angle (it freewheels), and the whole leaning and lifting its back wheel as its physics
+// says. Each model says which of its parts move, about which of its own axes they roll, and where its pedals are.
+import { Euler, Vector3, type Object3D } from "three";
 
 /**
  * A model's moving parts by name: its wheels (and which steer), its crank, and the fork that steers a bicycle's front
@@ -20,6 +14,10 @@ export interface Rig {
   readonly fork?: string;
   readonly radius: number;
   readonly roll: { readonly axis: "x" | "z"; readonly sign: 1 | -1 };
+  /** How far ahead of the model's middle its front wheel meets the ground, in metres: what it pitches about. */
+  readonly front: number;
+  /** A bicycle's pedals: the crank arm's length and how far out each pedal is (the right hangs down at rest). */
+  readonly pedals?: { readonly arm: number; readonly out: number };
 }
 
 const quartet = (prefix: string, rear = "rear") =>
@@ -39,8 +37,11 @@ export const RIGS = {
     fork: "bicycle_red_fork",
     radius: 0.337,
     roll: { axis: "x", sign: 1 },
+    // Measured from the file: wheels 1.02 m apart, pedals 0.133 m out on the crank and 0.165 m to the side.
+    front: 0.507,
+    pedals: { arm: 0.133, out: 0.165 },
   },
-  car: { wheels: quartet("sedan_blue"), radius: 0.31, roll: { axis: "x", sign: 1 } },
+  car: { wheels: quartet("sedan_blue"), radius: 0.31, roll: { axis: "x", sign: 1 }, front: 1.3 },
 } as const satisfies Record<string, Rig>;
 
 /** The procedural stand-ins, built facing +x, drawn when a model cannot load. */
@@ -54,6 +55,8 @@ export const PROCEDURAL_RIGS = {
     fork: "steering",
     radius: 0.34,
     roll: { axis: "z", sign: -1 },
+    front: 0.55,
+    pedals: { arm: 0.17, out: 0.13 },
   },
   car: {
     wheels: ["front-left", "front-right", "rear-left", "rear-right"].map((w) => ({
@@ -62,29 +65,27 @@ export const PROCEDURAL_RIGS = {
     })),
     radius: 0.31,
     roll: { axis: "z", sign: -1 },
+    front: 1.3,
   },
 } as const satisfies Record<string, Rig>;
 
 /**
- * How far a bicycle leans into a turn to stay balanced (positive to the left), at a speed and rate of turn: the lean
- * whose tilt matches the turn's pull, atan(v ω / g).
+ * How a vehicle is posed: how far it has rolled (metres, backwards negative), its front wheel's turn and its lean (both
+ * positive to the left), its back wheel lifted (radians, nose down), and its crank's angle.
  */
-export function leanOf(speed: number, turn: number): number {
-  const lean = Math.atan((speed * turn) / GRAVITY);
-  return Math.max(-MAX_LEAN, Math.min(MAX_LEAN, lean));
-}
-
-/** How a vehicle is posed: how far it has rolled (metres, backwards negative), its front wheel's turn, its lean. */
 export interface Pose {
   readonly rolled: number;
   readonly steer: number;
   readonly lean: number;
+  readonly pitch: number;
+  readonly crank: number;
 }
 
 /**
  * Poses a vehicle's model by its rig: every wheel turns about its axle by the ground rolled, steering wheels (and a
- * fork) turn about the upright, the crank turns through the gearing, and the whole model leans (positive to the left;
- * the model as drawn faces +x, so its left is −z, and leaning is a turn about x).
+ * fork) turn about the upright, the crank turns to its angle, and the whole model leans (positive to the left; the
+ * model as drawn faces +x, so its left is −z, and leaning is a turn about x) and pitches nose down about its front
+ * contact, moved so that contact stays where it was.
  */
 export function poseVehicle(model: Object3D, rig: Rig, pose: Pose) {
   const turn = (rig.roll.sign * pose.rolled) / rig.radius;
@@ -98,8 +99,10 @@ export function poseVehicle(model: Object3D, rig: Rig, pose: Pose) {
     if (wheel) spin(wheel, turn, steers ? pose.steer : 0);
   }
   const crank = rig.crank ? model.getObjectByName(rig.crank) : undefined;
-  if (crank) spin(crank, turn / GEARING, 0);
+  if (crank) spin(crank, rig.roll.sign * pose.crank, 0);
   const fork = rig.fork ? model.getObjectByName(rig.fork) : undefined;
   fork?.rotation.set(0, pose.steer, 0);
-  model.rotation.set(-pose.lean, 0, 0);
+  model.rotation.set(-pose.lean, 0, -pose.pitch, "XYZ");
+  const contact = new Vector3(rig.front, 0, 0);
+  model.position.copy(contact).sub(contact.clone().applyEuler(new Euler(-pose.lean, 0, -pose.pitch, "XYZ")));
 }

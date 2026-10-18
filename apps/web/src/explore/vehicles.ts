@@ -125,31 +125,35 @@ export const REACH = 1.2;
 export const LEAVE_SPEED = 1.5;
 /** Hitting a wall keeps this share of the speed. */
 export const BUMP = 0.2;
-/** Where they park along the landing's road: metres ahead of the landing, and metres in from the kerb. */
-export const PARKING: Readonly<Record<VehicleKind, { readonly ahead: number; readonly inset: number }>> = {
-  bicycle: { ahead: 4, inset: 0.8 },
-  car: { ahead: 10, inset: 1.4 },
+/**
+ * Where they park: metres in from the kerb; and by the landing, metres ahead of it, and which kerb (1 the right, −1 the
+ * far one across the street, facing back), so the bicycle's line along its kerb is clear of the car.
+ */
+export const PARKING: Readonly<
+  Record<VehicleKind, { readonly inset: number; readonly ahead: number; readonly side: 1 | -1 }>
+> = {
+  bicycle: { inset: 0.8, ahead: 4, side: 1 },
+  car: { inset: 1.4, ahead: 10, side: -1 },
 };
 
 const towards = (value: number, target: number, step: number) =>
   value < target ? Math.min(target, value + step) : Math.max(target, value - step);
 
 /**
- * A bicycle and a car parked at the kerb on the right of the landing's road, a little ahead, facing along it; each
- * kept clear of buildings by moving it from the road's middle out to its place.
+ * A bicycle and a car parked a little ahead of the landing: the bicycle at the kerb on the right facing along the road,
+ * the car across the street facing back; each kept clear of buildings by moving it from the road's middle to its place.
  */
 export function parkedBy(landing: Landing, walls: Walls): Vehicle[] {
   const { road } = landing;
   const along = road.along;
   const right = { x: -along.z, z: along.x };
   const half = road.width / METRE / 2;
-  const heading = Math.atan2(0 - along.z, along.x);
   return (["bicycle", "car"] as const).map((kind) => {
-    const { ahead, inset } = PARKING[kind];
+    const { ahead, inset, side } = PARKING[kind];
     const middle = { x: road.at.x / METRE + along.x * ahead, y: GROUND, z: road.at.z / METRE + along.z * ahead };
-    const out = Math.max(0, half - inset);
+    const out = Math.max(0, half - inset) * side;
     const placed = walls.move(middle, { x: right.x * out, y: 0, z: right.z * out }, VEHICLES[kind].radius);
-    return standing(kind, kind, placed.feet, heading);
+    return standing(kind, kind, placed.feet, Math.atan2(-along.z * side, along.x * side));
   });
 }
 
@@ -189,7 +193,7 @@ export const MAX_STEER = 0.6;
 export function bumped(vehicle: Vehicle): Vehicle {
   const speed = vehicle.speed * BUMP;
   if (vehicle.kind === "car" || vehicle.cycle.fall || Math.abs(vehicle.speed) < HARD_HIT) return { ...vehicle, speed };
-  return { ...vehicle, speed, cycle: thrown(vehicle.cycle, "hit") };
+  return { ...vehicle, speed, cycle: thrown(vehicle.cycle, "hit", vehicle.speed) };
 }
 
 /** A vehicle left where it is: stopped, a bicycle upright on its stand with its gear and crank as they were. */

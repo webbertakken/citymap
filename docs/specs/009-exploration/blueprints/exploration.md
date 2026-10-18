@@ -136,7 +136,7 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   `m (g b − a h) / w`, each at least 0; with the back wheel lifted, all on the front.
 - Drivetrain: `GEARS` [1.2, 1.5, 1.8, 2.2, 2.6, 3.1, 3.6] wheel turns per crank turn, `START_GEAR` 2, `WHEEL_RADIUS`
   0.337 m. Pedalling (`forward > 0`): crank speed `max(0, v) / (G r)`, torque
-  `forward · TORQUE_MOST · max(0, 1 − crank speed / CADENCE_MOST)` (120 N·m, 14.66 rad/s = 140 rpm), drive
+  `forward · TORQUE_MOST · max(0, 1 − crank speed / CADENCE_MOST)` (150 N·m, 14.66 rad/s = 140 rpm), drive
   `torque / (G r)`, held to `GRIP · back load`; the crank turns at the crank speed and `cadence` is it. Not pedalling,
   the crank holds and `cadence` is 0 (freewheel).
 - Resistance against the motion: `ROLLING` 0.006 `m g` and `½ AIR_DENSITY DRAG_AREA v²` (1.2 kg/m³, 0.5 m²).

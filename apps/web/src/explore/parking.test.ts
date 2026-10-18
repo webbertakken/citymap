@@ -114,7 +114,7 @@ describe("parkedIn", () => {
 
   it("parks nothing in a city without streets", () => {
     expect(parkedIn(withRoads([]), away, open)).toEqual([]);
-    // A road of one point, or none long enough for a place.
-    expect(parkedIn(withRoads([road("street", [0, 0])]), away, open)).toEqual([]);
+    // A road of no points or one, or none long enough for a place.
+    expect(parkedIn(withRoads([road("street"), road("street", [0, 0])]), away, open)).toEqual([]);
   });
 });

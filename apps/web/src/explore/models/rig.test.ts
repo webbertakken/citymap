@@ -1,9 +1,8 @@
 import { THEMES } from "@citymap/themes";
 import { Group, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { GRAVITY } from "../walker";
 import { bicycle, car, paletteOf } from "./procedural";
-import { GEARING, MAX_LEAN, PROCEDURAL_RIGS, RIGS, leanOf, poseVehicle, type Rig } from "./rig";
+import { PROCEDURAL_RIGS, RIGS, poseVehicle, type Pose, type Rig } from "./rig";
 
 const p = paletteOf(THEMES["paper-atlas"]);
 
@@ -19,39 +18,28 @@ function rigged(rig: Rig) {
   return model;
 }
 
+/** A pose: rolled so far, the rest still. */
+const still: Pose = { rolled: 0, steer: 0, lean: 0, pitch: 0, crank: 0 };
+
 /** Where a part's own +y ends up: its top, after its turn. */
 const topOf = (model: Group, name: string) => new Vector3(0, 1, 0).applyEuler(model.getObjectByName(name)!.rotation);
-
-describe("leanOf", () => {
-  it("leans into a turn as far as balance asks, left for a left turn, upright going straight", () => {
-    expect(leanOf(5, 0)).toBe(0);
-    const left = leanOf(4, 0.5);
-    expect(left).toBeCloseTo(Math.atan(2 / GRAVITY), 9);
-    expect(leanOf(4, -0.5)).toBeCloseTo(-left, 9);
-  });
-
-  it("never leans past its limit", () => {
-    expect(leanOf(30, 2)).toBe(MAX_LEAN);
-    expect(leanOf(30, -2)).toBe(-MAX_LEAN);
-  });
-});
 
 describe("poseVehicle", () => {
   it("rolls a PSX car's wheels forwards (their tops ahead, +z), and steers its front ones only", () => {
     const model = rigged(RIGS.car);
-    poseVehicle(model, RIGS.car, { rolled: 0.1, steer: -0.3, lean: 0.2 });
+    poseVehicle(model, RIGS.car, { ...still, rolled: 0.1, steer: -0.3 });
     expect(topOf(model, "sedan_blue_wheel_rear_left").z).toBeGreaterThan(0);
     expect(model.getObjectByName("sedan_blue_wheel_rear_left")!.rotation.x).toBeCloseTo(0.1 / RIGS.car.radius, 9);
     expect(model.getObjectByName("sedan_blue_wheel_front_right")!.rotation.y).toBeCloseTo(-0.3, 9);
     expect(model.getObjectByName("sedan_blue_wheel_rear_right")!.rotation.y).toBe(0);
   });
 
-  it("turns a PSX bicycle's crank through its gearing, steers its fork and leans it", () => {
+  it("turns a PSX bicycle's crank by its own angle, steers its fork and leans it", () => {
     const model = rigged(RIGS.bicycle);
-    poseVehicle(model, RIGS.bicycle, { rolled: 2, steer: 0.2, lean: 0.3 });
+    poseVehicle(model, RIGS.bicycle, { ...still, rolled: 2, steer: 0.2, lean: 0.3, crank: 1.25 });
     const turn = 2 / RIGS.bicycle.radius;
     expect(model.getObjectByName("bicycle_red_wheel_rear")!.rotation.x).toBeCloseTo(turn, 9);
-    expect(model.getObjectByName("bicycle_red_crank")!.rotation.x).toBeCloseTo(turn / GEARING, 9);
+    expect(model.getObjectByName("bicycle_red_crank")!.rotation.x).toBeCloseTo(1.25, 9);
     expect(model.getObjectByName("bicycle_red_fork")!.rotation.y).toBeCloseTo(0.2, 9);
     // The front wheel rides on the fork: it rolls, and turns with the fork, not on its own.
     expect(model.getObjectByName("bicycle_red_wheel_front")!.rotation.y).toBe(0);
@@ -60,19 +48,39 @@ describe("poseVehicle", () => {
 
   it("rolls the procedural stand-ins, built facing +x, forwards about −z", () => {
     const bike = bicycle(p);
-    poseVehicle(bike, PROCEDURAL_RIGS.bicycle, { rolled: 0.1, steer: 0, lean: 0 });
+    poseVehicle(bike, PROCEDURAL_RIGS.bicycle, { ...still, rolled: 0.1 });
     // Facing +x, a wheel's top rolls forwards to +x.
     expect(new Vector3(0, 1, 0).applyEuler(bike.getObjectByName("wheel-rear")!.rotation).x).toBeGreaterThan(0);
     const sedan = car(p);
-    poseVehicle(sedan, PROCEDURAL_RIGS.car, { rolled: 0.1, steer: 0.2, lean: 0 });
+    poseVehicle(sedan, PROCEDURAL_RIGS.car, { ...still, rolled: 0.1, steer: 0.2 });
     expect(sedan.getObjectByName("wheel-front-left")!.rotation.y).toBeCloseTo(0.2, 9);
   });
 
   it("leaves a model without the rig's parts as it is, but for its lean", () => {
     const model = new Group();
-    poseVehicle(model, RIGS.bicycle, { rolled: 1, steer: 0, lean: 0.1 });
-    poseVehicle(model, { wheels: [], radius: 1, roll: { axis: "x", sign: 1 } }, { rolled: 1, steer: 0, lean: 0.1 });
+    poseVehicle(model, RIGS.bicycle, { ...still, rolled: 1, lean: 0.1 });
+    poseVehicle(
+      model,
+      { wheels: [], radius: 1, front: 0, roll: { axis: "x", sign: 1 } },
+      { ...still, rolled: 1, lean: 0.1 },
+    );
     expect(model.children).toHaveLength(0);
     expect(model.rotation.x).toBeCloseTo(-0.1, 9);
+  });
+
+  it("pitches nose down about its front contact, which stays where it was", () => {
+    const model = rigged(RIGS.bicycle);
+    poseVehicle(model, RIGS.bicycle, { ...still, pitch: 0.3, lean: 0.2 });
+    model.updateMatrixWorld(true);
+    const front = new Vector3(RIGS.bicycle.front, 0, 0).applyMatrix4(model.matrix);
+    expect(front.x).toBeCloseTo(RIGS.bicycle.front, 9);
+    expect(front.y).toBeCloseTo(0, 9);
+    expect(front.z).toBeCloseTo(0, 9);
+    // Its back end is up off the ground.
+    const back = new Vector3(-RIGS.bicycle.front, 0, 0).applyMatrix4(model.matrix);
+    expect(back.y).toBeGreaterThan(0.2);
+    // Level again, it stands where it always did.
+    poseVehicle(model, RIGS.bicycle, still);
+    expect(model.position.toArray()).toEqual([0, 0, 0]);
   });
 });

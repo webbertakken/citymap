@@ -325,9 +325,9 @@ describe("falls", () => {
   });
 
   it("slides to a stop on its side, lies a moment, and is back up with its gear", () => {
-    const fallen = thrown({ ...rolling(4), lean: -0.2 }, "hit");
-    expect(fallen.fall).toEqual({ time: 0, side: -1, cause: "hit" });
-    expect(thrown(rolling(), "hit").fall?.side).toBe(1);
+    const fallen = thrown({ ...rolling(4), lean: -0.2 }, "hit", -6);
+    expect(fallen.fall).toEqual({ time: 0, side: -1, cause: "hit", speed: 6 });
+    expect(thrown(rolling(), "hit", 6).fall?.side).toBe(1);
     const path = riding(fallen, 6, { ...NO_INTENTS, forward: 1, right: 1 }, DOWN + 2 * DT);
     const lying = path[Math.round(1.5 / DT)]!;
     expect(lying.speed).toBe(0);

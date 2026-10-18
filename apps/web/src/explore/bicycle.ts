@@ -19,11 +19,12 @@ export interface Lean {
 /** Why a rider came off: a hard hit, asking more of the tyres than they hold, or leaning past saving. */
 export type FallCause = "hit" | "grip" | "lean";
 
-/** A fall: seconds since the rider was thrown, the side it fell to (1 left, −1 right), and why. */
+/** A fall: seconds since the rider was thrown, the side it fell to (1 left, −1 right), why, and how fast it was going. */
 export interface Fall {
   readonly time: number;
   readonly side: 1 | -1;
   readonly cause: FallCause;
+  readonly speed: number;
 }
 
 /**
@@ -100,7 +101,7 @@ export const GEARS = [1.2, 1.5, 1.8, 2.2, 2.6, 3.1, 3.6] as const;
 export const START_GEAR = 2;
 export const WHEEL_RADIUS = 0.337;
 /** The rider's push on the crank: this torque from a standstill, falling to none at this crank speed (140 rpm). */
-export const TORQUE_MOST = 120;
+export const TORQUE_MOST = 150;
 export const CADENCE_MOST = (140 * 2 * Math.PI) / 60;
 /** Rolling resistance (a share of the weight), the air's density and the rider's drag area. */
 export const ROLLING = 0.006;
@@ -248,10 +249,10 @@ export function loadsOf(a: number): { readonly front: number; readonly back: num
   return { front: weight - held, back: held };
 }
 
-/** The bicycle thrown down, falling the way it leans (left when upright). */
-export function thrown(cycle: Cycle, cause: FallCause): Cycle {
+/** The bicycle thrown down at a speed, falling the way it leans (left when upright). */
+export function thrown(cycle: Cycle, cause: FallCause, speed: number): Cycle {
   const side = cycle.lean < 0 ? -1 : 1;
-  return { ...cycle, fall: { time: 0, side, cause }, cadence: 0, pitch: 0, pitchRate: 0 };
+  return { ...cycle, fall: { time: 0, side, cause, speed: Math.abs(speed) }, cadence: 0, pitch: 0, pitchRate: 0 };
 }
 
 /** The gear moved by `steps` (up positive), no further than its first and last. */
@@ -348,6 +349,13 @@ function driven(cycle: Cycle, speed: number, sideways: number, intents: Intents,
 }
 
 /**
+ * What the tyres hold sideways in a turn, in m/s²: what a lean balances, g tan φ. Below a walking pace a lean is the
+ * bicycle falling over, not turning, and asks nothing of them. (The path's own curvature, v times the turn, spikes as
+ * the rider countersteers, while the tyres' load follows the lean.)
+ */
+const sidewaysOf = (lean: number, speed: number) => (Math.abs(speed) > FOOT_UP ? GRAVITY * Math.tan(lean) : 0);
+
+/**
  * One step of the ridden bicycle under intents: a fall plays out; else the speed, the foot, the balance and the turn,
  * then whether the tyres held the turn and the brakes together, and whether it leaned past saving.
  */
@@ -358,16 +366,17 @@ export function rideCycle(
   dt: number,
 ): { readonly cycle: Cycle; readonly speed: number; readonly turn: number } {
   if (cycle.fall) return falling(cycle, cycle.fall, speed, dt);
-  const { slid, speed: next, ...drive } = driven(cycle, speed, speed * turnOf(cycle, speed), intents, dt);
+  const { slid, speed: next, ...drive } = driven(cycle, speed, sidewaysOf(cycle.lean, speed), intents, dt);
   const footDown = cycle.footDown ? Math.abs(next) < FOOT_UP : Math.abs(next) < FOOT_DOWN;
   const balance = balanced({ ...cycle, ...drive, footDown }, Math.max(0, next), intents.right, dt);
   const turn = turnOf(balance, next);
-  const overGrip = slid || Math.abs(next * turn) > GRIP * GRAVITY;
-  const fallen = overGrip
-    ? thrown(balance, "grip")
-    : Math.abs(balance.lean) > FALL_LEAN
-      ? thrown(balance, "lean")
-      : balance;
+  const overGrip = slid || Math.abs(sidewaysOf(balance.lean, next)) > GRIP * GRAVITY;
+  const fallen =
+    Math.abs(balance.lean) > FALL_LEAN
+      ? thrown(balance, "lean", next)
+      : overGrip
+        ? thrown(balance, "grip", next)
+        : balance;
   return { cycle: fallen, speed: next, turn: fallen.fall ? 0 : turn };
 }
 
