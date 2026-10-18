@@ -74,7 +74,6 @@ describe("the nearby streets", () => {
     // A row of buildings every 20 m: those within reach of the landing are raised, the rest wait.
     const row = Array.from({ length: 60 }, (_, i) => square(i, 20 + i * 20, 30));
     const garage = await garageOf(row, { x: 0, z: 0 }, { onStep: (step: Step) => steps.push(step) });
-    expect(steps[0]).toEqual({ phase: "engine" });
     const within = row.filter((f) => Math.hypot(f.corners[0]!.x, 30) < STREETS_REACH + 20).length;
     expect(steps.at(-1)).toMatchObject({ phase: "streets", done: steps.at(-1)!.of });
     expect(info.mock.calls.some(([line]) => String(line).startsWith("explore/streets buildings="))).toBe(true);
@@ -129,11 +128,14 @@ describe("the nearby streets", () => {
     // No time to spare: nothing more is raised this frame, and what waits is counted.
     const busy = garage.follow({ x: 1000, y: GROUND, z: 0 }, { x: 0, z: 0 }, [], 0);
     expect(busy.waiting).toBeGreaterThan(0);
+    // The nearest of them: lot 50, its west wall 25 m from where the player stands.
+    expect(busy.nearest).toBeCloseTo(Math.hypot(0, 30) - Math.hypot(5, 5), 6);
     // With time, the window is raised round where the player will be: ahead of it at its speed.
     const spare = vi.fn<() => number>(() => clock++);
     const roomy = await garageOf(row, { x: 0, z: 0 }, { now: spare });
     const ahead = roomy.follow({ x: 1000, y: GROUND, z: 0 }, { x: 100, z: 0 }, [], 1e9);
     expect(ahead.waiting).toBe(0);
+    expect(ahead.nearest).toBe(Infinity);
     expect(ahead.standing).toBe(row.filter((f) => Math.abs(f.corners[0]!.x + 5 - 1150) <= STREETS_REACH + 8).length);
   });
 

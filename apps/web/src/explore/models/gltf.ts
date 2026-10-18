@@ -30,15 +30,17 @@ export interface ModelFile {
 
 /**
  * The models the walk uses, built by scripts/models/build-models.ts into public/models (credited in its CREDITS.md):
- * Wobble Blocks' people with the Universal Animation Library's clips baked on, and heyheythere's PSX vehicles, all at
- * their real sizes, facing +z in their files. The motorbike and helicopter are still the model lab's.
+ * Wobble Blocks' people with the Universal Animation Library's clips baked on, heyheythere's PSX vehicles (facing +z in
+ * their files) and Duhgless' motorbike (facing +x), at their real sizes. The helicopter is still the model lab's.
  */
 export const GLTF_MODELS = {
   figure: { url: "models/people/man.glb", metres: 1.78, measure: "height", yaw: Math.PI / 2 },
   walker: { url: "models/people/woman.glb", metres: 1.7, measure: "height", yaw: Math.PI / 2 },
   bicycle: { url: "models/vehicles/bicycle.glb", metres: 1.687, measure: "length", yaw: Math.PI / 2 },
-  motorbike: { url: "lab/models/motorbike.glb", metres: 2.1, measure: "length", yaw: Math.PI / 2 },
+  motorbike: { url: "models/vehicles/motorbike.glb", metres: 2.36, measure: "length", yaw: 0 },
   car: { url: "models/vehicles/sedan.glb", metres: 4.68, measure: "length", yaw: Math.PI / 2 },
+  // Drawn a little under its own 5.2 m, so its wheels and wheelbase are the car's on Rapier.
+  pickup: { url: "models/vehicles/pickup.glb", metres: 4.6, measure: "length", yaw: Math.PI / 2 },
   helicopter: { url: "lab/models/helicopter.glb", metres: 10, measure: "length", yaw: 0 },
 } as const satisfies Record<string, ModelFile>;
 
@@ -159,8 +161,8 @@ export async function loadGltfModels(
 ): Promise<Record<GltfName, Loaded>> {
   const load = (file: ModelFile) => loadModel(base, file, read);
   const m = files;
-  const [figure, walker, bicycle, motorbike, car, helicopter] = await Promise.all(
-    [m.figure, m.walker, m.bicycle, m.motorbike, m.car, m.helicopter].map(load),
+  const [figure, walker, bicycle, motorbike, car, pickup, helicopter] = await Promise.all(
+    [m.figure, m.walker, m.bicycle, m.motorbike, m.car, m.pickup, m.helicopter].map(load),
   );
   return {
     figure: figure!,
@@ -168,6 +170,7 @@ export async function loadGltfModels(
     bicycle: bicycle!,
     motorbike: motorbike!,
     car: car!,
+    pickup: pickup!,
     helicopter: helicopter!,
   };
 }

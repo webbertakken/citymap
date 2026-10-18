@@ -1,35 +1,32 @@
 "use client";
 import dynamic from "next/dynamic";
 import { Viewer } from "../components/Viewer";
+import { descent } from "../explore/descent";
 import { bespokeWalls } from "../explore/physics/bespoke";
-import type { RaiseWalls } from "../explore/physics/raise";
-import { rapierWalls } from "../explore/physics/rapier";
+import { openGarage } from "../explore/physics/garage";
+import { loadRapier, rapierWalls } from "../explore/physics/rapier";
 
 // WebGL runs in the browser only; the bar paints first, the scene after it.
 const CityCanvas = dynamic(() => import("../components/CityCanvas"), { ssr: false });
-// The city at eye height loads only once someone goes down into it, while its walls rise, so it draws the moment they
-// stand.
+// The city at eye height loads only once someone goes down into it, behind the loading card with everything else the
+// walk needs, so it draws the moment the walls and streets stand.
 const loadExploreCanvas = () => import("../components/ExploreCanvas");
 const ExploreCanvas = dynamic(loadExploreCanvas, { ssr: false });
-/** Raises the walls with an engine while the canvas loads beside it; the walls are freed if the canvas fails. */
-const withCanvas =
-  (raise: RaiseWalls): RaiseWalls =>
-  async (footprints, options) => {
-    const canvas = loadExploreCanvas();
-    const walls = await raise(footprints, options);
-    try {
-      await canvas;
-    } catch (failure) {
-      walls.dispose();
-      throw failure;
-    }
-    return walls;
-  };
-// The walls are citymap's own; `?physics=rapier` walks with the Rapier prototype instead, to compare.
-const rapier = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("physics") === "rapier";
-const explore = rapier
-  ? { Canvas: ExploreCanvas, engine: "Rapier", raise: withCanvas(rapierWalls) }
-  : { Canvas: ExploreCanvas, engine: "bespoke 2.5D", raise: withCanvas(bespokeWalls) };
+const address = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
+// The walls are citymap's own; `?physics=rapier` walks with the Rapier prototype instead, to compare. Cars drive on
+// Rapier either way. `?traffic=20` sets 20 parked cars driving themselves: a measuring aid.
+const rapier = address.get("physics") === "rapier";
+const explore = {
+  Canvas: ExploreCanvas,
+  engine: rapier ? "Rapier" : "bespoke 2.5D",
+  goDown: descent({
+    loadEngine: loadRapier,
+    loadModels: async (onCount) => (await loadExploreCanvas()).loadModels(onCount),
+    raise: rapier ? rapierWalls : bespokeWalls,
+    openGarage,
+    traffic: Number(address.get("traffic") ?? 0) || 0,
+  }),
+};
 
 export default function Page() {
   return <Viewer Canvas={CityCanvas} explore={explore} basePath={process.env.NEXT_PUBLIC_BASE_PATH ?? ""} />;

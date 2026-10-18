@@ -45,8 +45,10 @@ function fileOf(size: readonly [number, number, number]): GltfFile {
 }
 
 const read = async (url: string) => {
-  // Figures are tall and narrow; vehicles long along the file's z, which their turn brings round to +x.
+  // Figures are tall and narrow; vehicles long along the file's z, which their turn brings round to +x (the motorbike
+  // is built facing +x, long along its x).
   if (url.endsWith(GLTF_MODELS.figure.url) || url.endsWith(GLTF_MODELS.walker.url)) return fileOf([0.4, 0.8, 0.3]);
+  if (url.endsWith(GLTF_MODELS.motorbike.url)) return fileOf([2, 0.5, 0.6]);
   return fileOf([0.6, 0.5, 2]);
 };
 
@@ -70,12 +72,15 @@ describe("loadGltfModels", () => {
 
   it("turns a model to face +x, stands it on the ground and centres its footprint", async () => {
     const models = await loadGltfModels("", read);
-    const box = boxOf(models.motorbike.make());
+    const box = boxOf(models.bicycle.make());
     // Long along z in the file; along x once turned.
     expect(box.getSize(new Vector3()).x).toBeGreaterThan(box.getSize(new Vector3()).z);
     expect(box.min.y).toBeCloseTo(0, 6);
     expect(box.getCenter(new Vector3()).x).toBeCloseTo(0, 6);
     expect(box.getCenter(new Vector3()).z).toBeCloseTo(0, 6);
+    // A model already facing +x stays as it is.
+    const motorbike = boxOf(models.motorbike.make()).getSize(new Vector3());
+    expect(motorbike.x).toBeCloseTo(GLTF_MODELS.motorbike.metres, 6);
   });
 
   it("keeps the file's own scene, untouched by the copies it makes", async () => {
@@ -160,6 +165,7 @@ describe("loadGltfModels with another set", () => {
       bicycle: other(m.bicycle, "bicycle"),
       motorbike: other(m.motorbike, "motorbike"),
       car: other(m.car, "car"),
+      pickup: other(m.pickup, "pickup"),
       helicopter: other(m.helicopter, "helicopter"),
     };
     await loadGltfModels(

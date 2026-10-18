@@ -4,6 +4,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ArcadeWhy, GoDown } from "../explore/descent";
+import type { Garage } from "../explore/physics/garage";
 import type { RaiseWalls } from "../explore/physics/raise";
 import type { Fetcher } from "../github/read";
 import type { ExploreCanvasProps } from "./ExploreView";
@@ -53,8 +55,18 @@ const openWalls = () => {
   return { walls, dispose };
 };
 
+/** Going down by raising the walls alone, with a garage (or none, and why). */
+const downBy =
+  (raise: RaiseWalls, garage: Garage | null = null, arcade: ArcadeWhy | null = null): GoDown =>
+  async (footprints, _at, options) => ({ walls: await raise(footprints, options), garage, arcade });
 const show = async (raise: RaiseWalls, with_: Fetcher = fetcher) => {
-  render(<Viewer Canvas={StubCanvas} explore={{ Canvas: ExploreStub, engine: "Stand-in", raise }} fetcher={with_} />);
+  render(
+    <Viewer
+      Canvas={StubCanvas}
+      explore={{ Canvas: ExploreStub, engine: "Stand-in", goDown: downBy(raise) }}
+      fetcher={with_}
+    />,
+  );
   await screen.findByRole("heading", { level: 1, name: "alpha" });
 };
 const walkButton = () => screen.getByRole("button", { name: "Walk" });
@@ -91,6 +103,48 @@ describe("Viewer walking", () => {
     expect(dispose).toHaveBeenCalledOnce();
   });
 
+  it("frees the cars' garage with the walls when the walk ends", async () => {
+    const { walls } = openWalls();
+    const dispose = vi.fn<() => void>();
+    const garage: Garage = {
+      follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+      drive: (vehicles) => vehicles,
+      keepingUp: () => true,
+      load: () => 0,
+      dispose,
+    };
+    render(
+      <Viewer
+        Canvas={StubCanvas}
+        explore={{ Canvas: ExploreStub, engine: "Stand-in", goDown: downBy(async () => walls, garage) }}
+        fetcher={fetcher}
+      />,
+    );
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    fireEvent.click(walkButton());
+    expect(await screen.findByTestId("explore-canvas")).toBeTruthy();
+    expect(screen.queryByText(/Cars drive simply/)).toBeNull();
+    fireEvent.keyDown(window, { key: "Escape", code: "Escape" });
+    await waitFor(() => expect(dispose).toHaveBeenCalledOnce());
+  });
+
+  it("says once in the walk's card that cars drive simply when the physics engine did not load", async () => {
+    render(
+      <Viewer
+        Canvas={StubCanvas}
+        explore={{
+          Canvas: ExploreStub,
+          engine: "Stand-in",
+          goDown: downBy(async () => openWalls().walls, null, "engine"),
+        }}
+        fetcher={fetcher}
+      />,
+    );
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    fireEvent.click(walkButton());
+    expect(await screen.findByText("Cars drive simply here: the physics engine did not load.")).toBeTruthy();
+  });
+
   it("leaves by Escape pressed the moment the walk shows, before the effects of its commit have run", async () => {
     // Outside act, as in the browser: the walk commits when its walls resolve, and its effects run in a later task. A
     // press then must reach the walk, not the finished load's Escape, nor fall before the walk listens.
@@ -103,7 +157,7 @@ describe("Viewer walking", () => {
     root.render(
       <Viewer
         Canvas={StubCanvas}
-        explore={{ Canvas: ExploreStub, engine: "Stand-in", raise: async () => walls }}
+        explore={{ Canvas: ExploreStub, engine: "Stand-in", goDown: downBy(async () => walls) }}
         fetcher={fetcher}
       />,
     );
@@ -162,7 +216,7 @@ describe("Viewer walking", () => {
       throw new Error("no wasm");
     });
     fireEvent.click(walkButton());
-    expect(await screen.findByText("Walking could not start: the physics engine did not load.")).toBeTruthy();
+    expect(await screen.findByText("Walking could not start: the city’s walls did not rise.")).toBeTruthy();
     expect(screen.getByTestId("canvas")).toBeTruthy();
   });
 
@@ -194,7 +248,7 @@ describe("Viewer walking", () => {
     render(
       <Viewer
         Canvas={StubCanvas}
-        explore={{ Canvas: ExploreStub, engine: "Stand-in", raise: async () => openWalls().walls }}
+        explore={{ Canvas: ExploreStub, engine: "Stand-in", goDown: downBy(async () => openWalls().walls) }}
         fetcher={slow}
       />,
     );

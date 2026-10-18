@@ -44,6 +44,7 @@ const gtaModels = (style: Style): Readonly<Record<GltfName, ModelFile>> => {
     bicycle: { url: "lab/models/gta/bicycle.glb", metres: 1.75, measure: "length", yaw: Math.PI / 2 },
     motorbike: { url: "lab/models/gta/chopper.glb", metres: 2.4, measure: "length", yaw: 0 },
     car: { url: "lab/models/gta/ggbot-car2.glb", metres: 4.8, measure: "length", yaw: Math.PI / 2 },
+    pickup: { url: "lab/models/gta/pickup.glb", metres: 5.2, measure: "length", yaw: Math.PI / 2 },
     helicopter: { url: "lab/models/gta/pickup.glb", metres: 5.2, measure: "length", yaw: Math.PI / 2 },
   };
 };

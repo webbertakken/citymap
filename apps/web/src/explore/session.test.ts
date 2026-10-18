@@ -378,7 +378,7 @@ function slidingGarage(ahead: number, aside: number, speed?: number): Garage & {
   const driven: string[] = [];
   return {
     driven,
-    follow: () => ({ standing: 0, waiting: 0 }),
+    follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
     drive: (vehicles, drivers) =>
       vehicles.map((v) => {
         if (!drivers.has(v.id) || v.kind !== "car") return v;

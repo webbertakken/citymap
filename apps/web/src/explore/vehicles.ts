@@ -346,9 +346,14 @@ export function stepVehicle(vehicle: Vehicle, intents: Intents, dt: number, wall
   return moved(vehicle, { ...vehicle, heading, speed, turn, steer, attitude: yawOf(heading) }, dt, walls);
 }
 
+/** What a vehicle is drawn as: a car as its body, anything else as its kind. */
+export type ModelKind = CarBody | "motorbike" | "bicycle";
+export const MODEL_KINDS: readonly ModelKind[] = ["saloon", "pickup", "motorbike", "bicycle"];
+export const modelOf = (vehicle: Vehicle): ModelKind => (vehicle.kind === "car" ? vehicle.body : vehicle.kind);
+
 /**
- * The ids of the `most` vehicles of each kind nearest a point, cars first, then motorbikes and bicycles, nearest first;
- * and before them the one ridden, which is always drawn.
+ * The ids of the `most` vehicles drawn as each model nearest a point, in `MODEL_KINDS` order, nearest first; and
+ * before them the one ridden, which is always drawn.
  */
 export function nearestOf(
   vehicles: readonly Vehicle[],
@@ -356,14 +361,14 @@ export function nearestOf(
   most: number,
   keep: string | null,
 ): string[] {
-  const near = (kind: VehicleKind) =>
+  const near = (kind: ModelKind) =>
     vehicles
-      .filter((v) => v.kind === kind && v.id !== keep)
+      .filter((v) => modelOf(v) === kind && v.id !== keep)
       .map((v) => ({ id: v.id, distance: Math.hypot(v.feet.x - at.x, v.feet.z - at.z) }))
       .toSorted((a, b) => a.distance - b.distance)
       .slice(0, most)
       .map((v) => v.id);
-  return [...(keep === null ? [] : [keep]), ...near("car"), ...near("motorbike"), ...near("bicycle")];
+  return [...(keep === null ? [] : [keep]), ...MODEL_KINDS.flatMap(near)];
 }
 
 /**

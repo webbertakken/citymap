@@ -7,8 +7,10 @@ import { useEffect } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ArcadeWhy } from "../explore/descent";
 import type { Inspect } from "../explore/inspect";
 import type { Landing } from "../explore/landing";
+import type { Garage } from "../explore/physics/garage";
 import { roadGrid } from "../explore/signs";
 import { METRE } from "../explore/street";
 import { parkedBy } from "../explore/vehicles";
@@ -125,7 +127,13 @@ const inspectAhead: Inspect = (lot) =>
 
 const show = (
   onLeave = vi.fn<ExploreViewProps["onLeave"]>(),
-  sights: { footprints?: readonly Footprint[]; inspect?: Inspect; walls?: Walls } = {},
+  sights: {
+    footprints?: readonly Footprint[];
+    inspect?: Inspect;
+    walls?: Walls;
+    garage?: Garage | null;
+    arcade?: ArcadeWhy | null;
+  } = {},
 ) => {
   render(
     <ExploreView
@@ -140,6 +148,8 @@ const show = (
       landing={landing}
       parked={parkedBy(landing, sights.walls ?? open)}
       engine="Rapier"
+      garage={sights.garage ?? null}
+      arcade={sights.arcade ?? null}
       Canvas={StubCanvas}
       onLeave={onLeave}
     />,
@@ -203,6 +213,8 @@ describe("ExploreView", () => {
         inspect={() => ({ hit: null, files: [] })}
         landing={landing}
         parked={parkedBy(landing, open)}
+        garage={null}
+        arcade={null}
         engine="Rapier"
         Canvas={StubCanvas}
         onLeave={onLeave}
@@ -355,7 +367,7 @@ describe("ExploreView", () => {
   it("parks a bicycle and a car by the road, and offers to get on the bicycle within reach", () => {
     show();
     const start = walk(0);
-    expect(start.vehicles.map((v) => v.kind)).toEqual(["bicycle", "car"]);
+    expect(start.vehicles.map((v) => v.kind)).toEqual(["bicycle", "car", "motorbike"]);
     expect(start.riding).toBeNull();
     expect(screen.queryByRole("button", { name: /Get on the bicycle/ })).toBeNull();
     toTheKerb(25);
@@ -610,6 +622,86 @@ describe("ExploreView", () => {
     expect(lines.filter((l) => l.startsWith("explore/gamepad"))).toEqual([
       'explore/gamepad id="Test pad (STANDARD GAMEPAD)"',
     ]);
+  });
+
+  it("gets on the motorbike behind the landing, says its keys, and shows its speed, gear and engine", () => {
+    show();
+    // 7 m back along the street and across to the near kerb.
+    hold("KeyS", 40);
+    hold("KeyD", 20);
+    walk();
+    fireEvent.click(screen.getByRole("button", { name: "Get on the motorbike" }));
+    expect(walk().riding).toBe("motorbike");
+    walk();
+    expect(screen.getByRole("region", { name: "On the motorbike" }).textContent).toContain("W throttle");
+    expect(hud().getAttribute("aria-label")).toBe("Speed, gear and engine");
+    expect(hud().textContent).toContain("1 of 5");
+    expect(hud().dataset.foot).toBe("down");
+    // On a touch screen its main button is the front brake, with no bell or gears beside it.
+    expect(screen.getByRole("button", { name: "Brake" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ring" })).toBeNull();
+    hold("KeyW", 10);
+    expect(hud().textContent).toMatch(/Engine\d[\d,]* rpm/);
+    expect(hud().textContent).not.toContain(" 0 km/h");
+  });
+
+  it("drives the car on the garage, keeps the streets round it each frame, and shows its gear and engine", () => {
+    const follow = vi.fn<Garage["follow"]>(() => ({ standing: 4, waiting: 0, nearest: Infinity }));
+    const garage: Garage = {
+      follow,
+      drive: (vehicles, drivers) =>
+        vehicles.map((v) =>
+          v.kind === "car" && drivers.has(v.id)
+            ? Object.assign({}, v, { feet: { ...v.feet, x: v.feet.x + 0.05 }, speed: 6, gear: 1, rpm: 2345 })
+            : v,
+        ),
+      keepingUp: () => true,
+      load: () => 0.1,
+      dispose: () => undefined,
+    };
+    show(undefined, { garage });
+    expect(follow).not.toHaveBeenCalled();
+    walk();
+    expect(follow).toHaveBeenCalledOnce();
+    toTheKerb(62, "KeyA");
+    walk();
+    fireEvent.click(screen.getByRole("button", { name: "Get in the car" }));
+    const before = walk().session.vehicles.find((v) => v.id === "car")!.feet.x;
+    hold("KeyW", 5);
+    const after = walk().session.vehicles.find((v) => v.id === "car")!;
+    expect(after.feet.x).toBeGreaterThan(before);
+    expect(hud().textContent).toContain("2");
+    expect(hud().textContent).toContain("2,300 rpm");
+    expect(screen.getByRole("button", { name: "Handbrake" })).toBeTruthy();
+    // The window follows where the car is going: its speed along the way it moved.
+    const [at, velocity] = follow.mock.calls.at(-1)!;
+    expect(at.x).toBeCloseTo(after.feet.x, 9);
+    expect(velocity.x).toBeGreaterThan(0);
+  });
+
+  it("hands the cars to their arcade handling when the garage cannot keep up, and says so once", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const drive = vi.fn<Garage["drive"]>((vehicles) => vehicles);
+    const garage: Garage = {
+      follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+      drive,
+      keepingUp: () => false,
+      load: () => 0.73,
+      dispose: () => undefined,
+    };
+    show(undefined, { garage });
+    toTheKerb(62, "KeyA");
+    walk();
+    fireEvent.click(screen.getByRole("button", { name: "Get in the car" }));
+    walk();
+    expect(screen.getByRole("status").textContent).toBe("Cars drive simply here: this device could not keep up.");
+    expect(error).toHaveBeenCalledWith("explore/arcade reason=slow load=0.73");
+    const driven = drive.mock.calls.length;
+    hold("KeyW", 5);
+    expect(drive.mock.calls.length).toBe(driven);
+    // The arcade car shows its speed alone.
+    expect(hud().getAttribute("aria-label")).toBe("Speed");
+    expect(error).toHaveBeenCalledOnce();
   });
 
   it("says in the log when a hard knock throws the rider, and when they are back up", () => {

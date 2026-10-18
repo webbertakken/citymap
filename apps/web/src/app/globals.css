@@ -1380,39 +1380,80 @@ mark {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-/* Touch only: a stick under the left thumb, a jump button under the right, and the bicycle's buttons beside it. */
+/* The card's one sentence when cars fall back to their arcade handling. */
+.explore-note {
+  color: var(--ink);
+}
+/*
+ * Touch only: the stick under the left thumb, the ride's buttons under the right, the prompt and the panel in sight
+ * above them, all in one flow along the bottom (the dock), so nothing overlaps whatever the ride. Elsewhere the dock
+ * and its rows are not boxes at all, and the prompt and the panel keep their own places.
+ */
+.explore-dock,
+.explore-controls,
+.explore-pad {
+  display: contents;
+}
 .explore-stick,
-.explore-jump,
-.explore-sink,
-.explore-fly,
-.explore-ride-buttons {
+.explore-pad button {
   display: none;
 }
 @media (pointer: coarse) {
-  .explore-keys {
+  .explore-keys,
+  .explore-use kbd {
     display: none;
   }
   .explore-card {
     bottom: auto;
     top: calc(var(--gap) + 82px + 8px);
   }
-  .explore-use {
-    top: auto;
-    bottom: calc(var(--gap) + 24px + 144px + 16px);
+  .explore-dock {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    padding: 0 calc(var(--gap) + 12px) calc(var(--gap) + 12px);
+    /* The dock's empty space is the walk's: a drag there still looks round. */
+    pointer-events: none;
+  }
+  .explore-dock > *,
+  .explore-controls > *,
+  .explore-pad > * {
+    pointer-events: auto;
   }
   .explore-sight {
-    top: auto;
-    right: auto;
-    bottom: calc(var(--gap) + 24px + 144px + 16px + 56px);
-    left: 50%;
-    max-height: 28%;
-    translate: -50% 0;
+    position: static;
+    width: min(320px, 100%);
+    max-height: 28vh;
+    translate: none;
+  }
+  /* Upright: the prompt on its own line above the stick and the buttons. */
+  .explore-controls {
+    display: grid;
+    grid-template-areas:
+      "prompt prompt prompt"
+      "stick . pad";
+    grid-template-columns: auto 1fr auto;
+    row-gap: 12px;
+    align-items: end;
+    width: 100%;
+    pointer-events: none;
+  }
+  .explore-use {
+    position: static;
+    grid-area: prompt;
+    justify-self: center;
+    max-width: 100%;
+    white-space: nowrap;
+    translate: none;
   }
   .explore-stick {
-    position: absolute;
-    bottom: calc(var(--gap) + 24px);
-    left: calc(var(--gap) + 24px);
-    z-index: 20;
+    grid-area: stick;
     display: block;
     width: 144px;
     height: 144px;
@@ -1421,57 +1462,100 @@ mark {
     border-radius: 50%;
     touch-action: none;
   }
-  .explore-jump,
-  .explore-sink,
-  .explore-fly {
-    position: absolute;
-    right: calc(var(--gap) + 24px);
-    bottom: calc(var(--gap) + 48px);
-    z-index: 20;
+  /* The ride's buttons, by what each is for: the main one at the bottom right, Fly above it, the rest beside. */
+  .explore-pad {
+    grid-area: pad;
+    display: grid;
+    grid-template-areas:
+      "fly"
+      "primary";
+    gap: 10px;
+    place-items: center;
+    pointer-events: none;
+  }
+  .explore-dock[data-pad="bicycle"] .explore-pad {
+    grid-template-areas:
+      "ring fly"
+      "up primary"
+      "down primary";
+  }
+  .explore-dock[data-pad="flying"] .explore-pad {
+    grid-template-areas:
+      ". fly"
+      "sink primary";
+  }
+  .explore-pad button {
     display: grid;
     place-items: center;
-    width: 72px;
-    height: 72px;
     font-weight: 600;
-    border-radius: 50%;
     touch-action: none;
   }
-  /* Down beside Up while flying; Fly above them, smaller, as it is pressed seldom. */
+  .explore-jump,
   .explore-sink {
-    right: calc(var(--gap) + 24px + 72px + 12px);
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+  }
+  .explore-jump {
+    grid-area: primary;
+  }
+  .explore-dock[data-pad="car"] .explore-jump {
+    font-size: 12px;
+  }
+  .explore-sink {
+    grid-area: sink;
   }
   .explore-fly {
-    right: calc(var(--gap) + 24px + 8px);
-    bottom: calc(var(--gap) + 48px + 72px + 16px);
+    grid-area: fly;
     width: 56px;
     height: 56px;
+    border-radius: 50%;
   }
   .explore-fly[aria-pressed="true"] {
     color: var(--accent-ink);
     background: var(--accent);
   }
-  /* On the bicycle: Ring and the gears in a column beside Brake; the prompt and the panel in sight lifted clear of it. */
-  .explore[data-riding="bicycle"] .explore-use {
-    bottom: calc(var(--gap) + 24px + 160px + 12px);
-  }
-  .explore[data-riding="bicycle"] .explore-sight {
-    bottom: calc(var(--gap) + 24px + 160px + 12px + 56px);
-  }
-  .explore-ride-buttons {
-    position: absolute;
-    right: calc(var(--gap) + 24px + 72px + 12px);
-    bottom: calc(var(--gap) + 24px);
-    z-index: 20;
-    display: grid;
-    gap: 8px;
-  }
-  .explore-ride-buttons button {
+  .explore-ring,
+  .explore-gear-up,
+  .explore-gear-down {
     min-width: 48px;
     min-height: 48px;
     padding: 0 12px;
-    font-weight: 600;
     border-radius: var(--radius-control);
-    touch-action: none;
+  }
+  .explore-ring {
+    grid-area: ring;
+  }
+  .explore-gear-up {
+    grid-area: up;
+  }
+  .explore-gear-down {
+    grid-area: down;
+  }
+}
+/* On a touch screen on its side: the card at the left under the title, its prompt between the stick and the buttons,
+   the panel in sight at the right above them. */
+@media (pointer: coarse) and (orientation: landscape) {
+  .explore-card {
+    left: var(--gap);
+    width: min(360px, calc(50% - var(--gap)));
+    translate: none;
+  }
+  .explore-engine {
+    display: none;
+  }
+  .explore-controls {
+    grid-template-areas: "stick prompt pad";
+  }
+  .explore-use {
+    align-self: end;
+  }
+  .explore-sight {
+    position: absolute;
+    top: calc(var(--gap) + var(--control) + 16px);
+    right: var(--gap);
+    width: min(300px, calc(50% - 2 * var(--gap)));
+    max-height: calc(100% - var(--gap) - var(--control) - 16px - 220px);
   }
 }
 /* A finished load holds its card for a moment; its Cancel has nothing left to stop, so it keeps its place unseen. */

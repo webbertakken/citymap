@@ -14,6 +14,7 @@ import {
   bumped,
   clearOfVehicles,
   distanceTo,
+  modelOf,
   nearestOf,
   parkedBy,
   parkedNow,
@@ -322,6 +323,14 @@ describe("nearestOf", () => {
     expect(nearestOf(vehicles, { x: 0, z: 0 }, 1, null)).toEqual(["near car", "near bike"]);
     expect(nearestOf(vehicles, { x: 0, z: 0 }, 2, null)).toEqual(["near car", "far car", "near bike", "middle bike"]);
     expect(nearestOf(vehicles, { x: 0, z: 0 }, 1, "far bike")).toEqual(["far bike", "near car", "near bike"]);
+    // Pickups after saloons, motorbikes before bicycles.
+    const more: Vehicle[] = [
+      ...vehicles,
+      { ...car(1, 0), id: "pickup", body: "pickup" },
+      { ...motorbike(), id: "motorbike", feet: at(2, 0) },
+    ];
+    expect(nearestOf(more, { x: 0, z: 0 }, 1, null)).toEqual(["near car", "pickup", "motorbike", "near bike"]);
+    expect(modelOf(more.at(-1)!)).toBe("motorbike");
   });
 });
 

@@ -56,6 +56,17 @@ function urlIn(answer: unknown): string {
   throw new Error(`models/itch-no-url ${JSON.stringify(answer)}`);
 }
 
+/**
+ * The uploads on an itch.io download page, each its id and its file's name: the name is the `title` of the element
+ * classed `name` after the upload's id, whichever order the page writes the two attributes in.
+ */
+export function uploadsIn(page: string): { readonly id: string; readonly name: string }[] {
+  return [...page.matchAll(/data-upload_id="(\d+)"[\s\S]*?<[a-z]+([^>]*\bclass="name"[^>]*)>/g)].flatMap((m) => {
+    const name = m[2]?.match(/\btitle="([^"]+)"/)?.[1];
+    return name ? [{ id: m[1]!, name }] : [];
+  });
+}
+
 async function itchOnce(page: string, wanted: string): Promise<Uint8Array> {
   const jar = new Map<string, string>();
   const cookies = () => [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
@@ -81,11 +92,10 @@ async function itchOnce(page: string, wanted: string): Promise<Uint8Array> {
   if (!csrf) throw new Error(`models/itch-no-token ${page}`);
   const url = urlIn(await keep(await fetch(`${page}/download_url`, form(csrf))).json());
   const downloads = await keep(await fetch(url, { headers: { cookie: cookies() } })).text();
-  const uploads = [...downloads.matchAll(/data-upload_id="(\d+)"[\s\S]*?class="name"[^>]*title="([^"]+)"/g)];
-  const upload = uploads.find((m) => m[2]?.includes(wanted));
+  const upload = uploadsIn(downloads).find((u) => u.name.includes(wanted));
   if (!upload) throw new Error(`models/itch-no-upload ${page} ${wanted}`);
   const token = downloads.match(/name="csrf_token" value="([^"]+)"/)?.[1] ?? csrf;
-  const file = `${page}/file/${upload[1]}?source=game_download&after_download_lightbox=1&as_props=1`;
+  const file = `${page}/file/${upload.id}?source=game_download&after_download_lightbox=1&as_props=1`;
   return fetchBytes(urlIn(await (await fetch(file, form(token))).json()));
 }
 

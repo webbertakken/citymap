@@ -15,6 +15,7 @@ import {
   RECHOOSE,
   STREETS_KEEP,
   aheadOf,
+  gapTo,
   planStreets,
   rebased,
   streetGrid,
@@ -177,14 +178,15 @@ export interface Garage {
   /**
    * Moves the window round the player (where it is and how fast it goes): re-centres the frame when far from it, brings
    * the vehicles near it in and lets far ones go, lowers buildings left behind and raises those ahead, nearest first,
-   * until `budget` milliseconds are spent. Says how many buildings stand and how many wait.
+   * until `budget` milliseconds are spent. Says how many buildings stand, how many wait, and how near the player the
+   * nearest waiting one is (metres; infinite when none waits).
    */
   readonly follow: (
     at: Vec3,
     velocity: Spot,
     vehicles: readonly Vehicle[],
     budget: number,
-  ) => { readonly standing: number; readonly waiting: number };
+  ) => { readonly standing: number; readonly waiting: number; readonly nearest: number };
   /** One step of the cars near the player, each driven car by its intents; the vehicles after it, in their order. */
   readonly drive: (vehicles: readonly Vehicle[], drivers: Drivers, dt: number) => readonly Vehicle[];
   /** Whether Rapier keeps up: its steps take no more than `SLOW_SHARE` of the time they cover, over `SLOW_WINDOW`. */
@@ -213,17 +215,15 @@ function hullOf(rapier: Rapier, footprint: Footprint, middle: Spot) {
 }
 
 /**
- * The garage for a city: Rapier loaded (once a page), its world with a ground round the landing, and the streets round
+ * The garage for a city: Rapier (loaded once a page), its world with a ground round the landing, and the streets round
  * it raised, counted to the loading card.
  */
 export async function openGarage(footprints: readonly Footprint[], options: GarageOptions): Promise<Garage> {
   const { onStep, signal, at } = options;
   const now = options.now ?? (() => performance.now());
   const started = now();
-  onStep?.({ phase: "engine" });
   const rapier = await loadRapier();
   signal?.throwIfAborted();
-  const engineMs = Math.round(now() - started);
   const world = new rapier.World({ x: 0, y: -GRAVITY, z: 0 });
   const garage = garageIn(rapier, world, footprints, at, now, options.traffic ?? 0);
   try {
@@ -239,11 +239,7 @@ export async function openGarage(footprints: readonly Footprint[], options: Gara
     };
     await raiseFrom(0);
     onStep?.({ phase: "streets", done: first, of: first });
-    log.info("explore/streets", {
-      buildings: garage.standing(),
-      engineMs,
-      ms: Math.round(now() - started),
-    });
+    log.info("explore/streets", { buildings: garage.standing(), ms: Math.round(now() - started) });
     return garage.garage;
   } catch (failure) {
     garage.garage.dispose();
@@ -523,7 +519,8 @@ function garageIn(
         left = left.slice(1);
       }
       chosen = { ...plan, lower: [], raise: left };
-      return { standing: raised.size, waiting: left.length };
+      const nearest = Math.min(Infinity, ...left.map((lot) => gapTo(grid.standing.get(lot)!, at)));
+      return { standing: raised.size, waiting: left.length, nearest };
     },
     drive: (vehicles, drivers, dt) => {
       const started = now();
