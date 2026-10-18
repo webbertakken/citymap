@@ -592,11 +592,12 @@ the tooltip's width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in `packages/s
 - Opening anything: the worker reads or lays the city, builds its scene and its pick grid, and hands their buffers over;
   the main thread parses the city file's text once, attaches the grid, draws, and builds the search index in slices. The
   card's sweep runs on the compositor meanwhile. The loading card shifts nothing and its Cancel answers within the
-  budget (`vitals.spec.ts`). On the slowed phone (medians of three runs, against the main thread building both indexes,
-  the scene and the city's validation itself): livediagram's longest task 79 ms (was 209 ms), its Quarters layout 57 ms
-  (was 148 ms), linux from a city file 836 ms (was 1,955 ms), linux from GitHub 484 ms (was 1,210 ms). What remains for
-  linux is parsing its 43 MB city file on the main thread (about 290 ms there) and the buildings' lot table built from
-  its measures (`cityBuildings`, `tableFor`: about 450 ms over the opening), neither of them an index.
+  budget (`vitals.spec.ts`). On the slowed phone (medians of three runs, alternating with the main thread building both
+  indexes, the scene and the city's validation itself): livediagram's longest task 68 ms (was 188 ms), its Quarters
+  layout none over 50 ms (was 137 ms), linux from a city file 763 ms (was 2,097 ms), linux from GitHub 749 ms (was 1,342
+  ms). What remains for linux is parsing its 43 MB city file on the main thread (about 290 ms there) and the buildings'
+  lot table built from its measures (`cityBuildings`, `tableFor`: about 450 ms over the opening), neither of them an
+  index.
 - `e2e/vitals-opening.spec.ts` (the vitals projects; phone only, and only where a phone can be timed) records `longtask`
   entries before the page's scripts run and reports, per opening, the longest main-thread task and the blocking time
   (the time beyond 50 ms of every task) on the slowed phone: livediagram from More, then its Quarters layout, asserted
