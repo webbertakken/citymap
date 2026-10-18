@@ -143,6 +143,7 @@ fingerprint is the first token:
 | `history/skip-submodule`       | a submodule entry is skipped (path)                                  |
 | `history/manifest-unavailable` | a root manifest blob cannot be read (path, index)                    |
 | `history/schedule`             | the fold schedule, once per read (commits, coarse, tail, from, laid) |
+| `history/mailmap`              | the target's `.mailmap`, with a file history (status, entries)       |
 
 Each run ends with one summary line: `fold/done repository=… commits=… laid=… lots=… overflow=… ms=…`, where `commits`
 counts the commits the run folded (from the first laid index to the last, inclusive) and `laid` the snapshots it laid.

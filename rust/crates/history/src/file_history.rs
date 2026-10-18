@@ -28,11 +28,11 @@ fn count(n: usize) -> i64 {
 }
 
 impl FileHistory {
-    /// One commit changed the file of this identity: at `time`, by `author` (an email, lower-cased in ASCII).
-    pub fn record(&mut self, identity: &str, time: i64, author: &str) {
-        let email = author.to_ascii_lowercase();
+    /// One commit changed the file of this identity: at `time`, by the author the mailmap gives `email` to (lower-cased
+    /// in ASCII).
+    pub fn record(&mut self, identity: &str, time: i64, email: &str) {
         let next = u32::try_from(self.people.len()).unwrap_or(u32::MAX);
-        let person = *self.people.entry(email).or_insert(next);
+        let person = *self.people.entry(email.to_ascii_lowercase()).or_insert(next);
         match self.files.get_mut(identity) {
             Some(file) => {
                 file.changed = file.changed.max(time);

@@ -8,7 +8,7 @@ import { expect, test, type Page } from "@playwright/test";
 // Opening a repository on the machine. Chromium's folder dialog cannot be driven, so it is stood in for by a folder
 // in the origin private file system: a real FileSystemDirectoryHandle, read by the same code as a picked one.
 
-const PICK = "Open a local repository…";
+const PICK = "Open a local repository";
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const env = {
   ...process.env,
@@ -138,9 +138,11 @@ async function standInForTheDialog(page: Page) {
 const drawn = (page: Page) =>
   page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
-async function openFromMore(page: Page, name: string = PICK) {
+/** Opens a folder: the button beside the search box, or More's "Open {name} again". */
+async function openFolder(page: Page, again?: string) {
+  if (again === undefined) return page.getByRole("button", { name: PICK }).click();
   await page.getByRole("button", { name: "More" }).click();
-  await page.getByRole("button", { name }).click();
+  await page.getByRole("button", { name: again }).click();
 }
 
 /** Requests that leave the page's own origin, and any that name the folder. */
@@ -169,9 +171,21 @@ test.describe("a local repository through Chromium's folder dialog", () => {
     page.on("console", (message) => logs.push(message.text()));
     await stage(page, "widgets");
     const leaks = watchRequests(page, "widgets");
-    await page.getByRole("button", { name: "More" }).click();
-    await expect(page.getByText("As it is now, not folded over its history.")).toBeVisible();
-    await page.screenshot({ path: info.outputPath("more.png") });
+    // Right beside the search box, level with it; the search keeps its place and width.
+    const search = (await page.locator(".search").boundingBox())!;
+    const button = (await page.getByRole("button", { name: PICK }).boundingBox())!;
+    expect(button.x - (search.x + search.width)).toBe(8);
+    expect([button.y, button.height]).toEqual([search.y, search.height]);
+    expect(search.x + search.width / 2).toBe(1400 / 2);
+    expect(search.width).toBe(520);
+    await page.getByRole("button", { name: PICK }).hover();
+    const tip = page.getByRole("tooltip").filter({ hasText: "not folded over its history" });
+    await expect(tip).toBeVisible();
+    // Under the button, its right edge on the button's, clear of the search.
+    const tipBox = (await tip.boundingBox())!;
+    expect(tipBox.y).toBeGreaterThanOrEqual(search.y + search.height);
+    expect(tipBox.x + tipBox.width).toBe(button.x + button.width);
+    await page.screenshot({ path: info.outputPath("beside-search.png") });
     expect((await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations.map((v) => v.id)).toEqual([]);
     await page.getByRole("button", { name: PICK }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("widgets");
@@ -193,7 +207,7 @@ test.describe("a local repository through Chromium's folder dialog", () => {
     // Reopened later, the remembered folder is offered again, and opens once the browser allows it.
     await page.reload();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
-    await openFromMore(page, "Open widgets again");
+    await openFolder(page, "Open widgets again");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("widgets");
   });
 
@@ -201,13 +215,13 @@ test.describe("a local repository through Chromium's folder dialog", () => {
     const logs: string[] = [];
     page.on("console", (message) => logs.push(message.text()));
     await stage(page, "site");
-    await openFromMore(page);
+    await openFolder(page);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("site");
     expect(logs).toContainEqual("viewer/local-walk files=3");
   });
 
   test("changes nothing when the dialog closes without a folder", async ({ page }) => {
-    await openFromMore(page);
+    await openFolder(page);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
     await expect(page.locator(".notice")).toHaveCount(0);
   });
@@ -221,7 +235,7 @@ test.describe("a local repository through Chromium's folder dialog", () => {
   ] as const)
     test(`names ${name} in the notice and keeps the last city`, async ({ page }, info) => {
       await stage(page, name);
-      await openFromMore(page);
+      await openFolder(page);
       await expect(page.locator(".notice [role=alert]")).toHaveText(sentence);
       await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
       await expect(page.locator(".status")).toHaveText(/lots$/);
@@ -238,7 +252,7 @@ test.describe("in a light system scheme", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
     await stage(page, "widgets");
-    await openFromMore(page);
+    await openFolder(page);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("widgets");
     await drawn(page);
     await page.screenshot({ path: info.outputPath("local-light.png") });
@@ -258,7 +272,7 @@ test.describe("a local repository through the folder input", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
     const chooser = page.waitForEvent("filechooser");
-    await openFromMore(page);
+    await openFolder(page);
     await expect(page.locator(".status")).toHaveText("Listing the folder's files…");
     await (await chooser).setFiles(fixtures.widgets!);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("widgets");
@@ -289,7 +303,7 @@ test.describe("a local repository's measures", () => {
   test("reads its files' lines and its coverage report, keeping both on the machine", async ({ page }, info) => {
     await stage(page, "covered");
     const leaks = watchRequests(page, "covered");
-    await openFromMore(page);
+    await openFolder(page);
     await expect(page.locator(".status")).toContainText("local, single state, not folded");
     await page.getByRole("searchbox").fill("button");
     await page.keyboard.press("Enter");

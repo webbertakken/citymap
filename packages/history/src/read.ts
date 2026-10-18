@@ -7,6 +7,7 @@ import { countCommits, resolveCommit } from "./ancestry";
 import { BlobReader } from "./blobs";
 import { gitEnvironment } from "./env";
 import type { FileHistory } from "./file-history";
+import { emailOf, readMailmap, type Author, type Mailmap, type MailmapRead } from "./mailmap";
 import { foldSchedule, isLaid, laidCount, type Strides } from "./schedule";
 import { Workspaces, type ManifestUnavailable } from "./workspaces";
 
@@ -18,11 +19,11 @@ interface RawEntry {
   readonly path: string;
 }
 
-/** One first-parent commit: its id, its committer time (epoch seconds), its author's email, and its changes. */
+/** One first-parent commit: its id, its committer time (epoch seconds), its author as written, and its changes. */
 export interface RawCommit {
   readonly sha: string;
   readonly time: number;
-  readonly author: string;
+  readonly author: Author;
   readonly entries: readonly RawEntry[];
 }
 
@@ -41,20 +42,29 @@ export interface ScheduleChosen {
 export type HistoryEvent =
   | { readonly code: "history/skip-submodule"; readonly detail: { readonly path: string; readonly index: number } }
   | ManifestUnavailable
+  | MailmapRead
   | ScheduleChosen;
 
 const SUBMODULE = "160000";
 
-/** A commit's header, "<sha>\x02<time>\x02<email>" after its \x01 mark; a time that is no number reads 0. */
-function headerOf(token: string): { sha: string; time: number; author: string; entries: RawEntry[] } {
-  const [sha = "", time = "", author = ""] = token.slice(1).split("\u0002");
+/**
+ * A commit's header, "<sha>\x02<time>\x02<email>\x02<name>" after its \x01 mark: the name is the rest, so one holding a
+ * \x02 stays whole; a time that is no number reads 0.
+ */
+function headerOf(token: string): { sha: string; time: number; author: Author; entries: RawEntry[] } {
+  const [sha = "", time = "", email = "", ...name] = token.slice(1).split("\u0002");
   const seconds = /^\d+$/.test(time) ? Number(time) : 0;
-  return { sha, time: Number.isSafeInteger(seconds) ? seconds : 0, author, entries: [] };
+  return {
+    sha,
+    time: Number.isSafeInteger(seconds) ? seconds : 0,
+    author: { name: name.join("\u0002"), email },
+    entries: [],
+  };
 }
 
 /** Parses git's `log --raw -z` tokens (split at NUL) into commits. */
 export function* parseRawLog(tokens: Iterable<string>): Generator<RawCommit> {
-  let current: { sha: string; time: number; author: string; entries: RawEntry[] } | null = null;
+  let current: { sha: string; time: number; author: Author; entries: RawEntry[] } | null = null;
   let meta: string | null = null;
   for (const raw of tokens) {
     const token = raw.startsWith("\n") ? raw.slice(1) : raw;
@@ -184,12 +194,16 @@ export interface ReadOptions {
   readonly fileHistory?: FileHistory;
 }
 
-/** Records a commit's changes to the files it leaves live, after it is applied, by the identities they carry. */
-function recordChanges(history: FileHistory, state: ReadonlyMap<string, Live>, commit: RawCommit): void {
+/**
+ * Records a commit's changes to the files it leaves live, after it is applied, by the identities they carry, under the
+ * email the mailmap gives its author.
+ */
+function recordChanges(history: FileHistory, mailmap: Mailmap, state: ReadonlyMap<string, Live>, commit: RawCommit) {
+  const email = emailOf(mailmap, commit.author);
   for (const entry of commit.entries) {
     if (entry.status === "D" || entry.mode === SUBMODULE) continue;
     // Applying the commit made every such path live.
-    history.record(state.get(entry.path)!.identity, commit.time, commit.author);
+    history.record(state.get(entry.path)!.identity, commit.time, email);
   }
 }
 
@@ -223,6 +237,15 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
       laid: laidCount(schedule, from),
     },
   });
+  const blobs = new BlobReader(dir);
+  // The target's own .mailmap names the people, so the history alone decides who they are. Read before the log starts:
+  // a listing that fails leaves no process behind, as it fails before any blob is asked for.
+  let mailmap: Mailmap = new Map();
+  if (options.fileHistory) {
+    const read = await readMailmap(dir, head, blobs);
+    onEvent(read.event);
+    mailmap = read.mailmap;
+  }
   const child = spawn(
     "git",
     [
@@ -240,7 +263,8 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
       "-z",
       "--no-renames",
       "--no-abbrev",
-      "--format=%x01%H%x02%ct%x02%aE",
+      // The author as written: %aE would map it through the working tree's .mailmap.
+      "--format=%x01%H%x02%ct%x02%ae%x02%an",
       head,
       "--",
     ],
@@ -256,7 +280,6 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
   const state = new Map<string, Live>();
   const folders = new Map<string, number>();
   const workspaces = new Workspaces();
-  const blobs = new BlobReader(dir);
   let index = 0;
   // The files and folders as last handed over: a commit that leaves the file set as it was hands over the same ones, so
   // what the layout derives from them can be kept (snapshots are immutable; nothing mutates these).
@@ -277,7 +300,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
     const texts = new Map([...wanted, ...older]);
     for (const commit of commits) {
       if (apply(state, folders, workspaces, commit, index, onEvent)) [files, folderMap] = [null, null];
-      if (options.fileHistory) recordChanges(options.fileHistory, state, commit);
+      if (options.fileHistory) recordChanges(options.fileHistory, mailmap, state, commit);
       if (laid(index)) {
         files ??= filesOf(state);
         folderMap ??= new Map(folders);

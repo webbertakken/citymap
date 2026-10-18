@@ -267,9 +267,10 @@ phone), so nothing the cards do moves the map or each other.
   status (`aria-live="polite"`), 13 px on an 18 px line, wrapping (`overflow-wrap: anywhere`) and never cut: its box
   holds two lines from the first paint (`min-height: 36px`), so a status that wraps moves nothing. The card is 94 px
   tall on a desktop and 82 px on a phone.
-- `SearchBox` (`<search>`; top centre, at most 520 px and clear of the title card on both sides; from 1,100 px down,
-  under the title card, as wide as the room left of the drawer, at most 440 px; on a phone, the full width under the
-  title row): an `<input type="search">` labelled "Search files and folders, or lay owner/name", over a summary
+- `SearchBox` (`<search>`, inside `.finder` with the local repository button hanging to its right; top centre, at most
+  520 px and clear of the title card on both sides; from 1,100 px down, under the title card, as wide as the room left
+  of the drawer less the button's 56 px, at most 440 px; on a phone, the full width under the title row, less 56 px on a
+  fine pointer): an `<input type="search">` labelled "Search files and folders, or lay owner/name", over a summary
   (`aria-live="polite"`, also the field's description) and a `<ul aria-label="Matches">` of buttons, each naming its
   kind ("Folder" or "File", visually hidden), its name with the match marked (`<mark>`), and its path. `/` anywhere but
   in a field focuses it; focus or a press outside the search closes the list. A query that rests `SETTLE_MS` 600 ms is
@@ -298,10 +299,10 @@ phone), so nothing the cards do moves the map or each other.
   "Buildings", `aria-pressed`; "Buildings" pressed again returns to plan; on a phone only its icon shows); "Theme" (a
   popover `<fieldset>`, legend "Map theme", of radio inputs, one per theme); then "More" (a popover headed "Example
   cities": each bundled city as a button, "{name} {lots} lots", the current one `aria-current`, then "Open a city file…"
-  behind a hidden `<input type="file">` labelled "City file", then the local repository group of
-  [local repositories](../../007-local-repositories/blueprints/local-repositories.md)). A popover (`Popover.tsx`:
-  `aria-expanded`, `aria-controls`) closes on Escape and on a pick, both handing focus back to its button, and on focus
-  or a press outside.
+  behind a hidden `<input type="file">` labelled "City file", then the local repository group (opening the last folder
+  again) of [local repositories](../../007-local-repositories/blueprints/local-repositories.md)). A popover
+  (`Popover.tsx`: `aria-expanded`, `aria-controls`) closes on Escape and on a pick, both handing focus back to its
+  button, and on focus or a press outside.
 - `Drawer` (`<aside aria-label="Details">`; right, 320 px, from below the top row to 16 px above the bottom): "Selected"
   (the hit's card body, `CardBody`, as on the hover card, then its actions, below), then "Towns" (each town's name and
   lot count, the first `TOWNS_SHOWN` 7 by lots, then "Show all {n} towns" and "Show fewer towns"; each name a button,

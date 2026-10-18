@@ -549,3 +549,121 @@ fn measures_a_partial_clone_without_fetching() {
         (serde_json::Value::Null, true.into(), 2.into())
     );
 }
+
+/// A fresh folder named `fixture`, so every copy lays under the same repository name.
+fn fixture_folder() -> (Repo, PathBuf) {
+    let n = NEXT.fetch_add(1, Ordering::SeqCst);
+    let parent = std::env::temp_dir().join(format!("citymap-cli-mailmap-{}-{n}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&parent);
+    std::fs::create_dir_all(&parent).expect("a folder");
+    let dir = parent.join("fixture");
+    (Repo(parent), dir)
+}
+
+/// Ann under two addresses and Bob; the last commit's .mailmap makes Ann one person, an earlier one knew nobody.
+fn mailmapped() -> (Repo, PathBuf) {
+    let (parent, dir) = fixture_folder();
+    std::fs::create_dir_all(dir.join("src")).expect("a folder");
+    git(&dir, &["init", "-q", "-b", "main"]);
+    let commit_as = |name: &str, email: &str| {
+        git(&dir, &["add", "-A"]);
+        let (email_flag, name_flag) = (format!("user.email={email}"), format!("user.name={name}"));
+        git(
+            &dir,
+            &["-c", &email_flag, "-c", &name_flag, "commit", "-q", "-m", email],
+        );
+    };
+    std::fs::write(dir.join("src/a.ts"), "1\n").expect("a file");
+    commit_as("Ann", "ann@old.org");
+    std::fs::write(dir.join("src/a.ts"), "2\n").expect("a file");
+    std::fs::write(dir.join(".mailmap"), "# nobody yet\n").expect("a file");
+    commit_as("Ann", "ann@new.org");
+    std::fs::write(dir.join("src/a.ts"), "3\n").expect("a file");
+    commit_as("Bob", "bob@x.org");
+    std::fs::write(dir.join(".mailmap"), "Ann <ann@new.org> <ann@old.org>\n").expect("a file");
+    commit_as("Bob", "bob@x.org");
+    (parent, dir)
+}
+
+/// The city file a fold writes, and its log without timings.
+fn lay_city(dir: &Path, flags: &[&str]) -> (String, Vec<String>) {
+    let mut io = Memory::default();
+    let mut all = vec!["--out=city.json"];
+    all.extend_from_slice(flags);
+    run_lay(&command(dir, &all), &mut io, 1000, FOLD_STRIDES).expect("a city");
+    let lines = io
+        .lines
+        .iter()
+        .map(|l| l.split(" ms=").next().unwrap_or(l).to_owned())
+        .collect();
+    (io.files[Path::new("city.json")].clone(), lines)
+}
+
+#[test]
+fn lays_the_same_city_with_and_without_a_checkout_whatever_the_working_trees_mailmap_and_gits_settings() {
+    let (_source, source) = mailmapped();
+    let (_bare, bare) = fixture_folder();
+    git(
+        &source,
+        &[
+            "clone",
+            "-q",
+            "--no-checkout",
+            &source.display().to_string(),
+            &bare.display().to_string(),
+        ],
+    );
+    let (_checked, checked) = fixture_folder();
+    git(
+        &source,
+        &[
+            "clone",
+            "-q",
+            &source.display().to_string(),
+            &checked.display().to_string(),
+        ],
+    );
+    let without = lay_city(&bare, &[]);
+    let a = file_of(&without.0, "src/a.ts");
+    assert_eq!((&a["commits"], &a["authors"]), (&3.into(), &2.into()));
+    assert!(without.1.contains(&"history/mailmap status=read entries=1".to_owned()));
+    assert_eq!(lay_city(&checked, &[]), without);
+    // A working tree .mailmap and settings that would make everyone one person change nothing.
+    let everyone = "One <one@x> <ann@old.org>\nOne <one@x> <ann@new.org>\nOne <one@x> <bob@x.org>\n";
+    std::fs::write(checked.join(".mailmap"), everyone).expect("a file");
+    let elsewhere = checked.with_file_name("everyone");
+    std::fs::write(&elsewhere, everyone).expect("a file");
+    git(&checked, &["config", "mailmap.file", &elsewhere.display().to_string()]);
+    git(&checked, &["config", "mailmap.blob", "HEAD:.mailmap"]);
+    assert_eq!(lay_city(&checked, &[]), without);
+}
+
+#[test]
+fn maps_authors_by_the_mailmap_of_the_commit_it_lays_and_resumes_to_the_same_city() {
+    let (_parent, dir) = mailmapped();
+    let earlier = lay_city(&dir, &["--to=HEAD~1"]);
+    let a = file_of(&earlier.0, "src/a.ts");
+    assert_eq!((&a["commits"], &a["authors"]), (&3.into(), &3.into()));
+    assert!(earlier.1.contains(&"history/mailmap status=read entries=0".to_owned()));
+    let mut lock_at = Memory::default();
+    run_lay(
+        &command(&dir, &["--to=HEAD~1", "--lock"]),
+        &mut lock_at,
+        1000,
+        FOLD_STRIDES,
+    )
+    .expect("a city");
+    let lock = lock_at.files[&dir.join(LOCKFILE)].clone();
+    let mut resumed = Memory::default();
+    resumed.files.insert(dir.join(LOCKFILE), lock);
+    run_lay(
+        &command(&dir, &["--out=city.json", "--lock"]),
+        &mut resumed,
+        1000,
+        FOLD_STRIDES,
+    )
+    .expect("a city");
+    let saved = git(&dir, &["rev-parse", "HEAD~1"]);
+    assert!(resumed.lines.contains(&format!("lock/resume commit={saved} index=2")));
+    assert_eq!(resumed.files[Path::new("city.json")], lay_city(&dir, &[]).0);
+}

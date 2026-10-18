@@ -42,6 +42,7 @@ import { Drawer } from "./Drawer";
 import { ExploreView, type ExploreCanvasProps } from "./ExploreView";
 import { Legend } from "./Legend";
 import { LoadingCard } from "./LoadingCard";
+import { LocalButton } from "./LocalButton";
 import { MapView, type CanvasProps } from "./MapView";
 import { MeasureRows, type RowsOf } from "./MeasureRows";
 import { Notice } from "./Notice";
@@ -637,14 +638,17 @@ export function Viewer({
           onWhole={() => drill(null)}
         />
         {!walking && (
-          <SearchBox
-            index={finder?.search ?? null}
-            // Matches come only from `finder`'s index, so `finder` is there whenever one is picked.
-            onPick={(entry) => goTo(entry, finder!)}
-            onRepository={(name) => void openRepository(name)}
-            suggester={suggester}
-            allowance={allowance}
-          />
+          <div className="finder">
+            <SearchBox
+              index={finder?.search ?? null}
+              // Matches come only from `finder`'s index, so `finder` is there whenever one is picked.
+              onPick={(entry) => goTo(entry, finder!)}
+              onRepository={(name) => void openRepository(name)}
+              suggester={suggester}
+              allowance={allowance}
+            />
+            <LocalButton local={local} />
+          </div>
         )}
         {loading.shown && loading.progress && (
           <LoadingCard progress={loading.progress} now={loading.now} onCancel={loading.cancel} />

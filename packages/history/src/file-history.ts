@@ -21,13 +21,13 @@ export class FileHistory {
   private readonly people = new Map<string, number>();
   private readonly files = new Map<string, Record>();
 
-  /** One commit changed the file of this identity: at `time`, by `author` (an email). */
-  record(identity: string, time: number, author: string): void {
-    const email = folded(author);
-    let person = this.people.get(email);
+  /** One commit changed the file of this identity: at `time`, by the author the mailmap gives `email` to. */
+  record(identity: string, time: number, email: string): void {
+    const key = folded(email);
+    let person = this.people.get(key);
     if (person === undefined) {
       person = this.people.size;
-      this.people.set(email, person);
+      this.people.set(key, person);
     }
     const file = this.files.get(identity);
     if (file) {

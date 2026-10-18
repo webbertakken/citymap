@@ -46,8 +46,8 @@ Each TypeScript module has one Rust module of the same name (snake case); functi
 | `fold/`                                                                    | `fold.rs`                                                                                                   |
 | `organic/` (delaunay, regions)                                             | `organic/` (same names)                                                                                     |
 
-`packages/history/src/{read,schedule,tree,blobs,manifests,workspaces,ancestry,env,contents,file-history}.ts` map to
-`citymap-history`'s modules of the same names (`file_history.rs`);
+`packages/history/src/{read,schedule,tree,blobs,manifests,workspaces,ancestry,env,contents,file-history,mailmap}.ts` map
+to `citymap-history`'s modules of the same names (`file_history.rs`);
 `packages/measures/src/{section,by-name,language,text,lots}.ts` and `reports/{xml,report,match}.ts` to
 `citymap-measures` (`by_name.rs`, `reports/matching.rs`; aggregation and scales are the viewer's, TypeScript only);
 `packages/themes/src/{themes,colour}.ts` to `citymap-themes`; `packages/svg/src/render.ts` to `citymap-svg`;
@@ -222,6 +222,12 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   four formats written into each clone at their usual paths (`coverageReports`: a quarter of up to 400 sources each,
   LCOV and Istanbul by absolute CI paths, Cobertura by a source root, JaCoCo by package, and one path no repository
   holds), so the parsers and the path matching are compared byte for byte too.
+- The `checkout` mode folds a clone made with a checkout, whose working tree `.mailmap` (and `mailmap.file`, pointed at
+  the same text) maps up to `CHECKOUT_AUTHORS` 200 of its authors' emails to one (`checkoutMailmap`), so a CLI that read
+  the working tree would count fewer authors. Each such clone logs `parity/checkout-mailmap clone=… lines=…`. The CLIs'
+  outputs are compared with each other, and each CLI's city, SVG, lock and log with its own `fold` outputs (a
+  `--no-checkout` clone): `parity/checkout repo=… same` or `parity/checkout-differs repo=… files=<side>:<file>,…` (exit
+  1).
 - `--toggles=<list>` passes the same flag to both CLIs, so one run proves one toggle setting: the defaults (no flag),
   each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`).
 - One line per run: `parity/same repo=… mode=… ts-ms=… rs-ms=…` or `parity/differs repo=… mode=… files=… …` (exit 1),
@@ -230,8 +236,9 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
 - A lockfile the TypeScript engine wrote checks a long fold without running TypeScript again: the Rust CLI folds a
   shared clone to the lock's commit with `--lock`, and its lockfile must be the same bytes.
 - The CLIs read and write `citymap.lock.json` at the repository root, so each run gets its own
-  `git clone --shared --no-checkout` of the clone, under the repository's own name in a temporary folder: no lock is
-  ever written into the shared clones, and neither CLI resumes from the other's lock.
+  `git clone --shared --no-checkout` of the clone (with a checkout in the `checkout` mode), under the repository's own
+  name in a temporary folder: no lock is ever written into the shared clones, and neither CLI resumes from the other's
+  lock.
 
 ## Testing
 
