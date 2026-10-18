@@ -1364,14 +1364,7 @@ mark {
 .explore-sight .hit-rows {
   margin: 8px 0 0;
 }
-/* The bicycle's numbers: speed, gear and cadence, at the bottom left, clear of the walk's card. */
-.explore-hud {
-  position: absolute;
-  bottom: var(--gap);
-  left: var(--gap);
-  z-index: 20;
-  padding: 8px 16px;
-}
+/* The bicycle's numbers: speed, gear and cadence, in a row in the walk's card. */
 .explore-hud dl {
   display: flex;
   gap: 16px;
@@ -1457,15 +1450,12 @@ mark {
     color: var(--accent-ink);
     background: var(--accent);
   }
-  /* On the bicycle: the numbers stacked at the right above Fly; Ring and the gears in a column beside Brake. */
-  .explore-hud {
-    right: var(--gap);
-    bottom: calc(var(--gap) + 48px + 72px + 16px + 56px + 16px);
-    left: auto;
+  /* On the bicycle: Ring and the gears in a column beside Brake; the prompt and the panel in sight lifted clear of it. */
+  .explore[data-riding="bicycle"] .explore-use {
+    bottom: calc(var(--gap) + 24px + 160px + 12px);
   }
-  .explore-hud dl {
-    flex-direction: column;
-    gap: 4px;
+  .explore[data-riding="bicycle"] .explore-sight {
+    bottom: calc(var(--gap) + 24px + 160px + 12px + 56px);
   }
   .explore-ride-buttons {
     position: absolute;

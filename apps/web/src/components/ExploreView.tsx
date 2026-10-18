@@ -141,7 +141,7 @@ function RideHud({ ride }: { readonly ride: Ride }) {
   const { hud } = ride;
   return (
     <section
-      className="glass explore-hud"
+      className="explore-hud"
       aria-label="Speed, gear and cadence"
       data-foot={ride.foot ? "down" : "up"}
       data-fallen={ride.fallen || undefined}
@@ -438,6 +438,7 @@ export function ExploreView({
       ref={box}
       className="map explore"
       data-signs={signCount}
+      data-riding={riding ?? undefined}
       role="application"
       aria-label={`Walking in ${name}. W A S D or the arrow keys walk, Shift runs, Space jumps, E gets on or off, F flies the camera freely and lands it, the wheel sets its speed, click or drag to look around, Escape goes back to the map. On the bicycle, W pedals, S brakes the back wheel and Space the front, Q and R change gear, B rings the bell. A gamepad walks and rides too.`}
       tabIndex={0}
@@ -453,7 +454,6 @@ export function ExploreView({
       <span className="explore-crosshair" aria-hidden="true" />
       {sight && <SightCard sight={sight} inspect={inspect} />}
       <Canvas scene={scene} table={table} theme={theme} frame={frame} signs={signage} onSigns={setSignCount} />
-      {ride && <RideHud ride={ride} />}
       <section className="glass explore-card" aria-label={title}>
         <h2>
           {flying ? (
@@ -475,6 +475,7 @@ export function ExploreView({
               ? VEHICLES[riding].keys
               : "W A S D walk · Shift runs · Space jumps · E gets in · F flies · click to look · Esc leaves"}
         </p>
+        {ride && <RideHud ride={ride} />}
         <button type="button" className="text-button" onPointerDown={(event) => event.stopPropagation()} onClick={back}>
           <X size={16} aria-hidden="true" />
           <span>Back to the map</span>

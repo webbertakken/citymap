@@ -49,9 +49,10 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 ## Vehicles
 
 - Bicycles and cars stand parked at the kerbs of the city's streets, worked out from its plan, so a city always has the
-  same ones in the same places: some of the kerb places along every street hold one, never in a junction. A bicycle and
-  a car also stand at the kerb of the street the walk lands on, just ahead. The walk keeps those nearest its landing, a
-  few hundred, so a large city costs what a small one does. A motorbike and a helicopter are found in the city.
+  same ones in the same places: some of the kerb places along every street hold one, never in a junction. A bicycle also
+  stands at the kerb of the street the walk lands on, just ahead, and a car across the street, clear of the bicycle's
+  way. The walk keeps those nearest its landing, a few hundred, so a large city costs what a small one does. A motorbike
+  and a helicopter are found in the city.
 - Within reach (1.2 m), a prompt says what E does: "Get on the bicycle", "Get in the car". Riding, E gets off or out
   beside the vehicle once it has nearly stopped; until then the prompt says "Slow down to get off the bicycle". On a
   touch screen the prompt is a button.

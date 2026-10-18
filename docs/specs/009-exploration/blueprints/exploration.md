@@ -263,10 +263,12 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 - The prompt: top centre (above the stick on touch), `E` in a key cap and its words; disabled while "Slow down to …".
 - Touch: a 144 px stick (reach `STICK_REACH` 48 px) and a 72 px Jump button. On the bicycle the Jump button reads
   "Brake" (the front brake), and Ring, Gear down and Gear up (48 px, `explore-ride-buttons`) stand in a column beside
-  it, touch only and not while flying (where Down stands). The HUD on touch stacks at the right above Fly.
-- HUD (`explore-hud`, on the bicycle only): a region named "Speed, gear and cadence" holding a list of Speed ("18
-  km/h"), Gear ("3 of 7") and Cadence ("72 rpm"), shown when they change, at most every `HUD_EVERY` 0.1 s; `data-foot`
-  "down" or "up", `data-fallen` while thrown. Not live: a screen reader reads it on demand.
+  it, touch only and not while flying (where Down stands); riding (`data-riding` on the walk), the prompt and the panel
+  in sight lift clear of the column.
+- HUD (`explore-hud`, on the bicycle only, in the walk's card under its keys): a region named "Speed, gear and cadence"
+  holding a row of Speed ("18 km/h"), Gear ("3 of 7") and Cadence ("72 rpm"), shown when they change, at most every
+  `HUD_EVERY` 0.1 s; `data-foot` "down" or "up", `data-fallen` while thrown. Not live: a screen reader reads it on
+  demand.
 - The card's keys on the bicycle: "W pedals · S back brake · Space front brake · A D steer · Q R gears · B rings · E
   gets off · click to look · Esc leaves".
 - The bell (`explore/bell.ts`): `ringBell(context)` strikes twice, `BELL_GAP` 0.12 s apart, each two sine partials
@@ -313,7 +315,11 @@ read), and the loading card's `viewer/load-phase source=explore`.
 
 - Measured on a desktop (Bun): bespoke walls for 75,000 buildings in 132 ms and 82 MB; a move 0.5 µs, a ray 0.4 µs.
   Rapier: 996 ms and 312 MB at 75,000 buildings, 75 MB at 250; 1.6 MB gzipped, loaded only on Walk.
-- Models: people 370 to 381 KB, vehicles 159 to 224 KB each.
+- Models: people 370 to 381 KB, vehicles 159 to 224 KB each; each file measured once, however many copies.
+- The bicycle (Bun, desktop): `rideCycle` 0.71 µs a step, its load halving included; at 120 Hz under 0.01 % of a frame.
+- Parking: `parkedIn` 1.8 ms for takken.io (115 kept) and 2.9 ms for livediagram (4,135 lots, 200 kept); at most
+  `PARKED_MOST` 200 vehicles in the session (each step's `clearOfVehicles` and `reachable` skip a vehicle by its box
+  first), and the canvas draws at most 16 models.
 
 ## Testing
 
