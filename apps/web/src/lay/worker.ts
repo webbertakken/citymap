@@ -1,14 +1,15 @@
 // The city's worker: an opening lays a snapshot or reads a city file's text here, and makes its first look (a lot table
 // and the whole city's scene) with its pick grid, so the page answers while a city opens. It then stays with the city
 // while it is shown, making every town's scene ahead and whatever the viewer asks for, one task per macrotask, so a
-// newer ask is heard between two. Buffers are handed over without a copy; a laid city crosses as JSON text, which the
-// main thread parses faster than it would receive the city by structured clone.
+// newer ask is heard between two. Buffers are handed over without a copy; the city crosses as JSON pieces, which the
+// main thread parses one per task, faster than it would receive the city by structured clone and never in one long task.
 import type { Snapshot, Toggle } from "@citymap/ground-plan";
 import { pickBuffers, type ColourBy } from "@citymap/scene";
 import type { ThemeName } from "@citymap/themes";
 import type { Step } from "../load/step";
 import type { LiveFacts } from "../measures/live";
-import { failureOf, layMade, readMade, throttled, wireText, type Made, type OpenOptions } from "./lay";
+import { failureOf, layMade, readMade, throttled, type Made, type OpenOptions } from "./lay";
+import { cityPieces } from "./pieces";
 import { answerBuffers, asked, type Ask, type CityWork, type Tasks } from "./work";
 
 /** The least time between two progress posts, in milliseconds. */
@@ -88,11 +89,11 @@ function open(request: Exclude<Request, Ask>) {
     post.flush();
     work = made.work;
     tasks = made.tasks;
-    // A read's text is already on the main thread; a laid city crosses as its city file's text.
-    const text = request.job === "lay" ? wireText(made.work.file) : null;
-    const { floors, buildings } = made.work;
+    const { file, floors, buildings } = made.work;
     self.postMessage(
-      { opened: { text, grid: made.grid, floors, scales: buildings.scales, answers: made.answers } },
+      {
+        opened: { pieces: cityPieces(file), grid: made.grid, floors, scales: buildings.scales, answers: made.answers },
+      },
       { transfer: [...pickBuffers(made.grid), ...made.answers.flatMap(answerBuffers)] },
     );
     schedule();

@@ -12,6 +12,7 @@ import {
   windowUnknown,
   type Buildings as BuildingsData,
   type Layer,
+  type Scene,
 } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
 import { useEffect, useMemo } from "react";
@@ -26,18 +27,34 @@ import {
   GLSL3,
   NearestFilter,
   RGBAFormat,
+  Sphere,
+  Vector3,
 } from "three";
 import type { Mode } from "../view/view";
 
+/** How far past the scene's bounds a layer may reach, in street widths: a road's casing round the outermost town. */
+const LAYER_MARGIN = 8;
+
+/**
+ * A sphere round the scene's bounds, grown by `LAYER_MARGIN`: every layer lies inside it, flat near the ground, so
+ * three.js need not walk every vertex of a new layer to cull it.
+ */
+const sphereRound = ({ min, max }: Scene["bounds"]) =>
+  new Sphere(
+    new Vector3((min.x + max.x) / 2, 0, (min.z + max.z) / 2),
+    Math.hypot(max.x - min.x, max.z - min.z) / 2 + LAYER_MARGIN,
+  );
+
 /** One layer as one mesh: merged geometry with vertex colours, no lighting (the colours carry the light). */
-export function Mesh({ layer }: { readonly layer: Layer }) {
+export function Mesh({ layer, bounds }: { readonly layer: Layer; readonly bounds: Scene["bounds"] }) {
   const geometry = useMemo(() => {
     const g = new BufferGeometry();
     g.setAttribute("position", new BufferAttribute(layer.positions, 3));
     g.setAttribute("color", new BufferAttribute(layer.colours, 3));
     g.setIndex(new BufferAttribute(layer.indices, 1));
+    g.boundingSphere = sphereRound(bounds);
     return g;
-  }, [layer]);
+  }, [layer, bounds]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh geometry={geometry}>

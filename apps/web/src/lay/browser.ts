@@ -1,6 +1,6 @@
 // Opens in a module Web Worker, one per opening, which stays with its city while it is shown: the snapshot or text
-// crosses by structured clone (maps included), the city as text the main thread parses once, and every scene, table and
-// the pick grid come back with their buffers transferred. The port asks the worker for looks and tables; if the worker
+// crosses by structured clone (maps included), the city comes back as JSON pieces the main thread parses one per task,
+// and every scene, table and the pick grid with their buffers transferred. The port asks the worker for looks and tables; if the worker
 // fails once the city is open, the calling thread takes its work over, so the map still changes.
 import type { CityFile, Scales } from "@citymap/measures";
 import type { PickGrid } from "@citymap/scene";
@@ -11,13 +11,13 @@ import {
   laidOf,
   layHere,
   readHere,
-  trustedCityFile,
   type Failure,
   type Laid,
   type Lay,
   type OpenOptions,
   type Read,
 } from "./lay";
+import { cityOfPieces } from "./pieces";
 import { drain, hearing, type CityPort } from "./port";
 import { asked, cityWork, type Answer, type Ask } from "./work";
 import type { Request } from "./worker";
@@ -26,7 +26,7 @@ type Message =
   | { readonly step: Step }
   | {
       readonly opened: {
-        readonly text: string | null;
+        readonly pieces: readonly string[];
         readonly grid: PickGrid;
         readonly floors: Uint8Array;
         readonly scales: Scales;
@@ -37,8 +37,8 @@ type Message =
   | { readonly failed: { readonly task: string; readonly error: Failure } }
   | { readonly error: Failure };
 
-/** Opens in a fresh worker; `text` is the city file's text when the main thread already holds it. */
-const inWorker = (request: Exclude<Request, Ask>, { signal, onProgress }: OpenOptions, text: string | null) =>
+/** Opens in a fresh worker. */
+const inWorker = (request: Exclude<Request, Ask>, { signal, onProgress }: OpenOptions) =>
   new Promise<Laid>((resolve, reject) => {
     if (signal?.aborted) {
       reject(signal.reason);
@@ -91,15 +91,20 @@ const inWorker = (request: Exclude<Request, Ask>, { signal, onProgress }: OpenOp
         });
       else if ("error" in message) fail(errorOf(message.error));
       else {
-        signal?.removeEventListener("abort", abort);
         log.info("viewer/worker", { job: request.job, ms: Math.round(performance.now() - started) });
-        const city = message.opened.text ?? text;
-        if (city === null) {
-          fail(new Error("the city's worker answered without a city"));
-          return;
-        }
-        file = trustedCityFile(city);
-        resolve(laidOf(file, message.opened, port));
+        const { opened } = message;
+        // The city is taken in piece by piece, between inputs; the signal still ends the opening meanwhile.
+        cityOfPieces(opened.pieces, signal ? { signal } : {}).then(
+          (taken) => {
+            signal?.removeEventListener("abort", abort);
+            file = taken;
+            resolve(laidOf(taken, opened, port));
+          },
+          (failure: unknown) => {
+            port.end();
+            fail(failure instanceof Error ? failure : new Error(String(failure)));
+          },
+        );
       }
     });
     worker.addEventListener("error", (event) => {
@@ -135,10 +140,9 @@ export const layInWorker: Lay = workers
           ...(facts === undefined ? {} : { facts }),
         },
         options,
-        null,
       )
   : layHere;
 
 export const readInWorker: Read = workers
-  ? (text, options) => inWorker({ job: "read", text, ...firstOf(options) }, options, text)
+  ? (text, options) => inWorker({ job: "read", text, ...firstOf(options) }, options)
   : readHere;

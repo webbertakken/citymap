@@ -161,23 +161,6 @@ export const layHere: Lay = async (snapshot, options) => here(layMade(snapshot, 
 /** Reads on the calling thread: where no Worker exists, and in tests. */
 export const readHere: Read = async (text, options) => here(readMade(text, options));
 
-/**
- * A city file as plain JSON, for the hop from the worker to the main thread: the city file's keys, in the engine's
- * order rather than canonical (`serialiseCityFile`), at a tenth of the cost.
- */
-export const wireText = ({ city, measures }: CityFile): string =>
-  JSON.stringify(measures ? { ...city, measures } : city);
-
-/**
- * A city file the worker has validated or laid, taken in without validating again: the schemas are strict and
- * transform nothing, so the parsed city equals the validated one, at a quarter of the cost on the main thread.
- */
-export function trustedCityFile(text: string): CityFile {
-  const parsed: City & { readonly measures?: Measures } = JSON.parse(text);
-  const { measures, ...city } = parsed;
-  return { city, measures: measures ?? null };
-}
-
 /** A failure as the worker posts it: an engine's code and detail kept, so the main thread names it as before. */
 export interface Failure {
   readonly code: ErrorCode | null;

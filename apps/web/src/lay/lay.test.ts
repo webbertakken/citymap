@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 import { city as cityNamed } from "../components/testing/fixtures";
 import type { Step } from "../load/step";
 import { cityBuildings, cityFloors, tableFor } from "../view/buildings";
-import { errorOf, failureOf, layHere, layStep, readHere, throttled, trustedCityFile, wireText } from "./lay";
+import { errorOf, failureOf, layHere, layStep, readHere, throttled } from "./lay";
+import { cityOfPieces, cityPieces } from "./pieces";
 import type { Answer } from "./work";
 
 const snapshot = stateSnapshot(
@@ -134,18 +135,20 @@ describe("readHere", () => {
   });
 });
 
-describe("wireText and trustedCityFile", () => {
-  it("carry a laid city file across as text, equal to the validated one, with or without measures", async () => {
+describe("a laid city file in pieces", () => {
+  it("is taken in equal to the validated one, with or without measures", async () => {
     const facts = { source: "github", size: "bytes", comments: false, files: new Map(), coverage: new Map() } as const;
     const { city, measures } = await layHere(snapshot, { theme: "dracula", facts });
-    for (const file of [
+    const files = [
       { city, measures },
       { city, measures: null },
-    ]) {
-      const text = wireText(file);
-      expect(trustedCityFile(text)).toEqual(file);
-      expect(trustedCityFile(text)).toEqual(parseCityFile(text));
-    }
+    ];
+    const taken = await Promise.all(
+      files.map((file) => cityOfPieces(cityPieces(file, 2000), { pause: async () => {} })),
+    );
+    expect(taken).toEqual(files);
+    expect(taken[0]).toEqual(parseCityFile(JSON.stringify({ ...city, measures })));
+    expect(taken[1]).toEqual(parseCityFile(JSON.stringify(city)));
   });
 });
 

@@ -53,10 +53,10 @@ Where main's time goes on the phone journey (livediagram, slowed fourfold, profi
 
 ## Phase 5: the city taken in by slices
 
-- [ ] A large city crosses from the worker in pieces (the city without its lots and measures, then its lots and its
+- [x] A large city crosses from the worker in pieces (the city without its lots and measures, then its lots and its
       measures in chunks), each parsed in its own task, yielding to input between them; the city equals the one parsed
       whole
-- [ ] Details and Hide details within budget (whatever the profile shows)
+- [x] Details and Hide details within budget (whatever the profile shows)
 
 ## Phase 6: proof
 
