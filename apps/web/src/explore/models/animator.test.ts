@@ -15,10 +15,20 @@ function figure() {
     new AnimationClip("walk", 1, [new NumberKeyframeTrack("figure.rotation[y]", [0, 1], [0, 1])]),
     new AnimationClip("idle", 1, [new NumberKeyframeTrack("figure.rotation[y]", [0, 1], [5, 5])]),
   ];
-  return { model, animator: new Animator(model, clips) };
+  const names = { idle: "idle", walk: "walk", sprint: "sprint", jump: "jump", fall: "fall", drive: "drive" } as const;
+  return { model, animator: new Animator(model, clips, names) };
 }
 
 describe("Animator", () => {
+  it("plays each motion by the library's clip for it, unless told otherwise", () => {
+    const model = new Group();
+    model.name = "figure";
+    const walk = new AnimationClip("Walk_Loop", 1, [new NumberKeyframeTrack("figure.rotation[y]", [0, 1], [0, 1])]);
+    const animator = new Animator(model, [walk]);
+    animator.play("walk", 1, 0.5);
+    expect(model.rotation.y).toBeCloseTo(0.5, 6);
+  });
+
   it("plays a motion at the pace asked for", () => {
     const { model, animator } = figure();
     expect(animator.playing).toBeNull();

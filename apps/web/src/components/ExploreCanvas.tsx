@@ -11,7 +11,7 @@ import { boundOf, runShare, settle } from "../explore/models/bound";
 import { GLTF_MODELS, loadModel, type Loaded, type ModelFile } from "../explore/models/gltf";
 import { motionOf, paceOf } from "../explore/models/motion";
 import { bicycle, car, figure, paletteOf } from "../explore/models/procedural";
-import { leanOf, poseVehicle } from "../explore/models/rig";
+import { PROCEDURAL_RIGS, RIGS, leanOf, poseVehicle } from "../explore/models/rig";
 import { poseStride, swingOf } from "../explore/models/stride";
 import { METRE } from "../explore/street";
 import { log, reasonOf } from "../log";
@@ -21,8 +21,8 @@ import type { ExploreCanvasProps } from "./ExploreView";
 /** The camera sees this far, in street widths (four kilometres), and no nearer than a few centimetres. */
 const FAR = 400;
 const NEAR = 0.002;
-/** A rider sits this high above the ground on a bicycle, in metres: its saddle less the figure's hips. */
-const SADDLE = 0.5;
+/** A rider sits this high above the bicycle's ground, in metres: its saddle, less the seated figure's hips. */
+const SADDLE = 0.38;
 
 /** A model loaded with this canvas, while the walls rise; null (said in the log) when it cannot load. */
 const loading = (file: ModelFile): Promise<Loaded | null> =>
@@ -32,6 +32,7 @@ const loading = (file: ModelFile): Promise<Loaded | null> =>
   });
 const person = loading(GLTF_MODELS.figure);
 const sedan = loading(GLTF_MODELS.car);
+const bike = loading(GLTF_MODELS.bicycle);
 
 /** The walker and the vehicles, moved by each frame of the walk; the camera follows. */
 function Walk({
@@ -45,6 +46,7 @@ function Walk({
 }) {
   const loaded = use(person);
   const carModel = use(sedan);
+  const bikeModel = use(bike);
   const model = useMemo(() => loaded?.make() ?? figure(paletteOf(theme)), [loaded, theme]);
   const animator = useMemo(() => (loaded ? new Animator(model, loaded.clips) : null), [loaded, model]);
   // Each vehicle's model; drawn inside a group that places and turns it, so its own pose (lean, wheels) stays its own.
@@ -53,9 +55,16 @@ function Walk({
       vehicles.map(({ id, kind }) => ({
         id,
         kind,
-        model: kind === "car" ? (carModel?.make() ?? car(paletteOf(theme))) : bicycle(paletteOf(theme)),
+        // The PSX vehicle with its rig, or the procedural stand-in (with its own) when it could not load.
+        ...(kind === "car"
+          ? carModel
+            ? { model: carModel.make(), rig: RIGS.car }
+            : { model: car(paletteOf(theme)), rig: PROCEDURAL_RIGS.car }
+          : bikeModel
+            ? { model: bikeModel.make(), rig: RIGS.bicycle }
+            : { model: bicycle(paletteOf(theme)), rig: PROCEDURAL_RIGS.bicycle }),
       })),
-    [vehicles, carModel, theme],
+    [vehicles, carModel, bikeModel, theme],
   );
   const placed = useRef<Object3D>(null);
   const groups = useRef(new Map<string, Object3D>());
@@ -77,7 +86,8 @@ function Walk({
       group.position.set(vehicle.feet.x * METRE, vehicle.feet.y * METRE, vehicle.feet.z * METRE);
       group.rotation.set(0, vehicle.heading, 0);
       const lean = vehicle.kind === "bicycle" ? leanOf(vehicle.speed, vehicle.turn) : 0;
-      poseVehicle(group.children[0]!, vehicle.kind, { rolled: turned.rolled, steer: vehicle.steer, lean });
+      const { rig } = models.find((m) => m.id === vehicle.id)!;
+      poseVehicle(group.children[0]!, rig, { rolled: turned.rolled, steer: vehicle.steer, lean });
     }
     const riding = now.riding ? now.vehicles.find((v) => v.id === now.session.riding) : undefined;
     walker.visible = now.riding !== "car";

@@ -1,7 +1,7 @@
 // Plays an animated figure's clips: one motion at a time, blending into the next, at the pace asked for.
 import { AnimationMixer, type AnimationAction, type AnimationClip, type Object3D } from "three";
 import { log } from "../../log";
-import { BLEND, type Motion } from "./motion";
+import { BLEND, CLIP_OF, type Motion } from "./motion";
 
 export class Animator {
   private readonly mixer: AnimationMixer;
@@ -10,7 +10,12 @@ export class Animator {
   private readonly missing = new Set<Motion>();
   private current: { readonly motion: Motion; readonly action: AnimationAction } | null = null;
 
-  constructor(model: Object3D, clips: readonly AnimationClip[]) {
+  /** A figure and its clips, each motion played by the clip `names` gives it. */
+  constructor(
+    model: Object3D,
+    clips: readonly AnimationClip[],
+    private readonly names: Readonly<Record<Motion, string>> = CLIP_OF,
+  ) {
     this.mixer = new AnimationMixer(model);
     for (const clip of clips) this.actions.set(clip.name, this.mixer.clipAction(clip));
   }
@@ -29,7 +34,7 @@ export class Animator {
 
   /** Starts a motion's clip; a figure without that clip keeps doing what it was doing. */
   private begin(motion: Motion) {
-    const action = this.actions.get(motion);
+    const action = this.actions.get(this.names[motion]);
     if (!action) {
       if (!this.missing.has(motion)) log.error("explore/clip-missing", { motion });
       this.missing.add(motion);

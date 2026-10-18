@@ -3,15 +3,28 @@
 import { RUN_SPEED, WALK_SPEED } from "../walker";
 import { LEAP } from "./bound";
 
-/** The clips a figure plays, by their names in Kenney's characters; "drive" sits a rider on a vehicle. */
+/** What a figure does: "drive" sits a rider on a vehicle. */
 export type Motion = "idle" | "walk" | "sprint" | "jump" | "fall" | "drive";
+
+/** Each motion's clip, by its name in the Universal Animation Library, as baked onto the people. */
+export const CLIP_OF: Readonly<Record<Motion, string>> = {
+  idle: "Idle_Loop",
+  walk: "Walk_Loop",
+  sprint: "Sprint_Loop",
+  jump: "Jump_Loop",
+  fall: "Jump_Loop",
+  drive: "Driving_Loop",
+};
 
 /** Below this pace, in metres a second, a figure stands. */
 export const STANDING = 0.2;
-/** Kenney's sprint takes this long for a stride: both legs forward once. */
-export const SPRINT_CLIP_SECONDS = 0.5;
-/** At normal speed, Kenney's walk covers this many metres a second; a bounding run strides once every two leaps. */
-export const WALK_CLIP_SPEED = 1.5;
+/** The library's sprint takes this long for a stride, both legs forward once (Sprint_Loop: 0.667 s). */
+export const SPRINT_CLIP_SECONDS = 0.667;
+/**
+ * At normal speed the library's walk covers this many metres a second (measured by build-models.ts from the planted
+ * foot: 0.98); a bounding run strides once every two leaps.
+ */
+export const WALK_CLIP_SPEED = 1;
 export const SPRINT_CLIP_SPEED = (2 * LEAP) / SPRINT_CLIP_SECONDS;
 /** A clip plays no slower than this share of its speed and no faster than twice it. */
 export const SLOWEST = 0.4;

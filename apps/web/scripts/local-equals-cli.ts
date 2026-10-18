@@ -58,7 +58,9 @@ function indexAt(dir: string, version: number): Map<string, string> {
   // Git writes version 3 only when an entry needs its extended flags: one skip-worktree entry does.
   if (version === 3) {
     const listed = execFileSync("git", ["-C", dir, "ls-files", "-z"], { env, encoding: "utf8", maxBuffer: 1 << 30 });
-    execFileSync("git", ["-C", dir, "update-index", "--skip-worktree", "--", listed.split("\0")[0]], { env });
+    const first = listed.split("\0")[0];
+    if (!first) throw new Error(`local-equals/empty-index ${dir}`);
+    execFileSync("git", ["-C", dir, "update-index", "--skip-worktree", "--", first], { env });
   }
   return new Map([[".git/index", copy]]);
 }
@@ -80,7 +82,7 @@ async function prove(dir: string): Promise<number> {
       return ours === cli ? 0 : 1;
     }),
   );
-  return differing.reduce((a, b) => a + b, 0);
+  return differing.reduce<number>((a, b) => a + b, 0);
 }
 
 // One checkout at a time, so its timings and memory are its own.

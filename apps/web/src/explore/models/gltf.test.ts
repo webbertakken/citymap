@@ -64,7 +64,7 @@ describe("loadGltfModels", () => {
 
   it("sizes a figure by its height and a vehicle by its length, in metres", async () => {
     const models = await loadGltfModels("", read);
-    expect(boxOf(models.figure.make()).getSize(new Vector3()).y).toBeCloseTo(1.75, 6);
+    expect(boxOf(models.figure.make()).getSize(new Vector3()).y).toBeCloseTo(GLTF_MODELS.figure.metres, 6);
     expect(boxOf(models.car.make()).getSize(new Vector3()).x).toBeCloseTo(GLTF_MODELS.car.metres, 6);
   });
 

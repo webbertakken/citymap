@@ -28,12 +28,17 @@ export interface ModelFile {
   readonly yaw: number;
 }
 
+/**
+ * The models the walk uses, built by scripts/models/build-models.ts into public/models (credited in its CREDITS.md):
+ * Wobble Blocks' people with the Universal Animation Library's clips baked on, and heyheythere's PSX vehicles, all at
+ * their real sizes, facing +z in their files. The motorbike and helicopter are still the model lab's.
+ */
 export const GLTF_MODELS = {
-  figure: { url: "models/people/character-male-a.glb", metres: 1.75, measure: "height", yaw: Math.PI / 2 },
-  walker: { url: "models/people/character-female-b.glb", metres: 1.68, measure: "height", yaw: Math.PI / 2 },
-  bicycle: { url: "lab/models/bicycle.glb", metres: 1.75, measure: "length", yaw: 0 },
+  figure: { url: "models/people/man.glb", metres: 1.78, measure: "height", yaw: Math.PI / 2 },
+  walker: { url: "models/people/woman.glb", metres: 1.7, measure: "height", yaw: Math.PI / 2 },
+  bicycle: { url: "models/vehicles/bicycle.glb", metres: 1.687, measure: "length", yaw: Math.PI / 2 },
   motorbike: { url: "lab/models/motorbike.glb", metres: 2.1, measure: "length", yaw: Math.PI / 2 },
-  car: { url: "models/cars/sedan.glb", metres: 4.2, measure: "length", yaw: Math.PI / 2 },
+  car: { url: "models/vehicles/sedan.glb", metres: 4.68, measure: "length", yaw: Math.PI / 2 },
   helicopter: { url: "lab/models/helicopter.glb", metres: 10, measure: "length", yaw: 0 },
 } as const satisfies Record<string, ModelFile>;
 
