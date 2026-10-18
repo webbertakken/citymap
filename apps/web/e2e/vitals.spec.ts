@@ -40,7 +40,11 @@ async function record(page: Page) {
       for (const e of list.getEntries()) {
         if (!Reflect.get(e, "interactionId")) continue;
         const target: unknown = Reflect.get(e, "target");
-        const label = target instanceof Element ? (target.getAttribute("aria-label") ?? target.textContent ?? "") : "";
+        // An element by its label or text, else by its tag, so every slow answer names what it answered.
+        const label =
+          target instanceof Element
+            ? target.getAttribute("aria-label") || target.textContent || `<${target.tagName.toLowerCase()}>`
+            : "";
         seen.events.push({ name: e.name, target: label.slice(0, 40), duration: e.duration });
       }
     }).observe(events);

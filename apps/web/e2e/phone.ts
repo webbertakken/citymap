@@ -7,10 +7,10 @@ import type { Page } from "@playwright/test";
 export const PHONE_SLOWDOWN = 4;
 /**
  * The work's median time on the reference machine (the one the budgets were set on), unthrottled, in milliseconds.
- * Measured by `timeWork` in Chromium on a quiet workstation (about 45 ms; 70 ms when its cores are contended); re-measure
+ * Measured by `timeWork` in Chromium on a quiet workstation (about 43 ms at a load average under 10; 70 ms when its cores are contended); re-measure
  * there if the work changes.
  */
-export const REFERENCE_MS = 45;
+export const REFERENCE_MS = 43;
 
 /** The slowdown that makes this machine as fast as the phone; never below 1, since a slower machine cannot be sped up. */
 export const phoneRate = (measuredMs: number, referenceMs = REFERENCE_MS, slowdown = PHONE_SLOWDOWN) =>
