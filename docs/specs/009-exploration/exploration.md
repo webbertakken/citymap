@@ -41,7 +41,12 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 
 - W A S D or the arrow keys walk where the camera looks; Shift runs; Space jumps. On a touch screen, a stick under the
   left thumb walks (pushed nearly all the way, it runs) and a Jump button sits under the right.
-- A walk is about 1.6 m a second and a run 4.5; the figure's walk and sprint keep pace with the ground.
+- A walk is about 1.6 m a second and a run 4.5; the figure's walk keeps pace with the ground. The run reads as a
+  runner's, checked frame by frame against Muybridge's "Running at a half-mile gait" (Animal Locomotion, plate 60):
+  about 175 steps a minute of about 1.55 m; each foot planted where it lands while the body runs over it, the heel
+  rising to push off, then swung through the air heel first, with both feet off the ground between steps; the hips
+  rising and falling a little; the trunk a little forward; the elbows bent square and the arms swinging against the
+  legs. Walking into a run and out of it blends over a fifth of a second; a jump lets the run go at once.
 - Buildings and parked cars stop the walker, who slides along them; parked bicycles and motorbikes are pushed aside or
   over, by the walker, a ridden two-wheeler or a car, and stood up again when got on (with the arcade cars, they stop
   the walker too); kerbs and plinths up to 45 cm are stepped up onto, and roofs are stood on.

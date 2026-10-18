@@ -173,8 +173,8 @@ Webber's feedback: walk on Rapier too; the walk looks good, the run still looks 
 - [x] The walker on Rapier's character controller in the garage's nearby streets, the walk unchanged (tests first); the
       card says Rapier on foot; spec and blueprint
 - [x] Proven: the walk on Rapier beside the walk on the city's walls, step by step on three cities; e2e; gate; PR #64
-- [ ] Running gait researched against cited reference footage: cadence and stride by speed, forward lean, arm swing,
-      foot plant, the blend between walk and run; spec and blueprint
+- [x] Running gait researched against cited reference footage (Muybridge plate 60; Weyand 2000, Cavanagh & Kram 1989,
+      Novacheck 1998): cadence and stride by speed, forward lean, arm swing, foot plant, the blend; spec and blueprint
 - [ ] Running gait built (tests first on the maths), checked frame by frame against the reference; e2e; gate; PR
 - [ ] Webber tests on desktop and phone; feedback folded in
 

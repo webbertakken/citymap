@@ -108,3 +108,8 @@ One row per value the exploration spec leaves silent or qualitative.
 | Bicycle contacts         | grip 10 cm, pedal 6 cm, saddle and stand 2 cm    | a hand's width, a pedal's, a surface's depth                              | measured                  |
 | Motorbike contacts       | grip 0.21, seat step 0.05, pegs below 0.45, 0.1  | file units (0.474 m): a hand, 2.4 cm, 24 cm, 4.7 cm                       | measured                  |
 | Kickstand swing          | 0.3 s, at once under reduced motion              | the spec's about 0.3 s                                                    | 0.2 to 0.5 s              |
+| Run's steps              | 2.45 + 0.1 · v a second, 0.72 m contact          | 174 a minute, 1.55 m, 0.16 s down at 4.5 m/s (Weyand 2000)                | measured                  |
+| Run's foot               | lands 0.38 ahead, trails 0.3 m, heel 0.1 · v     | Novacheck 1998's angles; Muybridge plate 60's trailing leg                | taste                     |
+| Runner's body            | hips 0.94 of the leg, ±3 cm, lean 0.12 rad       | an upright runner bouncing 6 cm                                           | taste                     |
+| Runner's arms            | 0.45 rad about 0.2 back, elbows 90°, fist 0.6    | Muybridge's runner: hands at the waist, loosely closed                    | taste                     |
+| Run blend                | 0.2 s; at once into the air                      | no leg reaches for the ground mid-jump                                    | 0.1 to 0.4 s              |
