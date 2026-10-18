@@ -510,9 +510,12 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
   pick index, built only once the city is.
 - INP under 200 ms on a phone: the view while fitted is derived from the scene (`fit(scene.bounds, viewport, insets)`),
   never built twice; the whole city's scene and pick index stay built while one town is shown, so going back costs
-  nothing. Measured on a Pixel 7 profile with the processor slowed fourfold (CDP `Emulation.setCPUThrottlingRate`), over
-  taps, keys, a theme change, a search and a drill. A theme change is a transition (`startTransition`): the menu closes
-  in the next frame and the scene is rebuilt in its new colours after it, so the tap answers within the budget.
+  nothing. Measured on a Pixel 7 profile with the processor slowed to a phone four times slower than the reference
+  workstation (`e2e/phone.ts`: a fixed piece of work is timed on the machine at hand, its median against `REFERENCE_MS`
+  45 ms sets the CDP `Emulation.setCPUThrottlingRate`, never below 1, and is reported with the test), so a CI runner and
+  the workstation stand in for the same phone, over taps, keys, a theme change, a search and a drill. A theme change is
+  a transition (`startTransition`): the menu closes in the next frame and the scene is rebuilt in its new colours after
+  it, so the tap answers within the budget.
 - Laying a large repository: the worker lays and builds the scene, so on that phone profile linux's longest main-thread
   task fell from 2.25 s to 0.83 s, most of it the pick index (which appends to its cells rather than copying them: about
   100 ms for linux on a desktop) and the search index 0.09 s (both still on the main thread, after the card says
