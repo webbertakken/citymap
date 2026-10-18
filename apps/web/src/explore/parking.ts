@@ -6,7 +6,7 @@ import { UNIT, roadWidth, type City, type Pt } from "@citymap/ground-plan";
 import { GROUND, type Walls } from "@citymap/world";
 import type { Landing } from "./landing";
 import { METRE, STREET_CLASSES } from "./street";
-import { PARKING, VEHICLES, standing, type Vehicle, type VehicleKind } from "./vehicles";
+import { PARKING, VEHICLES, standing, type CarBody, type Vehicle, type VehicleKind } from "./vehicles";
 
 /** A kerb place every this many metres along a street. */
 export const PLACE_GAP = 24;
@@ -14,9 +14,12 @@ export const PLACE_GAP = 24;
 export const JUNCTION_GAP = 8;
 /** No place within this many metres of the landing: the landing's own pair stands there. */
 export const LANDING_CLEAR = 16;
-/** Of the places, these shares hold a bicycle and a car; the rest stand empty. */
+/** Of the places, these shares hold a bicycle, a car and a motorbike; the rest stand empty. */
 export const BICYCLE_SHARE = 0.3;
 export const CAR_SHARE = 0.3;
+export const MOTORBIKE_SHARE = 0.06;
+/** Of the cars, this share are pickups; the rest saloons. */
+export const PICKUP_SHARE = 0.35;
 /** The walk keeps this many, the nearest its landing. */
 export const PARKED_MOST = 200;
 /** Road ends are found through a grid of cells this many metres square. */
@@ -63,8 +66,19 @@ interface Place {
   readonly side: 1 | -1;
   readonly half: number;
   readonly crank: number;
+  readonly body: CarBody;
   readonly distance: number;
 }
+
+/** What a place's hash parks there: a bicycle, a car, a motorbike, or nothing. */
+export const kindAt = (u: number): VehicleKind | null =>
+  u < BICYCLE_SHARE
+    ? "bicycle"
+    : u < BICYCLE_SHARE + CAR_SHARE
+      ? "car"
+      : u < BICYCLE_SHARE + CAR_SHARE + MOTORBIKE_SHARE
+        ? "motorbike"
+        : null;
 
 /** The filled kerb places along one street (the `index`th), each with its distance from the landing (metres). */
 function placesOn(
@@ -82,17 +96,20 @@ function placesOn(
     const length = Math.hypot(b.x - a.x, b.z - a.z);
     const along = { x: (b.x - a.x) / length, z: (b.z - a.z) / length };
     for (let s = (k + 0.5) * PLACE_GAP; s < from + length; k++, s = (k + 0.5) * PLACE_GAP) {
-      const u = placeHash(index, k);
-      if (u >= BICYCLE_SHARE + CAR_SHARE) continue;
+      const kind = kindAt(placeHash(index, k));
+      if (!kind) continue;
       const at = { x: a.x + along.x * (s - from), z: a.z + along.z * (s - from) };
+      // A second hash of the place turns a bicycle's crank and picks a car's body.
+      const look = placeHash(index, -1 - k);
       places.push({
         id: `parked-${index}-${k}`,
-        kind: u < BICYCLE_SHARE ? "bicycle" : "car",
+        kind,
         at,
         along,
         side: k % 2 === 0 ? 1 : -1,
         half,
-        crank: placeHash(index, -1 - k) * 2 * Math.PI,
+        crank: look * 2 * Math.PI,
+        body: look < PICKUP_SHARE ? "pickup" : "saloon",
         distance: Math.hypot(at.x - landing.x, at.z - landing.z),
       });
     }
@@ -116,12 +133,12 @@ export function parkedIn(city: City, landing: Landing, walls: Walls): Vehicle[] 
     .filter((place) => place.distance > LANDING_CLEAR && !inJunction(place.at.x, place.at.z))
     .toSorted((a, b) => a.distance - b.distance || (a.id < b.id ? -1 : 1))
     .slice(0, PARKED_MOST);
-  return places.map(({ id, kind, at, along, side, half, crank }) => {
+  return places.map(({ id, kind, at, along, side, half, crank, body }) => {
     // The right of a direction along the ground is it turned a quarter clockwise from above.
     const out = Math.max(0, half - PARKING[kind].inset) * side;
     const middle = { x: at.x, y: GROUND, z: at.z };
     const placed = walls.move(middle, { x: -along.z * out, y: 0, z: along.x * out }, VEHICLES[kind].radius);
     const heading = Math.atan2(-along.z * side, along.x * side);
-    return standing(id, kind, placed.feet, heading, crank);
+    return standing(id, kind, placed.feet, heading, crank, body);
   });
 }

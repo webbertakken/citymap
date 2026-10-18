@@ -2,6 +2,7 @@ import { GROUND, PERSON_RADIUS, cityWalls, type Footprint, type Vec3 } from "@ci
 import { describe, expect, it } from "vitest";
 import { FALL_LEAN, HARD_HIT, START_GEAR, resting } from "./bicycle";
 import type { Landing } from "./landing";
+import { parkedMoto } from "./motorbike";
 import {
   BUMP,
   CAR,
@@ -17,12 +18,27 @@ import {
   parkedBy,
   parkedNow,
   reachable,
+  standing,
   stepVehicle,
+  yawOf,
+  arcadeOf,
   type Bicycle,
   type Car,
+  type Motorbike,
   type Vehicle,
 } from "./vehicles";
 import { NO_INTENTS, facing } from "./walker";
+
+/** The vehicle as a car, failing the test when it is not one. */
+const asCar = (vehicle: Vehicle | null | undefined): Car => {
+  if (vehicle?.kind !== "car") throw new Error(`expected a car, got ${vehicle?.kind ?? "nothing"}`);
+  return vehicle;
+};
+/** The vehicle as a motorbike, failing the test when it is not one. */
+const asMotorbike = (vehicle: Vehicle | null | undefined): Motorbike => {
+  if (vehicle?.kind !== "motorbike") throw new Error(`expected a motorbike, got ${vehicle?.kind ?? "nothing"}`);
+  return vehicle;
+};
 
 const open = cityWalls([]);
 const at = (x: number, z: number): Vec3 => ({ x, y: GROUND, z });
@@ -34,11 +50,19 @@ const car = (x = 0, z = 0, heading = 0, speed = 0): Car => ({
   speed,
   turn: 0,
   steer: 0,
+  body: "saloon",
+  attitude: yawOf(heading),
+  gear: 0,
+  rpm: 0,
 });
 const bike = (x = 0, z = 0, heading = 0, speed = 0): Bicycle => ({
-  ...car(x, z, heading, speed),
   id: "bicycle",
   kind: "bicycle",
+  feet: at(x, z),
+  heading,
+  speed,
+  turn: 0,
+  steer: 0,
   cycle: { ...resting(), footDown: speed < 1.2 },
 });
 const box = (x: number, z: number, w: number, d: number): Footprint => ({
@@ -88,6 +112,14 @@ describe("parkedBy", () => {
     const walls = cityWalls([box(5, -12, 10, 10)]);
     const [, motor] = parkedBy(landing, walls);
     expect(motor!.feet.z).toBeCloseTo(-2 + VEHICLES.car.radius, 9);
+  });
+
+  it("parks a motorbike behind the landing at the near kerb, facing away", () => {
+    const [, , motorbike] = parkedBy(landing, open);
+    expect(motorbike).toMatchObject({ id: "motorbike", kind: "motorbike", speed: 0, moto: parkedMoto() });
+    expect(motorbike!.feet.x).toBeCloseTo(PARKING.motorbike.ahead, 9);
+    expect(motorbike!.feet.z).toBeCloseTo(5 - PARKING.motorbike.inset, 9);
+    expect(Math.cos(motorbike!.heading)).toBeCloseTo(-1, 9);
   });
 
   it("parks in the road's middle when the road is too narrow for the kerb", () => {
@@ -211,6 +243,43 @@ describe("stepVehicle on the bicycle", () => {
     const slow = asBicycle(ride(bike(1.5, 0, 0, 2), NO_INTENTS, 120, walls));
     expect(slow.cycle.fall).toBeNull();
     expect(slow.feet.x).toBeLessThanOrEqual(3 - VEHICLES.bicycle.radius + 1e-6);
+  });
+});
+
+/** A motorbike standing at the origin facing east, rolling at a speed. */
+const motorbike = (speed = 0): Motorbike => Object.assign(standing("moto", "motorbike", at(0, 0), 0), { speed });
+
+describe("stepVehicle on the motorbike", () => {
+  it("rides on its engine: throttled, it pulls away along its heading", () => {
+    const away = asMotorbike(ride(motorbike(), { ...NO_INTENTS, forward: 1 }, 240));
+    expect(away.speed).toBeGreaterThan(5);
+    expect(away.feet.x).toBeGreaterThan(5);
+    expect(away.steer).toBe(away.moto.steer);
+  });
+
+  it("throws its rider at a wall hit hard, and not again once down", () => {
+    const hard = asMotorbike(bumped({ ...motorbike(HARD_HIT + 1), moto: { ...parkedMoto(), footDown: false } }));
+    expect(hard.moto.fall).toMatchObject({ cause: "hit" });
+    const again = asMotorbike(bumped({ ...hard, speed: HARD_HIT + 1 }));
+    expect(again.moto.fall).toBe(hard.moto.fall);
+    expect(asMotorbike(bumped(motorbike(1))).moto.fall).toBeNull();
+  });
+
+  it("stands parked on its foot in first when left", () => {
+    const left = parkedNow({ ...motorbike(1), moto: { ...parkedMoto(), gear: 3, lean: 0.2 } });
+    expect(left).toMatchObject({ speed: 0, moto: parkedMoto() });
+  });
+});
+
+describe("an arcade car", () => {
+  it("stays level on its heading as it turns", () => {
+    const turned = asCar(ride(car(0, 0, 0, 8), { ...NO_INTENTS, forward: 1, right: 1 }, 60));
+    expect(turned.attitude).toEqual(yawOf(turned.heading));
+  });
+
+  it("is made level, its engine unread, from a car Rapier left tipped", () => {
+    const tipped: Car = { ...car(0, 0, 0.5), attitude: { x: 1, y: 0, z: 0, w: 0 }, gear: 3, rpm: 4000 };
+    expect(arcadeOf(tipped)).toEqual({ ...tipped, attitude: yawOf(0.5), gear: 0, rpm: 0 });
   });
 });
 

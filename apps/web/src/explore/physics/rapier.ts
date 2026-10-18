@@ -15,7 +15,7 @@ import {
 import { log } from "../../log";
 import { breathe, type WallOptions } from "./raise";
 
-type Rapier = typeof import("@dimforge/rapier3d-compat");
+export type Rapier = typeof import("@dimforge/rapier3d-compat");
 
 /** A mover as Rapier's capsule, as tall as a person: the straight part between its two half spheres, at a radius. */
 export const capsuleHalf = (radius: number) => Math.max(0, PERSON_HEIGHT / 2 - radius);
@@ -26,12 +26,17 @@ export const SLICE = 2000;
 
 let engine: Promise<Rapier> | null = null;
 
-/** Rapier, loaded and initialised once. */
-const loadRapier = (): Promise<Rapier> => {
-  engine ??= import("@dimforge/rapier3d-compat").then(async (rapier) => {
-    await rapier.init();
-    return rapier;
-  });
+/** Rapier, loaded and initialised once a page; a failed load is tried afresh next time. */
+export const loadRapier = (): Promise<Rapier> => {
+  engine ??= import("@dimforge/rapier3d-compat")
+    .then(async (rapier) => {
+      await rapier.init();
+      return rapier;
+    })
+    .catch((failure: unknown) => {
+      engine = null;
+      throw failure;
+    });
   return engine;
 };
 
