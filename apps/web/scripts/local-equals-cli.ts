@@ -58,7 +58,7 @@ function indexAt(dir: string, version: number): Map<string, string> {
   // Git writes version 3 only when an entry needs its extended flags: one skip-worktree entry does.
   if (version === 3) {
     const listed = execFileSync("git", ["-C", dir, "ls-files", "-z"], { env, encoding: "utf8", maxBuffer: 1 << 30 });
-    execFileSync("git", ["-C", dir, "update-index", "--skip-worktree", "--", listed.split("\0")[0]!], { env });
+    execFileSync("git", ["-C", dir, "update-index", "--skip-worktree", "--", listed.split("\0")[0]], { env });
   }
   return new Map([[".git/index", copy]]);
 }
