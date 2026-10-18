@@ -4,6 +4,8 @@ import { THEMES } from "@citymap/themes";
 import { GROUND, type Footprint, type Walls } from "@citymap/world";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Inspect } from "../explore/inspect";
 import type { Landing } from "../explore/landing";
@@ -172,6 +174,48 @@ const walk = (seconds = 0.1): ExploreFrame => {
 const hud = () => document.querySelector<HTMLElement>(".explore-hud")!;
 
 describe("ExploreView", () => {
+  it("hears Escape the moment it is on screen, before its passive effects have run", async () => {
+    // Rendered at default priority outside act, as a walk that begins when its walls resolve, React commits, then runs
+    // the passive effects in a later task: the gap a busy machine stretches, in which a key must not be lost. The press
+    // comes as the commit's mutations are observed, as Testing Library's findBy sees them.
+    const acting = Reflect.get(globalThis, "IS_REACT_ACT_ENVIRONMENT");
+    Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", false);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const onLeave = vi.fn<ExploreViewProps["onLeave"]>();
+    const committed = new Promise<void>((resolve) => {
+      const watch = new MutationObserver(() => {
+        watch.disconnect();
+        resolve();
+      });
+      watch.observe(host, { childList: true });
+    });
+    root.render(
+      <ExploreView
+        name="alpha"
+        scene={scene}
+        table={lookTable}
+        theme={theme}
+        walls={open}
+        footprints={[]}
+        roads={roadGrid([])}
+        inspect={() => ({ hit: null, files: [] })}
+        landing={landing}
+        parked={parkedBy(landing, open)}
+        engine="Rapier"
+        Canvas={StubCanvas}
+        onLeave={onLeave}
+      />,
+    );
+    await committed;
+    fireEvent.keyDown(window, { key: "Escape", code: "Escape" });
+    expect(onLeave).toHaveBeenCalledOnce();
+    flushSync(() => root.unmount());
+    host.remove();
+    Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", acting);
+  });
+
   it("stands at the landing, says how to walk and which engine it runs on, and has the keyboard", () => {
     show();
     const start = walk(0);
