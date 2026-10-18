@@ -121,6 +121,18 @@ describe("colourChoices and colourFor", () => {
     expect(colourFor("churn", measures)).toBe("folder");
     expect(colourFor("size", null)).toBe("folder");
   });
+
+  it("disables authors alone, with its reason, in a fold whose .mailmap could not be fetched", () => {
+    const unmapped: Measures = {
+      ...measures,
+      source: "cli",
+      available: ["size", "tested", "kind", "recency", "churn", "comments"],
+    };
+    expect(colourChoices(unmapped).filter((c) => c.reason !== null)).toEqual([
+      { by: "authors", reason: "The laid commit's .mailmap could not be fetched" },
+    ]);
+    expect(colourFor("authors", unmapped)).toBe("folder");
+  });
 });
 
 describe("rampEnds and floorEnds", () => {

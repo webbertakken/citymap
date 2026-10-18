@@ -66,6 +66,14 @@ function testedRow(building: Building, measures: Measures): CardRow {
   return { label: "Tested", value: building.tested === 1 ? "A test names it" : "No test names it", note: "By name" };
 }
 
+/** Its authors; in a fold whose `.mailmap` could not be fetched, why they are not known. */
+function authorsRow(building: Building, measures: Measures): CardRow {
+  const reason = unavailableReason("authors", measures);
+  if (reason !== null) return unknown("Authors", reason);
+  if (building.authors === null) return unknown("Authors", "No commit read changed it");
+  return { label: "Authors", value: number(building.authors) };
+}
+
 /** The rows a lot's building adds to its card: each available measure, then the unavailable ones with their reason. */
 export function measureRows(building: Building | undefined, measures: Measures | null, now: number): CardRow[] {
   if (!measures || !building) return [];
@@ -79,9 +87,7 @@ export function measureRows(building: Building | undefined, measures: Measures |
       building.commits === null
         ? unknown("Commits", "No commit read changed it")
         : { label: "Commits", value: number(building.commits) },
-      building.authors === null
-        ? unknown("Authors", "No commit read changed it")
-        : { label: "Authors", value: number(building.authors) },
+      authorsRow(building, measures),
     );
   if (has("comments"))
     rows.push(

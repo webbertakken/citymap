@@ -13,5 +13,5 @@ pub use reports::matching::{
     Coverage, FoundReport, MAX_REPORT_BYTES, Matched, USUAL_REPORTS, match_reports, report_candidates,
 };
 pub use reports::report::{Report, ReportFile, ReportFormat, parse_report};
-pub use section::{FileMeasures, LotMeasures, MEASURES, Measures, available_for, serialise_city_file};
+pub use section::{FileMeasures, Given, LotMeasures, MEASURES, Measures, available_for, serialise_city_file};
 pub use text::{TextFacts, count_text};

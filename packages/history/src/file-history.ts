@@ -11,7 +11,8 @@ interface Record {
 export interface FileFacts {
   readonly changed: number;
   readonly commits: number;
-  readonly authors: number;
+  /** Left out once the people cannot be told apart. */
+  readonly authors?: number;
 }
 
 /** An email lower-cased in ASCII only, so every implementation folds it alike. */
@@ -20,6 +21,17 @@ const folded = (email: string) => email.replace(/[A-Z]/g, (c) => c.toLowerCase()
 export class FileHistory {
   private readonly people = new Map<string, number>();
   private readonly files = new Map<string, Record>();
+  private known = true;
+
+  /** Whether the people are known: false once the laid commit's `.mailmap` could not be read. */
+  get authorsKnown(): boolean {
+    return this.known;
+  }
+
+  /** The people cannot be told apart (the laid commit's `.mailmap` could not be fetched): authors are unknown. */
+  forgetAuthors(): void {
+    this.known = false;
+  }
 
   /** One commit changed the file of this identity: at `time`, by the author the mailmap gives `email` to. */
   record(identity: string, time: number, email: string): void {
@@ -37,10 +49,11 @@ export class FileHistory {
     } else this.files.set(identity, { changed: time, commits: 1, authors: new Set([person]) });
   }
 
-  /** A file's history, or undefined when no commit read changed it. */
+  /** A file's history, or undefined when no commit read changed it; its authors only while they are known. */
   of(identity: string): FileFacts | undefined {
     const file = this.files.get(identity);
-    return file && { changed: file.changed, commits: file.commits, authors: file.authors.size };
+    if (!file) return undefined;
+    return { changed: file.changed, commits: file.commits, ...(this.known ? { authors: file.authors.size } : {}) };
   }
 
   /** The people who changed any of these files. */

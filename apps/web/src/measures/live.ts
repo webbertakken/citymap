@@ -41,6 +41,7 @@ export function liveMeasures(city: City, plat: Plat, snapshot: Snapshot, facts: 
     source: facts.source,
     size: facts.size,
     history: false,
+    authors: false,
     comments: facts.comments,
     tested,
     lots: lotFiles(city, plat, snapshot.files),

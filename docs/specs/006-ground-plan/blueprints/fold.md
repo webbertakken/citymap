@@ -69,7 +69,8 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
   file and folder born at 0 (`identity = path@0`), submodules skipped, members from its root manifests. The CLI's
   `--no-history` lays it once instead of folding (no lock): the scale corpus is shown this way.
 - `GIT_NO_LAZY_FETCH=1` is set, and blob reads allow no protocol (`GIT_ALLOW_PROTOCOL=none`, which every git honours),
-  so a blob-less clone never fetches.
+  so a blob-less clone never fetches, but for one named exception: with a file history, the laid commit's `.mailmap`
+  blob, fetched alone ([buildings](../../008-buildings/blueprints/buildings.md) § Mailmap).
 - Every git call clears the variables a git hook sets (`GIT_DIR`, `GIT_INDEX_FILE` and the like), so a fold run from a
   hook reads the folder it was given.
 - Failures: `history/git-failed` (exit code, stderr's first line), `history/parse` (offset), `history/bad-schedule` (a

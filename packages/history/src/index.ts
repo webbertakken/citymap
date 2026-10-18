@@ -26,10 +26,13 @@ export { gitEnvironment } from "./env";
 export { readTree, type TreeOptions } from "./tree";
 export { FileHistory, type FileFacts } from "./file-history";
 export {
+  MAILMAP_FETCH_TIMEOUT,
   emailOf,
+  fetchBlob,
   parseMailmap,
   readMailmap,
   type Author,
+  type Fetched,
   type Mailmap,
   type MailmapRead,
   type MailmapStatus,
