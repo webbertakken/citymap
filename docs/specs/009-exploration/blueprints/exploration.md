@@ -21,7 +21,7 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
 | engine    | `Engine`, `Gearbox`, `torqueAt`, `automatic`, `driveOf`   | torque by a curve, gears that change themselves, the push at the driven wheel      |
 | core      | `Single`, `Machine`, `Build`, `matricesOf`, `ridden`      | the single-track core: a build's Whipple matrices, balance, loads, lifts, falls    |
 | motorbike | `Moto`, `CHOPPER`, `MOTORBIKE`, `rideMotorbike`           | the motorbike's own state and one step of it: engine, brakes, wheelie, the core    |
-| flight    | `Heli`, `flyHeli`, `touched`, `groundEffect`, `heliHud`   | the helicopter's own state, one step of its flight, what the walls took of it      |
+| flight    | `Heli`, `flyHeli`, `touched`, `heliHud`, `heliShadow`     | the helicopter's state, a step of its flight, what the walls took, its shadow      |
 | helipad   | `helipadBy(landing, walls, parked)`                       | where the city's helicopter stands: open ground along the landing's road           |
 | room      | `roomToLand`, `belowOf`, `perched`                        | whether the rotor fits where it would land; what lies below; a rotor on a top      |
 | rooftop   | `Rooftop`, `Rooftops`, `rooftops(footprints, walls)`      | a roof with room for the rotor, marked "H"; the nearest few round a point          |
@@ -304,7 +304,7 @@ The bicycle and the motorbike are one physics with two builds. Lean `φ` and ste
 Pitch positive nose down, roll positive the right side down, yaw rate anticlockwise from above (as headings grow).
 
 - Build (the AS350 B2): `HELI_MASS` 2,250 kg, `ROTOR_RADIUS` 5.35 m, `MAST` 3.06 m (the hub above the skids, from the
-  mesh), `BODY_RADIUS` 1.4 m (the cabin against anything lower than the disc), `THRUST_MOST` 1.5 of its weight out of
+  mesh), `BODY_RADIUS` 1.4 m (the cabin against anything lower than the disc), `THRUST_MOST` 2 of its weight out of
   ground effect. `VEHICLES.helicopter`: 11 × 2.6 m, its outline's middle `HUB_AHEAD` 1.99 m behind its feet (under the
   mast); follow 15 m back, 4 m up, `stretch` 0.1 s, `farthest` 22 m, `chase` 0.6 s.
 - `Heli`: `velocity` (world), `pitch`, `roll` and their rates, `yawRate`, `rotor` (share of flying speed), `engine`,
@@ -314,31 +314,34 @@ Pitch positive nose down, roll positive the right side down, yaw rate anticlockw
 - Rotor: `rotor` rises `SPIN_UP` 0.2 a second with the engine on, falls `SPIN_DOWN` 0.08 a second off; its power is
   `rotor²` (taken from the step's start). Blades turn `BLADE_SPIN` 20 rad/s · rotor, the tail `TAIL_SPIN` 36.
 - `groundEffect(below)` = `1 / (1 − (R / 4z)²)`, `z = below + MAST` (Cheeseman and Bennett); 1 for an infinite `below`.
-  `hoverShare(below) = √(m g / (THRUST_MOST · groundEffect))`: 0.734 on the ground, so it lifts 3.7 s after starting.
+  `hoverShare(below) = √(m g / (THRUST_MOST · groundEffect))`: 0.636 on the ground, so it lifts 3.2 s after starting.
 - `thrustDirection(heading, pitch, roll)` = `ahead · sin p cos r + right · sin r + up · cos p cos r`; `tiltedOf` the
   quaternion `yaw(heading) · zTurn(−pitch) · xTurn(roll)`, whose up is that axis.
 - `flyHeli(heli, { y, heading }, flight, below, dt)`, `flight.up` from Space less Shift, C or Control (or Up and Down,
   or a pad's A and B):
   - The collective for a climb `c`: `m (g + CLIMB_GAIN (c − v_y) + HEAVE v_y) / max(0.5, axis_y)`, over
-    `THRUST_MOST · rotor²`, within 0 to 1 (`CLIMB_GAIN` 2, `HEAVE` 0.3 s⁻¹, the rotor's own damping of a climb). Ground
+    `THRUST_MOST · rotor²`, within 0 to 1 (`CLIMB_GAIN` 4, `HEAVE` 0.3 s⁻¹, the rotor's own damping of a climb). Ground
     effect is not known to it, so near the ground it rises a little: the cushion.
   - The climb asked: Up `up · CLIMB_MOST` (8 m/s); Down
-    `up · min(SINK_MOST 6, max(LAND_SINK 1.5, below / FLARE 1.5 s))`; else back to `hold` at `HOLD_GAIN` 1 a second,
+    `up · min(SINK_MOST 6, max(LAND_SINK 1.5, below / FLARE 1.5 s))`; else back to `hold` at `HOLD_GAIN` 0.5 a second,
     within ±8; never past `(CEILING 500 − y) · HOLD_GAIN`.
   - On its skids: level and still but a slide stopped at `SKID_GRIP` 6 m/s²; Up sets the collective for a full climb,
     and it rises once `collective · lift · groundEffect(0)` passes its weight.
   - Aloft, the tail rotor: an aimed yaw rate `−right · min(YAW_MOST 1.2, g tan ROLL_MOST / |v_ahead|)`; torque `TORQUE`
     1.5 · collective · rotor² cancelled, the push `YAW_GAIN` 5 · (aim − rate), all within `TAIL_MOST` 4 · rotor² rad/s².
-  - The cyclic: pitch aimed `forward · PITCH_MOST` (0.3), else `clamp(−HOVER_GAIN 0.04 · v_ahead, ±HOVER_TILT 0.2)`;
-    roll aimed `atan(v_ahead · −yawAim / g) − HOVER_GAIN · v_side`, within `ROLL_MOST` 0.6 while turning, else
-    `HOVER_TILT`. Each a critically damped spring of `TILT_RATE` 5 rad/s, its acceleration times rotor².
+  - The cyclic: pitch aimed `forward · PITCH_MOST` (0.5), else `clamp(−HOVER_GAIN 0.15 · v_ahead, ±HOVER_TILT)`
+    (`PITCH_MOST`); roll aimed `atan(v_ahead · −yawAim / g) − HOVER_GAIN · v_side`, within `ROLL_MOST` 0.6 while
+    turning, else `HOVER_TILT`. Each a critically damped spring of `TILT_RATE` 10 rad/s, its acceleration times rotor².
   - The landing assist (`pad`, where a marked roof's middle lies from the feet): sinking (`up < 0`) with neither forward
     nor right asked, within `PAD_PULL` 10 m of it, the pitch and roll aimed are
     `clamp((PAD_GAIN 2 · offset − PAD_DAMPING 2.8 · velocity) / g, ±HOVER_TILT)` along the nose and to its right (a
     critically damped position hold, ω √2 rad/s); farther than `PAD_CENTRED` 0.4 m from it, the climb asked is held to
     no faster a sink than `LAND_SINK`, so it centres, then sinks.
-  - Forces: thrust along the axis with ground effect; drag `½ ρ A |v| v` ahead (`DRAG_AHEAD` 3.5 m²) and to the side
+  - Forces: thrust along the axis with ground effect; drag `½ ρ A |v| v` ahead (`DRAG_AHEAD` 6.5 m²) and to the side
     (`DRAG_SIDE` 12 m²), ρ 1.2; gravity; `HEAVE` on the climb. Top speed about 200 km/h.
+  - Measured over a level hover, 120 steps a second: 5 m/s of climb in 0.56 s, 95 % of `CLIMB_MOST` in 1.07 s; 5 m/s of
+    sink in 0.61 s; 5 km/h ahead in 0.46 s, 50 km/h in 2.86 s; let go at 50 km/h, it peaks within 0.3 s and stops (under
+    0.1 m/s) in 3.7 s over 23 m. Each bound is a test (`responsiveness, arcade`).
 - `stepVehicle` for a helicopter (`flyThrough`): `belowOf(feet, walls)` (the clearance straight down, infinite past
   `BELOW_REACH` 4 R); the across move first by the disc (`walls.move` at `y + MAST`, radius R), then by the cabin
   (radius `BODY_RADIUS`) to where the disc came; the up or down move by the skids (radius `BODY_RADIUS`) and by the disc
@@ -363,7 +366,13 @@ Pitch positive nose down, roll positive the right side down, yaw rate anticlockw
   velocity across. `reachable` and `clearOfVehicles` skip a vehicle more than `LEVEL` 2 m above or below.
 - `alightFrom`: the left, unless it is walled short or has no floor at the vehicle's level; then the side with a floor,
   between equals the one that reaches further.
-- `heliHud(heli, altitude)`: metres, the climb to the tenth (−0 shown 0), km/h, rotor per cent.
+- `heliHud(heli, altitude)`: metres, the climb to the tenth (−0 shown 0), km/h, rotor per cent; `hudOfRide` gives it the
+  height above `under` (the first roof below, or the street).
+- `heliShadow(feet, heading, under)`: `at` under the outline's middle (`HUB_AHEAD` behind the feet along the heading),
+  `SHADOW_LIFT` 0.03 m above `under`; `opacity` `SHADOW_DARKEST` 0.45 · max(0, 1 − height / `SHADOW_REACH` 80 m).
+  `ExploreFrame.shadow` is the helicopter's (null with none), `under` read each frame by `walls.clearance` straight
+  down; the canvas lays a flat 11 × 2.6 m plane (a `SHADOW_PIXELS` 64 px radial fade, depth-write off, polygon offset
+  −4) there, turned by the heading, hidden at opacity 0.
 
 ## Engines and gearboxes (`explore/engine.ts`)
 
@@ -460,10 +469,12 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
     textures 256 px WebP (`EXT_texture_webp`, by sharp), NEAREST, `prune({ keepLeaves: true })`: 256 KB.
   - `vehicles/helicopter.glb`: ArcheoteryxFr's AS350 B2 (CC BY 4.0) through Sketchfab's download API (`sketchfab(uid)`,
     a token from `SKETCHFAB_TOKEN` or `~/.secrets/sketchfab-api-token`, never printed; the glb cached as the others).
-    Its centimetre scale dropped and flattened, every part's place baked into its mesh; `helicopter_rotor` hung from the
-    hub's middle in plan at the blades' height, `helicopter_tail_rotor` from its own middle; the body named
+    Its centimetre scale dropped and flattened, every part's place baked into its mesh; `helicopter_rotor` a pivot node
+    (no mesh) at the hub's middle in plan at the blades' height, the blades under it as `helicopter_rotor_mesh`;
+    `helicopter_tail_rotor` likewise at its own middle (`hangAt`); a pivot carries no mesh, so meshopt's quantisation,
+    which moves a mesh's node to its box, leaves it on the hub (the three blades' box is 1.23 m off it); the body named
     `helicopter_body`; normal, metallic, occlusion and emissive maps dropped, the albedo 512 px WebP (quality 85);
-    welded and meshopt-compressed (`EXT_meshopt_compression`, `meshoptimizer`): 107 KB, 5,740 triangles. Without a token
+    welded and meshopt-compressed (`EXT_meshopt_compression`, `meshoptimizer`): 108 KB, 5,740 triangles. Without a token
     and with nothing cached, the committed file is kept as it is (said in the build's output).
   - `CREDITS.md`: one line per source, as their licences ask (the motorbike's: Duhgless, CC0 1.0, its page; the
     helicopter's: ArcheoteryxFr, CC BY 4.0, its page, and that it was cut down).

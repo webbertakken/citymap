@@ -99,11 +99,18 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
   a hover a metre up settles a little higher.
 - **The rotor spins up and down.** Getting in starts the engine: the rotor takes five seconds to reach its flying speed,
   and the helicopter cannot lift until it turns fast enough to hold it up. Getting out stops the engine, and the rotor
-  spins down over about twelve seconds. The blades and the tail rotor turn as fast as the rotor does.
+  spins down over about twelve seconds. The blades and the tail rotor turn as fast as the rotor does, each about its own
+  hub: the main rotor about the mast.
 - **Assisted, as GTA's.** W and S tilt it nose down and up, flying it ahead and back; A and D turn it, on the spot in a
   hover and banking into the turn at speed. Space climbs and Shift or C sinks; let go, it holds its height. Let go of
   everything and it levels itself and slows to a hover. It flies at up to about 200 km/h, climbs at 8 m/s and sinks at
   6, more gently near what lies below, and goes no higher than 500 m.
+- **It answers at once, as an arcade helicopter does.** A climb, a sink, a lean ahead or back, and a stop once let go
+  each begin within about 0.3 s of the key and reach their rate within about a second, keeping a little inertia: 5 m/s
+  of climb in about half a second, 0 to 50 km/h in under three seconds, and let go at 50 km/h it hovers within about 25
+  m.
+- **Its shadow** lies under it on the street or the roof below: a soft one, as long and wide as it is, darkest on its
+  skids and fading as it climbs, so its height reads at a glance (the city casts no other).
 - **Landing and taking off.** Sinking onto the street or a roof, it lands on its skids, level; Space lifts it off again.
   A roof is landed on only where the rotor has room: a taller building within the rotor's reach holds the rotor up, and
   the helicopter slides off that building's edge.
@@ -116,9 +123,9 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
   the rotor, which loses speed, and jolts it away.
 - **The camera** follows from further back and higher, drawing back with speed, and swings behind it as it turns, even
   on the spot.
-- **The HUD**, while in the helicopter: its altitude above the street in metres, its climb in metres a second, its speed
-  in km/h, its rotor's speed as a share of its flying speed, and what lies below (street or roof, and "no room" where
-  the rotor could not land there).
+- **The HUD**, while in the helicopter: its altitude above what lies below (the street or a roof) in metres, its climb
+  in metres a second, its speed in km/h, its rotor's speed as a share of its flying speed, and what lies below (street
+  or roof, and "no room" where the rotor could not land there).
 
 ## The motorbike
 
