@@ -1,6 +1,6 @@
 // Who an author is, as the laid commit's `.mailmap` says: read from the commit, never from the working tree or git's
 // mailmap settings, so the same history always counts the same people. Lines are read as git's `mailmap.c` reads them.
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { CitymapError } from "@citymap/ground-plan";
 import type { BlobReader } from "./blobs";
 import { gitEnvironment } from "./env";
@@ -20,12 +20,22 @@ interface Entry {
 /** The emails a `.mailmap` maps, keyed by the commit email folded in ASCII. */
 export type Mailmap = ReadonlyMap<string, Entry>;
 
-export type MailmapStatus = "read" | "absent" | "not-a-file" | "unavailable";
+export type MailmapStatus = "read" | "fetched" | "absent" | "not-a-file" | "unfetchable";
 
 export interface MailmapRead {
   readonly code: "history/mailmap";
-  readonly detail: { readonly status: MailmapStatus; readonly entries: number };
+  readonly detail: {
+    readonly status: MailmapStatus;
+    readonly entries: number;
+    /** Why an unfetchable one could not be fetched: `timeout`, or `exit-<code>` of git. */
+    readonly reason?: string;
+    /** Git's first line of complaint, for an exit. */
+    readonly error?: string;
+  };
 }
+
+/** How long fetching the one `.mailmap` blob may take before it is given up: a prompt or a stalled network. */
+export const MAILMAP_FETCH_TIMEOUT = 30_000;
 
 /** Git compares mailmap keys with `strcasecmp`: ASCII letters only fold. */
 const folded = (text: string) => text.replace(/[A-Z]/g, (c) => c.toLowerCase());
@@ -90,7 +100,74 @@ const outcome = (status: MailmapStatus, mailmap: Mailmap = new Map()) => ({
   event: { code: "history/mailmap", detail: { status, entries: mailmap.size } } satisfies MailmapRead,
 });
 
-/** The `.mailmap` at the root of `commit`, read through `blobs` (never fetched), and what was found. */
+/** How a bounded run ended: its exit code (null when it could not start), its output and its complaint. */
+export interface Ran {
+  readonly code: number | null;
+  readonly stdout: Buffer;
+  readonly stderr: string;
+}
+
+/** Runs a command with an argument list (never a shell), killed after `timeoutMs`; resolves at once on a timeout. */
+export function runWithin(
+  command: string,
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+  timeoutMs: number,
+): Promise<Ran | "timeout"> {
+  return new Promise((done) => {
+    const child = spawn(command, args, { env, stdio: ["ignore", "pipe", "pipe"] });
+    const out: Buffer[] = [];
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (text: string) => {
+      stderr += text;
+    });
+    // A process git starts in turn may hold the pipes open after git is killed: they are let go, not waited for.
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      child.stdout.destroy();
+      child.stderr.destroy();
+      done("timeout");
+    }, timeoutMs);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      done({ code: null, stdout: Buffer.alloc(0), stderr: error.message });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      done({ code, stdout: Buffer.concat(out), stderr });
+    });
+  });
+}
+
+export type Fetched =
+  | { readonly text: string }
+  | { readonly reason: "timeout" }
+  | { readonly reason: string; readonly error: string };
+
+/**
+ * Fetches one blob a partial clone does not hold, and nothing else, and reads it: git's own lazy fetch, allowed for this
+ * one call, asks the clone's promisor remotes for that object alone (`fetch.negotiationAlgorithm=noop`,
+ * `--filter=blob:none`). Never prompts; given up after `timeoutMs`.
+ */
+export async function fetchBlob(dir: string, blob: string, timeoutMs = MAILMAP_FETCH_TIMEOUT): Promise<Fetched> {
+  const { GIT_NO_LAZY_FETCH: _lazy, ...env } = gitEnvironment();
+  const ran = await runWithin(
+    "git",
+    ["-C", dir, "cat-file", "blob", blob],
+    { ...env, GIT_TERMINAL_PROMPT: "0" },
+    timeoutMs,
+  );
+  if (ran === "timeout") return { reason: "timeout" };
+  if (ran.code === 0) return { text: ran.stdout.toString("utf8") };
+  return { reason: `exit-${String(ran.code)}`, error: ran.stderr.split("\n", 1)[0]! };
+}
+
+/**
+ * The `.mailmap` at the root of `commit`, read through `blobs`, and what was found. A blob a partial clone does not
+ * hold is fetched, alone (`fetchBlob`); one that cannot be is `unfetchable`, and the authors are then unknown.
+ */
 export async function readMailmap(
   dir: string,
   commit: string,
@@ -114,5 +191,11 @@ export async function readMailmap(
   const [mode = "", , blob = ""] = listing.slice(0, listing.indexOf("\t")).split(" ");
   if (!REGULAR.has(mode)) return outcome("not-a-file");
   const text = (await blobs.readAll([blob])).get(blob);
-  return typeof text === "string" ? outcome("read", parseMailmap(text)) : outcome("unavailable");
+  if (typeof text === "string") return outcome("read", parseMailmap(text));
+  const fetched = await fetchBlob(dir, blob);
+  if ("text" in fetched) return outcome("fetched", parseMailmap(fetched.text));
+  return {
+    mailmap: new Map(),
+    event: { code: "history/mailmap", detail: { status: "unfetchable", entries: 0, ...fetched } },
+  };
 }

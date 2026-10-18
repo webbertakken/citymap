@@ -245,6 +245,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
     const read = await readMailmap(dir, head, blobs);
     onEvent(read.event);
     mailmap = read.mailmap;
+    if (read.event.detail.status === "unfetchable") options.fileHistory.forgetAuthors();
   }
   const child = spawn(
     "git",

@@ -116,16 +116,24 @@ export function parseCityFile(text: string): CityFile {
   return { city: validateCity(city), measures: validateMeasures(measures) };
 }
 
+/** What a reading gave: the history, the people in it (the laid commit's `.mailmap` read), the files' contents. */
+export interface Given {
+  readonly history: boolean;
+  readonly authors: boolean;
+  readonly comments: boolean;
+}
+
 /** What a source can give, in `MEASURES` order. */
-export function availableFor(source: MeasuresSource, history: boolean, comments: boolean): Measure[] {
+export function availableFor(source: MeasuresSource, given: Given): Measure[] {
   return MEASURES.filter((measure) => {
     switch (measure) {
       case "recency":
       case "churn":
+        return source === "cli" && given.history;
       case "authors":
-        return source === "cli" && history;
+        return source === "cli" && given.history && given.authors;
       case "comments":
-        return comments;
+        return given.comments;
       default:
         return true;
     }
@@ -138,5 +146,9 @@ export function unavailableReason(measure: Measure, measures: Measures | null): 
   if (measures === null) return "This city file has no measures";
   if (measures.available.includes(measure)) return null;
   if (measure === "comments") return "Needs the files' contents";
-  return measures.source === "cli" ? "Laid without history (--no-history)" : "Needs the CLI's history";
+  if (measures.source !== "cli") return "Needs the CLI's history";
+  // A fold with its history but not its people: the laid commit's .mailmap could not be fetched.
+  if (measure === "authors" && measures.available.includes("recency"))
+    return "The laid commit's .mailmap could not be fetched";
+  return "Laid without history (--no-history)";
 }
