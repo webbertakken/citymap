@@ -93,6 +93,8 @@ pub struct MeasuresInput<'a> {
     pub facts_of: &'a dyn Fn(&str) -> FileMeasures,
     /// The people across a lot's files, when the history was read; none when no commit read changed any.
     pub authors_across: Option<AuthorsAcross<'a>>,
+    /// The submodule folders the city's files lie in, sorted.
+    pub submodules: &'a [String],
 }
 
 /// The measures section: every lot's files and their values, keyed by town and lot.
@@ -123,6 +125,7 @@ pub fn build_measures(input: &MeasuresInput) -> Measures {
         lots,
         size: input.size,
         source: input.source,
+        submodules: input.submodules.to_vec(),
         tested: input.tested,
         version: MEASURES_VERSION,
     }
@@ -260,7 +263,9 @@ mod tests {
             lots: &lots,
             facts_of: &facts,
             authors_across: Some(&across),
+            submodules: &["vendor/lib".to_owned()],
         });
+        assert_eq!(measures.submodules, vec!["vendor/lib".to_owned()]);
         assert_eq!(measures.lots["demo"]["a@0"].files[0].lines, Some(3));
         assert_eq!(measures.lots["demo"]["a@0"].authors, Some(1));
         assert_eq!(measures.lots["demo old town"]["c@0"].authors, None);

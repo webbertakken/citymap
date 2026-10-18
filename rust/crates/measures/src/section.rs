@@ -57,6 +57,9 @@ pub struct Measures {
     pub size: &'static str,
     /// `cli`, `github` or `folder`.
     pub source: &'static str,
+    /// The submodule folders the city's files lie in, sorted; left out when there are none. Their files carry no history.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub submodules: Vec<String>,
     /// How tested is known: `coverage` or `name`.
     pub tested: &'static str,
     pub version: u32,
@@ -167,9 +170,19 @@ mod tests {
             )]),
             size: "lines",
             source: "cli",
+            submodules: vec![],
             tested: "name",
             version: MEASURES_VERSION,
         };
+        let within = Measures {
+            submodules: vec!["vendor/a".into(), "vendor/b".into()],
+            ..measures.clone()
+        };
+        assert!(
+            serialise_city_file(&city, Some(&within))
+                .unwrap()
+                .contains(r#""source":"cli","submodules":["vendor/a","vendor/b"],"tested":"name""#)
+        );
         assert_eq!(
             serialise_city_file(&city, Some(&measures)).unwrap(),
             "{\"commit\":\"worktree\",\"highways\":[],\"measures\":{\"available\":[\"size\",\"tested\",\"kind\",\"recency\",\"churn\",\"authors\",\"comments\"],\"lots\":{\"demo\":{\"a@0\":{\"authors\":2,\"files\":[{\"lines\":3,\"named\":true,\"path\":\"a\"}]}}},\"size\":\"lines\",\"source\":\"cli\",\"tested\":\"name\",\"version\":1},\"repository\":\"demo\",\"towns\":[]}\n"

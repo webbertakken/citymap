@@ -56,6 +56,8 @@ export interface MeasuresInput {
   readonly factsOf: (path: string) => Omit<FileMeasures, "path">;
   /** The people across a lot's files, when the history was read; undefined when no commit read changed any. */
   readonly authorsAcross?: (paths: readonly string[]) => number | undefined;
+  /** The submodule folders the city's files lie in, sorted. */
+  readonly submodules?: readonly string[];
 }
 
 /** The measures section: every lot's files and their values, keyed by town and lot. */
@@ -77,5 +79,6 @@ export function buildMeasures(input: MeasuresInput): Measures {
     tested: input.tested,
     available: availableFor(input.source, input.history, input.comments),
     lots,
+    ...(input.submodules && input.submodules.length > 0 ? { submodules: input.submodules } : {}),
   };
 }

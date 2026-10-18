@@ -663,6 +663,7 @@ fn measures_a_submodules_files_from_its_own_git_data_with_no_history_of_their_ow
             })
             .expect("its lot");
         assert!(lot.get("authors").is_none(), "{lot}");
+        assert_eq!(value["measures"]["submodules"], serde_json::json!(["vendor/lib"]));
         let done = io
             .lines
             .iter()

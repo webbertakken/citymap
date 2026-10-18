@@ -49,6 +49,8 @@ export interface Measures {
   readonly available: readonly Measure[];
   /** Town key, then lot key. */
   readonly lots: Readonly<Record<string, Readonly<Record<string, LotMeasures>>>>;
+  /** The submodule folders the city's files lie in, sorted; absent when there are none. Their files carry no history. */
+  readonly submodules?: readonly string[];
 }
 
 /** A city file: the layout, and beside it its measures, or null when it was written without them. */
@@ -82,6 +84,7 @@ const measuresSchema = v.strictObject({
   tested: v.picklist(["coverage", "name"]),
   available: v.array(v.picklist(MEASURES)),
   lots: v.record(v.string(), v.record(v.string(), lotSchema)),
+  submodules: v.exactOptional(v.array(v.string())),
 });
 
 /** The measures of a parsed city file's `measures` key, or a named rejection with the pointer of the first fault. */

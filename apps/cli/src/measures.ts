@@ -136,6 +136,7 @@ export async function measureCity({
     tested,
     lots,
     factsOf,
+    ...(snapshot.submodules ? { submodules: snapshot.submodules } : {}),
     ...(history
       ? { authorsAcross: (files: readonly string[]) => history.authorsAcross(files.map((p) => identityOf.get(p)!)) }
       : {}),

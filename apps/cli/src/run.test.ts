@@ -345,6 +345,7 @@ describe("runLay's measures", () => {
       .flatMap((town) => Object.values(town))
       .find((l) => l.files.some((f) => f.path === "vendor/lib/l.ts"));
     expect(lot?.authors).toBeUndefined();
+    expect(parseCityFile(text).measures!.submodules).toEqual(["vendor/lib"]);
     expect(lines.find((l) => l.startsWith("measures/done"))).toMatch(
       /^measures\/done source=cli size=lines tested=name lots=\d+ files=\d+ read=8 unread=0$/,
     );

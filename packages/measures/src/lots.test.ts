@@ -140,6 +140,21 @@ describe("buildMeasures", () => {
     });
   });
 
+  it("names the submodule folders when the city has any, and leaves the key out when it has none", () => {
+    const input = {
+      source: "cli",
+      size: "lines",
+      history: true,
+      comments: true,
+      tested: "name",
+      lots,
+      factsOf: () => ({}),
+    } as const;
+    expect(buildMeasures({ ...input, submodules: ["vendor/lib"] }).submodules).toEqual(["vendor/lib"]);
+    expect(buildMeasures({ ...input, submodules: [] })).not.toHaveProperty("submodules");
+    expect(buildMeasures(input)).not.toHaveProperty("submodules");
+  });
+
   it("leaves the people out of a lot whose files no commit read changed", () => {
     const measures = buildMeasures({
       source: "cli",

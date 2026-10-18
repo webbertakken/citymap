@@ -76,6 +76,12 @@ describe("parseCityFile", () => {
     expect(parseCityFile(serialiseCity(city))).toEqual({ city, measures: null });
   });
 
+  it("round-trips the submodule folders a city's files lie in, and rejects a list of anything else", () => {
+    const within = { ...measures, submodules: ["vendor/a", "vendor/b"] };
+    expect(parseCityFile(serialiseCityFile({ city, measures: within }))).toEqual({ city, measures: within });
+    expect(bad({ ...measures, submodules: [1] })).toThrow("measures/bad-shape: /measures/submodules/0");
+  });
+
   it("rejects text that is not JSON, and a bad city", () => {
     expect(() => parseCityFile("{")).toThrow("city/bad-json");
     expect(() => parseCityFile("[]")).toThrow("city/bad-shape");

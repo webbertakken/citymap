@@ -84,6 +84,24 @@ describe("measureRows", () => {
     ]);
   });
 
+  it("says a submodule's files carry no history of their own", () => {
+    const inside = building({
+      files: ["vendor/lib/a.ts", "vendor/lib/b.ts"],
+      changed: null,
+      commits: null,
+      authors: null,
+    });
+    const rows = measureRows(inside, { ...cli, submodules: ["vendor/lib"] }, NOW).map((r) => [r.label, r.note]);
+    expect(rows.filter(([label]) => ["Changed", "Commits", "Authors"].includes(label!))).toEqual([
+      ["Changed", "A submodule's own history is not read"],
+      ["Commits", "A submodule's own history is not read"],
+      ["Authors", "A submodule's own history is not read"],
+    ]);
+    // A lot beside the submodule, or one only partly in it, keeps the general reason.
+    const beside = building({ files: ["vendor/library.ts"], changed: null, commits: null, authors: null });
+    expect(measureRows(beside, { ...cli, submodules: ["vendor/lib"] }, NOW)[2]!.note).toBe("No commit read changed it");
+  });
+
   it("says a live city's sizes in bytes, tests by name, and what it cannot know", () => {
     const rows = measureRows(building({ lines: null, tested: 1 }), github, NOW);
     expect(rows.map((r) => [r.label, r.value, r.note])).toEqual([

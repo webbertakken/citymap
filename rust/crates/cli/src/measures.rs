@@ -197,6 +197,7 @@ pub fn measure_city(input: MeasureInput, io: &mut dyn Io) -> Result<Measures> {
         authors_across: history
             .is_some()
             .then_some(&across as &dyn Fn(&[String]) -> Option<i64>),
+        submodules: snapshot.submodules.as_deref().map_or(&[], Vec::as_slice),
     });
     let files: usize = lots
         .iter()

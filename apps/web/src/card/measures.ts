@@ -66,22 +66,25 @@ function testedRow(building: Building, measures: Measures): CardRow {
   return { label: "Tested", value: building.tested === 1 ? "A test names it" : "No test names it", note: "By name" };
 }
 
+/** Whether every file lies in one of the submodule folders. */
+const inSubmodules = (files: readonly string[], submodules: readonly string[]) =>
+  submodules.length > 0 && files.every((file) => submodules.some((folder) => file.startsWith(`${folder}/`)));
+
 /** The rows a lot's building adds to its card: each available measure, then the unavailable ones with their reason. */
 export function measureRows(building: Building | undefined, measures: Measures | null, now: number): CardRow[] {
   if (!measures || !building) return [];
   const has = (m: Measure) => measures.available.includes(m);
   const rows: CardRow[] = [sizeRow(building, measures), testedRow(building, measures)];
+  const unread = inSubmodules(building.files, measures.submodules ?? [])
+    ? "A submodule's own history is not read"
+    : "No commit read changed it";
   if (has("recency"))
     rows.push(
       building.changed === null
-        ? unknown("Changed", "No commit read changed it")
+        ? unknown("Changed", unread)
         : { label: "Changed", value: agoText(building.changed, now), note: dateText(building.changed) },
-      building.commits === null
-        ? unknown("Commits", "No commit read changed it")
-        : { label: "Commits", value: number(building.commits) },
-      building.authors === null
-        ? unknown("Authors", "No commit read changed it")
-        : { label: "Authors", value: number(building.authors) },
+      building.commits === null ? unknown("Commits", unread) : { label: "Commits", value: number(building.commits) },
+      building.authors === null ? unknown("Authors", unread) : { label: "Authors", value: number(building.authors) },
     );
   if (has("comments"))
     rows.push(
