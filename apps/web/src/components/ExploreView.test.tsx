@@ -191,6 +191,9 @@ const until = (lines: () => readonly string[], wanted: string, most: number) => 
 const press = (button: HTMLElement, down: boolean) =>
   down ? fireEvent.pointerDown(button) : fireEvent.pointerUp(button);
 
+/** The prompt's button to get out of the helicopter, once it offers it. */
+const getOut = () => screen.queryByRole("button", { name: "Get out of the helicopter" });
+
 /** The bicycle's HUD, while it shows. */
 const hud = () => document.querySelector<HTMLElement>(".explore-hud")!;
 
@@ -782,19 +785,17 @@ describe("ExploreView", () => {
   it("gets in the helicopter on a low roof, lifts it by the Up button, lands it back by Down, and says so", () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const lines = () => info.mock.calls.map(([line]) => String(line));
-    const roof: Footprint = { lot: 1, corners: [], top: 1.5 };
-    const walls = cityWalls([
-      {
-        ...roof,
-        corners: [
-          { x: 0, z: 21.5 },
-          { x: 30, z: 21.5 },
-          { x: 30, z: 40 },
-          { x: 0, z: 40 },
-        ],
-      },
-    ]);
-    show(undefined, { walls, parked: [helicopterAt(1.5)] });
+    const roof: Footprint = {
+      lot: 1,
+      corners: [
+        { x: 0, z: 21.5 },
+        { x: 30, z: 21.5 },
+        { x: 30, z: 40 },
+        { x: 0, z: 40 },
+      ],
+      top: 1.5,
+    };
+    show(undefined, { walls: cityWalls([roof]), footprints: [roof], parked: [helicopterAt(1.5)] });
     walk();
     fireEvent.click(screen.getByRole("button", { name: "Get in the helicopter" }));
     expect(walk().riding).toBe("helicopter");
@@ -807,6 +808,9 @@ describe("ExploreView", () => {
     expect(gauges.dataset.landed).toBe("true");
     expect(gauges.dataset.over).toBe("roof");
     expect(gauges.textContent).toContain("Altitude1 m");
+    // The roof it stands on has room: marked, its middle (15 m, 30.75 m) 9.8 m off, 59° to the right of its nose.
+    expect(walk().rooftops.map((marked) => marked.lot)).toEqual([1]);
+    expect(gauges.dataset.landing).toBe("10 -59");
     const up = screen.getByRole("button", { name: "Up" });
     press(up, true);
     until(lines, "explore/heli-lifted", 80);
@@ -820,8 +824,9 @@ describe("ExploreView", () => {
     until(lines, "explore/heli-landed", 200);
     press(down, false);
     expect(lines()).toContain("explore/heli-landed on=roof y=1.5");
-    walk();
-    fireEvent.click(screen.getByRole("button", { name: "Get out of the helicopter" }));
+    // Set down by the landing assist as it slid over the roof's middle: its skids stop it within a few tenths.
+    for (let i = 0; i < 20 && !getOut(); i++) walk();
+    fireEvent.click(getOut()!);
     walk();
     expect(screen.getByRole("region", { name: "On foot" })).toBeTruthy();
   });
@@ -858,8 +863,9 @@ describe("ExploreView", () => {
     expect(lines().find((l) => l.startsWith("explore/heli-landed"))).toBe("explore/heli-landed on=street y=0.3");
     fireEvent.keyDown(window, { code: "KeyE" });
     expect(walk().riding).toBeNull();
-    // Back on foot, the HUD is gone; the helicopter, left, spins down.
+    // Back on foot, the HUD is gone, and no roof is marked; the helicopter, left, spins down.
     walk();
     expect(document.querySelector(".explore-hud")).toBeNull();
+    expect(walk().rooftops).toEqual([]);
   });
 });

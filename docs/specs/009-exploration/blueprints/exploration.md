@@ -24,6 +24,8 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
 | flight    | `Heli`, `flyHeli`, `touched`, `groundEffect`, `heliHud`   | the helicopter's own state, one step of its flight, what the walls took of it      |
 | helipad   | `helipadBy(landing, walls, parked)`                       | where the city's helicopter stands: open ground along the landing's road           |
 | room      | `roomToLand`, `belowOf`, `perched`                        | whether the rotor fits where it would land; what lies below; a rotor on a top      |
+| rooftop   | `Rooftop`, `Rooftops`, `rooftops(footprints, walls)`      | a roof with room for the rotor, marked "H"; the nearest few round a point          |
+| assist    | `pad`, `PAD_PULL`, `PAD_CENTRED`                          | the landing assist: set down on a marked roof's middle when sinking near it        |
 | raising   | `RaiseWalls`, `WallOptions`                               | an engine's footprints-to-walls, reporting `engine` and `walls` steps, cancellable |
 | landing   | `Landing`, `landingOf(city, selected, centre)`            | where the walk begins, its heading, why there, and the road beside it              |
 | walker    | `Body`, `stepWalker`, `Intents`                           | the person: feet, rise, heading, footing; one step under intents                   |
@@ -330,6 +332,11 @@ Pitch positive nose down, roll positive the right side down, yaw rate anticlockw
   - The cyclic: pitch aimed `forward · PITCH_MOST` (0.3), else `clamp(−HOVER_GAIN 0.04 · v_ahead, ±HOVER_TILT 0.2)`;
     roll aimed `atan(v_ahead · −yawAim / g) − HOVER_GAIN · v_side`, within `ROLL_MOST` 0.6 while turning, else
     `HOVER_TILT`. Each a critically damped spring of `TILT_RATE` 5 rad/s, its acceleration times rotor².
+  - The landing assist (`pad`, where a marked roof's middle lies from the feet): sinking (`up < 0`) with neither forward
+    nor right asked, within `PAD_PULL` 10 m of it, the pitch and roll aimed are
+    `clamp((PAD_GAIN 2 · offset − PAD_DAMPING 2.8 · velocity) / g, ±HOVER_TILT)` along the nose and to its right (a
+    critically damped position hold, ω √2 rad/s); farther than `PAD_CENTRED` 0.4 m from it, the climb asked is held to
+    no faster a sink than `LAND_SINK`, so it centres, then sinks.
   - Forces: thrust along the axis with ground effect; drag `½ ρ A |v| v` ahead (`DRAG_AHEAD` 3.5 m²) and to the side
     (`DRAG_SIDE` 12 m²), ρ 1.2; gravity; `HEAVE` on the climb. Top speed about 200 km/h.
 - `stepVehicle` for a helicopter (`flyThrough`): `belowOf(feet, walls)` (the clearance straight down, infinite past
@@ -343,7 +350,14 @@ Pitch positive nose down, roll positive the right side down, yaw rate anticlockw
   (a fall onto the ground counted down only). From `HARD_HIT` 5 m/s:
   `rotor · (1 − min(STRIKE_MOST 0.5, STRIKE 0.04 · lost))`, the disc jolted `KICK` 1.5 rad/s away from the hit,
   `hits` + 1.
-- `roomToLand(feet, under, walls)`: the disc at `under + MAST − PERCH_PROBE` moved nowhere by the walls.
+- `roomToLand(feet, under, walls, margin = 0)`: the disc at `under + MAST − PERCH_PROBE`, radius `R + margin`, moved
+  nowhere by the walls.
+- `rooftops(footprints, walls)` (`explore/rooftops.ts`): the buildings in the nearby streets' grid (`streetGrid`); a
+  roof is marked when `roomToLand` at its middle (the mean of its corners, at its top) with `ROOFTOP_MARGIN` 0.5 m,
+  worked out once per building as it first comes near; `near(at, reach)` the marked roofs whose middle is within `reach`
+  (`nearbyLots`), nearest first, ties by lot, at most `ROOFTOP_MOST` 6. The walk asks every HUD refresh while in the
+  helicopter, `ROOFTOP_REACH` 300 m round it, hands the nearest to the session as the `pad`
+  (`advanceSession(…, garage, pad)` → `stepVehicle(…, pad)`) and all of them to the canvas (`ExploreFrame.rooftops`).
 - Getting in starts the engine; `canLeave` once below `LEAVE_SPEED` and `grounded`; getting out `parkedNow` (`stopped`);
   a helicopter not ridden with its rotor turning is stepped by `idleHeli` (spinning down). `bumped` keeps `BUMP` of its
   velocity across. `reachable` and `clearOfVehicles` skip a vehicle more than `LEVEL` 2 m above or below.
@@ -626,7 +640,11 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   engine" (Gear "2 of 5", Engine "3,500 rpm" to the hundred); in a car on Rapier "Speed, gear and engine" (Gear "3" or
   "R"); in an arcade car "Speed" alone; in the helicopter "Altitude, climb, speed and rotor" (Altitude "42 m" above the
   street, Climb "+3.0 m/s" with a true minus, Speed "36 km/h", Rotor "87 %", Below "Street" or "Roof", with ", no room"
-  where `roomToLand` says no), and `data-over`, `data-landed`, `data-heading` (whole degrees) and `data-room`. What lies
+  where `roomToLand` says no), and `data-over`, `data-landed`, `data-heading` (whole degrees), `data-room` and
+  `data-landing` (the nearest marked roof: whole metres off and degrees off the nose, positive to the left;
+  `RideHud.flight.landing`, from `hudOfRide(vehicle, engine, below: Below = OPEN)`).
+- Marked roofs (the canvas): a pool of `ROOFTOP_MOST` flat discs `HELIPAD_SIZE` 7 m across, `HELIPAD_ABOVE` 8 cm over
+  the roof, a 256 px canvas texture: an amber (#f2b630) "H" in a ring on a dark disc; hidden when not marked. What lies
   under it is the first top straight down (`walls.clearance` to below the street). Shown when they change, at most every
   `HUD_EVERY` 0.1 s; `data-foot` "down" or "up" on a two-wheeler, `data-fallen` while thrown. Not live: a screen reader
   reads it on demand.
@@ -700,6 +718,8 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 | A figure without the bones to ride  | Seated by its legs' tops, unbent; `explore/rider-unrigged reason`             |
 | Grips beyond the arms' reach        | Leant forward at most 1 rad, then forward along the saddle at most 0.12 m     |
 | A machine knocked over, stand down  | Its own lean past the stand's: drawn as it lies, no lean added                |
+| No roof with room within 300 m      | Nothing marked, no `data-landing`; the assist pulls nowhere                   |
+| Sinking near a marking, a key held  | The assist lets go: forward or a turn flies it as ever                        |
 
 ## Observability
 
@@ -735,7 +755,8 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   limbs' reach, once a frame for the one ridden. Rapier's chunk: 1.6 MB gzipped, now loaded on every walk behind the
   card.
 - The helicopter (Bun, desktop): a flown step through 10,000 buildings 3.2 µs (its four wall moves and the ray down),
-  0.04 % of the time at 120 Hz. Its model 107 KB.
+  0.04 % of the time at 120 Hz. Its model 107 KB. Marked roofs among the same 10,000: the first ask works out the 1,100
+  within 300 m in 7.5 ms (once, on the first HUD refresh in the helicopter); each refresh after 0.44 ms.
 - Parking: `parkedIn` 1.8 ms for takken.io (115 kept) and 2.9 ms for livediagram (4,135 lots, 200 kept); at most
   `PARKED_MOST` 200 vehicles in the session (each step's `clearOfVehicles` and `reachable` skip a vehicle by its box
   first), and the canvas draws at most 16 models.
@@ -777,13 +798,17 @@ levelling; on its skids; thrust's axis and `tiltedOf`; contact (a slide, a hard 
 rotor); through walls (a wall as high as the rotor, a brush, over a low building, the cabin, a roof landing, perched and
 eased off, `belowOf`, `roomToLand`); the helipad (ahead, past buildings, clear of a parked car, behind, none); boarding,
 the prompt, the camera, landing and spinning down in the session; stepping out onto the roof's side; the view's Up and
-Down on a roof and a hit and landing by keys, logged. End to end: in, spun up, lifted, homed in on the nearest lot (from
-the helipad's place and the HUD's heading) until over a roof with room, landed on it, out on the roof and in reach
-again, with the touch layout measured upright and on its side. End to end: loading once (its four phases), the motorbike
-(throttle, gears, both brakes, off), the car on Rapier (engine, gears, reverse, parked where it stopped), arcade cars
-without WebAssembly, and each ride's touch layout with nothing overlapping, upright and on its side. End to end
-(`e2e/explore.spec.ts`): walking by keys and by touch, the loading log, getting on the bicycle and off, riding it
-(pedal, shift, brake, stop with a foot down, the HUD), the Rapier prototype, Wobble Blocks loaded, axe light and dark.
+Down on a roof and a hit and landing by keys, logged. The landing assist: set down on the middle from inside and near
+the edge of its reach, sinking gently until centred, nothing pulled beyond it, turning or holding height; rooftops:
+marked with the margin, a taller neighbour within reach, the reach and the most, ties, worked out once. End to end: in,
+spun up, lifted to 30 m, a marked roof named; turned to it, flown at it (W only, as fast as letting go can stop it;
+faced afresh from a hover when it slips off the nose) until within 6 m and below 10 km/h; sunk and set down on it by the
+assist; out on the roof and in reach again, with the touch layout measured upright and on its side. Passes at 4× CPU
+throttling. End to end: loading once (its four phases), the motorbike (throttle, gears, both brakes, off), the car on
+Rapier (engine, gears, reverse, parked where it stopped), arcade cars without WebAssembly, and each ride's touch layout
+with nothing overlapping, upright and on its side. End to end (`e2e/explore.spec.ts`): walking by keys and by touch, the
+loading log, getting on the bicycle and off, riding it (pedal, shift, brake, stop with a foot down, the HUD), the Rapier
+prototype, Wobble Blocks loaded, axe light and dark.
 
 By eye: the run lab (`/lab/run?gait=before|after&phase=…&theme=…`, not linked) shows the figure side on at a phase of
 its stride before a wall lined every 10 cm, with ground marks every half metre;

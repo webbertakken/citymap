@@ -1,7 +1,8 @@
 // The helicopter, as pure flight: a main rotor whose thrust the collective sets and the cyclic tilts, a tail rotor that
 // turns it against the main rotor's torque, more lift near the ground under its disc, and a rotor that spins up and down
 // with the engine. Assisted, as GTA's: let go, it levels itself, holds its height and slows to a hover; Up and Down ask
-// for a climb, which the collective makes, and a turn at speed banks as far as it needs. Metres, seconds, newtons;
+// for a climb, which the collective makes, and a turn at speed banks as far as it needs; sinking near a marked roof, it
+// sets itself down on its middle. Metres, seconds, newtons;
 // headings as the walker's; pitch positive nose down, roll positive the right side down.
 import type { Vec3 } from "@citymap/world";
 import type { Flight } from "./flyer";
@@ -63,6 +64,15 @@ export const ROLL_MOST = 0.6;
 /** Let go, the disc tilts against any drift, this much per metre a second, at most `HOVER_TILT`: it slows to a hover. */
 export const HOVER_GAIN = 0.04;
 export const HOVER_TILT = 0.2;
+/**
+ * Sinking with nothing else asked within `PAD_PULL` metres of a marked roof's middle, the cyclic's assist steers over
+ * it: an acceleration of `PAD_GAIN` per metre off, less `PAD_DAMPING` per metre a second, as a tilt within the hover's.
+ */
+export const PAD_PULL = 10;
+/** Until it is this many metres from the mark's middle, it sinks no faster than a landing: it centres, then sinks. */
+export const PAD_CENTRED = 0.4;
+export const PAD_GAIN = 2;
+export const PAD_DAMPING = 2.8;
 /** The disc follows the tilt asked for as a spring this stiff (radians a second), critically damped. */
 export const TILT_RATE = 5;
 /**
@@ -178,7 +188,8 @@ function climbAimed(flight: Flight, hold: number, y: number, below: number) {
  * asked for (knowing the tilt, the rotor's speed and its own damping, not the ground's help), the cyclic's tilt for
  * forward and the turn, and the tail rotor for the yaw rate; then thrust (with ground effect, `below` the skids'
  * height above what lies under them), drag and gravity move it. On its skids it neither tilts nor turns, and lifts once
- * its thrust outweighs it. The walls take the move after (`touched`).
+ * its thrust outweighs it. `pad` is where a marked roof's middle lies from it (metres), to be set down on. The walls take
+ * the move after (`touched`).
  */
 export function flyHeli(
   heli: Heli,
@@ -186,6 +197,7 @@ export function flyHeli(
   flight: Flight,
   below: number,
   dt: number,
+  pad: { readonly x: number; readonly z: number } | null = null,
 ): { readonly heli: Heli; readonly heading: number } {
   // The rotor's power is its speed squared, from the speed it turned at over the step.
   const power = heli.rotor ** 2;
@@ -240,16 +252,28 @@ export function flyHeli(
   const yawRate = heli.yawRate + (torque + push) * dt;
   const heading = at.heading + yawRate * dt;
   // The cyclic: forward tilts the nose down; a turn at speed banks as a coordinated turn needs; let go, it tilts
-  // against any drift, to a hover.
-  const pitchAim = flight.forward !== 0 ? flight.forward * PITCH_MOST : clamp(-HOVER_GAIN * vAhead, HOVER_TILT);
+  // against any drift, to a hover; sinking near a marked roof, it steers over its middle.
+  const setting =
+    pad && flight.up < 0 && flight.forward === 0 && flight.right === 0 && Math.hypot(pad.x, pad.z) <= PAD_PULL;
+  const toward = (offset: number, rate: number) =>
+    clamp((PAD_GAIN * offset - PAD_DAMPING * rate) / GRAVITY, HOVER_TILT);
+  const pitchAim = setting
+    ? toward(pad.x * ahead.x + pad.z * ahead.z, vAhead)
+    : flight.forward !== 0
+      ? flight.forward * PITCH_MOST
+      : clamp(-HOVER_GAIN * vAhead, HOVER_TILT);
   const bank = Math.atan((vAhead * -yawAim) / GRAVITY);
-  const rollAim = clamp(bank - HOVER_GAIN * vSide, flight.right !== 0 ? ROLL_MOST : HOVER_TILT);
+  const rollAim = setting
+    ? toward(pad.x * right.x + pad.z * right.z, vSide)
+    : clamp(bank - HOVER_GAIN * vSide, flight.right !== 0 ? ROLL_MOST : HOVER_TILT);
   const pitched = tilted(heli.pitch, heli.pitchRate, pitchAim, power, dt);
   const rolled = tilted(heli.roll, heli.rollRate, rollAim, power, dt);
   // The collective: the climb asked for, Up and Down, or the height held.
   const hold = flight.up === 0 ? (heli.hold ?? at.y) : null;
   const axis = thrustDirection(heading, pitched.angle, rolled.angle);
-  const collective = collectiveFor(climbAimed(flight, hold ?? at.y, at.y, below), axis.y);
+  const aimed = climbAimed(flight, hold ?? at.y, at.y, below);
+  const centring = setting && Math.hypot(pad.x, pad.z) > PAD_CENTRED;
+  const collective = collectiveFor(centring ? Math.max(aimed, -LAND_SINK) : aimed, axis.y);
   const thrust = (collective * lift * groundEffect(below)) / HELI_MASS;
   // The fuselage's drag, ahead and to the side; the rotor's own damping of a climb.
   const dragAhead = (-0.5 * AIR_DENSITY * DRAG_AHEAD * Math.abs(vAhead) * vAhead) / HELI_MASS;

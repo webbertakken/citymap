@@ -4,7 +4,7 @@
 // On a bicycle or a motorbike the rider sits in its frame, leaning and pitching with it, hands round the grips, feet on
 // the pedals or the pegs, or a foot on the ground; a parked one stands on its kickstand, folded as its rider gets on. A
 // car is drawn by its whole turn, on its springs or on its side; the helicopter tilted as it flies, its rotors turning
-// with its rotor's speed.
+// with its rotor's speed, and the roofs it can land on marked "H".
 import type { Theme } from "@citymap/themes";
 import { PerspectiveCamera } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -20,6 +20,7 @@ import { poseRun } from "../explore/models/run";
 import { figureOf, placeVehicle, release, seat, slotOf, type Rolled, type Slot } from "../explore/models/seat";
 import { poseStride, swingOf } from "../explore/models/stride";
 import { assignPool } from "../explore/pool";
+import { ROOFTOP_MOST } from "../explore/rooftops";
 import { BASE, FLOOR } from "../explore/sight";
 import { SIGN_POOL, middleOf, nearestLots, wallFacing, type Wall } from "../explore/signs";
 import { METRE } from "../explore/street";
@@ -48,6 +49,43 @@ const SIGN_OUT = 0.04;
 /** The sign's texture: its canvas is this many pixels tall, and as wide as its words need, up to this. */
 const SIGN_PIXELS = 96;
 const SIGN_MAX_PIXELS = 1024;
+
+/** A marked roof's "H" is this many metres across, a little over a hand's breadth above the roof. */
+const HELIPAD_SIZE = 7;
+const HELIPAD_ABOVE = 0.08;
+/** The marking's texture, in pixels a side. */
+const HELIPAD_PIXELS = 256;
+
+/** A roof marking: an "H" in a ring, amber on a dark disc, as a helipad's, lying flat. */
+function helipadMark(): ThreeMesh<PlaneGeometry, MeshBasicMaterial> {
+  const canvas = document.createElement("canvas");
+  canvas.width = HELIPAD_PIXELS;
+  canvas.height = HELIPAD_PIXELS;
+  const context = canvas.getContext("2d");
+  const half = HELIPAD_PIXELS / 2;
+  if (context) {
+    context.fillStyle = "rgba(18, 20, 26, 0.6)";
+    context.beginPath();
+    context.arc(half, half, half - 4, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = "#f2b630";
+    context.lineWidth = 14;
+    context.beginPath();
+    context.arc(half, half, half - 14, 0, Math.PI * 2);
+    context.stroke();
+    context.fillStyle = "#f2b630";
+    context.font = `700 ${Math.round(HELIPAD_PIXELS * 0.55)}px ${getComputedStyle(document.body).fontFamily}`;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText("H", half, half + HELIPAD_PIXELS * 0.03);
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.minFilter = LinearFilter;
+  const material = new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false });
+  const mesh = new ThreeMesh(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2), material);
+  mesh.visible = false;
+  return mesh;
+}
 
 /** One sign of the pool: its plane, the canvas its words are drawn on, and the building it names (−1 for none). */
 interface Sign {
@@ -270,6 +308,18 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
   // Where the walker is in its run: its stride's phase and how far into the run it is drawn.
   const running = useRef<Running>(NOT_RUNNING);
   const since = useRef(POOL_EVERY);
+  // The roof markings, one for each roof the walk may mark at once; freed with the walk.
+  const marks = useMemo(() => Array.from({ length: ROOFTOP_MOST }, helipadMark), []);
+  useEffect(
+    () => () => {
+      for (const mark of marks) {
+        mark.geometry.dispose();
+        mark.material.map?.dispose();
+        mark.material.dispose();
+      }
+    },
+    [marks],
+  );
   useFrame((state, seconds) => {
     const walker = placed.current;
     if (!walker) return;
@@ -342,6 +392,13 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
         }
       } else poseStride(walker, swingOf(walked, speed));
     }
+    marks.forEach((mark, i) => {
+      const roof = now.rooftops[i];
+      mark.visible = roof !== undefined;
+      if (!roof) return;
+      mark.position.set(roof.at.x * METRE, (roof.at.y + HELIPAD_ABOVE) * METRE, roof.at.z * METRE);
+      mark.scale.setScalar(HELIPAD_SIZE * METRE);
+    });
     const { eye, target } = now.camera;
     state.camera.position.set(eye.x * METRE, eye.y * METRE, eye.z * METRE);
     state.camera.lookAt(target.x * METRE, target.y * METRE, target.z * METRE);
@@ -352,6 +409,9 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
   return (
     <>
       <primitive ref={placed} object={model} scale={METRE} />
+      {marks.map((mark) => (
+        <primitive key={mark.uuid} object={mark} />
+      ))}
       {slots.map((slot, i) => (
         <group key={slot.model.uuid} ref={keep(i)} scale={METRE} visible={false}>
           <primitive object={slot.model} />

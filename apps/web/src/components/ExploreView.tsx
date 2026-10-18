@@ -21,11 +21,12 @@ import { audioSpeaker, bellRinger } from "../explore/bell";
 import { cameraOf, easeReach, reachOf } from "../explore/camera";
 import { ARCADE_WORDS, type ArcadeWhy } from "../explore/descent";
 import { flyingCamera } from "../explore/flyer";
-import { hudOfRide, type RideHud as Ride } from "../explore/hud";
+import { OPEN, hudOfRide, type RideHud as Ride } from "../explore/hud";
 import { WALK_KEYS, padOf, stickAt, type PadState } from "../explore/input";
 import type { Inspect } from "../explore/inspect";
 import type { Landing } from "../explore/landing";
 import type { Garage } from "../explore/physics/garage";
+import { ROOFTOP_REACH, rooftops, type Rooftop } from "../explore/rooftops";
 import {
   STEP,
   advanceSession,
@@ -58,6 +59,8 @@ export interface ExploreFrame {
   readonly vehicles: readonly Vehicle[];
   readonly riding: VehicleKind | null;
   readonly camera: { readonly eye: Vec3; readonly target: Vec3 };
+  /** The roofs with room for the helicopter near it, to mark, while in it; else none. */
+  readonly rooftops: readonly Rooftop[];
 }
 
 /** What the ground-level canvas draws: the city, and each frame's walk, which it asks for as time passes. */
@@ -158,6 +161,7 @@ function RideHud({ ride }: { readonly ride: Ride }) {
       data-landed={ride.flight ? ride.flight.landed : undefined}
       data-heading={ride.flight?.heading}
       data-room={ride.flight ? ride.flight.room : undefined}
+      data-landing={ride.flight?.landing ? `${ride.flight.landing.distance} ${ride.flight.landing.bearing}` : undefined}
     >
       <dl>
         {ride.rows.map(([term, value]) => (
@@ -213,6 +217,9 @@ export function ExploreView({
   const cars = useRef<Garage | null>(garage);
   const [simply, setSimply] = useState<ArcadeWhy | null>(arcade);
   const hits = useMemo(() => cityHits(footprints), [footprints]);
+  // The roofs the helicopter can land on, each worked out once as it comes near; the nearest marked while flying.
+  const roofs = useMemo(() => rooftops(footprints, walls), [footprints, walls]);
+  const marked = useRef<readonly Rooftop[]>([]);
   // The signs the canvas shows, and how many: a count tests and the log can read.
   const [signCount, setSignCount] = useState(0);
   const signage = useMemo(
@@ -285,12 +292,23 @@ export function ExploreView({
   };
   /** The height of what lies under a point: the first roof below it, or the street. */
   const underOf = (feet: Vec3) => feet.y - walls.clearance(feet, { x: feet.x, y: GROUND - 1, z: feet.z });
+  /** What lies below a helicopter, its room to land, and the marked roofs round it; for anything else, open street. */
+  const belowOf = (vehicle: Vehicle) => {
+    if (vehicle.kind !== "helicopter") {
+      marked.current = [];
+      return OPEN;
+    }
+    const under = underOf(vehicle.feet);
+    marked.current = roofs.near(vehicle.feet, ROOFTOP_REACH);
+    return { under, room: roomToLand(vehicle.feet, under, walls), landing: marked.current[0] ?? null };
+  };
   /** The ride's HUD and its rider's falls, from the frame's ridden vehicle. */
   const showRide = (vehicle: Vehicle | null, seconds: number) => {
     if (!vehicle) {
       hudSince.current = HUD_EVERY;
       wasDown.current = false;
       flown.current = null;
+      marked.current = [];
       if (ride) setRide(null);
       return;
     }
@@ -303,9 +321,7 @@ export function ExploreView({
     hudSince.current += seconds;
     if (hudSince.current < HUD_EVERY) return;
     hudSince.current = 0;
-    const under = underOf(vehicle.feet);
-    const room = vehicle.kind !== "helicopter" || roomToLand(vehicle.feet, under, walls);
-    const now = hudOfRide(vehicle, cars.current !== null, under, room);
+    const now = hudOfRide(vehicle, cars.current !== null, belowOf(vehicle));
     if (JSON.stringify(now) !== JSON.stringify(ride)) setRide(now);
   };
   /**
@@ -329,7 +345,9 @@ export function ExploreView({
   };
   const frame = (seconds: number): ExploreFrame => {
     readPad(seconds);
-    const next = keepStreets(advanceSession(session.current, controls.current, seconds, walls, cars.current));
+    // The nearest marked roof, for the helicopter to set itself down on.
+    const pad = marked.current[0]?.at ?? null;
+    const next = keepStreets(advanceSession(session.current, controls.current, seconds, walls, cars.current, pad));
     controls.current.look = { dx: 0, dy: 0 };
     controls.current.use = false;
     controls.current.fly = false;
@@ -354,7 +372,7 @@ export function ExploreView({
       ? flyingCamera(next.flyer, next.orbit)
       : cameraOf(shown.feet, next.orbit, walls, follow, reach.current);
     readSight(camera);
-    return { session: next, shown, vehicles: shownVehicles(next), riding: kind, camera };
+    return { session: next, shown, vehicles: shownVehicles(next), riding: kind, camera, rooftops: marked.current };
   };
   // The crosshair, in the middle of the view, looks along the camera's line through its target.
   const readSight = (camera: { readonly eye: Vec3; readonly target: Vec3 }) => {

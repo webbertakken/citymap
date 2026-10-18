@@ -112,6 +112,10 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 - **Landing and taking off.** Sinking onto the street or a roof, it lands on its skids, level; Space lifts it off again.
   A roof is landed on only where the rotor has room: a taller building within the rotor's reach holds the rotor up, and
   the helicopter slides off that building's edge.
+- **Marked roofs.** A city of narrow lots has few roofs with room, so while in the helicopter the nearest few near it
+  are marked with a helipad's "H". Sinking within 10 m of a marking, with nothing else asked, it is guided over the
+  marking's middle and set down there: it sinks no faster than a landing until it is over it. Any other key flies it as
+  ever.
 - **Collision at any height.** Its rotor's disc is stopped by any building as high as the disc, its cabin by anything
   lower; it flies over what lies below its skids. Touching a wall it slides along it; a hard hit (from 5 m/s) strikes
   the rotor, which loses speed, and jolts it away.
