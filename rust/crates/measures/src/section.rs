@@ -80,14 +80,23 @@ impl Measures {
     }
 }
 
+/// What a reading gave: the history, the people in it (the laid commit's `.mailmap` read), the files' contents.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Given {
+    pub history: bool,
+    pub authors: bool,
+    pub comments: bool,
+}
+
 /// What a source can give, in `MEASURES` order.
 #[must_use]
-pub fn available_for(source: &str, history: bool, comments: bool) -> Vec<&'static str> {
+pub fn available_for(source: &str, given: Given) -> Vec<&'static str> {
     MEASURES
         .into_iter()
         .filter(|m| match *m {
-            "recency" | "churn" | "authors" => source == "cli" && history,
-            "comments" => comments,
+            "recency" | "churn" => source == "cli" && given.history,
+            "authors" => source == "cli" && given.history && given.authors,
+            "comments" => given.comments,
             _ => true,
         })
         .collect()
@@ -126,14 +135,33 @@ mod tests {
     use super::*;
     use citymap_ground_plan::city::serialise_city;
 
+    const fn given(history: bool, authors: bool, comments: bool) -> Given {
+        Given {
+            history,
+            authors,
+            comments,
+        }
+    }
+
     #[test]
     fn gives_historys_measures_to_a_folded_cli_city_only() {
-        assert_eq!(available_for("cli", true, true), MEASURES.to_vec());
+        assert_eq!(available_for("cli", given(true, true, true)), MEASURES.to_vec());
         assert_eq!(
-            available_for("cli", false, true),
+            available_for("cli", given(false, false, true)),
             vec!["size", "tested", "kind", "comments"]
         );
-        assert_eq!(available_for("github", false, false), vec!["size", "tested", "kind"]);
+        assert_eq!(
+            available_for("github", given(false, false, false)),
+            vec!["size", "tested", "kind"]
+        );
+    }
+
+    #[test]
+    fn leaves_authors_out_of_a_fold_whose_mailmap_could_not_be_read_and_nothing_else() {
+        assert_eq!(
+            available_for("cli", given(true, false, true)),
+            vec!["size", "tested", "kind", "recency", "churn", "comments"]
+        );
     }
 
     #[test]
@@ -167,7 +195,7 @@ mod tests {
             serialise_city(&city).unwrap()
         );
         let measures = Measures {
-            available: available_for("cli", true, true),
+            available: available_for("cli", given(true, true, true)),
             lots: BTreeMap::from([(
                 "demo".to_owned(),
                 BTreeMap::from([(

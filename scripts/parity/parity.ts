@@ -9,11 +9,12 @@ export const LONG = ["next.js"] as const;
 /**
  * A single state (`--no-history`); the whole history folded with a lock; the same fold resumed from a lock saved part
  * way, which must also match the uninterrupted fold of the same CLI; the same fold from a clone with a checkout whose
- * working tree `.mailmap` merges its authors, which must also match the fold of the clone without one; or a single
- * state with coverage reports in all four formats written at their usual paths in the clone.
+ * working tree `.mailmap` merges its authors, which must also match the fold of the clone without one; the same fold
+ * from a blob-less clone, which fetches the laid commit's `.mailmap` and must count the same authors as the fold; or a
+ * single state with coverage reports in all four formats written at their usual paths in the clone.
  */
-export type Mode = "state" | "fold" | "resume" | "checkout" | "coverage";
-export const MODES: readonly Mode[] = ["state", "fold", "resume", "checkout", "coverage"];
+export type Mode = "state" | "fold" | "resume" | "checkout" | "partial" | "coverage";
+export const MODES: readonly Mode[] = ["state", "fold", "resume", "checkout", "partial", "coverage"];
 
 export interface Settings {
   readonly repos: readonly string[];
@@ -32,6 +33,7 @@ export const OUTPUTS: Readonly<Record<Mode, readonly string[]>> = {
   fold: ["city.json", "city.svg", "citymap.lock.json", "log.txt"],
   resume: ["city.json", "city.svg", "citymap.lock.json", "log.txt"],
   checkout: ["city.json", "city.svg", "citymap.lock.json", "log.txt"],
+  partial: ["city.json", "city.svg", "citymap.lock.json", "log.txt"],
   coverage: ["city.json", "city.svg", "log.txt"],
 };
 
@@ -58,7 +60,7 @@ export function parseSettings(argv: readonly string[]): Settings {
   const modes = list(value("modes")) ?? [...MODES];
   const bad = modes.find((mode) => !isMode(mode));
   if (bad !== undefined)
-    throw new Error(`parity/usage: --modes takes state, fold, resume, checkout and coverage, not ${bad}`);
+    throw new Error(`parity/usage: --modes takes state, fold, resume, checkout, partial and coverage, not ${bad}`);
   const repos = list(value("repos")) ?? [...PARITY, ...(argv.includes("--long") ? LONG : [])];
   return {
     repos,
@@ -126,12 +128,64 @@ export function resumePoint(commits: number): number {
  * One log line for a resumed fold, or a fold of a clone with a checkout, against the uninterrupted fold of a clone
  * without one: the same, or the sides and files that differ.
  */
-export function sameVerdict(mode: "resume" | "checkout", repo: string, differs: readonly string[], at = ""): string {
+export function sameVerdict(
+  mode: "resume" | "checkout" | "partial",
+  repo: string,
+  differs: readonly string[],
+  at = "",
+): string {
   const where = [`repo=${repo}`, ...(at === "" ? [] : [at])].join(" ");
-  const same = mode === "resume" ? "resumed" : "checkout";
+  const same = mode === "resume" ? "resumed" : mode;
   return differs.length === 0
     ? `parity/${same} ${where} same`
     : `parity/${mode}-differs ${where} files=${differs.join(",")}`;
+}
+
+/**
+ * The upload-pack a blob-less clone of a local repository is served by, and later fetches its `.mailmap` from: it
+ * allows filters and any object by id, as a promisor remote such as GitHub does.
+ */
+export const UPLOAD_PACK = "git -c uploadpack.allowFilter=true -c uploadpack.allowAnySHA1InWant=true upload-pack";
+
+/** How a mode clones the cached repository: shared without a checkout, shared with one, or blob-less over file://. */
+export function cloneArgs(mode: Mode, source: string, clone: string): string[] {
+  if (mode === "partial")
+    return [
+      "git",
+      "clone",
+      "--no-checkout",
+      "--filter=blob:none",
+      "--quiet",
+      `--upload-pack=${UPLOAD_PACK}`,
+      `file://${source}`,
+      clone,
+    ];
+  return ["git", "clone", "--shared", ...(mode === "checkout" ? [] : ["--no-checkout"]), "--quiet", source, clone];
+}
+
+/** A JSON value's own fields; none for anything that is not an object. */
+const fieldsOf = (value: unknown): ReadonlyMap<string, unknown> =>
+  new Map<string, unknown>(typeof value === "object" && value !== null ? Object.entries(value) : []);
+
+/**
+ * A city file's people, as one comparable text: whether authors are available, and every lot's and file's count, by
+ * town and lot. A blob-less clone knows no sizes, so only these are compared with a full clone's fold.
+ */
+export function authorsOf(text: string): string {
+  const measures = fieldsOf(fieldsOf(JSON.parse(text)).get("measures"));
+  const available = measures.get("available");
+  const lots = [...fieldsOf(measures.get("lots"))].flatMap(([town, townLots]) =>
+    [...fieldsOf(townLots)].map(([key, lot]) => {
+      const fields = fieldsOf(lot);
+      const files = fields.get("files");
+      return [
+        `${town}/${key}`,
+        fields.get("authors"),
+        (Array.isArray(files) ? files : []).map((file: unknown) => fieldsOf(file).get("authors")),
+      ];
+    }),
+  );
+  return JSON.stringify({ authors: Array.isArray(available) && available.includes("authors"), lots });
 }
 
 /** How many of a history's authors the checkout mode's working tree `.mailmap` merges into one. */

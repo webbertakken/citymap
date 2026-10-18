@@ -70,6 +70,14 @@ function testedRow(building: Building, measures: Measures): CardRow {
 const inSubmodules = (files: readonly string[], submodules: readonly string[]) =>
   submodules.length > 0 && files.every((file) => submodules.some((folder) => file.startsWith(`${folder}/`)));
 
+/** Its authors; in a fold whose `.mailmap` could not be fetched, why they are not known. */
+function authorsRow(building: Building, measures: Measures, unread: string): CardRow {
+  const reason = unavailableReason("authors", measures);
+  if (reason !== null) return unknown("Authors", reason);
+  if (building.authors === null) return unknown("Authors", unread);
+  return { label: "Authors", value: number(building.authors) };
+}
+
 /** The rows a lot's building adds to its card: each available measure, then the unavailable ones with their reason. */
 export function measureRows(building: Building | undefined, measures: Measures | null, now: number): CardRow[] {
   if (!measures || !building) return [];
@@ -84,7 +92,7 @@ export function measureRows(building: Building | undefined, measures: Measures |
         ? unknown("Changed", unread)
         : { label: "Changed", value: agoText(building.changed, now), note: dateText(building.changed) },
       building.commits === null ? unknown("Commits", unread) : { label: "Commits", value: number(building.commits) },
-      building.authors === null ? unknown("Authors", unread) : { label: "Authors", value: number(building.authors) },
+      authorsRow(building, measures, unread),
     );
   if (has("comments"))
     rows.push(

@@ -128,17 +128,20 @@ export async function measureCity({
       ...history?.of(identityOf.get(path)!),
     };
   };
+  // The people, when the history was read and its laid commit's .mailmap could be.
+  const people = history?.authorsKnown ? history : null;
   const measures = buildMeasures({
     source: "cli",
     size: "lines",
     history: history !== null,
+    authors: people !== null,
     comments: true,
     tested,
     lots,
     factsOf,
     ...(snapshot.submodules ? { submodules: snapshot.submodules } : {}),
-    ...(history
-      ? { authorsAcross: (files: readonly string[]) => history.authorsAcross(files.map((p) => identityOf.get(p)!)) }
+    ...(people
+      ? { authorsAcross: (files: readonly string[]) => people.authorsAcross(files.map((p) => identityOf.get(p)!)) }
       : {}),
   });
   const files = [...lots.values()].reduce((sum, town) => sum + [...town.values()].reduce((n, f) => n + f.length, 0), 0);

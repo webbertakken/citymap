@@ -46,8 +46,10 @@ export function lotFiles(city: City, plat: Plat, files: readonly FileEntry[]): L
 export interface MeasuresInput {
   readonly source: MeasuresSource;
   readonly size: "lines" | "bytes";
-  /** Whether the history was read: recency, churn and authors are then available. */
+  /** Whether the history was read: recency and churn are then available. */
   readonly history: boolean;
+  /** Whether its people are known (the laid commit's `.mailmap` read): authors are then available, with the history. */
+  readonly authors: boolean;
   /** Whether contents were read: comments are then available. */
   readonly comments: boolean;
   readonly tested: "coverage" | "name";
@@ -77,7 +79,7 @@ export function buildMeasures(input: MeasuresInput): Measures {
     source: input.source,
     size: input.size,
     tested: input.tested,
-    available: availableFor(input.source, input.history, input.comments),
+    available: availableFor(input.source, input),
     lots,
     ...(input.submodules && input.submodules.length > 0 ? { submodules: input.submodules } : {}),
   };

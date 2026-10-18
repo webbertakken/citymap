@@ -17,7 +17,7 @@ pub mod workspaces;
 pub use ancestry::{count_commits, is_ancestor, resolve_commit};
 pub use contents::{Store, TreeFile, list_tree, read_blobs};
 pub use file_history::{FileFacts, FileHistory};
-pub use mailmap::{Author, Mailmap, MailmapStatus, read_mailmap};
+pub use mailmap::{Author, MAILMAP_FETCH_TIMEOUT, Mailmap, MailmapStatus, read_mailmap};
 pub use read::{History, HistoryEvent, HistoryItem, ReadOptions, read_history};
 pub use schedule::{EVERY_COMMIT, FOLD_STRIDES, FoldSchedule, Strides, fold_schedule, is_laid, laid_count};
 pub use tree::read_tree;

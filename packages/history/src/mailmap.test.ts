@@ -1,11 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { BlobReader } from "./blobs";
 import { gitEnvironment } from "./env";
-import { emailOf, parseMailmap, readMailmap, type Author } from "./mailmap";
+import { emailOf, fetchBlob, parseMailmap, readMailmap, runWithin, type Author } from "./mailmap";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -159,6 +159,29 @@ describe("parseMailmap and emailOf", () => {
   });
 });
 
+/** A blob-less clone, without a checkout, of a repository whose one commit holds a .mailmap. */
+function partialClone(): string {
+  const source = repo();
+  writeFileSync(join(source, ".mailmap"), "<one@x> <a@x>\n");
+  writeFileSync(join(source, "a.ts"), "a");
+  commitAs(source, { name: "A", email: "a@x" }, "one");
+  git(source, "config", "uploadpack.allowFilter", "true");
+  const clone = mkdtempSync(join(tmpdir(), "citymap-mailmap-partial-"));
+  dirs.push(clone);
+  execFileSync("git", ["clone", "-q", "--no-checkout", "--filter=blob:none", `file://${source}`, clone], {
+    env: gitEnvironment(),
+  });
+  return clone;
+}
+
+/** The blobs a repository holds, sorted. */
+const heldBlobs = (dir: string) =>
+  git(dir, "cat-file", "--batch-check=%(objecttype) %(objectname)", "--batch-all-objects")
+    .split("\n")
+    .filter((line) => line.startsWith("blob "))
+    .map((line) => line.slice(5))
+    .toSorted();
+
 /** The .mailmap of `commit`, read as the history reader reads it. */
 async function read(dir: string, commit = "HEAD") {
   const blobs = new BlobReader(dir);
@@ -207,19 +230,62 @@ describe("readMailmap", () => {
     expect((await read(dir)).event.detail).toEqual({ status: "not-a-file", entries: 0 });
   });
 
-  it("maps nobody, without fetching, when a partial clone does not hold the .mailmap", async () => {
-    const source = repo();
-    writeFileSync(join(source, ".mailmap"), "<one@x> <a@x>\n");
-    commitAs(source, { name: "A", email: "a@x" }, "one");
-    git(source, "config", "uploadpack.allowFilter", "true");
-    const clone = mkdtempSync(join(tmpdir(), "citymap-mailmap-partial-"));
-    dirs.push(clone);
-    execFileSync("git", ["clone", "-q", "--no-checkout", "--filter=blob:none", `file://${source}`, clone], {
-      env: gitEnvironment(),
+  it("fetches a partial clone's missing .mailmap, that one blob and no other object", async () => {
+    const clone = partialClone();
+    expect(heldBlobs(clone)).toEqual([]);
+    const fetched = await read(clone);
+    expect(fetched.event).toEqual({ code: "history/mailmap", detail: { status: "fetched", entries: 1 } });
+    expect(emailOf(fetched.mailmap, { name: "A", email: "a@x" })).toBe("one@x");
+    expect(heldBlobs(clone)).toEqual([git(clone, "rev-parse", "HEAD:.mailmap").trim()]);
+    // Held now, it reads as any other.
+    expect((await read(clone)).event.detail).toEqual({ status: "read", entries: 1 });
+  });
+
+  it("makes the authors unknown, saying why, when the .mailmap cannot be fetched", async () => {
+    const offline = partialClone();
+    git(offline, "remote", "set-url", "origin", join(offline, "gone"));
+    const unfetched = await read(offline);
+    expect(unfetched.event.detail).toEqual({
+      status: "unfetchable",
+      entries: 0,
+      reason: "exit-128",
+      error: expect.stringMatching(/^fatal: '.*gone' does not appear to be a git repository$/),
     });
-    const unheld = await read(clone);
-    expect(unheld.event.detail).toEqual({ status: "unavailable", entries: 0 });
-    expect(emailOf(unheld.mailmap, { name: "A", email: "a@x" })).toBe("a@x");
+    expect(emailOf(unfetched.mailmap, { name: "A", email: "a@x" })).toBe("a@x");
+    expect(heldBlobs(offline)).toEqual([]);
+  });
+
+  it("names a clone with no promisor remote that lacks the blob, without asking anyone", async () => {
+    const dir = repo();
+    // A tree naming a .mailmap blob the repository does not hold, in a clone that is not partial.
+    const tree = execFileSync("git", ["-C", dir, "mktree", "--missing"], {
+      input: `100644 blob ${"1".repeat(40)}\t.mailmap\n`,
+      encoding: "utf8",
+      env: gitEnvironment(),
+    }).trim();
+    const commit = git(dir, "-c", "user.name=a", "-c", "user.email=a@x", "commit-tree", tree, "-m", "lost").trim();
+    const blobs = new BlobReader(dir);
+    const lost = await readMailmap(dir, commit, blobs);
+    await blobs.close();
+    expect(lost.event.detail).toEqual({
+      status: "unfetchable",
+      entries: 0,
+      reason: "exit-128",
+      error: `fatal: git cat-file ${"1".repeat(40)}: bad file`,
+    });
+  });
+
+  it("gives up on a fetch that does not answer in time", async () => {
+    const clone = partialClone();
+    const hang = join(clone, "..", `${clone.split("/").at(-1)}-hang.sh`);
+    writeFileSync(hang, "#!/bin/sh\nexec sleep 5\n");
+    chmodSync(hang, 0o755);
+    dirs.push(hang);
+    git(clone, "config", "remote.origin.uploadpack", hang);
+    const blob = git(clone, "rev-parse", "HEAD:.mailmap").trim();
+    const started = performance.now();
+    expect(await fetchBlob(clone, blob, 200)).toEqual({ reason: "timeout" });
+    expect(performance.now() - started).toBeLessThan(2000);
   });
 
   it("names git failing on a commit it cannot list", async () => {
@@ -228,5 +294,14 @@ describe("readMailmap", () => {
     const blobs = new BlobReader(dir);
     await expect(readMailmap(dir, "0".repeat(40), blobs)).rejects.toThrow("history/git-failed");
     await blobs.close();
+  });
+});
+
+describe("runWithin", () => {
+  it("says a command that could not start, and one that ends quietly", async () => {
+    const missing = await runWithin("citymap-no-such-command", [], process.env, 1000);
+    expect(missing).toMatchObject({ code: null, stderr: expect.stringContaining("ENOENT") });
+    expect(await runWithin("true", [], process.env, 1000)).toEqual({ code: 0, stdout: Buffer.alloc(0), stderr: "" });
+    expect(await runWithin("false", [], process.env, 1000)).toMatchObject({ code: 1, stderr: "" });
   });
 });

@@ -102,6 +102,18 @@ describe("measureRows", () => {
     expect(measureRows(beside, { ...cli, submodules: ["vendor/lib"] }, NOW)[2]!.note).toBe("No commit read changed it");
   });
 
+  it("says a fold's authors are not known when its .mailmap could not be fetched, and its other history", () => {
+    const unmapped: Measures = { ...cli, available: ["size", "tested", "kind", "recency", "churn", "comments"] };
+    expect(measureRows(building(), unmapped, NOW).map((r) => [r.label, r.value, r.note])).toEqual([
+      ["Size", "1,240 lines", "30.5 kB"],
+      ["Tested", "62 %", "Coverage report"],
+      ["Changed", "3 days ago", expect.stringMatching(/1970/)],
+      ["Commits", "142", undefined],
+      ["Authors", "Not known", "The laid commit's .mailmap could not be fetched"],
+      ["Comments", "120 lines", "2 TODOs"],
+    ]);
+  });
+
   it("says a live city's sizes in bytes, tests by name, and what it cannot know", () => {
     const rows = measureRows(building({ lines: null, tested: 1 }), github, NOW);
     expect(rows.map((r) => [r.label, r.value, r.note])).toEqual([

@@ -47,14 +47,15 @@ const entryOf = (kind: SearchEntry["kind"], path: string, pts: readonly Pt[], to
 };
 
 /** Every folder a person named (wards left out) and every file of a lot (vacant lots hold none), town by town. */
-export function searchIndex(city: City): SearchIndex {
-  const entries: SearchEntry[] = [];
+export function* entriesOf(city: City): Generator<SearchEntry> {
   for (const town of city.towns) {
-    for (const d of town.districts) if (!d.ward) entries.push(entryOf("folder", d.path, d.pts, town.name, town.key));
-    for (const lot of town.lots) if (!lot.vacant) entries.push(entryOf("file", lot.path, lot.pts, town.name, town.key));
+    for (const d of town.districts) if (!d.ward) yield entryOf("folder", d.path, d.pts, town.name, town.key);
+    for (const lot of town.lots) if (!lot.vacant) yield entryOf("file", lot.path, lot.pts, town.name, town.key);
   }
-  return { entries };
 }
+
+/** The search index of a city, built at once. */
+export const searchIndex = (city: City): SearchIndex => ({ entries: [...entriesOf(city)] });
 
 /** True when the city has a folder of that path (any letter case): a text starting with it is a path in the city. */
 export function holdsFolder(index: SearchIndex, folder: string): boolean {

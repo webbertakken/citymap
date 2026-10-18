@@ -1,6 +1,7 @@
 "use client";
-// The people lab page: one bundled city's longest street, and the two casts in the motion asked for.
 import { DEFAULT_TOGGLES } from "@citymap/ground-plan";
+// The people lab page: one bundled city's longest street, and the two casts in the motion asked for.
+import { parseCityFile } from "@citymap/measures";
 import { buildScene, type Scene } from "@citymap/scene";
 import { THEMES, THEME_NAMES, type ThemeName } from "@citymap/themes";
 import { useEffect, useState } from "react";
@@ -27,7 +28,7 @@ interface Ready {
 
 async function prepare(theme: ThemeName): Promise<Ready> {
   const index = await loadIndex(fetcher, base);
-  const file = await loadCity(fetcher, index[0]!, { toggles: DEFAULT_TOGGLES }, base);
+  const file = parseCityFile(await loadCity(fetcher, index[0]!, { toggles: DEFAULT_TOGGLES }, base));
   const scene = buildScene(file.city, THEMES[theme]);
   const { table } = tableFor(scene, cityBuildings(file.measures), "folder", THEMES[theme]);
   const street = longestStreet(file.city);

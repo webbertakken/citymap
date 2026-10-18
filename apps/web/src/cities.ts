@@ -10,8 +10,6 @@ import {
   type Separation,
   type Toggle,
 } from "@citymap/ground-plan";
-import { parseCityFile, type CityFile } from "@citymap/measures";
-import { afterPaint } from "./load/paint";
 import type { OnStep } from "./load/step";
 
 /**
@@ -101,7 +99,7 @@ type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 export interface ReadOptions {
   /** Stops the read with the signal's reason. */
   readonly signal?: AbortSignal;
-  /** Hears `download` steps (bytes of bytes, where the total is known), then `parse`. */
+  /** Hears `download` steps: bytes of bytes, where the total is known. */
   readonly onStep?: OnStep;
 }
 
@@ -152,23 +150,15 @@ export async function loadIndex(fetcher: Fetch, base = ""): Promise<CityEntry[]>
   return value;
 }
 
-/** The city file in a text, its layout and its measures, once the phase is said and painted. */
-async function parsed(body: string, { signal, onStep }: ReadOptions): Promise<CityFile> {
-  onStep?.({ phase: "parse" });
-  await afterPaint();
-  signal?.throwIfAborted();
-  return parseCityFile(body);
-}
-
-/** A bundled city, in the variant its layout names. */
-export async function loadCity(
+/** A bundled city's file, in the variant its layout names, as text: the layout worker reads it. */
+export function loadCity(
   fetcher: Fetch,
   entry: CityEntry,
   layout: Layout,
   base = "",
   options: ReadOptions = {},
-): Promise<CityFile> {
-  return parsed(await text(fetcher, `${base}/cities/${variantOf(entry, layout).file}`, options), options);
+): Promise<string> {
+  return text(fetcher, `${base}/cities/${variantOf(entry, layout).file}`, options);
 }
 
 /** A file's bytes in slices of `FILE_CHUNK`, as a stream: what every browser and jsdom alike can read. */
@@ -188,9 +178,9 @@ const chunksOf = (file: Blob) => {
   });
 };
 
-/** A city file a person picked or dropped. */
-export async function readCityFile(file: Blob, options: ReadOptions = {}): Promise<CityFile> {
-  return parsed(await streamText(chunksOf(file), file.size, options), options);
+/** A city file a person picked or dropped, as text: the layout worker reads it. */
+export function readCityFile(file: Blob, options: ReadOptions = {}): Promise<string> {
+  return streamText(chunksOf(file), file.size, options);
 }
 
 /** The sentence to show for a failure: GitHub's in plain words, the engine's own message for a bad city, else the error's. */

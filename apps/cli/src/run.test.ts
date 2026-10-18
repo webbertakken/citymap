@@ -430,3 +430,56 @@ describe("runLay's authors", () => {
     expect(resumed.files["city.json"]).toBe((await lay(dir)).text);
   });
 });
+
+/** A city file's people: which measures it has, and every file's and lot's authors, by town and lot. */
+function authorsOf(text: string) {
+  const { measures } = parseCityFile(text);
+  const lots = Object.entries(measures!.lots).flatMap(([town, townLots]) =>
+    Object.entries(townLots).map(([key, lot]) => ({
+      lot: `${town}/${key}`,
+      authors: lot.authors,
+      files: lot.files.map((f) => f.authors),
+    })),
+  );
+  return { available: measures!.available, lots };
+}
+
+/** A blob-less clone, without a checkout, named `fixture`. */
+function partialOf(source: string): string {
+  git(source, "config", "uploadpack.allowFilter", "true");
+  const clone = fixtureFolder();
+  execFileSync("git", ["clone", "-q", "--no-checkout", "--filter=blob:none", `file://${source}`, clone], {
+    env: gitEnvironment(),
+  });
+  return clone;
+}
+
+describe("runLay's authors in a partial clone", () => {
+  it("fetches the laid commit's .mailmap alone and counts the people as a full clone does", async () => {
+    const source = mailmapped();
+    const clone = partialOf(source);
+    const partial = await lay(clone);
+    expect(partial.lines).toContain("history/mailmap status=fetched entries=1");
+    expect(authorsOf(partial.text)).toEqual(authorsOf((await lay(source)).text));
+    expect(fileOf(partial.text, "src/a.ts")).toMatchObject({ commits: 3, authors: 2 });
+    const blobs = git(clone, "cat-file", "--batch-check=%(objecttype) %(objectname)", "--batch-all-objects")
+      .split("\n")
+      .filter((line) => line.startsWith("blob "));
+    expect(blobs).toEqual([`blob ${git(clone, "rev-parse", "HEAD:.mailmap")}`]);
+  });
+
+  it("lays authors unknown, saying why, when the .mailmap cannot be fetched", async () => {
+    const clone = partialOf(mailmapped());
+    git(clone, "remote", "set-url", "origin", join(clone, "gone"));
+    const offline = await lay(clone);
+    expect(offline.lines).toContainEqual(
+      expect.stringMatching(
+        /^history\/mailmap status=unfetchable entries=0 reason=exit-128 error=fatal: '.*gone' does not appear to be a git repository$/,
+      ),
+    );
+    const { available, lots } = authorsOf(offline.text);
+    expect(available).toEqual(["size", "tested", "kind", "recency", "churn", "comments"]);
+    expect(lots.every((lot) => lot.authors === undefined && lot.files.every((a) => a === undefined))).toBe(true);
+    expect(fileOf(offline.text, "src/a.ts")).toMatchObject({ commits: 3 });
+  });
+});

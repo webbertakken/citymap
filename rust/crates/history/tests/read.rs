@@ -1035,9 +1035,9 @@ fn records_each_files_last_change_commits_and_authors_through_renames() {
             .to_string()
     };
     let facts = |identity: &str| history.of(identity).map(|f| (f.changed, f.commits, f.authors));
-    assert_eq!(facts(&identity("c.ts")), Some((3000, 3, 2)));
-    assert_eq!(facts(&identity("sub/.keep")), Some((3000, 1, 1)));
-    assert_eq!(facts("b.ts@0"), Some((1000, 1, 1)));
+    assert_eq!(facts(&identity("c.ts")), Some((3000, 3, Some(2))));
+    assert_eq!(facts(&identity("sub/.keep")), Some((3000, 1, Some(1))));
+    assert_eq!(facts("b.ts@0"), Some((1000, 1, Some(1))));
     assert_eq!(facts("nothing@0"), None);
     let c = identity("c.ts");
     assert_eq!(history.authors_across([c.as_str(), "b.ts@0", "nothing@0"]), Some(2));
@@ -1208,7 +1208,10 @@ fn authors_of_a(dir: &Path, to: &str) -> (Option<i64>, Vec<HistoryEvent>) {
     let last = last.expect("a snapshot");
     let identity = &last.files.iter().find(|f| &*f.path == "a.ts").expect("a.ts").identity;
     (
-        history.expect("the files' history").of(identity).map(|f| f.authors),
+        history
+            .expect("the files' history")
+            .of(identity)
+            .and_then(|f| f.authors),
         events,
     )
 }
@@ -1230,6 +1233,8 @@ fn counts_people_as_the_target_commits_mailmap_names_them_whatever_the_working_t
     let read = HistoryEvent::Mailmap {
         status: MailmapStatus::Read,
         entries: 2,
+        reason: None,
+        error: None,
     };
     assert_eq!(authors_of_a(repo.path(), "HEAD"), (Some(1), vec![read.clone()]));
     assert_eq!(read.line(), "history/mailmap status=read entries=2");
@@ -1254,6 +1259,8 @@ fn counts_people_as_the_target_commits_mailmap_names_them_whatever_the_working_t
     let absent = HistoryEvent::Mailmap {
         status: MailmapStatus::Absent,
         entries: 0,
+        reason: None,
+        error: None,
     };
     assert_eq!(authors_of_a(unmapped.path(), "HEAD"), (Some(2), vec![absent]));
 }
@@ -1268,4 +1275,72 @@ fn reads_no_mailmap_without_a_file_history() {
         events.iter().map(HistoryEvent::code).collect::<Vec<_>>(),
         ["history/schedule"]
     );
+}
+
+/// A blob-less clone, without a checkout, of Ann under two addresses that its last commit's .mailmap joins.
+fn partial_clone() -> (Repo, Repo, PathBuf) {
+    let source = Repo::new();
+    source.write("a.ts", "1");
+    commit_as(&source, "Ann", "ann@old.org", "one");
+    source.write("a.ts", "2");
+    source.write(".mailmap", "<ann@new.org> <ann@old.org>\n");
+    commit_as(&source, "Ann", "ann@new.org", "two");
+    source.git(&["config", "uploadpack.allowFilter", "true"]);
+    let holder = Repo::new();
+    let clone = holder.path().join("partial");
+    let url = format!("file://{}", source.path().display());
+    holder.git(&[
+        "clone",
+        "-q",
+        "--no-checkout",
+        "--filter=blob:none",
+        &url,
+        &clone.display().to_string(),
+    ]);
+    (source, holder, clone)
+}
+
+#[test]
+fn fetches_the_targets_mailmap_into_a_partial_clone_and_counts_people_as_a_full_clone_does() {
+    let (_source, _holder, clone) = partial_clone();
+    let fetched = HistoryEvent::Mailmap {
+        status: MailmapStatus::Fetched,
+        entries: 1,
+        reason: None,
+        error: None,
+    };
+    assert_eq!(authors_of_a(&clone, "HEAD"), (Some(1), vec![fetched]));
+}
+
+#[test]
+fn forgets_the_authors_when_the_mailmap_cannot_be_fetched_keeping_the_rest_of_the_history() {
+    let (_source, _holder, clone) = partial_clone();
+    let gone = clone.join("gone").display().to_string();
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(&clone)
+        .args(["remote", "set-url", "origin", &gone])
+        .output()
+        .expect("git runs");
+    assert!(out.status.success());
+    let options = ReadOptions {
+        files: true,
+        ..ReadOptions::default()
+    };
+    let (mut last, mut history, mut status) = (None, None, None);
+    for item in read_history(&clone, options).expect("a history") {
+        match item.expect("an item") {
+            HistoryItem::Snapshot(s) => last = Some(s),
+            HistoryItem::Event(HistoryEvent::Mailmap { status: s, reason, .. }) => status = Some((s, reason)),
+            HistoryItem::Event(_) => {}
+            HistoryItem::Files(f) => history = Some(f),
+        }
+    }
+    let history = history.expect("the files' history");
+    assert_eq!(status, Some((MailmapStatus::Unfetchable, Some("exit-128".to_owned()))));
+    assert!(!history.authors_known());
+    let last = last.expect("a snapshot");
+    let identity = &last.files.iter().find(|f| &*f.path == "a.ts").expect("a.ts").identity;
+    let facts = history.of(identity).expect("facts");
+    assert_eq!((facts.commits, facts.authors), (2, None));
 }

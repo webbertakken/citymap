@@ -124,6 +124,7 @@ describe("buildMeasures", () => {
       source: "cli",
       size: "lines",
       history: true,
+      authors: true,
       comments: true,
       tested: "coverage",
       lots,
@@ -145,6 +146,7 @@ describe("buildMeasures", () => {
       source: "cli",
       size: "lines",
       history: true,
+      authors: true,
       comments: true,
       tested: "name",
       lots,
@@ -160,6 +162,7 @@ describe("buildMeasures", () => {
       source: "cli",
       size: "lines",
       history: true,
+      authors: true,
       comments: true,
       tested: "name",
       lots,
@@ -174,6 +177,7 @@ describe("buildMeasures", () => {
       source: "github",
       size: "bytes",
       history: false,
+      authors: false,
       comments: false,
       tested: "name",
       lots,
@@ -186,5 +190,25 @@ describe("buildMeasures", () => {
       ],
     });
     expect(measures.available).toEqual(["size", "tested", "kind"]);
+  });
+
+  it("leaves authors out of the available measures of a fold without its .mailmap", () => {
+    const measures = buildMeasures({
+      source: "cli",
+      size: "lines",
+      history: true,
+      authors: false,
+      comments: true,
+      tested: "name",
+      lots,
+      factsOf: () => ({ commits: 1 }),
+    });
+    expect(measures.available).toEqual(["size", "tested", "kind", "recency", "churn", "comments"]);
+    expect(measures.lots["demo"]!["a@0"]).toEqual({
+      files: [
+        { path: "a.ts", commits: 1 },
+        { path: "b.ts", commits: 1 },
+      ],
+    });
   });
 });

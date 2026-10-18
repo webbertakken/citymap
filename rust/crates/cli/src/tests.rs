@@ -790,3 +790,100 @@ fn maps_authors_by_the_mailmap_of_the_commit_it_lays_and_resumes_to_the_same_cit
     assert!(resumed.lines.contains(&format!("lock/resume commit={saved} index=2")));
     assert_eq!(resumed.files[Path::new("city.json")], lay_city(&dir, &[]).0);
 }
+
+/// A city file's people: which measures it has, and every lot's and file's authors, by town and lot.
+fn authors_of(
+    text: &str,
+) -> (
+    serde_json::Value,
+    Vec<(String, serde_json::Value, Vec<serde_json::Value>)>,
+) {
+    let value: serde_json::Value = serde_json::from_str(text).expect("JSON");
+    let measures = &value["measures"];
+    let mut lots = Vec::new();
+    for (town, town_lots) in measures["lots"].as_object().expect("towns") {
+        for (key, lot) in town_lots.as_object().expect("lots") {
+            let files = lot["files"]
+                .as_array()
+                .expect("files")
+                .iter()
+                .map(|f| f["authors"].clone())
+                .collect();
+            lots.push((format!("{town}/{key}"), lot["authors"].clone(), files));
+        }
+    }
+    (measures["available"].clone(), lots)
+}
+
+/// A blob-less clone, without a checkout, named `fixture`.
+fn partial_of(source: &Path) -> (Repo, PathBuf) {
+    git(source, &["config", "uploadpack.allowFilter", "true"]);
+    let (parent, clone) = fixture_folder();
+    let url = format!("file://{}", source.display());
+    git(
+        source,
+        &[
+            "clone",
+            "-q",
+            "--no-checkout",
+            "--filter=blob:none",
+            &url,
+            &clone.display().to_string(),
+        ],
+    );
+    (parent, clone)
+}
+
+#[test]
+fn fetches_the_laid_commits_mailmap_alone_into_a_partial_clone_and_counts_the_people_as_a_full_clone_does() {
+    let (_source_parent, source) = mailmapped();
+    let (_parent, clone) = partial_of(&source);
+    let partial = lay_city(&clone, &[]);
+    assert!(
+        partial
+            .1
+            .contains(&"history/mailmap status=fetched entries=1".to_owned())
+    );
+    assert_eq!(authors_of(&partial.0), authors_of(&lay_city(&source, &[]).0));
+    let a = file_of(&partial.0, "src/a.ts");
+    assert_eq!((&a["commits"], &a["authors"]), (&3.into(), &2.into()));
+    let blobs: Vec<String> = git(
+        &clone,
+        &[
+            "cat-file",
+            "--batch-check=%(objecttype) %(objectname)",
+            "--batch-all-objects",
+        ],
+    )
+    .lines()
+    .filter(|line| line.starts_with("blob "))
+    .map(str::to_owned)
+    .collect();
+    assert_eq!(
+        blobs,
+        [format!("blob {}", git(&clone, &["rev-parse", "HEAD:.mailmap"]))]
+    );
+}
+
+#[test]
+fn lays_authors_unknown_saying_why_when_the_mailmap_cannot_be_fetched() {
+    let (_source_parent, source) = mailmapped();
+    let (_parent, clone) = partial_of(&source);
+    let gone = clone.join("gone").display().to_string();
+    git(&clone, &["remote", "set-url", "origin", &gone]);
+    let offline = lay_city(&clone, &[]);
+    let said = format!(
+        "history/mailmap status=unfetchable entries=0 reason=exit-128 error=fatal: '{gone}' does not appear to be a git repository"
+    );
+    assert!(offline.1.contains(&said), "{:?}", offline.1);
+    let (available, lots) = authors_of(&offline.0);
+    assert_eq!(
+        available,
+        serde_json::json!(["size", "tested", "kind", "recency", "churn", "comments"])
+    );
+    assert!(
+        lots.iter()
+            .all(|(_, lot, files)| lot.is_null() && files.iter().all(serde_json::Value::is_null))
+    );
+    assert_eq!(file_of(&offline.0, "src/a.ts")["commits"], 3);
+}

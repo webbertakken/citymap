@@ -1,16 +1,20 @@
-// `bun run parity [--long] [--repos=a,b] [--modes=state,fold,resume,checkout,coverage] [--features=mimalloc]
+// `bun run parity [--long] [--repos=a,b] [--modes=state,fold,resume,checkout,partial,coverage] [--features=mimalloc]
 // [--toggles=a,b] [--separate=a,b]`: runs the TypeScript and Rust CLIs on the repositories under ~/.cache/citymap/repos
 // (or $CITYMAP_REPOS), each on its own shared clone so no lock lands in the cache, and compares their city JSON, SVG,
 // lockfile and log byte for byte. The resume mode folds from a lock saved part way, and its city, SVG and lock must also
 // match the uninterrupted fold of the same CLI. The checkout mode folds a clone with a checkout whose working tree
 // .mailmap (and mailmap.file) merges its authors, and its city, SVG, lock and log must match the fold of the clone
-// without one. Run it under PM2: folds take minutes.
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+// without one. The partial mode folds a blob-less clone, which fetches the laid commit's .mailmap, and its authors must
+// match the fold's. Run it under PM2: folds take minutes.
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   OUTPUTS,
   SAME_AS_FOLD,
+  UPLOAD_PACK,
+  authorsOf,
+  cloneArgs,
   buildArgs,
   checkoutMailmap,
   cliArgs,
@@ -65,9 +69,12 @@ for (const repo of settings.repos) {
       return result.differs.length > 0;
     });
     const againstFold = settings.modes.includes("fold")
-      ? (["resume", "checkout"] as const)
-          .filter((mode) => settings.modes.includes(mode))
-          .map((mode) => checkSameAsFold(repo, source, scratch, mode))
+      ? [
+          ...(["resume", "checkout"] as const)
+            .filter((mode) => settings.modes.includes(mode))
+            .map((mode) => checkSameAsFold(repo, source, scratch, mode)),
+          ...(settings.modes.includes("partial") ? [checkPartial(repo, scratch)] : []),
+        ]
       : [];
     const sameDiffers = againstFold.some(Boolean);
     foldDiffers ||= sameDiffers;
@@ -96,9 +103,10 @@ function compare(repo: string, source: string, mode: Mode, dir: string): Result 
   for (const [side, cli] of Object.entries(sides)) {
     const clone = join(dir, side, repo);
     mkdirSync(join(dir, side), { recursive: true });
-    const checkout = mode === "checkout" ? [] : ["--no-checkout"];
-    const cloned = run(["git", "clone", "--shared", ...checkout, "--quiet", source, clone]);
+    const cloned = run(cloneArgs(mode, source, clone));
     if (cloned.code !== 0) throw new Error(`parity/clone-failed repo=${repo} ${cloned.stderr.split("\n", 1)[0]}`);
+    // The CLI fetches the laid commit's .mailmap from the same upload-pack the blob-less clone came from.
+    if (mode === "partial") run(["git", "-C", clone, "config", "remote.origin.uploadpack", UPLOAD_PACK]);
     if (mode === "checkout") mergeAuthorsInWorkingTree(clone, join(dir, side, "everyone.mailmap"));
     if (mode === "coverage") {
       const listed = run([
@@ -152,6 +160,17 @@ function mergeAuthorsInWorkingTree(clone: string, elsewhere: string): void {
   const configured = run(["git", "-C", clone, "config", "mailmap.file", elsewhere]);
   if (configured.code !== 0) throw new Error(`parity/config-failed ${configured.stderr.split("\n", 1)[0]}`);
   console.log(`parity/checkout-mailmap clone=${clone} lines=${text.split("\n").length - 1}`);
+}
+
+/** A blob-less clone's fold against the fold of a full clone, per CLI: the same people. True when they differ. */
+function checkPartial(repo: string, scratch: string): boolean {
+  const people = (mode: Mode, side: string) =>
+    authorsOf(readFileSync(join(scratch, mode, `${side}-out`, "city.json"), "utf8"));
+  const differs = Object.keys(sides)
+    .filter((side) => people("fold", side) !== people("partial", side))
+    .map((side) => `${side}:authors`);
+  console.log(sameVerdict("partial", repo, differs));
+  return differs.length > 0;
 }
 
 /**

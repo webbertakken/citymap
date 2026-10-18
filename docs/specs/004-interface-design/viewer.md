@@ -191,8 +191,8 @@ Every control meets measurable rules:
   folder by folder until complete; the loading card counts the folders and the requests as they go.
 - Errors are one sentence each, and the last city stays: a repository that does not exist or is private, GitHub's hourly
   limit reached (with the time it resets), or no network.
-- Laying, and building the map's shapes, run off the main thread, so the page stays responsive while a large repository
-  is laid.
+- Laying, building the map's shapes and indexing the map for the pointer run off the main thread, so the page stays
+  responsive while a large repository is laid.
 
 ## Map
 
@@ -279,4 +279,10 @@ what it means, so a person who has never read this spec understands the map.
   font arrives with a matched fallback (Cumulative Layout Shift 0).
 - Interactions answer within one frame of input; the scene is drawn as a few merged meshes per town, not one object per
   lot (Interaction to Next Paint under 200 ms on a phone).
+- Opening anything keeps the page answering, so a tap or a key press while a city opens waits for no long task: every
+  opening (a bundled city, another layout, a city file, a repository) is read or laid off the main thread, where the
+  map's shapes and its index for the pointer are built too; the main thread only takes the finished city in, and lists
+  the city's folders and files for search in short slices between inputs before the city shows, so a city on the map can
+  always be searched. Showing one town alone builds no new index for the pointer. On a phone the longest main-thread
+  task while opening livediagram, or another layout of it, stays under 200 ms.
 - Phones draw at a device pixel ratio of at most 2.

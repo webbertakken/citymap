@@ -43,8 +43,15 @@ people switch and read it lives in the [viewer](../004-interface-design/viewer.m
 - **Authors** are people, told apart by email as the laid commit's `.mailmap` names them, read as git reads a
   `.mailmap`. A city is a function of the history alone: the working tree, its `.mailmap` and git's own mailmap settings
   are never read, so a clone with a checkout, one without, and one whose `.mailmap` was edited lay the same city, and a
-  resumed fold the same as an uninterrupted one. A laid commit without a `.mailmap` file, or whose `.mailmap` the clone
-  does not hold (a partial clone), maps nobody, and the CLI says which.
+  resumed fold the same as an uninterrupted one. A laid commit without a `.mailmap` file maps nobody, and the CLI says
+  so.
+- **The one fetch**: the CLI reads a clone without fetching, with one exception. A partial clone that does not hold the
+  laid commit's `.mailmap` fetches exactly that one object from its promisor remote, and nothing else, so every clone of
+  a commit, partial or whole, counts its authors alike. Sizes and comments need every file's contents, so a partial
+  clone leaves them unknown rather than fetch the repository; the `.mailmap` is one small file that changes every author
+  count at once. When it cannot be fetched (offline, no promisor remote, no answer in time), authors are unknown in that
+  city, never mapped silently by nobody: the switch and the card say "The laid commit's .mailmap could not be fetched",
+  and the CLI logs why.
 - **A submodule's files** are measured from their own contents at the commit the submodule is pinned to, read from the
   submodule's own git data, as any file is. They carry no history: the repository's commits only move the pin, and a
   submodule's own commits are not read, so their recency, churn and authors are unknown, and say why ("A submodule's own
@@ -70,7 +77,8 @@ recency their newest, churn their sum, authors the people across them, comments 
   through amber to green, with unknown grey), size, kind (the land use colours), recency, churn and authors. Folder plus
   six measures: seven choices.
 - A measure the source cannot give is shown in the switch, unavailable, with its reason ("Needs the CLI's history",
-  "Laid without history (--no-history)", "This city file has no measures").
+  "Laid without history (--no-history)", "The laid commit's .mailmap could not be fetched", "This city file has no
+  measures").
 - Buildings stand in the Buildings view (3D). In plan view the lots stay flat; the colour switch works in both. Colour
   by kind and by folder need no measures.
 

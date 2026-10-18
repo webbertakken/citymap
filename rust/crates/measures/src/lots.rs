@@ -6,7 +6,7 @@ use citymap_ground_plan::fixed::compare_keys;
 use citymap_ground_plan::plat::Plat;
 use citymap_ground_plan::snapshot::FileEntry;
 
-use crate::section::{FileMeasures, LotMeasures, MEASURES_VERSION, Measures, available_for};
+use crate::section::{FileMeasures, Given, LotMeasures, MEASURES_VERSION, Measures, available_for};
 
 /// Each lot's live files, sorted, by town key and lot key; vacant lots have none. Towns and lots in the city's order.
 pub type LotFiles = Vec<(String, Vec<(String, Vec<String>)>)>;
@@ -83,8 +83,10 @@ pub type AuthorsAcross<'a> = &'a dyn Fn(&[String]) -> Option<i64>;
 pub struct MeasuresInput<'a> {
     pub source: &'static str,
     pub size: &'static str,
-    /// Whether the history was read: recency, churn and authors are then available.
+    /// Whether the history was read: recency and churn are then available.
     pub history: bool,
+    /// Whether its people are known (the laid commit's `.mailmap` read): authors are then available, with the history.
+    pub authors: bool,
     /// Whether contents were read: comments are then available.
     pub comments: bool,
     pub tested: &'static str,
@@ -121,7 +123,14 @@ pub fn build_measures(input: &MeasuresInput) -> Measures {
         }
     }
     Measures {
-        available: available_for(input.source, input.history, input.comments),
+        available: available_for(
+            input.source,
+            Given {
+                history: input.history,
+                authors: input.authors,
+                comments: input.comments,
+            },
+        ),
         lots,
         size: input.size,
         source: input.source,
@@ -258,6 +267,7 @@ mod tests {
             source: "cli",
             size: "lines",
             history: true,
+            authors: true,
             comments: true,
             tested: "coverage",
             lots: &lots,
@@ -270,6 +280,23 @@ mod tests {
         assert_eq!(measures.lots["demo"]["a@0"].authors, Some(1));
         assert_eq!(measures.lots["demo old town"]["c@0"].authors, None);
         assert_eq!(measures.available.len(), 7);
+        let unmapped = build_measures(&MeasuresInput {
+            source: "cli",
+            size: "lines",
+            history: true,
+            authors: false,
+            comments: true,
+            tested: "name",
+            lots: &lots,
+            facts_of: &facts,
+            authors_across: None,
+            submodules: &[],
+        });
+        assert_eq!(
+            unmapped.available,
+            vec!["size", "tested", "kind", "recency", "churn", "comments"]
+        );
+        assert_eq!(unmapped.lots["demo"]["a@0"].authors, None);
     }
 
     #[test]
@@ -289,6 +316,7 @@ mod tests {
             source: "cli",
             size: "lines",
             history: false,
+            authors: false,
             comments: true,
             tested: "name",
             lots: &lots,

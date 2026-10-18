@@ -180,23 +180,24 @@ pub fn measure_city(input: MeasureInput, io: &mut dyn Io) -> Result<Measures> {
             named: names.as_ref().and_then(|n| named_by(n, path)),
             changed: changes.map(|c| c.changed),
             commits: changes.map(|c| c.commits),
-            authors: changes.map(|c| c.authors),
+            authors: changes.and_then(|c| c.authors),
             ..FileMeasures::default()
         }
     };
+    // The people, when the history was read and its laid commit's .mailmap could be.
+    let people = history.filter(|h| h.authors_known());
     let across =
-        |files: &[String]| history.and_then(|h| h.authors_across(files.iter().map(|p| identity_of[p.as_str()])));
+        |files: &[String]| people.and_then(|h| h.authors_across(files.iter().map(|p| identity_of[p.as_str()])));
     let measures = build_measures(&MeasuresInput {
         source: "cli",
         size: "lines",
         history: history.is_some(),
+        authors: people.is_some(),
         comments: true,
         tested,
         lots: &lots,
         facts_of: &facts_of,
-        authors_across: history
-            .is_some()
-            .then_some(&across as &dyn Fn(&[String]) -> Option<i64>),
+        authors_across: people.is_some().then_some(&across as &dyn Fn(&[String]) -> Option<i64>),
         submodules: snapshot.submodules.as_deref().map_or(&[], Vec::as_slice),
     });
     // What the section holds: an old town's repeated lot key counts once, as it is written once.

@@ -14,13 +14,25 @@ struct Record {
 pub struct FileFacts {
     pub changed: i64,
     pub commits: i64,
-    pub authors: i64,
+    /// None once the people cannot be told apart.
+    pub authors: Option<i64>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct FileHistory {
     people: HashMap<String, u32>,
     files: HashMap<String, Record>,
+    known: bool,
+}
+
+impl Default for FileHistory {
+    fn default() -> Self {
+        Self {
+            people: HashMap::new(),
+            files: HashMap::new(),
+            known: true,
+        }
+    }
 }
 
 fn count(n: usize) -> i64 {
@@ -52,13 +64,24 @@ impl FileHistory {
         }
     }
 
-    /// A file's history, or none when no commit read changed it.
+    /// Whether the people are known: false once the laid commit's `.mailmap` could not be read.
+    #[must_use]
+    pub const fn authors_known(&self) -> bool {
+        self.known
+    }
+
+    /// The people cannot be told apart (the laid commit's `.mailmap` could not be fetched): authors are unknown.
+    pub const fn forget_authors(&mut self) {
+        self.known = false;
+    }
+
+    /// A file's history, or none when no commit read changed it; its authors only while they are known.
     #[must_use]
     pub fn of(&self, identity: &str) -> Option<FileFacts> {
         self.files.get(identity).map(|f| FileFacts {
             changed: f.changed,
             commits: f.commits,
-            authors: count(f.authors.len()),
+            authors: self.known.then(|| count(f.authors.len())),
         })
     }
 
@@ -92,11 +115,28 @@ mod tests {
             Some(FileFacts {
                 changed: 20,
                 commits: 2,
-                authors: 1
+                authors: Some(1)
             })
         );
         assert_eq!(history.of("c@0"), None);
         assert_eq!(history.authors_across(["a@0", "b@0", "c@0"]), Some(2));
         assert_eq!(history.authors_across(["c@0"]), None);
+    }
+
+    #[test]
+    fn knows_its_authors_until_told_it_cannot() {
+        let mut history = FileHistory::default();
+        history.record("a@0", 10, "ann@x.org");
+        assert!(history.authors_known());
+        history.forget_authors();
+        assert!(!history.authors_known());
+        assert_eq!(
+            history.of("a@0"),
+            Some(FileFacts {
+                changed: 10,
+                commits: 1,
+                authors: None
+            })
+        );
     }
 }

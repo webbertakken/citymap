@@ -103,7 +103,7 @@ describe("parseCityFile", () => {
 
 describe("availableFor", () => {
   it("gives history's measures to a folded CLI city only, and comments when contents were read", () => {
-    expect(availableFor("cli", true, true)).toEqual([
+    expect(availableFor("cli", { history: true, authors: true, comments: true })).toEqual([
       "size",
       "tested",
       "kind",
@@ -112,8 +112,28 @@ describe("availableFor", () => {
       "authors",
       "comments",
     ]);
-    expect(availableFor("cli", false, true)).toEqual(["size", "tested", "kind", "comments"]);
-    expect(availableFor("github", false, false)).toEqual(["size", "tested", "kind"]);
+    expect(availableFor("cli", { history: false, authors: false, comments: true })).toEqual([
+      "size",
+      "tested",
+      "kind",
+      "comments",
+    ]);
+    expect(availableFor("github", { history: false, authors: false, comments: false })).toEqual([
+      "size",
+      "tested",
+      "kind",
+    ]);
+  });
+
+  it("leaves authors out of a fold whose .mailmap could not be read, and nothing else", () => {
+    expect(availableFor("cli", { history: true, authors: false, comments: true })).toEqual([
+      "size",
+      "tested",
+      "kind",
+      "recency",
+      "churn",
+      "comments",
+    ]);
   });
 });
 
@@ -127,5 +147,8 @@ describe("unavailableReason", () => {
     expect(unavailableReason("churn", github)).toBe("Needs the CLI's history");
     expect(unavailableReason("comments", github)).toBe("Needs the files' contents");
     expect(unavailableReason("authors", state)).toBe("Laid without history (--no-history)");
+    const unmapped: Measures = { ...measures, available: ["size", "tested", "kind", "recency", "churn", "comments"] };
+    expect(unavailableReason("authors", unmapped)).toBe("The laid commit's .mailmap could not be fetched");
+    expect(unavailableReason("churn", unmapped)).toBeNull();
   });
 });

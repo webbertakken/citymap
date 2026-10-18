@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   CHECKOUT_AUTHORS,
+  UPLOAD_PACK,
+  authorsOf,
+  cloneArgs,
   LONG,
   PARITY,
   buildArgs,
@@ -21,7 +24,7 @@ describe("parseSettings", () => {
   it("covers the parity repositories in both modes by default, and next.js with --long", () => {
     expect(parseSettings([])).toEqual({
       repos: [...PARITY],
-      modes: ["state", "fold", "resume", "checkout", "coverage"],
+      modes: ["state", "fold", "resume", "checkout", "partial", "coverage"],
       features: [],
       toggles: null,
       separate: null,
@@ -46,7 +49,7 @@ describe("parseSettings", () => {
 
   it("rejects a mode it does not know", () => {
     expect(() => parseSettings(["--modes=state,quick"])).toThrow(
-      "parity/usage: --modes takes state, fold, resume, checkout and coverage, not quick",
+      "parity/usage: --modes takes state, fold, resume, checkout, partial and coverage, not quick",
     );
   });
 });
@@ -69,6 +72,7 @@ describe("cliArgs", () => {
     expect(cliArgs("/c/redux", "/o", "fold").at(-1)).toBe("--lock");
     expect(cliArgs("/c/redux", "/o", "resume").at(-1)).toBe("--lock");
     expect(cliArgs("/c/redux", "/o", "checkout").at(-1)).toBe("--lock");
+    expect(cliArgs("/c/redux", "/o", "partial").at(-1)).toBe("--lock");
     expect(cliArgs("/c/redux", "/o", "fold", { toggles: "corridor", separate: null }).at(-1)).toBe(
       "--toggles=corridor",
     );
@@ -113,6 +117,8 @@ describe("sameVerdict", () => {
     expect(sameVerdict("checkout", "react", ["rs:city.json"])).toBe(
       "parity/checkout-differs repo=react files=rs:city.json",
     );
+    expect(sameVerdict("partial", "react", [])).toBe("parity/partial repo=react same");
+    expect(sameVerdict("partial", "react", ["ts:authors"])).toBe("parity/partial-differs repo=react files=ts:authors");
   });
 });
 
@@ -192,5 +198,61 @@ describe("coverageReports", () => {
       "big",
     );
     expect(many["coverage/lcov.info"]!.split("SF:").length - 1).toBe(101);
+  });
+});
+
+describe("cloneArgs", () => {
+  it("shares a clone without a checkout, checks one out, or clones without blobs from a filtering upload-pack", () => {
+    expect(cloneArgs("fold", "/cache/redux", "/s/redux")).toEqual([
+      "git",
+      "clone",
+      "--shared",
+      "--no-checkout",
+      "--quiet",
+      "/cache/redux",
+      "/s/redux",
+    ]);
+    expect(cloneArgs("checkout", "/cache/redux", "/s/redux")).toEqual([
+      "git",
+      "clone",
+      "--shared",
+      "--quiet",
+      "/cache/redux",
+      "/s/redux",
+    ]);
+    expect(cloneArgs("partial", "/cache/redux", "/s/redux")).toEqual([
+      "git",
+      "clone",
+      "--no-checkout",
+      "--filter=blob:none",
+      "--quiet",
+      `--upload-pack=${UPLOAD_PACK}`,
+      "file:///cache/redux",
+      "/s/redux",
+    ]);
+    expect(UPLOAD_PACK).toBe("git -c uploadpack.allowFilter=true -c uploadpack.allowAnySHA1InWant=true upload-pack");
+  });
+});
+
+/** A small city file's text, with or without its authors, its one file of `bytes`. */
+const cityWith = (authors: boolean, bytes: number) =>
+  JSON.stringify({
+    towns: [],
+    measures: {
+      available: authors ? ["size", "authors"] : ["size"],
+      lots: { t: { a: { files: [{ path: "x", bytes, ...(authors ? { authors: 2 } : {}) }], authors: 2 } } },
+    },
+  });
+
+describe("authorsOf", () => {
+  it("keeps a city's people only: whether it has authors, and every lot's and file's count", () => {
+    const city = cityWith;
+    expect(authorsOf(city(true, 1))).toBe(authorsOf(city(true, 9)));
+    expect(authorsOf(city(true, 1))).toBe(JSON.stringify({ authors: true, lots: [["t/a", 2, [2]]] }));
+    expect(authorsOf(city(false, 1))).not.toBe(authorsOf(city(true, 1)));
+    expect(authorsOf("{}")).toBe(JSON.stringify({ authors: false, lots: [] }));
+    expect(authorsOf(JSON.stringify({ measures: { lots: { t: { a: {} } } } }))).toBe(
+      JSON.stringify({ authors: false, lots: [["t/a", null, []]] }),
+    );
   });
 });
