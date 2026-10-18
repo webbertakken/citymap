@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { AxeBuilder } from "@axe-core/playwright";
+import { parseCityFile, serialiseCityFile } from "@citymap/measures";
 import { expect, test, type Page } from "@playwright/test";
 
 // The Buildings view, colour by measure, and the cards' measures, on the bundled cities the CLI laid with their
@@ -107,6 +108,57 @@ test("offers only folder and kind for a city file without measures, saying why",
   await expect(page.getByRole("radio", { name: "Size" })).toHaveAccessibleDescription("This city file has no measures");
   await expect(page.getByRole("radio", { name: "Kind" })).toBeEnabled();
 });
+
+/** The bundled city as a fold whose laid commit's .mailmap could not be fetched: its authors unknown, the rest kept. */
+function withoutAuthors(): Buffer {
+  const { city, measures } = parseCityFile(readFileSync(cityFile, "utf8"));
+  const lots = Object.fromEntries(
+    Object.entries(measures!.lots).map(([town, townLots]) => [
+      town,
+      Object.fromEntries(
+        Object.entries(townLots).map(([key, lot]) => [
+          key,
+          { files: lot.files.map(({ authors: _authors, ...file }) => file) },
+        ]),
+      ),
+    ]),
+  );
+  const available = measures!.available.filter((m) => m !== "authors");
+  return Buffer.from(serialiseCityFile({ city, measures: { ...measures!, available, lots } }));
+}
+
+for (const scheme of ["dark", "light"] as const)
+  test(`says why authors are not known when the .mailmap could not be fetched, ${scheme}`, async ({
+    page,
+    isMobile,
+  }, info) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.getByRole("button", { name: "More" }).click();
+    await page
+      .getByLabel("City file")
+      .setInputFiles({ name: "unmapped.json", mimeType: "application/json", buffer: withoutAuthors() });
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
+    const legend = await openLegend(page, isMobile);
+    await legend.getByRole("button", { name: /^Colour by/ }).click();
+    await expect(page.getByRole("radio", { name: "Authors" })).toBeDisabled();
+    await expect(page.getByRole("radio", { name: "Authors" })).toHaveAccessibleDescription(
+      "The laid commit's .mailmap could not be fetched",
+    );
+    await expect(page.getByRole("radio", { name: "Churn" })).toBeEnabled();
+    await page.getByRole("radio", { name: "Churn" }).click();
+    await page.getByRole("searchbox").fill("FitFiles");
+    await page.keyboard.press("Enter");
+    // On a phone the card is in the details sheet.
+    if (isMobile) await page.getByRole("button", { name: "Details", exact: true }).click();
+    const selected = page.getByRole("region", { name: "Selected" });
+    await expect(selected.getByRole("heading", { level: 3 })).toHaveText("FitFiles.ts");
+    await expect(selected.getByText("The laid commit's .mailmap could not be fetched")).toBeVisible();
+    await expect(selected.getByText("Commits")).toBeVisible();
+    await drawn(page);
+    await page.screenshot({ path: info.outputPath(`unmapped-${scheme}.png`) });
+    await selected.screenshot({ path: info.outputPath(`unmapped-card-${scheme}.png`) });
+    expect(await violations(page)).toEqual([]);
+  });
 
 for (const scheme of ["dark", "light"] as const)
   test.describe(`in a ${scheme} scheme`, () => {

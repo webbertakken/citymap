@@ -32,8 +32,14 @@ pub enum HistoryEvent {
     SkipSubmodule { path: String, index: i64 },
     /// A root manifest's blob could not be read (a blob-less clone never fetches).
     ManifestUnavailable { path: String, index: i64 },
-    /// The target's `.mailmap`, read for a file history: what was found, and how many commit emails it has lines for.
-    Mailmap { status: MailmapStatus, entries: i64 },
+    /// The target's `.mailmap`, read for a file history: what was found, how many commit emails it has lines for, and
+    /// for an unfetchable one why (`timeout` or `exit-<code>`) and git's first line of complaint.
+    Mailmap {
+        status: MailmapStatus,
+        entries: i64,
+        reason: Option<String>,
+        error: Option<String>,
+    },
     /// The fold schedule a read follows: the history's length, its zone boundaries, the first index and how many it lays.
     Schedule {
         commits: i64,
@@ -62,8 +68,19 @@ impl HistoryEvent {
             Self::SkipSubmodule { path, index } | Self::ManifestUnavailable { path, index } => {
                 format!("{} path={path} index={index}", self.code())
             }
-            Self::Mailmap { status, entries } => {
-                format!("{} status={} entries={entries}", self.code(), status.as_str())
+            Self::Mailmap {
+                status,
+                entries,
+                reason,
+                error,
+            } => {
+                let reason = reason.as_ref().map_or_else(String::new, |r| format!(" reason={r}"));
+                let error = error.as_ref().map_or_else(String::new, |e| format!(" error={e}"));
+                format!(
+                    "{} status={} entries={entries}{reason}{error}",
+                    self.code(),
+                    status.as_str()
+                )
             }
             Self::Schedule {
                 commits,
@@ -410,8 +427,18 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
     let mut blobs = BlobReader::new(dir);
     // The target's own .mailmap names the people, so the history alone decides who they are. Read before the log starts.
     let mut mailmap = Mailmap::default();
-    if options.files {
+    let mut files = options.files.then(FileHistory::default);
+    if let Some(history) = files.as_mut() {
         let (read, event) = read_mailmap(dir, &head, &mut blobs)?;
+        if matches!(
+            event,
+            HistoryEvent::Mailmap {
+                status: MailmapStatus::Unfetchable,
+                ..
+            }
+        ) {
+            history.forget_authors();
+        }
         if send.send(Ok(HistoryItem::Event(event))).is_err() {
             return Ok(());
         }
@@ -456,7 +483,6 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
         folder_map: None,
     };
     let mut parser = RawLogParser::default();
-    let mut files = options.files.then(FileHistory::default);
     let mut index = 0;
     let mut token = Vec::new();
     let mut lay = |commit: RawCommit, index: &mut i64| -> Result<bool> {

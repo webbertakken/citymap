@@ -477,3 +477,57 @@ describe("readHistory's authors", () => {
     expect(events.map((e) => e.code)).toEqual(["history/schedule"]);
   });
 });
+
+/** A blob-less clone, without a checkout, of Ann under two addresses that its last commit's .mailmap joins. */
+function partialClone(): string {
+  const source = repo();
+  write(source, "a.ts", "1");
+  as(source, "Ann", "ann@old.org", "one");
+  write(source, "a.ts", "2");
+  write(source, ".mailmap", "<ann@new.org> <ann@old.org>\n");
+  as(source, "Ann", "ann@new.org", "two");
+  git(source, "config", "uploadpack.allowFilter", "true");
+  const clone = mkdtempSync(join(tmpdir(), "citymap-history-partial-"));
+  repos.push(clone);
+  execFileSync("git", ["clone", "-q", "--no-checkout", "--filter=blob:none", `file://${source}`, clone], {
+    env: gitEnvironment(),
+  });
+  return clone;
+}
+
+describe("readHistory's authors in a partial clone", () => {
+  it("fetches the target's .mailmap and counts people as a full clone does", async () => {
+    expect(await authorsOfA(partialClone())).toEqual({
+      authors: 1,
+      events: [{ code: "history/mailmap", detail: { status: "fetched", entries: 1 } }],
+    });
+  });
+
+  it("forgets the authors when the .mailmap cannot be fetched, keeping the rest of the history", async () => {
+    const clone = partialClone();
+    git(clone, "remote", "set-url", "origin", join(clone, "gone"));
+    const files = new FileHistory();
+    const events: HistoryEvent[] = [];
+    const snaps = [];
+    for await (const s of readHistory(clone, { fileHistory: files, onEvent: (e) => events.push(e) })) snaps.push(s);
+    expect(files.authorsKnown).toBe(false);
+    expect(events.find((e) => e.code === "history/mailmap")?.detail).toMatchObject({
+      status: "unfetchable",
+      reason: "exit-128",
+    });
+    const identity = snaps.at(-1)!.files.find((f) => f.path === "a.ts")!.identity;
+    expect(files.of(identity)).toMatchObject({ commits: 2 });
+  });
+});
+
+describe("FileHistory", () => {
+  it("knows its authors until told it cannot", () => {
+    const files = new FileHistory();
+    files.record("a@0", 10, "ann@x.org");
+    expect(files.authorsKnown).toBe(true);
+    expect(files.of("a@0")).toEqual({ changed: 10, commits: 1, authors: 1 });
+    files.forgetAuthors();
+    expect(files.authorsKnown).toBe(false);
+    expect(files.of("a@0")).toEqual({ changed: 10, commits: 1 });
+  });
+});

@@ -1,7 +1,10 @@
 //! Who an author is, as the laid commit's `.mailmap` says: read from the commit, never from the working tree or git's
 //! mailmap settings, so the same history always counts the same people. Lines are read as git's `mailmap.c` reads them.
 use std::collections::HashMap;
+use std::io::Read;
 use std::path::Path;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
 
@@ -33,9 +36,10 @@ pub struct Mailmap {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MailmapStatus {
     Read,
+    Fetched,
     Absent,
     NotAFile,
-    Unavailable,
+    Unfetchable,
 }
 
 impl MailmapStatus {
@@ -43,9 +47,10 @@ impl MailmapStatus {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Read => "read",
+            Self::Fetched => "fetched",
             Self::Absent => "absent",
             Self::NotAFile => "not-a-file",
-            Self::Unavailable => "unavailable",
+            Self::Unfetchable => "unfetchable",
         }
     }
 }
@@ -138,10 +143,120 @@ impl Mailmap {
 
 fn outcome(status: MailmapStatus, mailmap: Mailmap) -> (Mailmap, HistoryEvent) {
     let entries = i64::try_from(mailmap.len()).unwrap_or(i64::MAX);
-    (mailmap, HistoryEvent::Mailmap { status, entries })
+    let event = HistoryEvent::Mailmap {
+        status,
+        entries,
+        reason: None,
+        error: None,
+    };
+    (mailmap, event)
 }
 
-/// The `.mailmap` at the root of `commit`, read through `blobs` (never fetched), and what was found.
+/// How long fetching the one `.mailmap` blob may take before it is given up: a prompt or a stalled network.
+pub const MAILMAP_FETCH_TIMEOUT: Duration = Duration::from_secs(30);
+/// How often a bounded run is looked at.
+const POLL: Duration = Duration::from_millis(10);
+
+/// How a bounded run ended.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Ended {
+    /// It ended by itself: its exit code (none when it could not start, or was killed), output and complaint.
+    Ran {
+        code: Option<i32>,
+        stdout: Vec<u8>,
+        stderr: String,
+    },
+    /// It did not end in time, and was killed.
+    Timeout,
+}
+
+/// Runs a command, killed after `timeout`; answers at once on a timeout. A process git starts in turn may hold the pipes
+/// open after git is killed: they are let go, not waited for.
+#[must_use]
+pub fn run_within(mut command: Command, timeout: Duration) -> Ended {
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            return Ended::Ran {
+                code: None,
+                stdout: vec![],
+                stderr: e.to_string(),
+            };
+        }
+    };
+    let drain = |mut pipe: Box<dyn Read + Send>| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = pipe.read_to_end(&mut bytes);
+            bytes
+        })
+    };
+    let out = drain(Box::new(child.stdout.take().expect("piped")));
+    let err = drain(Box::new(child.stderr.take().expect("piped")));
+    let deadline = Instant::now() + timeout;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                return Ended::Ran {
+                    code: status.code(),
+                    stdout: out.join().unwrap_or_default(),
+                    stderr: String::from_utf8_lossy(&err.join().unwrap_or_default()).into_owned(),
+                };
+            }
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(POLL),
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Ended::Timeout;
+            }
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Ended::Ran {
+                    code: None,
+                    stdout: vec![],
+                    stderr: e.to_string(),
+                };
+            }
+        }
+    }
+}
+
+/// A fetched blob's text, or why it could not be fetched: `timeout`, or `exit-<code>` with git's first line.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Fetched {
+    Text(String),
+    Failed { reason: String, error: Option<String> },
+}
+
+/// Fetches one blob a partial clone does not hold, and nothing else, and reads it: git's own lazy fetch, allowed for
+/// this one call, asks the clone's promisor remotes for that object alone (`fetch.negotiationAlgorithm=noop`,
+/// `--filter=blob:none`). Never prompts; given up after `timeout`.
+#[must_use]
+pub fn fetch_blob(dir: &Path, blob: &str, timeout: Duration) -> Fetched {
+    let mut command = git_command(dir, &["cat-file", "blob", blob]);
+    command.env_remove("GIT_NO_LAZY_FETCH").env("GIT_TERMINAL_PROMPT", "0");
+    match run_within(command, timeout) {
+        Ended::Timeout => Fetched::Failed {
+            reason: "timeout".to_owned(),
+            error: None,
+        },
+        Ended::Ran {
+            code: Some(0), stdout, ..
+        } => Fetched::Text(String::from_utf8_lossy(&stdout).into_owned()),
+        Ended::Ran { code, stderr, .. } => Fetched::Failed {
+            reason: format!("exit-{}", code.map_or_else(|| "null".to_owned(), |c| c.to_string())),
+            error: Some(stderr.split('\n').next().unwrap_or("").to_owned()),
+        },
+    }
+}
+
+/// The `.mailmap` at the root of `commit`, read through `blobs`, and what was found. A blob a partial clone does not
+/// hold is fetched, alone (`fetch_blob`); one that cannot be is `unfetchable`, and the authors are then unknown.
 pub fn read_mailmap(dir: &Path, commit: &str, blobs: &mut BlobReader) -> Result<(Mailmap, HistoryEvent)> {
     // The root's entry, whichever folder of the repository `dir` names.
     let out = git_command(dir, &["ls-tree", "-z", "--full-tree", commit, "--", ".mailmap"])
@@ -169,10 +284,21 @@ pub fn read_mailmap(dir: &Path, commit: &str, blobs: &mut BlobReader) -> Result<
         return Ok(outcome(MailmapStatus::NotAFile, Mailmap::default()));
     }
     let blob = blob.to_owned();
-    match blobs.read_all(std::slice::from_ref(&blob))?.remove(&blob).flatten() {
-        Some(text) => Ok(outcome(MailmapStatus::Read, Mailmap::parse(&text))),
-        None => Ok(outcome(MailmapStatus::Unavailable, Mailmap::default())),
+    if let Some(text) = blobs.read_all(std::slice::from_ref(&blob))?.remove(&blob).flatten() {
+        return Ok(outcome(MailmapStatus::Read, Mailmap::parse(&text)));
     }
+    Ok(match fetch_blob(dir, &blob, MAILMAP_FETCH_TIMEOUT) {
+        Fetched::Text(text) => outcome(MailmapStatus::Fetched, Mailmap::parse(&text)),
+        Fetched::Failed { reason, error } => (
+            Mailmap::default(),
+            HistoryEvent::Mailmap {
+                status: MailmapStatus::Unfetchable,
+                entries: 0,
+                reason: Some(reason),
+                error,
+            },
+        ),
+    })
 }
 
 #[cfg(test)]
@@ -279,11 +405,12 @@ mod tests {
     fn names_each_status() {
         let names = [
             MailmapStatus::Read,
+            MailmapStatus::Fetched,
             MailmapStatus::Absent,
             MailmapStatus::NotAFile,
-            MailmapStatus::Unavailable,
+            MailmapStatus::Unfetchable,
         ]
         .map(MailmapStatus::as_str);
-        assert_eq!(names, ["read", "absent", "not-a-file", "unavailable"]);
+        assert_eq!(names, ["read", "fetched", "absent", "not-a-file", "unfetchable"]);
     }
 }
