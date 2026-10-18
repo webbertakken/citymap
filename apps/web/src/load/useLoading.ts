@@ -8,7 +8,7 @@ import type { Step } from "./step";
 export const SHOW_AFTER_MS = 300;
 /** Once shown, the card stays at least this long, so it never flickers. */
 export const HOLD_MS = 400;
-/** The card's clock, for the time spent and the time left. */
+/** The card's clock ticks this often, for the time spent and the time left (the card keeps it). */
 export const TICK_MS = 250;
 
 /** A load in flight: its signal, and how it reports, ends or fails. */
@@ -28,8 +28,6 @@ export interface Loading {
   readonly shown: boolean;
   /** True while the load the card shows is still running; a finished load holds its card but cannot be cancelled. */
   readonly cancellable: boolean;
-  /** The card's clock: `performance.now()` at its last tick. */
-  readonly now: number;
   /** Begins a load, aborting any load in flight. */
   readonly begin: (source: Source, name: string) => Job;
   /** Stops the load in flight: its requests abort, and nothing it was opening arrives. */
@@ -55,7 +53,6 @@ export function useLoading(): Loading {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [shown, setShown] = useState(false);
   const [running, setRunning] = useState(false);
-  const [now, setNow] = useState(0);
   const current = useRef<Current | null>(null);
 
   // Ends the load the card shows, if it is still the current one.
@@ -96,11 +93,9 @@ export function useLoading(): Loading {
       current.current = load;
       setProgress(load.progress);
       setRunning(true);
-      setNow(started);
       log.info("viewer/load-phase", fields(load.progress, started));
       load.timer = setTimeout(() => {
         load.shownAt = performance.now();
-        setNow(load.shownAt);
         setShown(true);
       }, SHOW_AFTER_MS);
       return {
@@ -131,12 +126,6 @@ export function useLoading(): Loading {
     [clear, end],
   );
 
-  // The clock ticks only while the card shows.
-  useEffect(() => {
-    const tick = shown ? setInterval(() => setNow(performance.now()), TICK_MS) : undefined;
-    return () => clearInterval(tick);
-  }, [shown]);
-
   // Leaving the page ends whatever was loading.
   useEffect(
     () => () => {
@@ -147,7 +136,7 @@ export function useLoading(): Loading {
     [],
   );
 
-  return { progress, shown, cancellable: shown && running, now, begin, cancel };
+  return { progress, shown, cancellable: shown && running, begin, cancel };
 }
 
 /** The status line's words for a load: "{name}: {phase}". */

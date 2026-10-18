@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { advance, startProgress } from "./progress";
-import { HOLD_MS, SHOW_AFTER_MS, TICK_MS, loadingStatus, useLoading, type Job, type Loading } from "./useLoading";
+import { HOLD_MS, SHOW_AFTER_MS, loadingStatus, useLoading, type Job, type Loading } from "./useLoading";
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "performance"] });
@@ -83,15 +83,6 @@ describe("useLoading", () => {
     act(() => failing.failed());
     expect(result.current.shown).toBe(false);
     expect(result.current.progress).toBeNull();
-  });
-
-  it("ticks its clock while the card shows", () => {
-    const { result } = renderHook(() => useLoading());
-    begin(result.current, "github", "a/b");
-    wait(SHOW_AFTER_MS);
-    const shownAt = result.current.now;
-    wait(TICK_MS);
-    expect(result.current.now - shownAt).toBe(TICK_MS);
   });
 
   it("cancels: the signal aborts, the card goes, and the job's later reports change nothing", () => {

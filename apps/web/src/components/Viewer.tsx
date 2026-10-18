@@ -558,12 +558,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
           <LocalButton local={local} />
         </div>
         {loading.shown && loading.progress && (
-          <LoadingCard
-            progress={loading.progress}
-            now={loading.now}
-            cancellable={loading.cancellable}
-            onCancel={loading.cancel}
-          />
+          <LoadingCard progress={loading.progress} cancellable={loading.cancellable} onCancel={loading.cancel} />
         )}
         <ViewControls
           mode={mode}

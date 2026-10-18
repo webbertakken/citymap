@@ -162,10 +162,12 @@ in `BufferGeometry`.
   under 5 s, "about {n} s left" (whole seconds; to 5 s from 20 s) under 60 s, "about {n} min left" above.
 - `useLoading()` (`load/useLoading.ts`): one load at a time. `begin(source, name)` ends any load in flight (logged
   `why=replaced`) and returns a `Job`, `{ signal, step, done, failed }`; `cancel()` ends the current one (`why=cancel`).
-  It holds `progress` (null when idle), `shown`, and `now`: the card shows `SHOW_AFTER_MS` 300 ms after `begin` if still
-  loading, and once shown stays at least `HOLD_MS` 400 ms (the bar full meanwhile); a load done before 300 ms shows
-  nothing; a failure removes it at once. A clock ticks every `TICK_MS` 250 ms while the card shows. A job's reports
-  after it ended change nothing; leaving the page aborts the load in flight.
+  It holds `progress` (null when idle), `shown`, and `cancellable` (shown and still running): the card shows
+  `SHOW_AFTER_MS` 300 ms after `begin` if still loading, and once shown stays at least `HOLD_MS` 400 ms (the bar full
+  meanwhile); a load done before 300 ms shows nothing; a failure removes it at once. A finished load cannot be
+  cancelled: `cancel()` then does nothing and logs nothing, and Escape is left to the map. The card keeps its own clock,
+  ticking every `TICK_MS` 250 ms while it is mounted, so a tick re-renders the card alone, never the viewer. A job's
+  reports after it ended change nothing; leaving the page aborts the load in flight.
 - The viewer's loads report through it: the index's first city and More
   (`loadCity(fetcher, entry, base, { signal, onStep })`: the body read as a stream, `content-length` the total unless
   `content-encoding` is set, then `parseCity`), a city file (`readCityFile(file, { signal, onStep })`, read in
