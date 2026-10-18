@@ -38,7 +38,7 @@ import { assignPool } from "../explore/pool";
 import { BASE, FLOOR } from "../explore/sight";
 import { SIGN_POOL, middleOf, nearestLots, wallFacing, type Wall } from "../explore/signs";
 import { METRE } from "../explore/street";
-import { MODEL_KINDS, modelOf, nearestOf, type ModelKind, type Vehicle } from "../explore/vehicles";
+import { MODEL_KINDS, VEHICLE_POOL, modelOf, nearestOf, type ModelKind, type Vehicle } from "../explore/vehicles";
 import { log, reasonOf } from "../log";
 import { Buildings, Mesh } from "./CityMeshes";
 import type { ExploreCanvasProps, Signage } from "./ExploreView";
@@ -49,8 +49,7 @@ const NEAR = 0.002;
 /** The city fades into the sky from a kilometre and a half to just short of the far plane. */
 const FOG_NEAR = 150;
 const FOG_FAR = 390;
-/** The pool draws this many vehicles of each model, the nearest the walker, chosen again this often in seconds. */
-const VEHICLE_POOL = 8;
+/** The pool's vehicles, the nearest the walker, are chosen again this often in seconds. */
 const POOL_EVERY = 0.25;
 
 /** Signs are chosen again this often, in seconds: the walker moves a few metres between. */
@@ -369,7 +368,9 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
       motorbike: motorbikeFile,
       bicycle: bicycleFile,
     };
-    return MODEL_KINDS.flatMap((kind) => Array.from({ length: VEHICLE_POOL }, () => slotOf(kind, byKind[kind], theme)));
+    return MODEL_KINDS.flatMap((kind) =>
+      Array.from({ length: VEHICLE_POOL[kind] }, () => slotOf(kind, byKind[kind], theme)),
+    );
   }, [saloon, pickup, motorbikeFile, bicycleFile, theme]);
   const showing = useRef<Showing[]>([]);
   const placed = useRef<Object3D>(null);

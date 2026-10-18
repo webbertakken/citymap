@@ -350,15 +350,20 @@ export function stepVehicle(vehicle: Vehicle, intents: Intents, dt: number, wall
 export type ModelKind = CarBody | "motorbike" | "bicycle";
 export const MODEL_KINDS: readonly ModelKind[] = ["saloon", "pickup", "motorbike", "bicycle"];
 export const modelOf = (vehicle: Vehicle): ModelKind => (vehicle.kind === "car" ? vehicle.body : vehicle.kind);
+/**
+ * The canvas draws at most this many of each model, 16 in all, the nearest the walker: a street's worth each way, so a
+ * city full of vehicles costs what one with a few does.
+ */
+export const VEHICLE_POOL: Readonly<Record<ModelKind, number>> = { saloon: 5, pickup: 3, motorbike: 3, bicycle: 5 };
 
 /**
- * The ids of the `most` vehicles drawn as each model nearest a point, in `MODEL_KINDS` order, nearest first; and
- * before them the one ridden, which is always drawn.
+ * The ids of the vehicles drawn as each model nearest a point, as many of each as `most` says, in `MODEL_KINDS` order,
+ * nearest first; and before them the one ridden, which is always drawn.
  */
 export function nearestOf(
   vehicles: readonly Vehicle[],
   at: { readonly x: number; readonly z: number },
-  most: number,
+  most: Readonly<Record<ModelKind, number>>,
   keep: string | null,
 ): string[] {
   const near = (kind: ModelKind) =>
@@ -366,7 +371,7 @@ export function nearestOf(
       .filter((v) => modelOf(v) === kind && v.id !== keep)
       .map((v) => ({ id: v.id, distance: Math.hypot(v.feet.x - at.x, v.feet.z - at.z) }))
       .toSorted((a, b) => a.distance - b.distance)
-      .slice(0, most)
+      .slice(0, most[kind])
       .map((v) => v.id);
   return [...(keep === null ? [] : [keep]), ...MODEL_KINDS.flatMap(near)];
 }

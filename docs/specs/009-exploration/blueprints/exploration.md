@@ -372,11 +372,11 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   foot on the ground `FOOT_OUT` 0.25 m left of the crank. The arms (`armsOf`: `UpperArm`, `ForeArm`, `Hand`) reach the
   grips the same way, elbows `ELBOW_OUT` down, back and out. Thrown, the rider lies beside the bicycle, turned as it
   lies, `THROWN` 0.9 m ahead and 0.4 m to its side, back in the saddle once it is up.
-- The pool (`nearestOf(vehicles, at, most, keep)`): every `POOL_EVERY` 0.25 s the canvas takes the `VEHICLE_POOL` 8
-  nearest drawn as each model (`MODEL_KINDS`: saloon, pickup, motorbike, bicycle) to the walker (the ridden one always),
-  and `assignPool(slots, wanted)` keeps a model on a vehicle while it stays wanted and gives freed ones to newcomers; a
-  model without a vehicle is hidden. A car's group takes its `attitude`; a two-wheeler's its heading, the model leaning
-  and pitching by its `lean` and `pitch`.
+- The pool (`nearestOf(vehicles, at, most, keep)`): every `POOL_EVERY` 0.25 s the canvas takes the `VEHICLE_POOL`
+  nearest drawn as each model (`MODEL_KINDS`: 5 saloons, 3 pickups, 3 motorbikes, 5 bicycles, 16 in all) to the walker
+  (the ridden one always), and `assignPool(slots, wanted)` keeps a model on a vehicle while it stays wanted and gives
+  freed ones to newcomers; a model without a vehicle is hidden. A car's group takes its `attitude`; a two-wheeler's its
+  heading, the model leaning and pitching by its `lean` and `pitch`.
 - The rider on a two-wheeler (`seat`): at the rig's saddle in the model's frame, hands on its grips, feet on the
   bicycle's pedals or the motorbike's pegs (the left on the ground `FOOT_OUT` beside the peg at a stop); thrown, beside
   it. In a car the walker is hidden.

@@ -36,7 +36,7 @@ One row per value the exploration spec leaves silent or qualitative.
 | Falls                   | hit 3 m/s, lean 0.9 rad, 2.5 s down              | a knock at 11 km/h throws; a moment on the ground                         | taste                     |
 | Parked vehicles         | every 24 m, 30 % bicycles, 30 % cars             | a street that looks lived in, with room between                           | taste                     |
 | Parked kept             | 200 nearest the landing                          | a long walk's worth; linux costs what takken.io does                      | 100 to 1,000              |
-| Vehicle pool            | 8 of each kind, every 0.25 s                     | a street's worth each way drawn; the rest unseen                          | 4 to 16                   |
+| Vehicle pool            | 5, 3, 3 and 5 (16), every 0.25 s                 | a street's worth each way drawn, as before the motorbike                  | 12 to 24 in all           |
 | Gamepad                 | 0.15 dead zone, 900 px/s look                    | worn sticks rest still; a half turn in about a second                     | taste                     |
 | HUD                     | every 0.1 s at most                              | readable numbers that do not flicker or re-render each frame              | 0.05 to 0.25 s            |
 | Bell                    | two strikes of 2,350 and 3,520 Hz                | a ding-ding, like a brass bicycle bell                                    | taste                     |

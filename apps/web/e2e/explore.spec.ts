@@ -4,6 +4,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 // Walking in the city: down from the map through the loading card, on foot by keys or by touch, and back to the map.
 
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+/** A ride's journey may take this long: a software renderer on a shared runner steps it in few, capped frames. */
+const RIDING_MS = 120_000;
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -147,6 +149,8 @@ test("rides the bicycle: pedals, shifts, brakes, and stops with a foot down, the
   isMobile,
 }, info) => {
   test.skip(isMobile, "the keyboard rides here; the phone's buttons below");
+  // A software renderer on a shared runner steps the ride in fewer, capped frames: give it the time it needs.
+  test.setTimeout(RIDING_MS);
   const lines = logOf(page);
   await page.getByRole("button", { name: "Walk" }).click();
   await drawn(page);
@@ -340,6 +344,7 @@ test("rides the motorbike: throttle, gears that change themselves, both brakes t
   isMobile,
 }, info) => {
   test.skip(isMobile, "the keyboard rides here; the phone's layout below");
+  test.setTimeout(RIDING_MS);
   await page.getByRole("button", { name: "Walk" }).click();
   await drawn(page);
   await expect(await toTheMotorbike(page)).toBeVisible();
@@ -364,6 +369,7 @@ test("drives the car on Rapier: engine and gears, brakes then reverses, and leav
   isMobile,
 }, info) => {
   test.skip(isMobile, "the keyboard drives here; the phone's layout below");
+  test.setTimeout(RIDING_MS);
   const lines = logOf(page);
   await page.getByRole("button", { name: "Walk" }).click();
   await drawn(page);
@@ -373,12 +379,12 @@ test("drives the car on Rapier: engine and gears, brakes then reverses, and leav
   const hud = page.getByRole("region", { name: "Speed, gear and engine" });
   await expect(hud).toBeVisible();
   await holdUntil(page, ["KeyW"], () =>
-    expect(hud).toContainText(/Speed\s*([3-9]\d|\d{3}) km\/h/, { timeout: 30_000 }),
+    expect(hud).toContainText(/Speed\s*([3-9]\d|\d{3}) km\/h/, { timeout: RIDING_MS / 2 }),
   );
   await expect(hud).toContainText(/Engine\s*[1-9],?\d{3} rpm/);
   await page.screenshot({ path: info.outputPath("driving.png") });
   // S brakes to a stop, then backs up in reverse.
-  await holdUntil(page, ["KeyS"], () => expect(hud).toContainText(/Gear\s*R/, { timeout: 30_000 }));
+  await holdUntil(page, ["KeyS"], () => expect(hud).toContainText(/Gear\s*R/, { timeout: RIDING_MS / 2 }));
   await holdUntil(page, ["Space"], () =>
     expect(page.getByRole("button", { name: "Get out of the car", exact: true })).toBeVisible({ timeout: 30_000 }),
   );
@@ -391,6 +397,7 @@ test("drives the car on Rapier: engine and gears, brakes then reverses, and leav
 
 test("drives arcade cars where WebAssembly is missing, and says so once", async ({ page, isMobile }) => {
   test.skip(isMobile, "the same on every device");
+  test.setTimeout(RIDING_MS);
   const lines = logOf(page);
   await page.addInitScript(() => Reflect.deleteProperty(globalThis, "WebAssembly"));
   await page.goto("/");

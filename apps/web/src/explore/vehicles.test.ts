@@ -14,6 +14,7 @@ import {
   bumped,
   clearOfVehicles,
   distanceTo,
+  VEHICLE_POOL,
   modelOf,
   nearestOf,
   parkedBy,
@@ -311,6 +312,9 @@ describe("parkedNow", () => {
   });
 });
 
+/** The same count of each model. */
+const each = (n: number) => ({ saloon: n, pickup: n, motorbike: n, bicycle: n });
+
 describe("nearestOf", () => {
   it("names the nearest few of each kind, and always the one ridden", () => {
     const vehicles: Vehicle[] = [
@@ -320,16 +324,24 @@ describe("nearestOf", () => {
       { ...bike(90, 0), id: "far bike" },
       { ...bike(30, 0), id: "middle bike" },
     ];
-    expect(nearestOf(vehicles, { x: 0, z: 0 }, 1, null)).toEqual(["near car", "near bike"]);
-    expect(nearestOf(vehicles, { x: 0, z: 0 }, 2, null)).toEqual(["near car", "far car", "near bike", "middle bike"]);
-    expect(nearestOf(vehicles, { x: 0, z: 0 }, 1, "far bike")).toEqual(["far bike", "near car", "near bike"]);
+    expect(nearestOf(vehicles, { x: 0, z: 0 }, each(1), null)).toEqual(["near car", "near bike"]);
+    expect(nearestOf(vehicles, { x: 0, z: 0 }, each(2), null)).toEqual([
+      "near car",
+      "far car",
+      "near bike",
+      "middle bike",
+    ]);
+    expect(nearestOf(vehicles, { x: 0, z: 0 }, each(1), "far bike")).toEqual(["far bike", "near car", "near bike"]);
     // Pickups after saloons, motorbikes before bicycles.
     const more: Vehicle[] = [
       ...vehicles,
       { ...car(1, 0), id: "pickup", body: "pickup" },
       { ...motorbike(), id: "motorbike", feet: at(2, 0) },
     ];
-    expect(nearestOf(more, { x: 0, z: 0 }, 1, null)).toEqual(["near car", "pickup", "motorbike", "near bike"]);
+    expect(nearestOf(more, { x: 0, z: 0 }, each(1), null)).toEqual(["near car", "pickup", "motorbike", "near bike"]);
+    // As many of each as asked: the canvas's pool draws 16 in all.
+    expect(nearestOf(more, { x: 0, z: 0 }, { ...each(0), bicycle: 2 }, null)).toEqual(["near bike", "middle bike"]);
+    expect(Object.values(VEHICLE_POOL).reduce((sum, n) => sum + n, 0)).toBe(16);
     expect(modelOf(more.at(-1)!)).toBe("motorbike");
   });
 });
