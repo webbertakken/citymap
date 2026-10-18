@@ -47,27 +47,28 @@ The design each phase builds on; the spec and blueprint record it, this list onl
       and dark, for Webber to choose
 - [x] Rapier prototype on the viewer: Walk button, loading card (engine, then walls, counted), a walker by keys, drag,
       touch stick and jump, follow camera, back to the map where the walk ended; physics behind a `Walls` port
-- [ ] Webber's choice of model style, from the lab's captures
+- [x] Webber's choice of model style: glTF in a GTA look; people Wobble Blocks on the Universal Animation Library
+      (retargeted, baked by `scripts/models/build-models.ts`), vehicles heyheythere's PSX pack
 - [x] Webber's verdict on the Rapier prototype: one physics game everywhere; our walls for walking and the bicycle,
       Rapier for cars and other vehicles on every device, arcade cars as the fallback (DECISIONS.md)
 - [x] Rapier's walker held to the ground by the adapter, not a city-wide box (32-bit precision); measured per frame,
       wall raising and memory against the bespoke walls
-- [ ] Research: single-track bicycle dynamics fit for 120 Hz in a browser (Whipple-derived, self-stability from trail),
+- [x] Research: single-track bicycle dynamics fit for 120 Hz in a browser (Whipple-derived, self-stability from trail),
       arcade-real car tyre models, helicopter flight models in web games, third-person spring-arm cameras, SDF text
       pooling in three.js, touch controls in mobile web games, pointer lock and gamepad support per browser
-- [ ] Measure the scale: lot, road and floor sizes in metres over the corpus, to confirm 1 street width = 10 m reads
+- [x] Measure the scale: lot, road and floor sizes in metres over the corpus, to confirm 1 street width = 10 m reads
       right at eye height
-- [ ] Spec `009-exploration/exploration.md`: terms, modes and rides, controls per device, inspection, signs, HUD,
+- [x] Spec `009-exploration/exploration.md`: terms, modes and rides, controls per device, inspection, signs, HUD,
       accessibility (motion, reduced motion, keyboard), phones; viewer, buildings and scope specs updated with the delta
-- [ ] Blueprint: world model and queries, the step function contract, each mover's equations and constants, intents and
+- [x] Blueprint: world model and queries, the step function contract, each mover's equations and constants, intents and
       bindings, cameras, inspection, signs, UI copy; defaults ledger and completeness
-- [ ] Index the new spec and blueprints in `docs/specs/README.md`
+- [x] Index the new spec and blueprints in `docs/specs/README.md`
 
 ## Phase 2: tracer bullet, on foot
 
 The thinnest path through every layer: world, one mover, intents, camera, renderer, UI.
 
-- [ ] `packages/world`: the bespoke `Walls`: prisms from the footprints, spatial grid, capsule collision with sliding
+- [x] `packages/world`: the bespoke `Walls`: prisms from the footprints, spatial grid, capsule collision with sliding
       and stepping up, ground query, rays (tests first, property tests: never inside a building); the Rapier walls stay
       behind a switch until Webber retires them
 - [x] On-foot mover: walk, run, jump, turn (`explore/walker.ts`, tests first)
