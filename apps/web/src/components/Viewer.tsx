@@ -29,8 +29,10 @@ import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } fr
 import { footprintsOf } from "../explore/footprints";
 import { inspector } from "../explore/inspect";
 import { landingOf, type Landing } from "../explore/landing";
+import { parkedIn } from "../explore/parking";
 import type { RaiseWalls } from "../explore/physics/raise";
 import { roadGrid, roadSegments, signName, type RoadGrid } from "../explore/signs";
+import { parkedBy, type Vehicle } from "../explore/vehicles";
 import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
 import { readRepository, type Fetcher } from "../github/read";
@@ -158,16 +160,17 @@ const sourceOf = (name: string, commit: string): GitHubSource => {
   return { owner: name.slice(0, slash), name: name.slice(slash + 1), commit };
 };
 
-/** The viewer: one city at a time, its theme, its view and its layout toggles. */
-/** A walk under way: the city (or town) it walks in, its walls, and where it began. */
+/** A walk under way: the city (or town) it walks in, its walls, where it began, and the vehicles parked about. */
 interface Walking {
   readonly city: City;
   readonly walls: Walls;
   readonly footprints: readonly Footprint[];
   readonly roads: RoadGrid;
   readonly landing: Landing;
+  readonly parked: readonly Vehicle[];
 }
 
+/** The viewer: one city at a time, its theme, its view and its layout toggles. */
 export function Viewer({
   Canvas,
   explore,
@@ -591,7 +594,13 @@ export function Viewer({
         x: landing.at.x.toFixed(3),
         z: landing.at.z.toFixed(3),
       });
-      setWalk({ city: into.city, walls, footprints, roads: roadGrid(roadSegments(into.city)), landing });
+      // The landing's pair at the kerb ahead, then the city's own, worked out from its plan.
+      const parked = [...parkedBy(landing, walls), ...parkedIn(into.city, landing, walls)];
+      log.info("explore/parked", {
+        bicycles: parked.filter((v) => v.kind === "bicycle").length,
+        cars: parked.filter((v) => v.kind === "car").length,
+      });
+      setWalk({ city: into.city, walls, footprints, roads: roadGrid(roadSegments(into.city)), landing, parked });
       job.done();
     } catch (failure) {
       if (isAbort(failure)) return;
@@ -632,6 +641,7 @@ export function Viewer({
             roads={walking.roads}
             inspect={inspector(scene, walking.footprints, index, buildings)}
             landing={walking.landing}
+            parked={walking.parked}
             engine={explore.engine}
             Canvas={explore.Canvas}
             onLeave={leaveWalk}

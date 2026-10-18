@@ -48,18 +48,61 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 
 ## Vehicles
 
-- A bicycle and a car stand parked at the kerb of the street the walk lands on; a motorbike and a helicopter are found
-  in the city. Within reach (1.2 m), a prompt says what E does: "Get on the bicycle", "Get in the car". Riding, E gets
-  off or out beside the vehicle once it has nearly stopped; until then the prompt says "Slow down to get off the
-  bicycle". On a touch screen the prompt is a button.
-- Riding: W throttles or pedals, S brakes then backs up, A and D steer, Space brakes. A vehicle left stays where it
-  stopped. Vehicles stand in the way of walkers and of each other.
-- **The bicycle** is a real one: assisted balance, where steering sets a lean and the bicycle balances itself as a real
-  one does above walking pace; pedalling turns the crank through its gears, the legs follow the pedals, a foot goes down
-  at a stop, and a hard hit or a lean past grip throws the rider off.
+- Bicycles and cars stand parked at the kerbs of the city's streets, worked out from its plan, so a city always has the
+  same ones in the same places: some of the kerb places along every street hold one, never in a junction. A bicycle also
+  stands at the kerb of the street the walk lands on, just ahead, and a car across the street, clear of the bicycle's
+  way. The walk keeps those nearest its landing, a few hundred, so a large city costs what a small one does. A motorbike
+  and a helicopter are found in the city.
+- Within reach (1.2 m), a prompt says what E does: "Get on the bicycle", "Get in the car". Riding, E gets off or out
+  beside the vehicle once it has nearly stopped; until then the prompt says "Slow down to get off the bicycle". On a
+  touch screen the prompt is a button.
+- In the car: W throttles, S brakes then backs up, A and D steer, Space brakes. A vehicle left stays where it stopped.
+  Vehicles stand in the way of walkers and of each other.
 - **The car**, the motorbike and the helicopter handle as GTA's do: cars on suspension that grip, drift, crash, roll
   over and are put back on their wheels; the motorbike leans on the bicycle's single-track core, with an engine and a
   wheelie; the helicopter flies by collective and cyclic and lands on roofs.
+
+## The bicycle
+
+The showpiece: a bicycle that rides like one, and stays fun on a keyboard.
+
+- **It balances as a real one does.** It is a single-track machine: two wheels in line, leaning. Its front wheel trails
+  behind the steering axis, so a lean steers it into the lean and brings the wheels back under it. From about 15 to 22
+  km/h it rides on straight with no hands; slower, it falls over; leaning turns it.
+- **Balance is assisted.** A and D (or a stick) ask for a turn: tighter slow, gentler fast. The rider leans the bicycle
+  into it, first steering briefly the other way (countersteering) as a real rider does. The lean asked for stops short
+  of what the tyres can hold. At walking pace the rider helps it with the body, and the bars wobble as the rider
+  searches for balance; above a running pace they are steady.
+- **Pedalling.** W pedals (a stick or a trigger pushed part way, gently). The crank turns at a cadence set by the speed
+  and the gear; the rider pushes hardest at a slow cadence and not at all past about 140 turns a minute. Seven gears,
+  the third to start: Q shifts down and R up (or the wheel). Letting go of W freewheels: the crank stops and the bicycle
+  rolls on, slowed by the tyres and, more and more as it goes faster, the air.
+- **Brakes.** S brakes the back wheel and Space the front. Braking moves the weight forwards, so the front brake stops
+  hardest; hard enough, it lifts the back wheel, which the rider holds short of going over the bars. The back wheel
+  alone skids long before that. Stopped, S walks the bicycle backwards.
+- **Grip.** The tyres hold a turn and a brake together up to their grip; asking for more, such as braking hard while
+  leaned over, slides the bicycle from under its rider.
+- **The rider.** Pedals, legs and wheels turn in step. Coming to a stop, a foot goes down to the ground, and comes up
+  again once moving. A hard hit (from about 11 km/h) or a slide throws the rider off; both lie a moment, then the rider
+  gets back up, on the bicycle, a foot down.
+- **The bell.** B rings it; on a touch screen, a Ring button.
+- **The HUD**, while on the bicycle: speed in km/h, the gear, and the cadence in turns a minute.
+
+## Controls per device
+
+| Doing           | Keyboard and mouse  | Touch                 | Gamepad              |
+| --------------- | ------------------- | --------------------- | -------------------- |
+| Walk, steer     | W A S D, arrows     | the stick             | left stick           |
+| Look            | the mouse, captured | a drag                | right stick          |
+| Jump            | Space               | Jump                  | A                    |
+| Get on, off     | E                   | the prompt            | Y                    |
+| Pedal           | W                   | the stick pushed up   | right trigger, stick |
+| Back brake      | S                   | the stick pulled down | left trigger         |
+| Front brake     | Space               | Brake                 | A                    |
+| Gears           | Q down, R up, wheel | Gear down, Gear up    | LB down, RB up       |
+| Bell            | B                   | Ring                  | X                    |
+| Fly, land       | F                   | Fly                   | View (Back)          |
+| Back to the map | Escape              | Back to the map       | (the card's button)  |
 
 ## Physics
 
