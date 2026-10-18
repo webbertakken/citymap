@@ -1,6 +1,6 @@
 import { THEMES } from "@citymap/themes";
-import { Group, Vector3 } from "three";
-import { describe, expect, it } from "vitest";
+import { Group, Quaternion, Vector3 } from "three";
+import { describe, expect, it, vi } from "vitest";
 import { bicycle, car, helicopter, paletteOf } from "./procedural";
 import { PROCEDURAL_RIGS, RIGS, poseHelicopter, poseVehicle, type Pose, type Rig } from "./rig";
 
@@ -19,7 +19,7 @@ function rigged(rig: Rig) {
 }
 
 /** A pose: rolled so far, the rest still. */
-const still: Pose = { rolled: 0, steer: 0, lean: 0, pitch: 0, crank: 0 };
+const still: Pose = { rolled: 0, steer: 0, lean: 0, pitch: 0, crank: 0, stand: 0 };
 
 /** Where a part's own +y ends up: its top, after its turn. */
 const topOf = (model: Group, name: string) => new Vector3(0, 1, 0).applyEuler(model.getObjectByName(name)!.rotation);
@@ -98,6 +98,36 @@ describe("poseVehicle", () => {
     poseVehicle(plain, { wheels: [], radius: 1, front: 0.5, roll: { axis: "x", sign: 1 } }, { ...still, pitch: -0.4 });
     plain.updateMatrixWorld(true);
     expect(new Vector3(-0.5, 0, 0).applyMatrix4(plain.matrix).y).toBeCloseTo(0, 9);
+  });
+
+  it("folds a kickstand from down by as far as it is up, and leans the machine onto it as far as it is down", () => {
+    const model = rigged(RIGS.bicycle);
+    const stand = new Group();
+    stand.name = RIGS.bicycle.kickstand;
+    stand.userData = { folded: [0, 0, Math.sin(0.5), Math.cos(0.5)], lean: 0.14 };
+    model.add(stand);
+    poseVehicle(model, RIGS.bicycle, { ...still, stand: 1 });
+    expect(stand.quaternion.w).toBe(1);
+    expect(model.rotation.x).toBeCloseTo(-0.14, 9);
+    poseVehicle(model, RIGS.bicycle, { ...still, stand: 0.5 });
+    expect(stand.quaternion.angleTo(new Quaternion())).toBeCloseTo(0.5, 6);
+    expect(model.rotation.x).toBeCloseTo(-0.07, 9);
+  });
+
+  it("says once of a kickstand whose extras it cannot read, and leans the machine only by its own lean", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const model = rigged(RIGS.bicycle);
+    const stand = new Group();
+    stand.name = RIGS.bicycle.kickstand;
+    model.add(stand);
+    poseVehicle(model, RIGS.bicycle, { ...still, stand: 1, lean: 0.1 });
+    poseVehicle(model, RIGS.bicycle, { ...still, stand: 1, lean: 0.1 });
+    expect(model.rotation.x).toBeCloseTo(-0.1, 9);
+    expect(stand.quaternion.w).toBe(1);
+    expect(error.mock.calls.map(([line]) => String(line))).toEqual([
+      "explore/kickstand-unreadable name=bicycle_red_kickstand",
+    ]);
+    error.mockRestore();
   });
 });
 

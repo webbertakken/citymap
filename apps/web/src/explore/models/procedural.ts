@@ -11,6 +11,7 @@ import {
   LinearSRGBColorSpace,
   Mesh,
   MeshStandardMaterial,
+  Object3D,
   Quaternion,
   Shape,
   SphereGeometry,
@@ -134,6 +135,14 @@ function profile(points: readonly (readonly [number, number])[], width: number, 
   return geometry.translate(0, 0, -(width - 2 * bevel) / 2);
 }
 
+/** An empty node marking where a rider meets a vehicle, on the part it moves with. */
+function mark(parent: Object3D, name: string, at: readonly [number, number, number]) {
+  const node = new Object3D();
+  node.name = name;
+  node.position.set(...at);
+  parent.add(node);
+}
+
 /** A person 1.75 m tall, standing; legs and arms are named to swing. */
 export function figure(p: Palette, cloth = p.cloth): Group {
   const g = new Group();
@@ -158,7 +167,10 @@ export function figure(p: Palette, cloth = p.cloth): Group {
   return g;
 }
 
-/** A city bicycle: 700c wheels, a diamond frame, cranks and chainring named to turn, handlebars to steer. */
+/**
+ * A city bicycle: 700c wheels, a diamond frame, cranks and chainring named to turn, handlebars to steer; its saddle,
+ * grips and pedals marked for its rider.
+ */
 export function bicycle(p: Palette): Group {
   const g = new Group();
   g.name = "bicycle";
@@ -197,7 +209,10 @@ export function bicycle(p: Palette): Group {
   steer.add(tube([0.02, 0.3, -0.27], [0.02, 0.3, 0.27], 0.012, p.metal));
   for (const side of [-0.25, 0.25])
     steer.add(part(new CylinderGeometry(0.017, 0.017, 0.1, 8).rotateX(Math.PI / 2), p.ink, [0.02, 0.3, side]));
+  mark(steer, "grip-left", [0.02, 0.3, -0.25]);
+  mark(steer, "grip-right", [0.02, 0.3, 0.25]);
   g.add(steer);
+  mark(g, "saddle", [seat[0] - 0.02, seat[1] + 0.17, 0]);
   g.add(tube([seat[0], seat[1], 0], [seat[0] - 0.02, seat[1] + 0.12, 0], 0.013, p.metal));
   g.add(
     part(
@@ -222,6 +237,7 @@ export function bicycle(p: Palette): Group {
   for (const side of [1, -1]) {
     crank.add(tube([0, 0, side * 0.07], [0, -side * 0.17, side * 0.07], 0.012, p.metal));
     crank.add(part(new BoxGeometry(0.09, 0.02, 0.1), p.ink, [0, -side * 0.17, side * 0.13]));
+    mark(crank, side > 0 ? "pedal-right" : "pedal-left", [0, -side * 0.17, side * 0.13]);
   }
   g.add(crank);
   g.add(tube([bracket[0], bracket[1], 0.06], [rear[0], rear[1], 0.06], 0.004, p.ink));
@@ -229,7 +245,7 @@ export function bicycle(p: Palette): Group {
   return g;
 }
 
-/** A naked motorbike: fat tyres, tank, seat, engine block and exhaust; the fork named to steer. */
+/** A naked motorbike: fat tyres, tank, seat, engine block and exhaust; the fork named to steer; its seat, grips and pegs marked. */
 export function motorbike(p: Palette): Group {
   const g = new Group();
   g.name = "motorbike";
@@ -285,6 +301,11 @@ export function motorbike(p: Palette): Group {
   steer.add(wheelFront);
   for (const side of [-0.09, 0.09]) steer.add(tube([0, 0, side], [0.28, r - 1.0, side], 0.024, p.metal));
   steer.add(tube([-0.06, 0.1, -0.36], [-0.06, 0.1, 0.36], 0.016, p.ink));
+  mark(steer, "grip-left", [-0.06, 0.1, -0.33]);
+  mark(steer, "grip-right", [-0.06, 0.1, 0.33]);
+  mark(g, "saddle", [-0.35, 0.94, 0]);
+  mark(g, "peg-left", [0, 0.3, -0.2]);
+  mark(g, "peg-right", [0, 0.3, 0.2]);
   steer.add(part(new CylinderGeometry(0.09, 0.09, 0.08, 14).rotateZ(Math.PI / 2), p.ink, [0.1, -0.06, 0]));
   steer.add(part(new CylinderGeometry(0.075, 0.075, 0.02, 14).rotateZ(Math.PI / 2), p.light, [0.15, -0.06, 0], 0.2));
   steer.add(
