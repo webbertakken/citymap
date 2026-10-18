@@ -683,6 +683,8 @@ describe("ExploreView", () => {
     expect(hud().textContent).toContain("2");
     expect(hud().textContent).toContain("2,300 rpm");
     expect(screen.getByRole("button", { name: "Handbrake" })).toBeTruthy();
+    // The card names the physics the car runs on, not the walls'.
+    expect(screen.getByRole("region", { name: "In the car" }).textContent).toContain("Physics prototype: Rapier car");
     // The window follows where the car is going: its speed along the way it moved.
     const [at, velocity] = follow.mock.calls.at(-1)!;
     expect(at.x).toBeCloseTo(after.feet.x, 9);
@@ -713,8 +715,9 @@ describe("ExploreView", () => {
     const driven = drive.mock.calls.length;
     hold("KeyW", 5);
     expect(drive.mock.calls.length).toBe(driven);
-    // The arcade car shows its speed alone.
+    // The arcade car shows its speed alone, and the card says it drives as one.
     expect(hud().getAttribute("aria-label")).toBe("Speed");
+    expect(screen.getByRole("region", { name: "In the car" }).textContent).toContain("Physics prototype: arcade car");
     expect(error).toHaveBeenCalledOnce();
   });
 

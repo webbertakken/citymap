@@ -433,8 +433,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 - Walk: an icon button "Walk", `aria-pressed` while walking; on a coarse pointer at the bottom centre, hidden while the
   drawer is open or walking.
 - The walk's card (bottom centre; top on touch): its title ("On foot", "On the bicycle", "On the motorbike", "In the
-  car", "Flying") with its icon (lucide's Footprints, Bike, Motorbike, Car, Video), "Physics prototype: {engine}" while
-  two engines are compared, the keys of the ride, and "Back to the map".
+  car", "Flying") with its icon (lucide's Footprints, Bike, Motorbike, Car, Video), "Physics prototype: {physics}" while
+  two engines are compared (the walls' engine; in the car "Rapier car" on the garage, else "arcade car"), the keys of
+  the ride, and "Back to the map".
 - The prompt: top centre (above the stick on touch), `E` in a key cap and its words; disabled while "Slow down to …".
 - Touch: a 144 px stick (reach `STICK_REACH` 48 px) and the ride's main button (`PRIMARY`): Jump on foot, Brake (the
   front brake) on the bicycle and the motorbike, Handbrake in the car, Up while flying; Ring, Gear up and Gear down (48
