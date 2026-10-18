@@ -120,7 +120,7 @@ The showpiece: a bicycle that rides like one.
       lean past grip, then back up
 - [x] Bell, HUD (speed, gear, cadence), controls on keyboard, touch and gamepad
 - [x] E2E: ride, shift, brake, stop with a foot down; gate, commit, local build
-- [ ] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
+- [x] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
 - [ ] Webber tests on desktop and phone; feedback folded in
 
 ## Phase 6: motorbike and car
