@@ -3,13 +3,23 @@
 // wheels by Rapier's ray-cast vehicle controller, with an engine, an automatic gearbox, brakes and a handbrake. The world
 // is placed round the player and re-centred as it goes, each building from its own middle in 64-bit numbers, so nothing
 // drifts however far the walk goes. The walker and a ridden two-wheeler move on the walls; here each is a body moved
-// where they are, which shoves the parked bicycles and motorbikes (loose bodies, as the cars are) but never a car.
+// where they are, which shoves the parked bicycles and motorbikes (loose bodies, as the cars are) but never a car. The
+// helicopter flies by its own physics; here it is a block moved where it is, in the cars' and the two-wheelers' way.
 // Metres, seconds, newtons; headings as the walk's.
 import { GROUND, PERSON_RADIUS, solid, type Footprint, type Vec3 } from "@citymap/world";
 import { log } from "../../log";
 import { automatic, driveOf, rpmOf, type Engine, type Gearbox } from "../engine";
-import { VEHICLES, type Bicycle, type Car, type Motorbike, type Quat, type Vehicle } from "../vehicles";
-import { GRAVITY, type Intents } from "../walker";
+import {
+  VEHICLES,
+  tiltedOf,
+  type Bicycle,
+  type Car,
+  type Helicopter,
+  type Motorbike,
+  type Quat,
+  type Vehicle,
+} from "../vehicles";
+import { GRAVITY, NO_INTENTS, type Intents } from "../walker";
 import { breathe, type WallOptions } from "./raise";
 import { loadRapier, type Rapier } from "./rapier";
 import {
@@ -78,6 +88,8 @@ export const SLOW_WINDOW = 2;
 /** A parked two-wheeler: its weight, how tall its block stands, and how soon it stops sliding and rolling. */
 export const TWO_WHEELER_MASS: Readonly<Record<"bicycle" | "motorbike", number>> = { bicycle: 15, motorbike: 200 };
 export const TWO_WHEELER_HEIGHT = 1.1;
+/** The helicopter's cabin, skids to roof, as a block in the cars' way: its rotor stands above any car. */
+export const HELICOPTER_HEIGHT = 2.6;
 export const TWO_WHEELER_DAMPING = 0.5;
 /** It stands on its tyres, not its bars: its block is this share of its width, so a push tips it as it would a bike. */
 export const TWO_WHEELER_BASE = 0.4;
@@ -224,6 +236,7 @@ interface Block {
 const CARS = 0b0010;
 const TWO_WHEELERS = 0b0100;
 const WALKER = 0b1000;
+const HELICOPTERS = 0b1_0000;
 const EVERYONE = 0xffff;
 const groups = (own: number, meets: number) => (own << 16) | meets;
 
@@ -335,6 +348,8 @@ function garageIn(
   const raised = new Map<number, Collider | null>();
   const cars = new Map<string, Wheeled>();
   const blocks = new Map<string, Block>();
+  /** Each helicopter near the player: a block moved where its flight puts it, never shoved. */
+  const helicopters = new Map<string, Body>();
   const last = new Map<string, Vehicle>();
   let chosen: { at: Spot; raise: readonly number[]; lower: readonly number[] } | null = null;
   // The cars that drive themselves (a measuring aid), chosen the first time the vehicles are seen.
@@ -473,6 +488,31 @@ function garageIn(
     );
     return { body, ridden };
   };
+  /** A helicopter's block where it stands, about its outline's middle, turned as it flies. */
+  const pad = (vehicle: Helicopter) => {
+    const { length, width, middle } = VEHICLES.helicopter;
+    const { heli } = vehicle;
+    const body = world.createRigidBody(
+      rapier.RigidBodyDesc.kinematicPositionBased()
+        .setTranslation(vehicle.feet.x - origin.x, vehicle.feet.y, vehicle.feet.z - origin.z)
+        .setRotation(tiltedOf(vehicle.heading, heli.pitch, heli.roll)),
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(length / 2, HELICOPTER_HEIGHT / 2, width / 2)
+        .setTranslation(middle, HELICOPTER_HEIGHT / 2, 0)
+        .setCollisionGroups(groups(HELICOPTERS, CARS | TWO_WHEELERS)),
+      body,
+    );
+    return body;
+  };
+  /** A helicopter's block moved to where it now stands, when it moved. */
+  const fly = (vehicle: Helicopter) => {
+    const body = helicopters.get(vehicle.id);
+    if (!body || last.get(vehicle.id) === vehicle) return;
+    body.setNextKinematicTranslation(local(vehicle.feet));
+    body.setNextKinematicRotation(tiltedOf(vehicle.heading, vehicle.heli.pitch, vehicle.heli.roll));
+    last.set(vehicle.id, vehicle);
+  };
   // The walker's body: only the two-wheelers meet it; it rests out of the world while nobody walks.
   const walking = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased().setEnabled(false));
   world.createCollider(
@@ -493,8 +533,9 @@ function garageIn(
   /** Each two-wheeler's block as its rider has it: moved where it stands when ridden; made loose again once left. */
   const ride = (vehicles: readonly Vehicle[], drivers: Drivers) => {
     for (const vehicle of vehicles) {
-      const blocked = vehicle.kind === "car" ? undefined : blocks.get(vehicle.id);
-      if (!blocked || vehicle.kind === "car") continue;
+      if (vehicle.kind === "helicopter") fly(vehicle);
+      const blocked = vehicle.kind === "car" || vehicle.kind === "helicopter" ? undefined : blocks.get(vehicle.id);
+      if (!blocked || vehicle.kind === "car" || vehicle.kind === "helicopter") continue;
       const ridden = drivers.has(vehicle.id);
       if (ridden !== blocked.ridden) {
         dropBlock(vehicle.id);
@@ -543,13 +584,20 @@ function garageIn(
           .map((v) => ({ id: v.id, gap: Math.hypot(v.feet.x - at.x, v.feet.z - at.z) }))
           .toSorted((a, b) => a.gap - b.gap)
           .slice(1, 1 + traffic)
-          .map(({ id }, i) => [id, { forward: 0.35, right: i % 2 === 0 ? 0.4 : -0.4, run: false, jump: false }]),
+          .map(({ id }, i) => [id, { ...NO_INTENTS, forward: 0.35, right: i % 2 === 0 ? 0.4 : -0.4 }]),
       );
       if (traffic > 0) log.info("explore/traffic", { cars: autopilot.size });
     }
     for (const vehicle of vehicles) {
       const near = Math.hypot(vehicle.feet.x - at.x, vehicle.feet.z - at.z) <= STREETS_KEEP;
-      if (vehicle.kind === "car") {
+      if (vehicle.kind === "helicopter") {
+        const flown = helicopters.get(vehicle.id);
+        if (near && !flown) helicopters.set(vehicle.id, pad(vehicle));
+        else if (!near && flown) {
+          world.removeRigidBody(flown);
+          helicopters.delete(vehicle.id);
+        } else fly(vehicle);
+      } else if (vehicle.kind === "car") {
         const wheeled = cars.get(vehicle.id);
         if (near && !wheeled) cars.set(vehicle.id, carBody(vehicle));
         else if (!near && wheeled) dropCar(vehicle.id);
@@ -680,6 +728,7 @@ function garageIn(
       }
       world.step();
       const next = vehicles.map((vehicle) => {
+        if (vehicle.kind === "helicopter") return vehicle;
         if (vehicle.kind !== "car") {
           const blocked = blocks.get(vehicle.id);
           if (!blocked || blocked.ridden || blocked.body.isSleeping()) return vehicle;

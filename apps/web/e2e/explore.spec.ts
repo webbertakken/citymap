@@ -486,3 +486,158 @@ test("lays out the touch controls on foot, flying and on the bicycle, nothing ov
   await expect(page.getByRole("button", { name: "Gear up" })).toBeVisible();
   await laidOut(page, "on the bicycle", true, info.outputPath("bicycle.png"));
 });
+
+/** The helicopter's HUD now: its speed, altitude and rotor, what lies under it, and whether it stands on it. */
+const gauges = (page: Page) =>
+  page.evaluate(() => {
+    const hud = document.querySelector<HTMLElement>(".explore-hud");
+    const value = (term: string) =>
+      Number(
+        [...(hud?.querySelectorAll("dl > div") ?? [])]
+          .find((row) => row.querySelector("dt")?.textContent === term)
+          ?.querySelector("dd")
+          ?.textContent?.replace(/[^\d.]/g, "") ?? Number.NaN,
+      );
+    return {
+      speed: value("Speed"),
+      altitude: value("Altitude"),
+      rotor: value("Rotor"),
+      over: hud?.dataset.over ?? null,
+      landed: hud?.dataset.landed === "true",
+      heading: Number(hud?.dataset.heading ?? Number.NaN),
+      room: hud?.dataset.room === "true",
+    };
+  });
+
+/** Over a roof its rotor has room to land on. */
+const landable = (now: { over: string | null; room: boolean }) => now.over === "roof" && now.room;
+
+/** Holds keys, a couple of frames at a time, until the HUD says what is wanted; at most `checks` looks. */
+async function flyUntil(
+  page: Page,
+  keys: readonly string[],
+  wanted: (now: Awaited<ReturnType<typeof gauges>>) => boolean,
+  checks: number,
+) {
+  const until = async (left: number): Promise<void> => {
+    if (left <= 0 || wanted(await gauges(page))) return;
+    await frames(page, 2);
+    await until(left - 1);
+  };
+  await Promise.all(keys.map((key) => page.keyboard.down(key)));
+  await until(checks);
+  await Promise.all(keys.map((key) => page.keyboard.up(key)));
+}
+
+/** The shortest turn from the HUD's heading to a bearing, in degrees: positive anticlockwise from above (A). */
+const turnTo = (bearing: number, heading: number) => ((((bearing - heading + 180) % 360) + 360) % 360) - 180;
+
+/**
+ * The bearing, as the HUD gives headings (degrees anticlockwise from +x, z south), from where the helicopter stands to
+ * the middle of the nearest built lot of the city shown: a roof to fly to, whatever the walk landed by.
+ */
+async function roofBearing(pad: { x: number; z: number }) {
+  const middles = (await lotsOfTakken()).map(({ pts }) => ({
+    x: (pts.reduce((sum, p) => sum + p.x, 0) / pts.length) * 10,
+    z: (pts.reduce((sum, p) => sum + p.z, 0) / pts.length) * 10,
+  }));
+  const nearest = middles.toSorted(
+    (a, b) => Math.hypot(a.x - pad.x, a.z - pad.z) - Math.hypot(b.x - pad.x, b.z - pad.z),
+  )[0]!;
+  return ((((Math.atan2(-(nearest.z - pad.z), nearest.x - pad.x) * 180) / Math.PI) % 360) + 360) % 360;
+}
+
+/** Turns on the spot (A or D) until the heading is within a few degrees of a bearing. */
+async function face(page: Page, bearing: number) {
+  const error = turnTo(bearing, (await gauges(page)).heading);
+  await flyUntil(page, [error > 0 ? "KeyA" : "KeyD"], (now) => Math.abs(turnTo(bearing, now.heading)) <= 10, 3000);
+  await flyUntil(page, [], (now) => now.speed <= 2, 2000);
+}
+
+/**
+ * Along a bearing at about a speed (W ahead, S backwards, its nose on the bearing) until over a roof with room to land,
+ * its heading kept to the bearing by A and D as it goes; then let go until it nearly hovers. Held near a speed, not for
+ * a time, the overshoot stays short however slow the frames.
+ */
+async function homeIn(page: Page, bearing: number, kmh: number, key: "KeyW" | "KeyS" = "KeyW") {
+  const keys = { KeyW: false, KeyS: false, KeyA: false, KeyD: false };
+  const press = async (code: keyof typeof keys, want: boolean) => {
+    if (keys[code] !== want) await (want ? page.keyboard.down(code) : page.keyboard.up(code));
+    keys[code] = want;
+  };
+  const on = async (left: number): Promise<void> => {
+    const now = await gauges(page);
+    if (left <= 0 || landable(now)) return;
+    const error = turnTo(bearing, now.heading);
+    await press(key, now.speed < kmh);
+    await press("KeyA", error > 4);
+    await press("KeyD", error < -4);
+    await frames(page, 2);
+    await on(left - 1);
+  };
+  await on(3000);
+  await Promise.all((["KeyW", "KeyS", "KeyA", "KeyD"] as const).map((held) => press(held, false)));
+  await flyUntil(page, [], (now) => now.speed <= 2, 2000);
+}
+
+/**
+ * Over the nearest roof: turned to it and homed in on, then back and forth along the line, slower each pass, until it
+ * hovers over a roof (each pass ends nearly still, so an overshoot is seen before it sinks).
+ */
+async function overARoof(page: Page, bearing: number) {
+  await test.step("turns to the nearest lot", () => face(page, bearing));
+  await test.step("homes in on it", () => homeIn(page, bearing, 20));
+  const pass = async (kmhs: readonly number[], i: number): Promise<void> => {
+    const kmh = kmhs[i];
+    if (kmh === undefined || landable(await gauges(page))) return;
+    // It overshot as it slowed: back the other way, slower, its nose kept on the bearing (S flies backwards).
+    await homeIn(page, bearing, kmh, i % 2 === 0 ? "KeyS" : "KeyW");
+    await pass(kmhs, i + 1);
+  };
+  await test.step("settles over a roof with room", () => pass([8, 5, 4, 3, 3, 3, 3, 3, 3, 3], 0));
+}
+
+test("flies the helicopter: in, spun up, lifted, flown onto a roof, landed there, and out", async ({
+  page,
+  isMobile,
+}, info) => {
+  // A flight holds a spin-up, a climb, an approach and a descent: three rides' time on a slow runner.
+  test.setTimeout(RIDING_MS * 3);
+  const lines = logOf(page);
+  await walkDown(page, isMobile);
+  // It stands straight on along the landing's road: a run reaches its tail.
+  expect(lines.find((l) => l.startsWith("explore/helipad"))).toMatch(/^explore\/helipad x=-?\d+\.\d z=-?\d+\.\d$/);
+  await test.step("runs to it", () => holdForPrompt(page, ["KeyW", "ShiftLeft"], "Get in the helicopter", 1500));
+  const into = page.getByRole("button", { name: "Get in the helicopter", exact: true });
+  await expect(into).toBeVisible();
+  await (isMobile ? into.tap() : page.keyboard.press("KeyE"));
+  await expect(page.getByRole("region", { name: "In the helicopter" })).toBeVisible();
+  if (!isMobile) await expect(page.getByRole("region", { name: "In the helicopter" })).toContainText("Space climbs");
+  const hud = page.getByRole("region", { name: "Altitude, climb, speed and rotor" });
+  await expect(hud).toHaveAttribute("data-landed", "true");
+  // The rotor spins up before it can lift.
+  await test.step("spins up", () => expect(hud).toContainText(/Rotor\s*100 %/, { timeout: RIDING_MS / 2 }));
+  if (isMobile) {
+    await expect(page.getByRole("button", { name: "Up", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Down", exact: true })).toBeVisible();
+  }
+  await laidOut(page, "in the helicopter", isMobile, info.outputPath("helicopter.png"));
+  await test.step("lifts off and climbs", () => flyUntil(page, ["Space"], (now) => now.altitude >= 40, 3000));
+  expect(lines).toContain("explore/heli-lifted");
+  await expect(page.getByRole("button", { name: "Land to get out of the helicopter" })).toBeDisabled();
+  if (!isMobile) await page.screenshot({ path: info.outputPath("flying.png") });
+  const [, x, z] = /x=(-?[\d.]+) z=(-?[\d.]+)/.exec(lines.find((l) => l.startsWith("explore/helipad"))!)!;
+  await overARoof(page, await roofBearing({ x: Number(x), z: Number(z) }));
+  const hovering = await gauges(page);
+  expect(landable(hovering), JSON.stringify(hovering)).toBe(true);
+  await test.step("sinks onto the roof", () => flyUntil(page, ["ShiftLeft"], (now) => now.landed, 3000));
+  await expect(hud).toHaveAttribute("data-landed", "true");
+  expect(lines.find((l) => l.startsWith("explore/heli-landed"))).toMatch(/^explore\/heli-landed on=roof y=\d+\.\d$/);
+  if (!isMobile) await page.screenshot({ path: info.outputPath("on-the-roof.png") });
+  const out = page.getByRole("button", { name: "Get out of the helicopter", exact: true });
+  await expect(out).toBeVisible();
+  await (isMobile ? out.tap() : page.keyboard.press("KeyE"));
+  await expect(page.getByRole("region", { name: "On foot" })).toBeVisible();
+  // Out on the roof beside it: within its reach again.
+  await expect(page.getByRole("button", { name: "Get in the helicopter", exact: true })).toBeVisible();
+});

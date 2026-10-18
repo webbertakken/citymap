@@ -1,12 +1,24 @@
 // Vehicles parked about the city, worked out from its plan so a city always has the same ones in the same places:
 // kerb places at even steps along every street, alternating sides, each filled (or not) by a hash of its road and its
 // place; never in a junction nor where the walk lands. The walk keeps the nearest to its landing, so a large city
-// costs what a small one does. Metres; headings as the walker's.
+// costs what a small one does. The city's helicopter stands on open ground along the landing's road. Metres; headings
+// as the walker's.
 import { UNIT, roadWidth, type City, type Pt } from "@citymap/ground-plan";
 import { GROUND, type Walls } from "@citymap/world";
+import { ROTOR_RADIUS } from "./helicopter";
 import type { Landing } from "./landing";
 import { METRE, STREET_CLASSES } from "./street";
-import { PARKING, VEHICLES, standing, type CarBody, type Vehicle, type VehicleKind } from "./vehicles";
+import {
+  PARKING,
+  VEHICLES,
+  clearOfVehicles,
+  standing,
+  type CarBody,
+  type Helicopter,
+  type KerbKind,
+  type Vehicle,
+} from "./vehicles";
+import { facing } from "./walker";
 
 /** A kerb place every this many metres along a street. */
 export const PLACE_GAP = 24;
@@ -60,7 +72,7 @@ function junctions(roads: readonly { readonly pts: readonly Pt[] }[]) {
 /** A filled kerb place: what stands there, where on the road, which kerb, and how far it is from the landing. */
 interface Place {
   readonly id: string;
-  readonly kind: VehicleKind;
+  readonly kind: KerbKind;
   readonly at: { readonly x: number; readonly z: number };
   readonly along: { readonly x: number; readonly z: number };
   readonly side: 1 | -1;
@@ -71,7 +83,7 @@ interface Place {
 }
 
 /** What a place's hash parks there: a bicycle, a car, a motorbike, or nothing. */
-export const kindAt = (u: number): VehicleKind | null =>
+export const kindAt = (u: number): KerbKind | null =>
   u < BICYCLE_SHARE
     ? "bicycle"
     : u < BICYCLE_SHARE + CAR_SHARE
@@ -141,4 +153,49 @@ export function parkedIn(city: City, landing: Landing, walls: Walls): Vehicle[] 
     const heading = Math.atan2(-along.z * side, along.x * side);
     return standing(id, kind, placed.feet, heading, crank, body);
   });
+}
+
+/**
+ * The helicopter stands at least `HELIPAD_FROM` metres along the landing's road from it, and at most `HELIPAD_REACH`,
+ * tried every `HELIPAD_STEP`; its rotor clears every building by `HELIPAD_MARGIN`.
+ */
+export const HELIPAD_FROM = 24;
+export const HELIPAD_REACH = 400;
+export const HELIPAD_STEP = 2;
+export const HELIPAD_MARGIN = 0.5;
+/** A walker's line to the helicopter is looked along at this height above the street, in metres. */
+const WALKER_EYE = 1;
+
+/**
+ * Where the city's helicopter stands, deterministically: on the landing's road, straight ahead of its middle, at the
+ * first place from `HELIPAD_FROM` on where its rotor clears every building (with a margin), its body clears every
+ * parked vehicle, and a walker can see it from the landing (so walking straight on reaches it), facing on along the
+ * road; else behind, facing away; else nowhere.
+ */
+export function helipadBy(landing: Landing, walls: Walls, parked: readonly Vehicle[]): Helicopter | null {
+  const from = { x: landing.road.at.x / METRE, y: GROUND, z: landing.road.at.z / METRE };
+  const { length, middle, width } = VEHICLES.helicopter;
+  const open = (spot: { x: number; z: number }, heading: number) => {
+    const feet = { x: spot.x, y: GROUND, z: spot.z };
+    const probe = walls.move(feet, { x: 0, y: 0, z: 0 }, ROTOR_RADIUS + HELIPAD_MARGIN).feet;
+    if (probe.x !== feet.x || probe.z !== feet.z || probe.y !== GROUND) return false;
+    // The body, nose to tail, as a row of circles its width across.
+    const ahead = facing(heading);
+    for (let s = middle - length / 2; s <= middle + length / 2; s += width / 2) {
+      const at = { x: feet.x + ahead.x * s, y: GROUND, z: feet.z + ahead.z * s };
+      if (clearOfVehicles(at, width / 2, parked, null).hit) return false;
+    }
+    const eye = { ...from, y: GROUND + WALKER_EYE };
+    const distance = Math.hypot(feet.x - from.x, feet.z - from.z);
+    return walls.clearance(eye, { ...feet, y: GROUND + WALKER_EYE }) >= distance - 1e-9;
+  };
+  for (const way of [1, -1]) {
+    const along = { x: landing.road.along.x * way, z: landing.road.along.z * way };
+    const heading = Math.atan2(-along.z, along.x);
+    for (let d = HELIPAD_FROM; d <= HELIPAD_REACH; d += HELIPAD_STEP) {
+      const spot = { x: from.x + along.x * d, z: from.z + along.z * d };
+      if (open(spot, heading)) return standing("helicopter", "helicopter", { ...spot, y: GROUND }, heading);
+    }
+  }
+  return null;
 }

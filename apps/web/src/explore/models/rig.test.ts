@@ -1,8 +1,8 @@
 import { THEMES } from "@citymap/themes";
 import { Group, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { bicycle, car, paletteOf } from "./procedural";
-import { PROCEDURAL_RIGS, RIGS, poseVehicle, type Pose, type Rig } from "./rig";
+import { bicycle, car, helicopter, paletteOf } from "./procedural";
+import { PROCEDURAL_RIGS, RIGS, poseHelicopter, poseVehicle, type Pose, type Rig } from "./rig";
 
 const p = paletteOf(THEMES["paper-atlas"]);
 
@@ -98,5 +98,34 @@ describe("poseVehicle", () => {
     poseVehicle(plain, { wheels: [], radius: 1, front: 0.5, roll: { axis: "x", sign: 1 } }, { ...still, pitch: -0.4 });
     plain.updateMatrixWorld(true);
     expect(new Vector3(-0.5, 0, 0).applyMatrix4(plain.matrix).y).toBeCloseTo(0, 9);
+  });
+});
+
+describe("poseHelicopter", () => {
+  it("spins the AS350's main rotor about its upright, clockwise from above, and its tail rotor about its axle", () => {
+    const rig = RIGS.helicopter;
+    const model = new Group();
+    for (const name of [rig.rotors.main, rig.rotors.tail]) {
+      const part = new Group();
+      part.name = name;
+      model.add(part);
+    }
+    poseHelicopter(model, rig, { blades: 0.5, tail: 1.25 });
+    expect(model.getObjectByName(rig.rotors.main)!.rotation.y).toBeCloseTo(-0.5, 9);
+    expect(model.getObjectByName(rig.rotors.tail)!.rotation.x).toBeCloseTo(1.25, 9);
+    // Its mast stands over the group's origin, where the walk keeps the helicopter's feet.
+    expect(model.position.x).toBeCloseTo(-rig.rotors.hub, 9);
+  });
+
+  it("spins the stand-in's rotors by its own names and axes, and leaves a model without them as it is", () => {
+    const model = helicopter(p);
+    const rig = PROCEDURAL_RIGS.helicopter;
+    poseHelicopter(model, rig, { blades: 0.5, tail: 1.25 });
+    expect(model.getObjectByName("rotor-main")!.rotation.y).toBeCloseTo(-0.5, 9);
+    expect(model.getObjectByName("rotor-tail")!.rotation.z).toBeCloseTo(1.25, 9);
+    expect(model.position.x).toBeCloseTo(-rig.rotors.hub, 9);
+    const bare = new Group();
+    poseHelicopter(bare, rig, { blades: 0.5, tail: 1.25 });
+    expect(bare.children).toHaveLength(0);
   });
 });
