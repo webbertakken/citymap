@@ -114,12 +114,13 @@ rebased.
       submodule's files without history
 - [x] Merge `origin/main` once more (#49 the layout worker, #55 to #57, #56 the `.mailmap` fetch), with a merge commit;
       the worker lays with the separations; `measures/done` counts what the section holds in Rust too
-- [ ] `bun run check`; `bun run parity` in every mode (state, fold, resume, checkout, coverage) and with separations
-      (each alone, none), plus a repository with submodules
+- [x] `bun run check`; `bun run parity` in every mode (state, fold, resume, checkout, partial, coverage) and with
+      separations (each alone, none), plus repositories with submodules (rust, deno): every run identical across the
+      CLIs; the `partial` check differs by layout only (asked of Webber)
 - [x] Every pin read whatever `.gitmodules` says to ignore, and in a blob-less clone that does not hold it
       (`--ignore-submodules=none`, both CLIs; found by parity's partial mode on rust)
 - [x] End to end (`CITYMAP_E2E_PORT=5198`; 120 passed, 46 skipped by device, 0 failed); screenshots of separated towns
       in plan and Buildings views, light and dark
-- [ ] PR description updated
+- [x] PR description updated
 - [x] Fold-back: specs and blueprints across both features, `docs/specs/README.md`, every symbol, file and reference
       verified
