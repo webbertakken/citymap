@@ -5,6 +5,7 @@ import type { City } from "@citymap/ground-plan";
 import type { Scales } from "@citymap/measures";
 import { buildingSpans, type ColourBy, type Scene, type Span } from "@citymap/scene";
 import type { ThemeName } from "@citymap/themes";
+import type { Roofs } from "../view/roofs";
 import type { CityPort } from "./port";
 import type { Answer, Ask } from "./work";
 
@@ -23,6 +24,7 @@ export interface Atlas {
   readonly scales: Scales;
   /** Every building's floors, by its index in the whole city's order. */
   readonly floors: Uint8Array;
+  readonly roofs: Roofs;
   readonly spans: ReadonlyMap<string, Span>;
   /** The span of every building: the whole city's. */
   readonly whole: Span;
@@ -60,6 +62,7 @@ export const Atlas = {
     readonly port: CityPort;
     readonly scales: Scales;
     readonly floors: Uint8Array;
+    readonly roofs: Roofs;
     readonly answers: readonly Answer[];
   }): Atlas =>
     opened.answers.reduce(Atlas.received, {
@@ -67,6 +70,7 @@ export const Atlas = {
       port: opened.port,
       scales: opened.scales,
       floors: opened.floors,
+      roofs: opened.roofs,
       spans: buildingSpans(opened.city),
       whole: { first: 0, count: opened.floors.length },
       themes: new Map(),

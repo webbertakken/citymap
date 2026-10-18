@@ -20,6 +20,7 @@ import { pickFrom, pickGrid, type ColourBy, type PickGrid, type PickIndex } from
 import type { ThemeName } from "@citymap/themes";
 import type { OnStep, Step } from "../load/step";
 import { liveMeasures, type LiveFacts } from "../measures/live";
+import type { Roofs } from "../view/roofs";
 import { herePort, type CityPort } from "./port";
 import { cityWork, opening, type Answer, type CityWork, type Tasks } from "./work";
 
@@ -55,6 +56,8 @@ export interface Laid {
   readonly pick: PickIndex;
   readonly scales: Scales;
   readonly floors: Uint8Array;
+  /** Every building's roof, named, for the Buildings view close up. */
+  readonly roofs: Roofs;
   readonly answers: readonly Answer[];
   readonly port: CityPort;
 }
@@ -139,21 +142,35 @@ export function readMade(text: string, options: OpenOptions): Made {
 /** What the main thread keeps of an opening: the city with its pick grid attached, and the port to its work. */
 export const laidOf = (
   file: CityFile,
-  { grid, floors, scales, answers }: { grid: PickGrid; floors: Uint8Array; scales: Scales; answers: readonly Answer[] },
+  made: {
+    readonly grid: PickGrid;
+    readonly floors: Uint8Array;
+    readonly roofs: Roofs;
+    readonly scales: Scales;
+    readonly answers: readonly Answer[];
+  },
   port: CityPort,
-): Laid => ({
-  city: file.city,
-  measures: file.measures,
-  pick: pickFrom(file.city, grid),
-  scales,
-  floors,
-  answers,
-  port,
-});
+): Laid => {
+  const { grid, floors, roofs, scales, answers } = made;
+  return {
+    city: file.city,
+    measures: file.measures,
+    pick: pickFrom(file.city, grid),
+    scales,
+    floors,
+    roofs,
+    answers,
+    port,
+  };
+};
 
 /** An opening made on the calling thread, its work kept there. */
 const here = ({ work, grid, answers, tasks }: Made): Laid =>
-  laidOf(work.file, { grid, floors: work.floors, scales: work.buildings.scales, answers }, herePort(work, tasks));
+  laidOf(
+    work.file,
+    { grid, floors: work.floors, roofs: work.roofs, scales: work.buildings.scales, answers },
+    herePort(work, tasks),
+  );
 
 /** Lays on the calling thread: where no Worker exists, and in tests. */
 export const layHere: Lay = async (snapshot, options) => here(layMade(snapshot, options));

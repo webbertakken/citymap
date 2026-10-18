@@ -56,7 +56,7 @@ import { NO_SCALES, colourFor, lotBuilding, placeTable } from "../view/buildings
 import { FLY_MS, between, ease, flyTo } from "../view/fly";
 import { heightsOf } from "../view/hover";
 import { insetsFor } from "../view/insets";
-import { roofsOf } from "../view/roofs";
+import { roofsNear, type RoofsNear } from "../view/roofs";
 import { ELEVATION, YAW, fit, onKey, type Mode, type View, type Viewport } from "../view/view";
 import { Drawer } from "./Drawer";
 import { ExploreView, type ExploreCanvasProps } from "./ExploreView";
@@ -290,7 +290,6 @@ export function Viewer({
   );
   // The lot table the buildings are drawn from (a town's rows of the whole city's), how tall each stands, the legend's
   // scales, and the cards' measure rows, each card aggregating its own lot.
-  const spans = held?.spans ?? null;
   const floors = held?.floors ?? null;
   const span = held ? Atlas.span(held, focus) : null;
   const wholeTable = look?.table ?? null;
@@ -308,16 +307,11 @@ export function Viewer({
         : [],
     [measures],
   );
-  // Every building's name over its roof: the whole city's kept while a town is shown, so going back costs nothing.
-  const wholeRoofs = useMemo(
-    () => (city && spans && floors ? roofsOf(city, spans, floors, measures) : []),
-    [city, spans, floors, measures],
+  // Every building's name over its roof, made by the city's worker: the map reads those near its centre.
+  const roofs = useMemo<RoofsNear | null>(
+    () => held && ((centre, reach) => roofsNear(held.roofs, held.floors, Atlas.span(held, focus), centre, reach)),
+    [held, focus],
   );
-  const townRoofs = useMemo(
-    () => (town && spans && floors ? roofsOf(town, spans, floors, measures) : []),
-    [town, spans, floors, measures],
-  );
-  const roofs = town ? townRoofs : wholeRoofs;
   const uses = useMemo(() => [...new Set(scene?.buildings.order.map((ref) => ref.use))], [scene]);
   const [picked, setPickedHit] = useState<Hit | null>(null);
   // A walk in the city or town shown: showing another ends it (a new theme draws the same city, and keeps it).
@@ -748,7 +742,7 @@ export function Viewer({
             Canvas={explore.Canvas}
             onLeave={leaveWalk}
           />
-        ) : scene && city && index && table ? (
+        ) : scene && city && index && table && roofs ? (
           <MapView
             name={city.repository}
             scene={scene}

@@ -15,13 +15,15 @@ import {
 } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import { cityBuildings, cityFloors, colourFor, tableFor, type CityBuildings } from "../view/buildings";
+import { cityRoofs, type Roofs } from "../view/roofs";
 
-/** Everything the work keeps of its city: the file, every building, their refs, floors and each town's span. */
+/** Everything the work keeps of its city: the file, every building, their refs, floors, roofs and each town's span. */
 export interface CityWork {
   readonly file: CityFile;
   readonly buildings: CityBuildings;
   readonly refs: readonly LotRef[];
   readonly floors: Uint8Array<ArrayBuffer>;
+  readonly roofs: Roofs;
   readonly spans: ReadonlyMap<string, Span>;
 }
 
@@ -71,7 +73,14 @@ export type Tasks = readonly Task[];
 export function cityWork(file: CityFile): CityWork {
   const buildings = cityBuildings(file.measures);
   const refs = lotRefs(file.city);
-  return { file, buildings, refs, floors: cityFloors(refs, buildings), spans: buildingSpans(file.city) };
+  return {
+    file,
+    buildings,
+    refs,
+    floors: cityFloors(refs, buildings),
+    roofs: cityRoofs(file.city, buildings),
+    spans: buildingSpans(file.city),
+  };
 }
 
 /** True when a town alone is the city itself: its only town, without highways. */

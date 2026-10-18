@@ -27,7 +27,7 @@ const table = (theme: ThemeName, colourBy: "folder" | "kind" | "size", fill = 1)
   table: new Float32Array(4).fill(fill),
 });
 const opened = (answers: readonly Answer[]) =>
-  Atlas.open({ city: twin, port, scales: work.buildings.scales, floors: work.floors, answers });
+  Atlas.open({ city: twin, port, scales: work.buildings.scales, floors: work.floors, roofs: work.roofs, answers });
 
 describe("Atlas.open", () => {
   it("holds the city, its port, scales, floors and spans, and the opening's answers", () => {

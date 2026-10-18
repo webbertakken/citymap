@@ -8,6 +8,7 @@ import { pickBuffers, type ColourBy } from "@citymap/scene";
 import type { ThemeName } from "@citymap/themes";
 import type { Step } from "../load/step";
 import type { LiveFacts } from "../measures/live";
+import { roofBuffers } from "../view/roofs";
 import { failureOf, layMade, readMade, throttled, type Made, type OpenOptions } from "./lay";
 import { cityPieces } from "./pieces";
 import { answerBuffers, asked, type Ask, type CityWork, type Tasks } from "./work";
@@ -89,12 +90,12 @@ function open(request: Exclude<Request, Ask>) {
     post.flush();
     work = made.work;
     tasks = made.tasks;
-    const { file, floors, buildings } = made.work;
+    const { file, floors, roofs, buildings } = made.work;
+    const opened = { pieces: cityPieces(file), grid: made.grid, floors, roofs, scales: buildings.scales };
+    // The roofs are not made again, so their buffers go; the floors are copied, being small.
     self.postMessage(
-      {
-        opened: { pieces: cityPieces(file), grid: made.grid, floors, scales: buildings.scales, answers: made.answers },
-      },
-      { transfer: [...pickBuffers(made.grid), ...made.answers.flatMap(answerBuffers)] },
+      { opened: { ...opened, answers: made.answers } },
+      { transfer: [...pickBuffers(made.grid), ...roofBuffers(roofs), ...made.answers.flatMap(answerBuffers)] },
     );
     schedule();
   } catch (error) {

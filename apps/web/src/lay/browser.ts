@@ -6,6 +6,7 @@ import type { CityFile, Scales } from "@citymap/measures";
 import type { PickGrid } from "@citymap/scene";
 import type { Step } from "../load/step";
 import { log, reasonOf } from "../log";
+import type { Roofs } from "../view/roofs";
 import {
   errorOf,
   laidOf,
@@ -29,6 +30,7 @@ type Message =
         readonly pieces: readonly string[];
         readonly grid: PickGrid;
         readonly floors: Uint8Array;
+        readonly roofs: Roofs;
         readonly scales: Scales;
         readonly answers: readonly Answer[];
       };
