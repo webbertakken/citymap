@@ -92,7 +92,8 @@ export default function RideLab({ person, ride, asked, theme }: RideLabProps) {
     placeVehicle(slot, group, vehicle, rolled, asked.pose === "parked" ? 1 : 0);
     walker.scale.setScalar(METRE);
     walker.visible = asked.pose !== "parked";
-    if (walker.visible && vehicle.kind !== "car") seat(walker, figure, slot, group, vehicle);
+    if (walker.visible && (vehicle.kind === "bicycle" || vehicle.kind === "motorbike"))
+      seat(walker, figure, slot, group, vehicle);
     const { rider } = slot.rig;
     if (asked.marks && rider)
       for (const name of [rider.saddle, rider.grips.left, rider.grips.right, rider.feet.left, rider.feet.right])
