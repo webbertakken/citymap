@@ -538,10 +538,17 @@ function boxOf(node: GltfNode): { min: number[]; max: number[] } {
 /** A box's middle along an axis. */
 const middle = (box: { min: number[]; max: number[] }, k: number) => (box.min[k]! + box.max[k]!) / 2;
 
-/** A part moved so its node's origin is at `at` (its mesh moved the other way): what it turns about. */
-function hangAt(node: GltfNode, at: readonly [number, number, number]) {
+/**
+ * A part hung from a pivot of its own at `at`, named `name`, what it turns about: its mesh moved the other way, under the
+ * pivot. The pivot carries no mesh, so meshopt's quantisation (which moves and scales a mesh's own node to its box)
+ * leaves the pivot where it is.
+ */
+function hangAt(doc: Document, node: GltfNode, at: readonly [number, number, number], name: string) {
   transformMesh(node.getMesh()!, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -at[0], -at[1], -at[2], 1]);
-  node.setTranslation([...at]);
+  const pivot = doc.createNode(name).setTranslation([...at]);
+  for (const scene of doc.getRoot().listScenes()) if (scene.listChildren().includes(node)) scene.addChild(pivot);
+  pivot.addChild(node);
+  node.setName(`${name}_mesh`);
 }
 
 /**
@@ -580,10 +587,8 @@ async function helicopter(kept: Uint8Array | null) {
   const hub = boxOf(named("moyeu_arbre"));
   const blades = boxOf(rotor);
   const fin = boxOf(tail);
-  hangAt(rotor, [middle(hub, 0), middle(blades, 1), middle(hub, 2)]);
-  hangAt(tail, [middle(fin, 0), middle(fin, 1), middle(fin, 2)]);
-  rotor.setName("helicopter_rotor");
-  tail.setName("helicopter_tail_rotor");
+  hangAt(doc, rotor, [middle(hub, 0), middle(blades, 1), middle(hub, 2)], "helicopter_rotor");
+  hangAt(doc, tail, [middle(fin, 0), middle(fin, 1), middle(fin, 2)], "helicopter_tail_rotor");
   named("cabine").setName("helicopter_body");
   for (const material of doc.getRoot().listMaterials()) {
     material.setNormalTexture(null).setMetallicRoughnessTexture(null).setMetallicFactor(0).setRoughnessFactor(1);
