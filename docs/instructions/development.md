@@ -113,6 +113,10 @@ The Rust implementation of the CLI lives in `rust/`: see
     (`codecov.yml`); the 100% thresholds gate in the job itself.
   - **Rust**: `bun run rust:check`, then `bun run rust:lint:mimalloc`, builds cached by `Swatinem/rust-cache` (written
     by runs on `main` only).
+  - **End-to-end**: the example cities from the cache (keyed by the Rust CLI's sources, its lockfile, `mise.toml` and
+    the bundle script) or laid afresh by `bun run bundle`; a throwaway loopback certificate (`bun run cert`); Chromium;
+    then `bun run --cwd apps/web e2e` (the export, then the Playwright suite). On failure, `test-results/` (traces and
+    screenshots) is uploaded for seven days.
 - `.github/workflows/workflows.yml` runs actionlint when a workflow or `mise.toml` changes; it is not a required check.
 - A newer push to a pull request cancels its running checks; runs on `main` always finish.
 - Every action is pinned by full commit SHA with its version in a comment; Dependabot (`.github/dependabot.yml`)
@@ -120,4 +124,4 @@ The Rust implementation of the CLI lives in `rust/`: see
 - Workflows hold no logic: each step calls a `package.json` script or a TypeScript script in `scripts/` run by Bun, so
   the same command runs locally.
 - Verify locally before pushing (`bun run check`); the pre-push hook does most of it for you.
-- The Next.js build and Playwright end-to-end jobs are marked as `LATER` in `ci.yml`, to be added with `apps/web`.
+- Locally, the end-to-end suite needs the cities (`bun run bundle`) and a certificate: mkcert's, or `bun run cert`.
