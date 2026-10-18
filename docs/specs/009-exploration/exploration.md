@@ -184,8 +184,10 @@ The showpiece: a bicycle that rides like one, and stays fun on a keyboard.
 
 ## Physics
 
-- One game on every device. Walking, the bicycle, the motorbike and the helicopter move on citymap's own walls; cars on
-  Rapier, a physics engine.
+- One game on every device. Cars drive on Rapier, a physics engine, and the walker walks on it too, by its character
+  controller among the nearby streets' buildings, looking and moving as on citymap's own walls (the same speeds, the
+  same kerbs stepped up, the feet exactly on the ground). The bicycle, the motorbike and the helicopter move on
+  citymap's own walls, and so does the walker where Rapier cannot load or keep up.
 - **The nearby streets.** Rapier is given only the buildings near the player, never the whole city: those within a reach
   of where the player will be a moment ahead are raised, nearest first, a few each frame within a small share of it, and
   those left far behind are lowered. Rapier's world is placed round the player and moved along with it, so its numbers

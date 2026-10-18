@@ -44,7 +44,8 @@ test("walks on foot by the keys and comes back to the map where the walk ended",
   await page.getByRole("button", { name: "Walk" }).click();
   await expect(walking(page)).toBeVisible();
   await expect(page.getByRole("button", { name: "Walk" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("region", { name: "On foot" })).toContainText("Physics prototype: bespoke 2.5D");
+  // The walker walks on Rapier in the nearby streets, the city's own walls behind it.
+  await expect(page.getByRole("region", { name: "On foot" })).toContainText("Physics prototype: Rapier");
   // The walls rose and the walk began, both said in the log.
   expect(lines.find((l) => l.startsWith("explore/walls"))).toMatch(/^explore\/walls engine=bespoke buildings=\d+ /);
   expect(lines.find((l) => l.startsWith("explore/enter"))).toMatch(

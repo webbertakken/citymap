@@ -166,6 +166,18 @@ The showpiece: a bicycle that rides like one.
       contrast of crosshair, HUD and cards light and dark; axe
 - [ ] Pages build and deploy; tried on the hosted site from a desktop and a phone
 
+## Phase 8b: walking on Rapier, and a natural run
+
+Webber's feedback: walk on Rapier too; the walk looks good, the run still looks uncanny.
+
+- [x] The walker on Rapier's character controller in the garage's nearby streets, the walk unchanged (tests first); the
+      card says Rapier on foot; spec and blueprint
+- [x] Proven: the walk on Rapier beside the walk on the city's walls, step by step on three cities; e2e; gate; PR #64
+- [ ] Running gait researched against cited reference footage: cadence and stride by speed, forward lean, arm swing,
+      foot plant, the blend between walk and run; spec and blueprint
+- [ ] Running gait built (tests first on the maths), checked frame by frame against the reference; e2e; gate; PR
+- [ ] Webber tests on desktop and phone; feedback folded in
+
 ## Phase 9: fold-back
 
 - [ ] Fold-back: specs (exploration, viewer, buildings, scope) reconciled to what shipped, blueprints re-derived, every

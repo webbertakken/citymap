@@ -3,7 +3,7 @@ import { ColliderDesc } from "@dimforge/rapier3d-compat";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Step } from "../../load/step";
 import { standing, type Bicycle, type Car, type Vehicle } from "../vehicles";
-import { NO_INTENTS, type Intents } from "../walker";
+import { NO_INTENTS, stepWalker, type Body, type Intents } from "../walker";
 import {
   BRAKE,
   CAR_ENGINE,
@@ -162,6 +162,99 @@ describe("the nearby streets", () => {
     // Stopped short of its face (x = 595) by half its length, far past the first re-centring.
     expect(Math.max(...path.map((v) => first(v).feet.x))).toBeLessThan(595 - 2);
     expect(end.feet.x).toBeGreaterThan(580);
+  });
+});
+
+/** A walker standing on the ground at (x, z). */
+const standingAt = (x: number, z: number): Body => ({ feet: { x, y: GROUND, z }, rise: 0, heading: 0, grounded: true });
+const RUN: Intents = { ...NO_INTENTS, forward: 1, run: true };
+
+/** Walks for so many steps as the session does: the walker moved on the garage's walls, then the garage stepped. */
+function walkOn(garage: Garage, from: Body, intents: Intents, steps: number, seen?: (body: Body) => void) {
+  let body = from;
+  for (let i = 0; i < steps; i++) {
+    body = stepWalker(body, intents, 0, DT, garage.walls);
+    garage.drive([], new Map(), DT, body.feet);
+    seen?.(body);
+  }
+  return body;
+}
+
+describe("the walker on Rapier", () => {
+  it("walks the walker on the ground, its feet exactly on it, and stops it at a building's wall", async () => {
+    // A building whose west wall runs along x = 10 m.
+    const garage = await garageOf([square(0, 15, 0)]);
+    const heights = new Set<number>();
+    const body = walkOn(garage, standingAt(0, 0), RUN, 480, (b) => heights.add(b.feet.y));
+    expect(body.feet.x).toBeLessThan(10);
+    expect(body.feet.x).toBeGreaterThan(9.5);
+    expect([...heights]).toEqual([GROUND]);
+    expect(body.grounded).toBe(true);
+  });
+
+  it("slides the walker along a wall it meets at an angle", async () => {
+    // A long building whose west wall runs along x = 10 m, from z = −20 to 20.
+    const garage = await garageOf([square(0, 30, 0, 40)]);
+    // Half right of straight at the wall: it meets it at z = 10, then runs along it, south.
+    const body = walkOn(garage, standingAt(0, 0), { ...RUN, right: 1 }, 720);
+    expect(body.feet.x).toBeLessThan(10);
+    expect(body.feet.x).toBeGreaterThan(9.5);
+    expect(body.feet.z).toBeGreaterThan(15);
+  });
+
+  it("jumps the walker and brings it back down onto the ground", async () => {
+    const garage = await garageOf([square(0, 40, 0)]);
+    let highest = GROUND;
+    const up = walkOn(garage, standingAt(0, 0), { ...NO_INTENTS, jump: true }, 1);
+    const body = walkOn(garage, up, NO_INTENTS, 240, (b) => (highest = Math.max(highest, b.feet.y)));
+    expect(highest).toBeGreaterThan(GROUND + 0.5);
+    expect(body.feet.y).toBe(GROUND);
+    expect(body.grounded).toBe(true);
+  });
+
+  it("steps the walker up onto a plinth and walks it off the far edge down to the street", async () => {
+    // A low building, 0.4 m high: stepped up onto, as a kerb.
+    const garage = await garageOf([square(0, 15, 0, 10, 0.4)]);
+    const on = walkOn(garage, standingAt(5, 0), RUN, 240);
+    expect(on.feet.y).toBeCloseTo(0.4, 1);
+    expect(on.feet.x).toBeGreaterThan(11);
+    const off = walkOn(garage, on, RUN, 480);
+    expect(off.feet.x).toBeGreaterThan(21);
+    expect(off.feet.y).toBe(GROUND);
+  });
+
+  it("walks through cars, parked two-wheelers and its own body: the session keeps it out of vehicles", async () => {
+    const garage = await garageOf([square(0, 60, 0)]);
+    const parked = [car(5, 0), standing("bike", "bicycle", { x: 8, y: GROUND, z: 0 }, 0)];
+    garage.follow({ x: 0, y: GROUND, z: 0 }, { x: 0, z: 0 }, parked, 5);
+    garage.drive(parked, new Map(), DT, { x: 0, y: GROUND, z: 0 });
+    const moved = garage.walls.move({ x: 0, y: GROUND, z: 0 }, { x: 12, y: 0, z: 0 });
+    expect(moved.feet.x).toBeCloseTo(12, 6);
+  });
+
+  it("keeps the walker out of a wall it presses against as the frame re-centres round it", async () => {
+    // The landing 100 m off; the building's west wall along x = 295 from z = −5 to 5.
+    const garage = await garageOf([square(0, 300, 0)], { x: 100, z: 0 });
+    garage.follow({ x: 290, y: GROUND, z: 0 }, { x: 0, z: 0 }, [], 1000);
+    const pressed = walkOn(garage, standingAt(290, 0), RUN, 240);
+    expect(pressed.feet.x).toBeGreaterThan(294.5);
+    // Far enough from the frame's middle that it moves: re-centred while the walker presses on.
+    garage.follow({ x: 400, y: GROUND, z: 0 }, { x: 0, z: 0 }, [], 1000);
+    const after = walkOn(garage, pressed, RUN, 240);
+    expect(after.feet.x).toBeLessThan(295);
+    expect(after.feet.x).toBeGreaterThan(294.5);
+    expect(after.feet.y).toBe(GROUND);
+  });
+
+  it("sees the camera's line stop at a building, and at the ground going down", async () => {
+    const garage = await garageOf([square(0, 15, 0)]);
+    garage.drive([], new Map(), DT, null);
+    expect(garage.walls.clearance({ x: 0, y: 1.5, z: 0 }, { x: 20, y: 1.5, z: 0 })).toBeCloseTo(10, 1);
+    expect(garage.walls.clearance({ x: 0, y: 1.25, z: 0 }, { x: 0, y: -0.75, z: 0 })).toBeCloseTo(1, 6);
+    expect(garage.walls.clearance({ x: 0, y: 1, z: 0 }, { x: 0, y: 1, z: 0 })).toBe(0);
+    // Its walls are the garage's: freeing them leaves the world to the garage.
+    garage.walls.dispose();
+    expect(garage.walls.clearance({ x: 0, y: 1.5, z: 0 }, { x: 20, y: 1.5, z: 0 })).toBeCloseTo(10, 1);
   });
 });
 

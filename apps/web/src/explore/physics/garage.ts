@@ -2,11 +2,12 @@
 // within a frame's budget and lowered behind), a ground under it, and every car near the player as a body on four
 // wheels by Rapier's ray-cast vehicle controller, with an engine, an automatic gearbox, brakes and a handbrake. The world
 // is placed round the player and re-centred as it goes, each building from its own middle in 64-bit numbers, so nothing
-// drifts however far the walk goes. The walker and a ridden two-wheeler move on the walls; here each is a body moved
+// drifts however far the walk goes. The walker walks here too, by Rapier's character controller on the nearby streets'
+// buildings (`walls`). A ridden two-wheeler moves on the city's walls; here the walker and it are each a body moved
 // where they are, which shoves the parked bicycles and motorbikes (loose bodies, as the cars are) but never a car. The
 // helicopter flies by its own physics; here it is a block moved where it is, in the cars' and the two-wheelers' way.
 // Metres, seconds, newtons; headings as the walk's.
-import { GROUND, PERSON_RADIUS, solid, type Footprint, type Vec3 } from "@citymap/world";
+import { GROUND, PERSON_RADIUS, solid, type Footprint, type Vec3, type Walls } from "@citymap/world";
 import { log } from "../../log";
 import { automatic, driveOf, rpmOf, type Engine, type Gearbox } from "../engine";
 import {
@@ -21,7 +22,7 @@ import {
 } from "../vehicles";
 import { GRAVITY, NO_INTENTS, type Intents } from "../walker";
 import { breathe, type WallOptions } from "./raise";
-import { loadRapier, type Rapier } from "./rapier";
+import { characterWalls, loadRapier, type Rapier } from "./rapier";
 import {
   RECHOOSE,
   STREETS_KEEP,
@@ -233,10 +234,12 @@ interface Block {
 }
 
 /** Who meets whom: a collider's own group in the high half, the groups it meets in the low half. */
+const BUILDINGS = 0b0001;
 const CARS = 0b0010;
 const TWO_WHEELERS = 0b0100;
 const WALKER = 0b1000;
 const HELICOPTERS = 0b1_0000;
+const THE_GROUND = 0b10_0000;
 const EVERYONE = 0xffff;
 const groups = (own: number, meets: number) => (own << 16) | meets;
 
@@ -273,6 +276,11 @@ export interface Garage {
     dt: number,
     walker?: Vec3 | null,
   ) => readonly Vehicle[];
+  /**
+   * The walker's walls: the nearby streets' buildings, met by Rapier's character controller (stepping up kerbs, kept to
+   * the ground), the flat ground held as the city's walls hold it; no vehicle in them. Freed with the garage.
+   */
+  readonly walls: Walls;
   /** Whether Rapier keeps up: its steps take no more than `SLOW_SHARE` of the time they cover, over `SLOW_WINDOW`. */
   readonly keepingUp: () => boolean;
   /** The share of the time its steps cover that they take, over the last window. */
@@ -359,7 +367,8 @@ function garageIn(
   world.createCollider(
     rapier.ColliderDesc.cuboid(GROUND_HALF, 0.5, GROUND_HALF)
       .setTranslation(0, GROUND - 0.5, 0)
-      .setFriction(1),
+      .setFriction(1)
+      .setCollisionGroups(groups(THE_GROUND, EVERYONE)),
   );
 
   const local = (p: { x: number; y: number; z: number }) => ({ x: p.x - origin.x, y: p.y, z: p.z - origin.z });
@@ -370,7 +379,9 @@ function garageIn(
   const raiseOne = (lot: number) => {
     const footprint = byLot.get(lot)!;
     const hull = hullOf(rapier, footprint, grid.standing.get(lot)!.middle);
-    const collider = hull ? world.createCollider(hull.setFriction(0.3)) : null;
+    const collider = hull
+      ? world.createCollider(hull.setFriction(0.3).setCollisionGroups(groups(BUILDINGS, EVERYONE)))
+      : null;
     if (collider) placeBuilding(lot, collider);
     else log.info("explore/no-hull", { lot });
     raised.set(lot, collider);
@@ -513,6 +524,8 @@ function garageIn(
     body.setNextKinematicRotation(tiltedOf(vehicle.heading, vehicle.heli.pitch, vehicle.heli.roll));
     last.set(vehicle.id, vehicle);
   };
+  // The walker walks on the buildings alone, in the world's frame round the player.
+  const walkerWalls = characterWalls(rapier, world, local, groups(WALKER, BUILDINGS));
   // The walker's body: only the two-wheelers meet it; it rests out of the world while nobody walks.
   const walking = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased().setEnabled(false));
   world.createCollider(
@@ -758,6 +771,7 @@ function garageIn(
       return covered === 0 ? 0 : spent.reduce((sum, s) => sum + s.ms, 0) / covered;
     },
     keepingUp: () => spent.length < SLOW_WINDOW * 120 || garage.load() <= SLOW_SHARE,
+    walls: { ...walkerWalls, dispose: () => undefined },
     dispose: () => world.free(),
   };
   return {

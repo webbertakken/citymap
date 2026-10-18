@@ -503,9 +503,10 @@ export function ExploreView({
     controls.current.stick = null;
   };
   const title = flying ? "Flying" : riding ? VEHICLES[riding].riding : "On foot";
-  // The physics of what the person is on: a car drives on the garage's Rapier, or as an arcade car once without it; all
-  // else on the walls' engine.
-  const physics = riding === "car" ? (garage !== null && simply === null ? "Rapier car" : "arcade car") : engine;
+  // The physics of what the person is on: a car drives on the garage's Rapier, or as an arcade car once without it; on
+  // foot the walker walks on the garage's Rapier while it keeps up; all else on the walls' engine.
+  const onRapier = garage !== null && simply === null;
+  const physics = riding === "car" ? (onRapier ? "Rapier car" : "arcade car") : !riding && onRapier ? "Rapier" : engine;
   const pad: Pad = flying ? "flying" : (riding ?? "foot");
   const Icon = flying ? Video : riding ? RIDE_ICONS[riding] : Footprints;
   const sink = (held: boolean) => (event: PointerEvent<HTMLButtonElement>) => {
