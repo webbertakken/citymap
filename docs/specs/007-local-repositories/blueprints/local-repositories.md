@@ -49,8 +49,9 @@ interface Folder {
 
 ### `readIndex(bytes, idBytes)` (`local/git-index.ts`)
 
-Returns `{ version: 2 | 3 | 4, paths: string[], gitlinks: string[] }`, `paths` in the index's order without repeats,
-`gitlinks` the submodules' paths.
+Returns `{ version: 2 | 3 | 4, paths: string[], sizes: number[], gitlinks: string[] }`, `paths` in the index's order
+without repeats, `sizes` each path's stat size (the 32-bit word at byte 36), in the same order, `gitlinks` the
+submodules' paths.
 
 1. At least `12 + idBytes` bytes, starting `DIRC`, else `local/bad-index` (`reason: "header"`). The version (big-endian
    32-bit at 4) is 2, 3 or 4, else `local/index-version` (`version`). The entry count is at 8.
@@ -113,16 +114,16 @@ Returns
 3. `onPhase({ phase: "manifests" })`: each tracked root manifest (`isManifest`) is read from the working tree and parsed
    with `patternsOf`; one that cannot be read is left out and named in `unread`, as the CLI leaves out a manifest it
    cannot read. Members: `resolveWorkspaces(patterns, folders)` over every folder holding a file.
-4. Submodules (`local/submodules.ts`, `readSubmodules(folder, gitlinks)` → `{ paths, submodules, unread }`, `unread` by
-   path, as parallel reads finish in any order; `readLocal` returns them as `submodules: { read, unread }`, `read`
-   naming each top submodule with its file count): each gitlink's folder is looked up in the picked folder; its
-   `findGit` (a `.git` file whose `gitdir` stays inside the picked folder, measured from the submodule's folder, or a
-   `.git` directory) gives its git data, whose index (`readIndex`, its own `idBytes`) lists its tracked paths, prefixed
-   with the gitlink's folder; its own gitlinks follow down to `SUBMODULE_DEPTH` 8 levels. A folder that is missing or
-   empty (not checked out), git data outside the picked folder, no index, an index of a kind not read, or a depth beyond
-   is the one file `<folder>/.gitlink`, logged `viewer/local-submodule-unread path reason` (`not-checked-out`,
-   `outside`, `bad-git-file`, `no-index`, `index`, `depth`); it never fails the read. Submodule paths count towards
-   `MAX_FILES` and `MAX_PATH_BYTES` as any.
+4. Submodules (`local/submodules.ts`, `readSubmodules(folder, gitlinks)` → `{ paths, sizes, submodules, unread }`,
+   `sizes` each read path's bytes from its submodule's own index, `unread` by path, as parallel reads finish in any
+   order; `readLocal` returns them as `submodules: { read, unread }`, `read` naming each top submodule with its file
+   count): each gitlink's folder is looked up in the picked folder; its `findGit` (a `.git` file whose `gitdir` stays
+   inside the picked folder, measured from the submodule's folder, or a `.git` directory) gives its git data, whose
+   index (`readIndex`, its own `idBytes`) lists its tracked paths, prefixed with the gitlink's folder; its own gitlinks
+   follow down to `SUBMODULE_DEPTH` 8 levels. A folder that is missing or empty (not checked out), git data outside the
+   picked folder, no index, an index of a kind not read, or a depth beyond is the one file `<folder>/.gitlink`, logged
+   `viewer/local-submodule-unread path reason` (`not-checked-out`, `outside`, `bad-git-file`, `no-index`, `index`,
+   `depth`); it never fails the read. Submodule paths count towards `MAX_FILES` and `MAX_PATH_BYTES` as any.
 5. The snapshot is `stateSnapshot(folder.name, commit, paths, members, gitlinks)`, the builder `citymap --no-history`
    uses.
 

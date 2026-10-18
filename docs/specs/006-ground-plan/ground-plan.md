@@ -365,6 +365,8 @@ member of its kind of folder as a town of its own, a separate town, joined by a 
   `.gitlink`, in its folder, and the log names it; it keeps its identity while the pin moves. Its separate town is a
   single lot.
 - The same repository at the same commit, with the same submodules at hand, yields the same plat and city.
+- What a submodule's buildings show (its files' own contents, and no history of their own) is the
+  [buildings](../008-buildings/buildings.md) spec's.
 
 ## Deletion
 

@@ -45,6 +45,10 @@ people switch and read it lives in the [viewer](../004-interface-design/viewer.m
   are never read, so a clone with a checkout, one without, and one whose `.mailmap` was edited lay the same city, and a
   resumed fold the same as an uninterrupted one. A laid commit without a `.mailmap` file, or whose `.mailmap` the clone
   does not hold (a partial clone), maps nobody, and the CLI says which.
+- **A submodule's files** are measured from their own contents at the commit the submodule is pinned to, read from the
+  submodule's own git data, as any file is. They carry no history: the repository's commits only move the pin, and a
+  submodule's own commits are not read, so their recency, churn and authors are unknown, and say why ("A submodule's own
+  history is not read"). A lot of them counts no people. The city names its submodule folders beside the measures.
 - **Unknown** is a value of its own: a measure a source cannot give, or a file a report does not cover, is unknown, and
   every channel and card shows it as unknown, never as zero.
 

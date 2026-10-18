@@ -52,7 +52,10 @@ map to `citymap-history`'s modules of the same names (`file_history.rs`);
 `citymap-measures` (`by_name.rs`, `reports/matching.rs`; aggregation and scales are the viewer's, TypeScript only);
 `packages/themes/src/{themes,colour}.ts` to `citymap-themes`; `packages/svg/src/render.ts` to `citymap-svg`;
 `apps/cli/src/{args,run,main,bin,measures}.ts` to `citymap-cli`'s `args.rs`, `run.rs`, `main.rs` and `measures.rs`. The
-history reader hands the files' history over as its last item (`HistoryItem::Files`) when asked.
+history reader hands the files' history over as its last item (`HistoryItem::Files`) when asked. `list_tree`
+(`contents.rs`) gives each file a `Store` (`Repository`, `GitData(path)` for a submodule's, `Nowhere` for an unread
+submodule's `.gitlink`), where TypeScript's `TreeFile.store` is absent, a path or null; `read_blobs` reads each store
+through `BlobReader::new` or `BlobReader::on_git_data`, as `new BlobReader(dir, { gitData })`.
 
 ## Types
 

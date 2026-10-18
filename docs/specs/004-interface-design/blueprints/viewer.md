@@ -399,10 +399,17 @@ phone), so nothing the cards do moves the map or each other.
   then writes the index. A city's separations are learnt from a first lay with the defaults at its pin (its `separable`
   and `declared`, `--no-measures`); `separationStates(separable, declared)` lists every subset of `separable`, less
   those with `declared`, `workspaces` on and `apps` or `packages` off their defaults; each lay passes `--separate=` the
-  state plus the defaults of the separations the city does not record. One line per lay:
-  `bundle/laid name variant lots bytes gzip ms`; at the end `bundle/done cities variants bytes gzip`. The six cities'
-  304 variants take 462 MB (67 MB gzipped); a visitor loads one at a time, at most 440 kB gzipped. They are not
-  committed: `.github/workflows/pages.yml` runs `bun run bundle` before `next build`, and `public/cities/` is ignored.
+  state plus the defaults of the separations the city does not record. Every city is cloned and probed first, in turn;
+  then every lay of every city runs through one pool (`inPool`), at most
+  `poolSize(availableParallelism(), CITYMAP_BUNDLE_JOBS)` at once: the cores, or fewer when the variable asks (never
+  more; a value that is not a whole number above 0 is `bundle/usage`). Each lay writes its own file and the results come
+  back in the variants' order, so the files and the index are byte for byte a serial run's (proven: 305 files,
+  `CITYMAP_BUNDLE_JOBS=1` against 4). A failed lay starts no more and fails the bundle (`bundle/failed`, git's or the
+  CLI's first line). Lines: `bundle/pool jobs cores` first; one `bundle/laid name variant lots bytes gzip ms` per lay,
+  in the order they finish; at the end `bundle/done cities variants bytes gzip jobs ms`. The six cities' 304 variants
+  take 462 MB (67 MB gzipped): 1,066 s serially and 279 s with four at once on a loaded workstation; a visitor loads one
+  at a time, at most 440 kB gzipped. They are not committed: `.github/workflows/pages.yml` runs `bun run bundle` before
+  `next build`, and `public/cities/` is ignored.
 
 ## Labels
 

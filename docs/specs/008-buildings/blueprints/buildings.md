@@ -62,6 +62,7 @@ interface Measures {
   readonly tested: "coverage" | "name";
   readonly available: readonly Measure[]; // in MEASURES order
   readonly lots: Readonly<Record<string, Readonly<Record<string, LotMeasures>>>>; // town key -> lot key
+  readonly submodules?: readonly string[]; // the submodule folders the files lie in, sorted; absent when none
 }
 interface CityFile {
   readonly city: City;
@@ -76,6 +77,9 @@ interface CityFile {
 - `parseCityFile(text)`: JSON (`city/bad-json`), then the `measures` key split off and validated (`measures/bad-shape`
   with the JSON pointer; a `version` above 1 is `measures/too-new`), and the rest validated as a city with `parseCity`'s
   schema (`city/bad-shape`). A file without the key opens with `measures: null`.
+- `submodules` is the last snapshot's `submodules` (nested and unread ones included), written by every source when there
+  are any (`buildMeasures({ submodules })`); version 1 stays, as the key is optional. Rust writes it between `source`
+  and `tested`, left out when empty.
 - `lots` keys are town keys, then lot keys: a lot key alone is not unique, as an old town keeps its lots' keys while the
   new town beside it reuses them. Vacant lots have no entry. Lots whose files are all unknown in every measure are still
   listed, so the card can list their files.
@@ -218,22 +222,29 @@ interface Report {
   `RawCommit { sha, time, author: { name, email }, entries }`: the name is everything after the third `\x02`, so a name
   holding one stays whole; a header without them reads time 0 and an author of "" and "".
 - `FileHistory` (`file-history.ts`): `record(identity, time, email)` for each entry of each commit that leaves the path
-  live (added, modified, renamed in; not deleted, not a submodule), after the commit is applied, so a rename counts
-  under the identity it carries, with the email the mailmap gives the commit's author (`emailOf`). Per identity:
-  `changed` the largest time, `commits` the count, the set of authors (emails lower-cased in ASCII, interned to
-  integers). `of(identity)` and `authorsAcross(identities)`.
+  live (added, modified, renamed in; not deleted, not a gitlink), after the commit is applied and before its pins
+  expand, so a rename counts under the identity it carries, with the email the mailmap gives the commit's author
+  (`emailOf`). A pin's expansion records nothing: a submodule's files carry no history. Per identity: `changed` the
+  largest time, `commits` the count, the set of authors (emails lower-cased in ASCII, interned to integers).
+  `of(identity)`, and `authorsAcross(identities)`: the people across them, or undefined (Rust `None`) when none has a
+  record, so a lot of a submodule's files counts no people rather than 0.
 - `readHistory(dir, { fileHistory })` records into it while reading; every commit is recorded, resumed folds included (a
   resume applies every earlier commit too), so a resumed city's measures match the uninterrupted fold's. The mailmap is
   the target's (`to`, resolved before the log), read once before the log starts, and only when a file history is asked
   for; a resume reads the same target's, so the lock carries nothing for it.
 
 - Merges are counted once, by the merge's author: the history read is the first-parent one the fold reads.
-- `listTree(dir, commit)` (`contents.ts`): `git ls-tree -r -z` at the commit, submodules left out;
-  `readBlobs(dir, blobs, onBlob)`: `git cat-file --batch` for each distinct blob the repository holds
-  (`BlobReader.readBytes`, the answer's chunks joined once when whole; a partial clone's missing blobs are never asked
-  for, so nothing is fetched). The CLI counts each blob's bytes (`countText`) for every path that holds it; a blob not
-  held gives the path no size, no lines, no comments. In Rust the history reader hands the files' history over as its
-  last item (`HistoryItem::Files`).
+- `listTree(dir, commit)` (`contents.ts`): `git ls-tree -r -z` at the commit, in git's order, then each gitlink's files
+  at its pin as the single state lays them (`SubmoduleReader.expandAll`, named by the commit's `.gitmodules`):
+  `TreeFile { path, blob, store }`, `store` absent for the repository's own (Rust `Store::Repository`), the git data of
+  the deepest submodule holding the path (`Expanded.stores`; Rust `Store::GitData`), or null for an unread submodule's
+  `.gitlink` (Rust `Store::Nowhere`), never asked for. `readBlobs(dir, files, onBlob)`: the repository's blobs first,
+  then each store's, one `git cat-file --batch` each (`new BlobReader(gitData, { gitData: true })`, Rust
+  `BlobReader::on_git_data`, both through `onGitData` / `git_data_command`); each distinct blob answered once, the first
+  store holding it winning; what no store holds arrives as null (the answer's chunks joined once when whole; a partial
+  clone's missing blobs are never asked for, so nothing is fetched). The CLI counts each blob's bytes (`countText`) for
+  every path that holds it; a blob not held gives the path no size, no lines, no comments. In Rust the history reader
+  hands the files' history over as its last item (`HistoryItem::Files`).
 
 ### Mailmap (`packages/history/src/mailmap.ts`, `rust/crates/history/src/mailmap.rs`)
 
@@ -379,20 +390,23 @@ interface Report {
   noted "by name"), "Changed" (`3 days ago`, the date as its note), "Commits", "Authors", "Comments" (`120 lines`, with
   the marks: "2 TODOs"), each of the last four only when the city has it. An unknown value says "Not known" with why as
   its note ("Its contents were not read here", "The coverage report does not cover it", "Only source files are judged by
-  name", "No commit read changed it"); measures the city does not have say so in one row each, "Changed, commits,
+  name", "No commit read changed it", or for a lot whose files all lie in a folder of `measures.submodules`, "A
+  submodule's own history is not read"); measures the city does not have say so in one row each, "Changed, commits,
   authors" and "Comments", "Not known" with `unavailableReason` as the note. A lot of several files adds "{n} files"
   listing their names (at most `FILES_SHOWN` 7, then "and N more").
 - With no measures (a city file without them), no measure rows show.
 
 ## Readers in the browser (`apps/web/src/github`, `apps/web/src/local`, `apps/web/src/lay`)
 
-- **GitHub**: the tree's blob entries carry `size`; `readRepository` returns `{ snapshot, sizes }` (path to bytes), no
-  extra request. Facts: `bytes`; tested by name over the snapshot's paths.
-- **Folder**: the git index's stat size (the 32-bit word at byte 36 of each entry) is each tracked path's bytes. When
-  the tracked files sum to under `CONTENTS_LIMIT` 50,000,000 bytes, every tracked file is read (`CONTENTS_IN_FLIGHT` 8
-  at once) and counted (`countText`): size is lines, comments are available. A folder without git is walked; its files
-  are read under the same limit (their sizes known only then). Then the usual report paths, each read if present, and
-  matched. Phase "Reading the files" (`contents`, "{n} of {m} files") and "Looking for coverage reports" (`coverage`).
+- **GitHub**: the tree's blob entries carry `size`, a submodule's from its own repository's tree at the pin;
+  `readRepository` returns `{ snapshot, sizes }` (path to bytes), no extra request. Facts: `bytes`; tested by name over
+  the snapshot's paths.
+- **Folder**: the git index's stat size (the 32-bit word at byte 36 of each entry) is each tracked path's bytes, a
+  submodule's paths from its own index (`readSubmodules` → `sizes`). When the tracked files sum to under
+  `CONTENTS_LIMIT` 50,000,000 bytes, every tracked file is read (`CONTENTS_IN_FLIGHT` 8 at once) and counted
+  (`countText`): size is lines, comments are available. A folder without git is walked; its files are read under the
+  same limit (their sizes known only then). Then the usual report paths, each read if present, and matched. Phase
+  "Reading the files" (`contents`, "{n} of {m} files") and "Looking for coverage reports" (`coverage`).
 - **Lay**: `layHere(snapshot, { facts })` lays, then builds the section from
   `lotFiles(city, state.plat, snapshot.files)`; the worker hands it back beside the city. Nothing read from the folder
   leaves the page.
@@ -415,6 +429,9 @@ interface Report {
 | Lot of several files, some unknown            | sums and the weakest over the known; unknown only when none is             |
 | Folder over 50 MB of tracked files            | bytes from the index; comments unavailable                                 |
 | A file that vanishes while read (folder)      | that file's facts are unknown; counted in `viewer/local-contents` `unread` |
+| A submodule's file                            | measured from its contents at the pin, in its own git data; no history     |
+| A submodule not read (its `.gitlink`)         | no blob is asked for: unknown in every measure                             |
+| A lot of a submodule's files                  | no `authors`; the card notes "A submodule's own history is not read"       |
 | No `.mailmap` at the laid commit              | nobody is mapped; `history/mailmap status=absent`                          |
 | `.mailmap` a link, folder or submodule        | nobody is mapped; `history/mailmap status=not-a-file`                      |
 | `.mailmap` blob not held (partial clone)      | nobody is mapped; `history/mailmap status=unavailable`                     |
@@ -450,6 +467,9 @@ interface Report {
   giving the same city; a mailmap that is absent, a link or not held; aggregation, scales and floors at their ends;
   ramps' ends and unknown; the lot table; the view basis, pan, fit and unproject in both modes; ray picking over
   buildings of known heights; the legend, colour by (keyboard, disabled with reasons), and cards with measures.
+- Submodules: `listTree` and `readBlobs` on a nested, checked-out submodule and on an unread one (`.gitlink`, never
+  asked); the CLI measuring a submodule's file from its own git data, fold and single state, with no history, no people
+  across its lot and `submodules` written; the card's submodule note; `authorsAcross` undefined with no record.
 - Rust: the same tests, case for case (tests by name, text, the XML scanner, the four formats, matching, lots, the
   section, the CLI's measures on temporary repositories, a partial clone included).
 - Parity: `bun run parity` compares city files with measures on every mode, and a mode with a coverage report written

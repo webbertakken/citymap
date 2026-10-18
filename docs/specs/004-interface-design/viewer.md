@@ -98,6 +98,11 @@ Under the toggles, the same popover holds a second group, "Separate towns": a sw
   every visit, disabled for a city file.
 - A bundled city precomputes, for each combination of the four toggles, the combinations of the separations it records;
   the viewer loads the variant its switches name.
+- Precomputing is combinatorial: a city's variants are 16 times its separation states, and each separation it records
+  can double them. The six bundled cities take 304 variants (462 MB, 67 MB gzipped), laid when the site is built, as
+  many at once as the build machine has cores, in about seven minutes. A city recording more separations multiplies
+  both. This is a limit of precomputing, accepted for the bundled cities; laying a variant in the browser on demand,
+  when its switches name it, is the long-term answer.
 
 ## Search
 

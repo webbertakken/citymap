@@ -106,10 +106,11 @@ rebased.
       measured (304 variants, 839 s locally, 462 MB raw, 67 MB gzipped; CI matches local per variant)
 - [x] Merge `origin/main` again (#43 to #54: exploring the city, the end-to-end CI job), with a merge commit
 - [x] Bundle lays in parallel, bounded by the cores (`CITYMAP_BUNDLE_JOBS` lowers it), logged as `bundle/pool`
-- [ ] The parallel bundle proven byte-identical to a serial run, once, locally
+- [x] The parallel bundle proven byte-identical to a serial run, once, locally (305 files; 1,066 s serial, 279 s at four
+      jobs)
 - [x] A submodule's files carry no history, and say why ("A submodule's own history is not read"); the measures section
       names the submodule folders (both CLIs)
-- [ ] Spec: the combinatorial limit of precomputed variants, laying in the browser on demand as the long-term answer; a
+- [x] Spec: the combinatorial limit of precomputed variants, laying in the browser on demand as the long-term answer; a
       submodule's files without history
 - [ ] `bun run check`; `bun run parity` in every mode (state, fold, resume, checkout, coverage) and with separations
       (each alone, none), plus a repository with submodules
