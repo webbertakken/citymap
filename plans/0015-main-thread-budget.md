@@ -65,4 +65,4 @@ Where main's time goes on the phone journey (livediagram, slowed fourfold, profi
       (alternating with main); linux's buildings budget
 - [x] Screenshots before and after (dark and light)
 - [x] Fold-back: spec and blueprint reconciled to what shipped; every symbol, file and reference checked
-- [ ] PR with the measurements (not merged)
+- [x] PR with the measurements (not merged)
