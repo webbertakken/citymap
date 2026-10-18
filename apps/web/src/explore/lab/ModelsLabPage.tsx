@@ -37,7 +37,7 @@ const gtaModels = (style: Style): Readonly<Record<GltfName, ModelFile>> => {
       }
     : {
         figure: { url: "lab/models/gta/quaternius-man.glb", metres: 1.78, measure: "height", yaw: Math.PI / 2 },
-        walker: { url: "lab/models/gta/quaternius-woman.glb", metres: 1.68, measure: "height", yaw: -Math.PI / 2 },
+        walker: { url: "lab/models/gta/quaternius-woman.glb", metres: 1.68, measure: "height", yaw: Math.PI / 2 },
       };
   return {
     ...people,
@@ -59,7 +59,7 @@ const askedIn = (search: string): Asked => {
   const query = new URLSearchParams(search);
   return {
     style: STYLES.find((s) => s === query.get("style")) ?? "procedural",
-    shot: query.get("shot") === "lineup" ? "lineup" : "street",
+    shot: query.get("shot") === "lineup" ? "lineup" : query.get("shot") === "people" ? "people" : "street",
     theme: THEME_NAMES.find((t) => t === query.get("theme")) ?? "paper-atlas",
     city: query.get("city") ?? "",
   };

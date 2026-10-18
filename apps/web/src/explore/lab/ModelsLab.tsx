@@ -14,8 +14,8 @@ import { poseStride } from "../models/stride";
 import { METRE, headingOf, onStreet, type Street } from "../street";
 
 export type Style = "procedural" | "gltf" | "mixed" | "gta-clean" | "gta-ps2";
-/** Down the street over a walker's shoulder, or across it at the parked vehicles, side on. */
-export type Shot = "street" | "lineup";
+/** Down the street over a walker's shoulder, across it at the parked vehicles side on, or close up on the people. */
+export type Shot = "street" | "lineup" | "people";
 
 /** Where each shot puts the cast (metres along, to the left, up; and a turn), and its camera. */
 const SHOTS: Readonly<
@@ -39,6 +39,18 @@ const SHOTS: Readonly<
     ],
     eye: [2.4, 0.6, 2.3],
     target: [18, -0.6, 1.8],
+  },
+  people: {
+    cast: [
+      [9.3, -2.6, 0, Math.PI / 2 - 0.5],
+      [10.7, -2.6, 0, Math.PI / 2 + 0.5],
+      [40, -3.4, 0, 0],
+      [44, -3.5, 0, 0],
+      [50, -3.1, 0, 0],
+      [60, -1, 0, 2.4],
+    ],
+    eye: [10, 1.4, 1.5],
+    target: [10, -2.6, 0.95],
   },
   lineup: {
     cast: [
