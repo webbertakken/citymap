@@ -166,13 +166,16 @@ in `BufferGeometry`.
     grid (`pickFrom(city, grid)`).
 - `Viewer` keeps the worker's scene (`drawn`: the city, the theme, the scene) and uses it while that city is shown in
   that theme; another theme builds its scene on the main thread, as does a town shown alone. It keeps the opening's pick
-  index with the city (`picking`), and a town shown alone picks from `onlyTown(picking, focus)`.
-- The search index (`searchIndexInSlices(city, signal)`, `search/slices.ts`) is built on the main thread once the city
-  shows, in slices of at most `SLICE_MS` 5 ms that yield to input between them (`scheduler.yield()` where the browser
-  has it, else a zero timeout): its entries are objects the main thread owns, and receiving 75,000 of them by structured
-  clone takes longer than building them (linux in Chromium: 62 ms against 30 to 39 ms). It equals `searchIndex(city)`. A
-  new city aborts the build in flight. Until it is done the search box has no index, so typed text matches nothing yet
-  and matches as soon as it is done; `viewer/search-index entries slices ms` is logged then.
+  index with the city (`wholePick`, used while its city is the one shown), and a town shown alone picks from
+  `onlyTown(wholePick, focus)`.
+- The search index (`useSearchIndex(city)`, `search/useSearchIndex.ts`, through
+  `searchIndexInSlices(city, { signal, pause, now })`, `search/slices.ts`, the entries of `entriesOf(city)` in order) is
+  built on the main thread once the city shows, in slices of at most `SLICE_MS` 5 ms that yield to input between them
+  (`scheduler.yield()` where the browser has it, else a zero timeout): its entries are objects the main thread owns, and
+  receiving 75,000 of them by structured clone takes longer than building them (linux in Chromium: 62 ms against 30 to
+  39 ms). It equals `searchIndex(city)`. A new city aborts the build in flight. Until it is done the search box has no
+  index, so typed text matches nothing yet and matches as soon as it is done; `viewer/search-index entries slices ms` is
+  logged then (a build that fails, `viewer/search-index-failed reason`).
 - A repository is laid from the search box (below). While it loads, the status line names the phase ("{name}: {phase}…";
   see Loading); then "{towns} towns · {lots} lots · single state, not folded". On success the address becomes
   `?repo=owner/name` (`history.replaceState`); on load, a `repo` parameter is laid instead of the first bundled city.
