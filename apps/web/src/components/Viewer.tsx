@@ -32,7 +32,7 @@ import type { ArcadeWhy, GoDown } from "../explore/descent";
 import { footprintsOf } from "../explore/footprints";
 import { inspector } from "../explore/inspect";
 import { landingOf, type Landing } from "../explore/landing";
-import { parkedIn } from "../explore/parking";
+import { helipadBy, parkedIn } from "../explore/parking";
 import type { Garage } from "../explore/physics/garage";
 import { roadGrid, roadSegments, type RoadGrid } from "../explore/signs";
 import { METRE } from "../explore/street";
@@ -681,12 +681,17 @@ export function Viewer({
         x: landing.at.x.toFixed(3),
         z: landing.at.z.toFixed(3),
       });
-      // The landing's pair at the kerb ahead, then the city's own, worked out from its plan.
-      const parked = [...parkedBy(landing, walls), ...parkedIn(into.city, landing, walls)];
+      // The landing's three at the kerbs, then the city's own, worked out from its plan; and its helicopter on open
+      // ground along the landing's road.
+      const kerbs = [...parkedBy(landing, walls), ...parkedIn(into.city, landing, walls)];
+      const helicopter = helipadBy(landing, walls, kerbs);
+      const parked = helicopter ? [...kerbs, helicopter] : kerbs;
       log.info("explore/parked", {
         bicycles: parked.filter((v) => v.kind === "bicycle").length,
         cars: parked.filter((v) => v.kind === "car").length,
       });
+      if (helicopter) log.info("explore/helipad", { x: helicopter.feet.x.toFixed(1), z: helicopter.feet.z.toFixed(1) });
+      else log.info("explore/no-helipad");
       setWalk({
         city: into.city,
         walls,

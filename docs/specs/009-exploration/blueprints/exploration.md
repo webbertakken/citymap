@@ -21,6 +21,9 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
 | engine    | `Engine`, `Gearbox`, `torqueAt`, `automatic`, `driveOf`   | torque by a curve, gears that change themselves, the push at the driven wheel      |
 | core      | `Single`, `Machine`, `Build`, `matricesOf`, `ridden`      | the single-track core: a build's Whipple matrices, balance, loads, lifts, falls    |
 | motorbike | `Moto`, `CHOPPER`, `MOTORBIKE`, `rideMotorbike`           | the motorbike's own state and one step of it: engine, brakes, wheelie, the core    |
+| flight    | `Heli`, `flyHeli`, `touched`, `groundEffect`, `heliHud`   | the helicopter's own state, one step of its flight, what the walls took of it      |
+| helipad   | `helipadBy(landing, walls, parked)`                       | where the city's helicopter stands: open ground along the landing's road           |
+| room      | `roomToLand`, `belowOf`, `perched`                        | whether the rotor fits where it would land; what lies below; a rotor on a top      |
 | raising   | `RaiseWalls`, `WallOptions`                               | an engine's footprints-to-walls, reporting `engine` and `walls` steps, cancellable |
 | landing   | `Landing`, `landingOf(city, selected, centre)`            | where the walk begins, its heading, why there, and the road beside it              |
 | walker    | `Body`, `stepWalker`, `Intents`                           | the person: feet, rise, heading, footing; one step under intents                   |
@@ -36,7 +39,7 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
 | whipple   | `Lean`, `whipple`, `stiffness`                            | the benchmark bicycle's lean and steer equations, one step                         |
 | rider     | `aimedLean`, `riderTorque`                                | the simulated rider's balance: a lean aimed at, the steering torque to reach it    |
 | HUD       | `Hud`, `hudOf`, `RideHud`, `hudOfRide`, `motoHud`         | each ride's numbers as the HUD shows them, a foot and a fall                       |
-| parking   | `parkedBy(landing, walls)`, `parkedIn(city, landing, …)`  | the landing's three at its kerbs; the city's own parked vehicles                   |
+| parking   | `parkedBy(landing, walls)`, `parkedIn(city, landing, …)`  | the landing's three at its kerbs (`KerbKind`); the city's own parked vehicles      |
 | pool      | `nearestOf`, `assignPool`                                 | which vehicles the canvas draws, and in which of its models                        |
 | pad       | `Pad`, `padOf`, `PadPresses`                              | a gamepad's state as intents, look and presses                                     |
 | pedalling | `pedalsOf`, `reachFor`                                    | where the pedals are; a leg bent to put its foot on one                            |
@@ -120,7 +123,11 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
   walker's body, a kinematic capsule (`WALKER_HALF` 0.6 m, `PERSON_RADIUS`, middle `WALKER_MIDDLE` 0.9 m up), is moved
   to the walker's feet each step and out of the world in a car or flying; collision groups let it meet only the
   two-wheelers, never a car. A car changed outside the garage (the walker got out) is placed afresh, still; a parked
-  two-wheeler changed outside it, likewise.
+  two-wheeler changed outside it, likewise. A helicopter is a kinematic block its outline's length and width,
+  `HELICOPTER_HEIGHT` 2.6 m tall, about its outline's middle, turned by `tiltedOf`, moved where its own flight puts it
+  whenever it changes; it meets the cars and the two-wheelers (they stop at it, or are shoved), never the walker, whom
+  the walls' `clearOfVehicles` keeps out (with the garage, `inTheWay` is the cars and the helicopter). The garage never
+  changes it.
 
 ## The car on Rapier
 
@@ -184,7 +191,9 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
 - `followOf`: on foot `ON_FOOT`; riding, the ride's `follow`, its distance `distance + stretch · |v|`, at most
   `farthest`.
 - `shownVehicles`: a car's `attitude` between its last two by normalised linear interpolation the short way
-  (`turnBetweenQuats`); a two-wheeler's lean and pitch, a bicycle's crank; a vehicle whose kind changed as it is.
+  (`turnBetweenQuats`); a two-wheeler's lean and pitch, a bicycle's crank; a helicopter's pitch and roll, its blades and
+  tail the short way round; a vehicle whose kind changed as it is. A helicopter ridden is chased behind its heading at
+  any speed (it turns on the spot), never its way of travel.
 - `shownOf`: the walker between `previous` and `body` by `spare / STEP`, the heading the short way round, and `walked`
   less the unspent part of the last step.
 - `reachOf` and `easeReach`: the camera's full `Follow.distance` unless the ray from the target is cut short by more
@@ -222,6 +231,11 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
   the landing, nearest first, ties by id.
 - `Viewer` adds them after the landing's pair, logs `explore/parked bicycles cars`, and hands them to the walk
   (`ExploreView.parked`).
+- `helipadBy(landing, walls, parked)`: from the landing's road point, along the road, from `HELIPAD_FROM` 24 m to
+  `HELIPAD_REACH` 400 m every `HELIPAD_STEP` 2 m, the first spot where a circle of `ROTOR_RADIUS + HELIPAD_MARGIN` (0.5)
+  on the street is moved nowhere by the walls, the body (nose to tail in circles its width) clears every parked vehicle,
+  and a line 1 m up from the landing reaches it; facing on along the road; then the same behind, facing away; else null.
+  Id `helicopter`, appended after the kerbs' vehicles; `explore/helipad x z` or `explore/no-helipad`.
 
 ## The single-track core (`explore/singletrack.ts`)
 
@@ -267,6 +281,60 @@ The bicycle and the motorbike are one physics with two builds. Lean `φ` and ste
   the front brake stops at 10.8 m/s² and the back at 5.4, the back wheel never lifting (the front tyre slides first, as
   grip 1.1 is under its 1.32 needed).
 - `motoHud`: speed km/h, gear from 1 of 5, rpm to the hundred (`RPM_SHOWN`).
+
+## The helicopter (`explore/helicopter.ts`, `vehicles.ts`)
+
+Pitch positive nose down, roll positive the right side down, yaw rate anticlockwise from above (as headings grow).
+
+- Build (the AS350 B2): `HELI_MASS` 2,250 kg, `ROTOR_RADIUS` 5.35 m, `MAST` 3.06 m (the hub above the skids, from the
+  mesh), `BODY_RADIUS` 1.4 m (the cabin against anything lower than the disc), `THRUST_MOST` 1.5 of its weight out of
+  ground effect. `VEHICLES.helicopter`: 11 × 2.6 m, its outline's middle `HUB_AHEAD` 1.99 m behind its feet (under the
+  mast); follow 15 m back, 4 m up, `stretch` 0.1 s, `farthest` 22 m, `chase` 0.6 s.
+- `Heli`: `velocity` (world), `pitch`, `roll` and their rates, `yawRate`, `rotor` (share of flying speed), `engine`,
+  `collective` (share of `THRUST_MOST`), `grounded`, `hold` (the height held, null climbing, sinking or grounded),
+  `blades` and `tail` (angles, mod 2π), `hits` and `hit` (the last hard hit's speed lost). `parkedHeli()`: on its skids,
+  engine off, rotor still. `started`: the engine on. `stopped`: off, still, collective 0.
+- Rotor: `rotor` rises `SPIN_UP` 0.2 a second with the engine on, falls `SPIN_DOWN` 0.08 a second off; its power is
+  `rotor²` (taken from the step's start). Blades turn `BLADE_SPIN` 20 rad/s · rotor, the tail `TAIL_SPIN` 36.
+- `groundEffect(below)` = `1 / (1 − (R / 4z)²)`, `z = below + MAST` (Cheeseman and Bennett); 1 for an infinite `below`.
+  `hoverShare(below) = √(m g / (THRUST_MOST · groundEffect))`: 0.734 on the ground, so it lifts 3.7 s after starting.
+- `thrustDirection(heading, pitch, roll)` = `ahead · sin p cos r + right · sin r + up · cos p cos r`; `tiltedOf` the
+  quaternion `yaw(heading) · zTurn(−pitch) · xTurn(roll)`, whose up is that axis.
+- `flyHeli(heli, { y, heading }, flight, below, dt)`, `flight.up` from Space less Shift, C or Control (or Up and Down,
+  or a pad's A and B):
+  - The collective for a climb `c`: `m (g + CLIMB_GAIN (c − v_y) + HEAVE v_y) / max(0.5, axis_y)`, over
+    `THRUST_MOST · rotor²`, within 0 to 1 (`CLIMB_GAIN` 2, `HEAVE` 0.3 s⁻¹, the rotor's own damping of a climb). Ground
+    effect is not known to it, so near the ground it rises a little: the cushion.
+  - The climb asked: Up `up · CLIMB_MOST` (8 m/s); Down
+    `up · min(SINK_MOST 6, max(LAND_SINK 1.5, below / FLARE 1.5 s))`; else back to `hold` at `HOLD_GAIN` 1 a second,
+    within ±8; never past `(CEILING 500 − y) · HOLD_GAIN`.
+  - On its skids: level and still but a slide stopped at `SKID_GRIP` 6 m/s²; Up sets the collective for a full climb,
+    and it rises once `collective · lift · groundEffect(0)` passes its weight.
+  - Aloft, the tail rotor: an aimed yaw rate `−right · min(YAW_MOST 1.2, g tan ROLL_MOST / |v_ahead|)`; torque `TORQUE`
+    1.5 · collective · rotor² cancelled, the push `YAW_GAIN` 5 · (aim − rate), all within `TAIL_MOST` 4 · rotor² rad/s².
+  - The cyclic: pitch aimed `forward · PITCH_MOST` (0.3), else `clamp(−HOVER_GAIN 0.04 · v_ahead, ±HOVER_TILT 0.2)`;
+    roll aimed `atan(v_ahead · −yawAim / g) − HOVER_GAIN · v_side`, within `ROLL_MOST` 0.6 while turning, else
+    `HOVER_TILT`. Each a critically damped spring of `TILT_RATE` 5 rad/s, its acceleration times rotor².
+  - Forces: thrust along the axis with ground effect; drag `½ ρ A |v| v` ahead (`DRAG_AHEAD` 3.5 m²) and to the side
+    (`DRAG_SIDE` 12 m²), ρ 1.2; gravity; `HEAVE` on the climb. Top speed about 200 km/h.
+- `stepVehicle` for a helicopter (`flyThrough`): `belowOf(feet, walls)` (the clearance straight down, infinite past
+  `BELOW_REACH` 4 R); the across move first by the disc (`walls.move` at `y + MAST`, radius R), then by the cabin
+  (radius `BODY_RADIUS`) to where the disc came; the up or down move by the skids (radius `BODY_RADIUS`) and by the disc
+  (radius R); `held` when the disc stopped short of the move and above where the skids came to: the feet at the disc's
+  less `MAST`. Then `touched`, and a held rotor `perched`: the disc probed `PERCH_PROBE` 0.6 m lower, and pushed out
+  from what it overlaps at `PERCH_SLIDE` 4 m/s². `speed` is the velocity along the heading, `turn` the yaw rate.
+- `touched(heli, moved, dt, grounded, heading)`: across, a move short of the wanted one sets the velocity to the move's
+  (slid); up or down, likewise; grounded sets `v_y` 0, the tilt and its rates 0, `hold` null. `lost` is the speed taken
+  (a fall onto the ground counted down only). From `HARD_HIT` 5 m/s:
+  `rotor · (1 − min(STRIKE_MOST 0.5, STRIKE 0.04 · lost))`, the disc jolted `KICK` 1.5 rad/s away from the hit,
+  `hits` + 1.
+- `roomToLand(feet, under, walls)`: the disc at `under + MAST − PERCH_PROBE` moved nowhere by the walls.
+- Getting in starts the engine; `canLeave` once below `LEAVE_SPEED` and `grounded`; getting out `parkedNow` (`stopped`);
+  a helicopter not ridden with its rotor turning is stepped by `idleHeli` (spinning down). `bumped` keeps `BUMP` of its
+  velocity across. `reachable` and `clearOfVehicles` skip a vehicle more than `LEVEL` 2 m above or below.
+- `alightFrom`: the left, unless it is walled short or has no floor at the vehicle's level; then the side with a floor,
+  between equals the one that reaches further.
+- `heliHud(heli, altitude)`: metres, the climb to the tenth (−0 shown 0), km/h, rotor per cent.
 
 ## Engines and gearboxes (`explore/engine.ts`)
 
@@ -346,13 +414,27 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
     mesh; the fork hung from `motorbike_head`, at the fork's place, turned about z by its rake (34.9°, from the head to
     the front axle), the front wheel on the fork; parts named `motorbike_frame`, `_fork`, `_wheel_front`, `_wheel_back`;
     textures 256 px WebP (`EXT_texture_webp`, by sharp), NEAREST: 255 KB.
-  - `CREDITS.md`: one line per source, as their licences ask (the motorbike's: Duhgless, CC0 1.0, its page).
+  - `vehicles/helicopter.glb`: ArcheoteryxFr's AS350 B2 (CC BY 4.0) through Sketchfab's download API (`sketchfab(uid)`,
+    a token from `SKETCHFAB_TOKEN` or `~/.secrets/sketchfab-api-token`, never printed; the glb cached as the others).
+    Its centimetre scale dropped and flattened, every part's place baked into its mesh; `helicopter_rotor` hung from the
+    hub's middle in plan at the blades' height, `helicopter_tail_rotor` from its own middle; the body named
+    `helicopter_body`; normal, metallic, occlusion and emissive maps dropped, the albedo 512 px WebP (quality 85);
+    welded and meshopt-compressed (`EXT_meshopt_compression`, `meshoptimizer`): 107 KB, 5,740 triangles. Without a token
+    and with nothing cached, the committed file is kept as it is (said in the build's output).
+  - `CREDITS.md`: one line per source, as their licences ask (the motorbike's: Duhgless, CC0 1.0, its page; the
+    helicopter's: ArcheoteryxFr, CC BY 4.0, its page, and that it was cut down).
 - `uploadsIn(page)` reads an itch.io download page's uploads (id and file name) whichever order it writes the name's
   `title` and `class`.
 - `retargetClip(target, source, clip, rest, names, { hip, fps = 30 })`: names sanitised as three.js does; in each
   model's own frame, each mapped bone's turn `source(t) · source_rest⁻¹ · target_rest`, unmapped bones at rest, the hip
   moved by the source hip's move times `targetHip.y / sourceHip.y`; sampled at `fps` to the clip's end (played once,
   held). Throws `explore/retarget-no-hip` when either lacks the hip.
+- `GLTF_MODELS.helicopter`: 11.01 m long, built facing −z (yaw −π/2); `readGltfWithThree` decodes meshopt by three's
+  `MeshoptDecoder`. `RIGS.helicopter`: `rotors` (main `helicopter_rotor` about its y, tail `helicopter_tail_rotor` about
+  its x, `hub` 1.99 m ahead of the middle); `PROCEDURAL_RIGS.helicopter` the stand-in's `rotor-main` and `rotor-tail`
+  (about z, hub −0.1 m). `poseHelicopter(model, rig, { blades, tail })` turns the main rotor by `−blades` (clockwise
+  from above) and the tail by `tail`, the model moved by `−hub` so the mast stands over the group's origin; the group
+  takes `tiltedOf`. In the helicopter the walker is hidden.
 - `GLTF_MODELS` adds `motorbike` (2.36 m long, built facing +x, yaw 0) and `pickup` (drawn 4.6 m of its 5.2, so its
   wheels are the car's 0.32 m). `loadModel`: the file sized to `metres` by `measure`, turned by `yaw` to face +x, on y =
   0, centred; measured once per file (`framingOf`, on a copy, precisely as posed by its skeleton), every copy `framed`
@@ -385,10 +467,10 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   grips the same way, elbows `ELBOW_OUT` down, back and out. Thrown, the rider lies beside the bicycle, turned as it
   lies, `THROWN` 0.9 m ahead and 0.4 m to its side, back in the saddle once it is up.
 - The pool (`nearestOf(vehicles, at, most, keep)`): every `POOL_EVERY` 0.25 s the canvas takes the `VEHICLE_POOL`
-  nearest drawn as each model (`MODEL_KINDS`: 5 saloons, 3 pickups, 3 motorbikes, 5 bicycles, 16 in all) to the walker
-  (the ridden one always), and `assignPool(slots, wanted)` keeps a model on a vehicle while it stays wanted and gives
-  freed ones to newcomers; a model without a vehicle is hidden. A car's group takes its `attitude`; a two-wheeler's its
-  heading, the model leaning and pitching by its `lean` and `pitch`.
+  nearest drawn as each model (`MODEL_KINDS`: 5 saloons, 3 pickups, 3 motorbikes, 5 bicycles, 1 helicopter, 17 in all)
+  to the walker (the ridden one always), and `assignPool(slots, wanted)` keeps a model on a vehicle while it stays
+  wanted and gives freed ones to newcomers; a model without a vehicle is hidden. A car's group takes its `attitude`; a
+  two-wheeler's its heading, the model leaning and pitching by its `lean` and `pitch`.
 - The rider on a two-wheeler (`seat`): at the rig's saddle in the model's frame, hands on its grips, feet on the
   bicycle's pedals or the motorbike's pegs (the left on the ground `FOOT_OUT` beside the peg at a stop); thrown, beside
   it. In a car the walker is hidden.
@@ -445,30 +527,39 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 - Walk: an icon button "Walk", `aria-pressed` while walking; on a coarse pointer at the bottom centre, hidden while the
   drawer is open or walking.
 - The walk's card (bottom centre; top on touch): its title ("On foot", "On the bicycle", "On the motorbike", "In the
-  car", "Flying") with its icon (lucide's Footprints, Bike, Motorbike, Car, Video), "Physics prototype: {physics}" while
-  two engines are compared (the walls' engine; in the car "Rapier car" on the garage, else "arcade car"), the keys of
-  the ride, and "Back to the map".
-- The prompt: top centre (above the stick on touch), `E` in a key cap and its words; disabled while "Slow down to …".
+  car", "In the helicopter", "Flying") with its icon (lucide's Footprints, Bike, Motorbike, Car, Helicopter, Video),
+  "Physics prototype: {physics}" while two engines are compared (the walls' engine; in the car "Rapier car" on the
+  garage, else "arcade car"), the keys of the ride, and "Back to the map".
+- The prompt: top centre (above the stick on touch), `E` in a key cap and its words; disabled while "Slow down to …" or
+  "Land to get out of the helicopter" (`VehicleSpec.until`).
 - Touch: a 144 px stick (reach `STICK_REACH` 48 px) and the ride's main button (`PRIMARY`): Jump on foot, Brake (the
-  front brake) on the bicycle and the motorbike, Handbrake in the car, Up while flying; Ring, Gear up and Gear down (48
-  px) on the bicycle only; Down while flying; Fly always. Laid out by the dock below.
+  front brake) on the bicycle and the motorbike, Handbrake in the car, Up while flying and in the helicopter; Ring, Gear
+  up and Gear down (48 px) on the bicycle only; Down while flying and in the helicopter; Fly always. Laid out by the
+  dock below.
 - HUD (`explore-hud`, `hudOfRide(vehicle, engine)`, in the walk's card under its keys, while riding): on the bicycle a
   region "Speed, gear and cadence" (Speed "18 km/h", Gear "3 of 7", Cadence "72 rpm"); on the motorbike "Speed, gear and
   engine" (Gear "2 of 5", Engine "3,500 rpm" to the hundred); in a car on Rapier "Speed, gear and engine" (Gear "3" or
-  "R"); in an arcade car "Speed" alone. Shown when they change, at most every `HUD_EVERY` 0.1 s; `data-foot` "down" or
-  "up" on a two-wheeler, `data-fallen` while thrown. Not live: a screen reader reads it on demand.
+  "R"); in an arcade car "Speed" alone; in the helicopter "Altitude, climb, speed and rotor" (Altitude "42 m" above the
+  street, Climb "+3.0 m/s" with a true minus, Speed "36 km/h", Rotor "87 %", Below "Street" or "Roof", with ", no room"
+  where `roomToLand` says no), and `data-over`, `data-landed`, `data-heading` (whole degrees) and `data-room`. What lies
+  under it is the first top straight down (`walls.clearance` to below the street). Shown when they change, at most every
+  `HUD_EVERY` 0.1 s; `data-foot` "down" or "up" on a two-wheeler, `data-fallen` while thrown. Not live: a screen reader
+  reads it on demand.
+- The card's keys in the helicopter: "W S tilt · A D turn · Space climbs · Shift or C sinks · E gets out · click to look
+  · Esc leaves".
 - The card's keys on the bicycle: "W pedals · S back brake · Space front brake · A D steer · Q R gears · B rings · E
   gets off · click to look · Esc leaves"; on the motorbike "W throttle · S back brake · Space front brake · A D steer ·
   E gets off · click to look · Esc leaves"; in the car "W accelerates · S brakes, then reverses · A D steer · Space
   handbrake · E gets out · click to look · Esc leaves". Cars falling back to arcade: `ARCADE_WORDS` in an `output`.
-- Touch (`explore-dock`, `data-pad` foot, bicycle, motorbike, car or flying; `display: contents` without a coarse
-  pointer): one flow along the bottom, the panel in sight (at most 28 % of the height), then a grid of the prompt (one
-  line, `nowrap`) over the 144 px stick and the pad; on its side the prompt sits between them and the panel in sight at
-  the right under the top row. The pad's areas: `fly` over `primary` (Jump, Brake, Handbrake at 12 px, Up: 72 px); the
-  bicycle's `ring fly / up primary / down primary` (48 px buttons); flying `. fly / sink primary`. On its side the card
-  sits at the left under the title card (94 px tall), its way back on the title's row. The dock's empty space takes no
-  pointer, so a drag there still looks round. Measured with no two boxes overlapping at 412 × 915 and 915 × 412, each
-  ride.
+- Touch (`explore-dock`, `data-pad` foot, bicycle, motorbike, car, helicopter (laid out as flying) or flying;
+  `display: contents` without a coarse pointer): one flow along the bottom, the panel in sight (at most 28 % of the
+  height), then a grid of the prompt (one line, `nowrap`) over the 144 px stick and the pad; on its side the prompt sits
+  between them and the panel in sight at the right under the top row. The pad's areas: `fly` over `primary` (Jump,
+  Brake, Handbrake at 12 px, Up: 72 px); the bicycle's `ring fly / up primary / down primary` (48 px buttons); flying
+  `. fly / sink primary`. On its side the card sits at the left under the title card (94 px tall), its way back on the
+  title's row, at most 440 px wide, its HUD in 15 px so the helicopter's five readings keep one line and the card ends
+  above the stick. The HUD's rows wrap where they must. The dock's empty space takes no pointer, so a drag there still
+  looks round. Measured with no two boxes overlapping at 412 × 915 and 915 × 412, each ride.
 - While a finished load holds its card, the map under it dims, the walk never (`.map:not(.explore)`).
 - The bell (`explore/bell.ts`): `ringBell(context)` strikes twice, `BELL_GAP` 0.12 s apart, each two sine partials
   (`BELL_PARTIALS` 2,350 and 3,520 Hz, the second at half the level) decaying over `BELL_RING` 0.9 s at `BELL_LEVEL`
@@ -476,12 +567,14 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 
 ## Devices (`explore/input.ts`)
 
-- Keys: `WALK_KEYS` as before; Q and R add −1 and +1 to `Controls.gears` (as a wheel step), B rings (on the bicycle).
+- Keys: `WALK_KEYS` as before, and the sinking keys C, Control and Shift; Q and R add −1 and +1 to `Controls.gears` (as
+  a wheel step), B rings (on the bicycle). `Intents.sink` is held by those keys, the Down button (`Controls.sink`) or a
+  pad's B; flying (the helicopter or the free camera), up is `jump − sink`.
 - `padOf(pad, before)` reads the first connected standard gamepad each frame: `stick` from the left stick, its y plus
-  the right trigger less the left (clamped to −1 to 1), each axis zero within `DEAD_ZONE` 0.15; `jump` while A is held;
-  `look` the right stick times `PAD_LOOK` 900 px a second; presses (`use` Y, `ring` X, `gears` RB less LB, `fly` View)
-  on the frame a button goes down. `Controls.pad` holds the stick and jump; `intentsOf` takes the touch stick, else the
-  pad's, and jumps on either.
+  the right trigger less the left (clamped to −1 to 1), each axis zero within `DEAD_ZONE` 0.15; `jump` while A is held,
+  `sink` while B is; `look` the right stick times `PAD_LOOK` 900 px a second; presses (`use` Y, `ring` X, `gears` RB
+  less LB, `fly` View) on the frame a button goes down. `Controls.pad` holds the stick and jump; `intentsOf` takes the
+  touch stick, else the pad's, and jumps on either.
 
 ## Errors and edge cases
 
@@ -509,6 +602,14 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 | No gamepad, or not standard mapping | Nothing read; a pad without the standard mapping is ignored                   |
 | Bars at their stop                  | The steer rate zeroed there                                                   |
 | Held steer near 0.58 m/s            | Its stiffness passes zero: the held steer is clamped to the bars' stop        |
+| No open ground for the helicopter   | No helicopter in the walk; `explore/no-helipad`                               |
+| Getting out of a flying helicopter  | The prompt "Land to get out of the helicopter", disabled; E does nothing      |
+| Rotor over a taller building        | Held up by it and eased off its edge; HUD says "no room" before it gets there |
+| Hard hit in the helicopter          | Rotor speed lost, the disc jolted; `explore/heli-hit lost`                    |
+| Rotor still on boarding             | Cannot lift until the rotor turns at `hoverShare`                             |
+| Above the ceiling                   | The climb asked is held to come back to 500 m                                 |
+| Stepping out on a roof's edge       | The side with a floor at the vehicle's level                                  |
+| No Sketchfab token for the build    | The committed helicopter is kept; said in the build's output                  |
 
 ## Observability
 
@@ -518,7 +619,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 `explore/arcade reason (engine detail | slow load)`, `explore/crash car lost`, `explore/righted car`,
 `explore/no-hull lot`, `explore/traffic cars`, `explore/garage load` (when the walk ends), `explore/thrown cause speed`
 (the speed thrown at) (cause `hit`, `grip` or `lean`), `explore/up`, `explore/bell`, `explore/bell-silent`,
-`explore/gamepad id` (once, when first read), and the loading card's `viewer/load-phase source=explore`.
+`explore/gamepad id` (once, when first read), `explore/helipad x z`, `explore/no-helipad`, `explore/heli-landed on y`
+(`on` `roof` or `street`), `explore/heli-lifted`, `explore/heli-hit lost`, and the loading card's
+`viewer/load-phase source=explore`.
 
 ## Performance and limits
 
@@ -538,6 +641,8 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   among them) 9 MB: within the walk's budget of 64 MB and 32 MB. Drawn in software (SwiftShader, Chromium's default
   headless) the same drive manages 24.5 to 30 fps: the drawing binds there, not the walk.
 - The motorbike's models: 255 KB. Rapier's chunk: 1.6 MB gzipped, now loaded on every walk behind the card.
+- The helicopter (Bun, desktop): a flown step through 10,000 buildings 3.2 µs (its four wall moves and the ray down),
+  0.04 % of the time at 120 Hz. Its model 107 KB.
 - Parking: `parkedIn` 1.8 ms for takken.io (115 kept) and 2.9 ms for livediagram (4,135 lots, 200 kept); at most
   `PARKED_MOST` 200 vehicles in the session (each step's `clearOfVehicles` and `reachable` skip a vehicle by its box
   first), and the canvas draws at most 16 models.
@@ -557,9 +662,19 @@ slide under braking leaned, tracking the lean at 6 to 40 m/s, riding straight, t
 gearbox. The nearby streets: reach, ties, cells below zero, the plan, re-centring. The garage against real Rapier:
 counted opening, cancelling, a hull it cannot make, the budget, re-centring by a wall 600 m off, pulling away through
 the gears, braking then reversing, the handbrake's slide, a crash, righting, pushing a parked car, two-wheelers in the
-way, letting go and bringing back, traffic, keeping up. The descent's order and every failure; the HUD of each ride. End
-to end: loading once (its four phases), the motorbike (throttle, gears, both brakes, off), the car on Rapier (engine,
-gears, reverse, parked where it stopped), arcade cars without WebAssembly, and each ride's touch layout with nothing
-overlapping, upright and on its side. End to end (`e2e/explore.spec.ts`): walking by keys and by touch, the loading log,
-getting on the bicycle and off, riding it (pedal, shift, brake, stop with a foot down, the HUD), the Rapier prototype,
-Wobble Blocks loaded, axe light and dark.
+way, letting go and bringing back, traffic, keeping up. The descent's order and every failure; the HUD of each ride. The
+helicopter: spin-up to full in five seconds, staying down with the collective down, spin-down slower, blades turning
+with the rotor, no lift below `hoverShare`; ground effect's cushion and its fade; height held let go, the most climb and
+sink, a soft landing, the ceiling, height kept flying ahead; the cyclic's tilt, about 200 km/h, backwards, levelling to
+a hover; the tail rotor turning on the spot, holding its heading, a banked turn and its levelling; on its skids;
+thrust's axis and `tiltedOf`; contact (a slide, a hard hit, a landing, lifting off, held by its rotor); through walls (a
+wall as high as the rotor, a brush, over a low building, the cabin, a roof landing, perched and eased off, `belowOf`,
+`roomToLand`); the helipad (ahead, past buildings, clear of a parked car, behind, none); boarding, the prompt, the
+camera, landing and spinning down in the session; stepping out onto the roof's side; the view's Up and Down on a roof
+and a hit and landing by keys, logged. End to end: in, spun up, lifted, homed in on the nearest lot (from the helipad's
+place and the HUD's heading) until over a roof with room, landed on it, out on the roof and in reach again, with the
+touch layout measured upright and on its side. End to end: loading once (its four phases), the motorbike (throttle,
+gears, both brakes, off), the car on Rapier (engine, gears, reverse, parked where it stopped), arcade cars without
+WebAssembly, and each ride's touch layout with nothing overlapping, upright and on its side. End to end
+(`e2e/explore.spec.ts`): walking by keys and by touch, the loading log, getting on the bicycle and off, riding it
+(pedal, shift, brake, stop with a foot down, the HUD), the Rapier prototype, Wobble Blocks loaded, axe light and dark.

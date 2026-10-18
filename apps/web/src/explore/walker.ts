@@ -4,15 +4,19 @@
 
 import type { Vec3, Walls } from "@citymap/world";
 
-/** What the person means to do: walk forward (−1 to 1) and to the right (−1 to 1), run, jump. */
+/**
+ * What the person means to do: walk forward (−1 to 1) and to the right (−1 to 1), run, jump (or rise, flying), and sink
+ * (flying: the helicopter or the free camera).
+ */
 export interface Intents {
   readonly forward: number;
   readonly right: number;
   readonly run: boolean;
   readonly jump: boolean;
+  readonly sink: boolean;
 }
 
-export const NO_INTENTS: Intents = { forward: 0, right: 0, run: false, jump: false };
+export const NO_INTENTS: Intents = { forward: 0, right: 0, run: false, jump: false, sink: false };
 
 /** Where the person's feet are, how fast they rise or fall, which way they face, and whether they stand on something. */
 export interface Body {

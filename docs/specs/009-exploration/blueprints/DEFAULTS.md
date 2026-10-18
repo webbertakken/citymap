@@ -79,3 +79,19 @@ One row per value the exploration spec leaves silent or qualitative.
 | Pickups                 | 35 % of cars, drawn at 4.6 m                     | two shapes in the street; wheels match the car's physics                  | taste                     |
 | Measuring traffic       | ?traffic=n, throttle 0.35, steering ±0.4         | slow circles near the player, for the phone measure                       | a measuring aid           |
 | Load phases             | engine 0.35, models 0.15, walls 0.3, streets 0.2 | the engine and linux's walls the longest (takken.io: 159, 68, 7, 6 ms)    | taste                     |
+| Helicopter build        | 2,250 kg, rotor 5.35 m, mast 3.06 m              | the AS350 B2's most at take-off, rotor and mesh                           | fixed by the model        |
+| Most thrust             | 1.5 of its weight                                | climbs briskly; lifts at 73 % rotor on the ground                         | 1.3 to 2                  |
+| Rotor spin              | up 0.2 a second, down 0.08                       | five seconds to fly, as GTA's; a slower wind-down                         | taste                     |
+| Climb and sink          | 8 and 6 m/s, 1.5 m/s within 1.5 s of below       | brisk on a keyboard; touches down under 1 m/s                             | taste                     |
+| Ceiling                 | 500 m                                            | the city's tallest are well under; fog bounds the far plane at 4 km       | 200 to 1,000 m            |
+| Cyclic                  | 0.3 rad, spring 5 rad/s                          | about 200 km/h flat out, under the Écureuil's 287 km/h                    | 0.2 to 0.4 rad            |
+| Hover assist            | 0.04 per m/s, at most 0.2 rad                    | slows itself to a hover, never nose up past 11°                           | taste                     |
+| Bank                    | at most 0.6 rad, coordinated                     | a turn at speed follows its nose                                          | 0.4 to 0.8 rad            |
+| Tail rotor              | 1.2 rad/s, gain 5, most 4 rad/s²                 | a hover turns round in five seconds; heading held in a climb              | taste                     |
+| Drag areas              | 3.5 m² ahead, 12 m² aside                        | top speed about 200 km/h; drift dies sideways                             | taste                     |
+| Hard hit                | 5 m/s lost; rotor −4 % per m/s, at most half     | a brush slides; a crash nearly brings it down                             | 3 to 8 m/s                |
+| Perch slide             | probe 0.6 m, eased at 4 m/s²                     | past a step's climb (0.45 m); off the edge in a second or two             | taste                     |
+| Helipad                 | 24 to 400 m on, every 2 m, 0.5 m margin          | in sight of the landing, clear of the kerbs' vehicles                     | taste                     |
+| Level                   | 2 m                                              | a walker and a vehicle further apart in height are on different levels    | 1 to 3 m                  |
+| Helicopter camera       | 15 m, 4 m up, +0.1 s · v to 22 m, chase 0.6 s    | the rotor and the city ahead in view                                      | taste                     |
+| Helicopter model        | albedo 512 px WebP, meshopt                      | 107 KB, inside the 500 KB budget                                          | 256 to 1,024 px           |

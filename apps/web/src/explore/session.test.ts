@@ -1,7 +1,8 @@
-import { PERSON_RADIUS, type Vec3, type Walls } from "@citymap/world";
+import { GROUND, PERSON_RADIUS, cityWalls, type Vec3, type Walls } from "@citymap/world";
 import { describe, expect, it } from "vitest";
 import { START_GEAR, resting, type Cycle } from "./bicycle";
 import { LOOK_SPEED, ON_FOOT, START_PITCH } from "./camera";
+import { parkedHeli } from "./helicopter";
 import { parkedMoto } from "./motorbike";
 import type { Garage } from "./physics/garage";
 import {
@@ -21,8 +22,19 @@ import {
   shownVehicles,
   startSession,
   turnBetweenQuats,
+  type Session,
 } from "./session";
-import { CAR, VEHICLES, standing, yawOf, type Bicycle, type Car, type Motorbike, type Vehicle } from "./vehicles";
+import {
+  CAR,
+  VEHICLES,
+  standing,
+  yawOf,
+  type Bicycle,
+  type Car,
+  type Helicopter,
+  type Motorbike,
+  type Vehicle,
+} from "./vehicles";
 import { RUN_SPEED, WALK_SPEED } from "./walker";
 
 /** The vehicle as a bicycle, failing the test when it is not one. */
@@ -34,6 +46,11 @@ const asBicycle = (vehicle: Vehicle | null | undefined): Bicycle => {
 /** The vehicle as a car, failing the test when it is not one. */
 const asCar = (vehicle: Vehicle | null | undefined): Car => {
   if (vehicle?.kind !== "car") throw new Error(`expected a car, got ${vehicle?.kind ?? "nothing"}`);
+  return vehicle;
+};
+/** The vehicle as a helicopter, failing the test when it is not one. */
+const asHelicopter = (vehicle: Vehicle | null | undefined): Helicopter => {
+  if (vehicle?.kind !== "helicopter") throw new Error(`expected a helicopter, got ${vehicle?.kind ?? "nothing"}`);
   return vehicle;
 };
 /** The vehicle as a motorbike, failing the test when it is not one. */
@@ -88,7 +105,7 @@ describe("advanceSession", () => {
 
   it("follows a gamepad's stick and its A button, as the touch stick and the jump button", () => {
     const controls = newControls();
-    controls.pad = { stick: { x: 0, y: 1 }, jump: true };
+    controls.pad = { stick: { x: 0, y: 1 }, jump: true, sink: false };
     const session = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0), controls, STEP, open);
     expect(session.body.feet.x).toBeGreaterThan(0);
     expect(session.body.grounded).toBe(false);
@@ -473,8 +490,87 @@ describe("a car on Rapier", () => {
   });
 });
 
+const flat = cityWalls([]);
+// A helicopter parked on the street east of the walker, facing east; its cabin's door within reach.
+const parkedHelicopter = () =>
+  startSession({ x: 0, y: GROUND, z: 2.5 }, 0, [
+    standing("helicopter", "helicopter", { x: 0, y: GROUND, z: 0 }, 0),
+    // A bicycle far off, left alone as the helicopter spins down.
+    standing("bicycle", "bicycle", { x: 200, y: GROUND, z: 0 }, 0),
+  ]);
+/** A session advanced so many seconds, a frame a sixtieth, under held keys. */
+const fly = (session: Session, seconds: number, ...keys: string[]) => {
+  let next = session;
+  for (let i = 0; i < Math.round(seconds * 60); i++) next = advanceSession(next, pressing(...keys), 1 / 60, flat);
+  return next;
+};
+
+/** Boarded: in the helicopter, its engine started. */
+const boarded = () => advanceSession(parkedHelicopter(), useKey(), 0, flat);
+
+describe("the helicopter", () => {
+  it("starts its engine as it is boarded, spins up, and climbs while Space is held", () => {
+    expect(promptWords(promptOf(parkedHelicopter())!)).toBe("Get in the helicopter");
+    const inside = advanceSession(parkedHelicopter(), useKey(), 0, flat);
+    expect(inside.riding).toBe("helicopter");
+    expect(asHelicopter(ridden(inside)).heli.engine).toBe(true);
+    expect(followOf(inside)).toEqual(VEHICLES.helicopter.follow);
+    const up = fly(inside, 12, "Space");
+    expect(up.body.feet.y).toBeGreaterThan(GROUND + 10);
+  });
+
+  it("says to land before getting out while it flies, and E does nothing", () => {
+    const aloft = fly(boarded(), 10, "Space");
+    expect(promptOf(aloft)).toEqual({ action: "leave", kind: "helicopter", ready: false });
+    expect(promptWords(promptOf(aloft)!)).toBe("Land to get out of the helicopter");
+    expect(advanceSession(aloft, useKey(), 0, flat).riding).toBe("helicopter");
+  });
+
+  it("keeps the camera behind it as it turns on the spot", () => {
+    const aloft = fly(boarded(), 10, "Space");
+    const turned = fly(aloft, 1, "KeyD");
+    expect(turned.speed).toBeLessThan(1);
+    expect(ridden(turned)!.heading).toBeLessThan(-0.5);
+    expect(turned.orbit.yaw).toBeLessThan(-0.3);
+  });
+
+  it("lands with C held, lets the walker out beside it, and spins down as they walk away", () => {
+    const aloft = fly(boarded(), 10, "Space");
+    const landed = fly(aloft, 15, "KeyC");
+    expect(asHelicopter(ridden(landed)).heli.grounded).toBe(true);
+    const out = advanceSession(landed, useKey(), 0, flat);
+    expect(out.riding).toBeNull();
+    const left = asHelicopter(out.vehicles[0]);
+    expect(left.heli.engine).toBe(false);
+    expect(Math.hypot(out.body.feet.x - left.feet.x, out.body.feet.z - left.feet.z)).toBeGreaterThan(
+      VEHICLES.helicopter.width / 2,
+    );
+    const later = fly(out, 1, "KeyS");
+    expect(asHelicopter(later.vehicles[0]).heli.rotor).toBeLessThan(left.heli.rotor);
+    expect(asHelicopter(later.vehicles[0]).feet).toEqual(left.feet);
+    expect(later.vehicles[1]).toBe(out.vehicles[1]);
+  });
+});
+
 describe("shown between steps", () => {
   const session = betweenSteps;
+
+  it("tilts a helicopter half way, its blades turned the short way round", () => {
+    const before = standing("h", "helicopter", { x: 0, y: 10, z: 0 }, 0);
+    const after: Helicopter = {
+      ...before,
+      feet: { x: 0, y: 12, z: 0 },
+      heli: { ...parkedHeli(), pitch: 0.2, roll: -0.1, blades: 0.1, tail: 2 },
+    };
+    const turned: Helicopter = { ...before, heli: { ...before.heli, blades: 2 * Math.PI - 0.1, tail: 1 } };
+    const shown = asHelicopter(shownVehicles(session(turned, after))[0]);
+    expect(shown.heli.pitch).toBeCloseTo(0.1, 9);
+    expect(shown.heli.roll).toBeCloseTo(-0.05, 9);
+    expect(shown.heli.blades).toBeCloseTo(2 * Math.PI, 9);
+    expect(shown.heli.tail).toBeCloseTo(1.5, 9);
+    expect(shown.feet.y).toBeCloseTo(11, 9);
+    expect(shownVehicles(session(standing("h", "car", { x: 0, y: 0, z: 0 }, 0), after))[0]).toBe(after);
+  });
 
   it("turns a car half way, the short way round", () => {
     const before = standing("car", "car", { x: 0, y: 0, z: 0 }, 0);

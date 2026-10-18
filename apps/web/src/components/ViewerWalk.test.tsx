@@ -72,6 +72,34 @@ const show = async (raise: RaiseWalls, with_: Fetcher = fetcher) => {
 const walkButton = () => screen.getByRole("button", { name: "Walk" });
 
 describe("Viewer walking", () => {
+  it("stands the city's helicopter along the landing's road, or says there is no open ground for it", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    // Open ground seen clear all the way.
+    const walls: Walls = {
+      ...openWalls().walls,
+      clearance: (from, to) => Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z),
+    };
+    await show(async () => walls);
+    fireEvent.click(walkButton());
+    await screen.findByTestId("explore-canvas");
+    const lines = () => info.mock.calls.map(([line]) => String(line));
+    expect(lines().find((l) => l.startsWith("explore/helipad"))).toMatch(/^explore\/helipad x=-?\d+\.\d z=-?\d+\.\d$/);
+    cleanup();
+    info.mockClear();
+    // Walls that push anything as wide as a rotor: nowhere is open enough.
+    const crowded: Walls = {
+      ...walls,
+      move: (feet, delta, radius) => ({
+        feet: { x: feet.x + delta.x + ((radius ?? 0) > 3 ? 1 : 0), y: feet.y, z: feet.z + delta.z },
+        grounded: true,
+      }),
+    };
+    await show(async () => crowded);
+    fireEvent.click(walkButton());
+    await screen.findByTestId("explore-canvas");
+    expect(lines()).toContain("explore/no-helipad");
+  });
+
   it("goes down into the city once its walls are raised, and hides what belongs to the map", async () => {
     const { walls } = openWalls();
     const raised: Footprint[][] = [];

@@ -28,6 +28,16 @@ export interface Rig {
   readonly pedals?: { readonly arm: number; readonly out: number };
   /** A bicycle's grips, in its fork's own frame, so they turn with the bars: where a rider's hands go. */
   readonly grips?: { readonly left: Grip; readonly right: Grip };
+  /**
+   * A helicopter's rotors by name: the main one turns about its own upright, the tail one about its own `tailAxis`;
+   * `hub` is how far ahead of the model's middle its mast stands, in metres.
+   */
+  readonly rotors?: {
+    readonly main: string;
+    readonly tail: string;
+    readonly tailAxis: "x" | "z";
+    readonly hub: number;
+  };
 }
 
 /** A point in a part's own frame. */
@@ -78,6 +88,15 @@ export const RIGS = {
     pegs: { left: [0.204, 0.171, -0.223], right: [0.204, 0.171, 0.223] },
     grips: { left: [-0.145, 0.652, -0.48], right: [-0.145, 0.652, 0.48] },
   },
+  // ArcheoteryxFr's AS350 B2, rigged by the model build (its rotors hung from their hubs), in metres: the mast 1.99 m
+  // ahead of the model's middle, the tail rotor turning about the file's x.
+  helicopter: {
+    wheels: [],
+    radius: 1,
+    roll: { axis: "x", sign: 1 },
+    front: 0,
+    rotors: { main: "helicopter_rotor", tail: "helicopter_tail_rotor", tailAxis: "x", hub: 1.99 },
+  },
 } as const satisfies Record<string, Rig>;
 
 /** The procedural stand-ins, built facing +x, drawn when a model cannot load. */
@@ -119,6 +138,13 @@ export const PROCEDURAL_RIGS = {
     roll: { axis: "z", sign: -1 },
     front: 1.3,
   },
+  helicopter: {
+    wheels: [],
+    radius: 1,
+    roll: { axis: "z", sign: -1 },
+    front: 0,
+    rotors: { main: "rotor-main", tail: "rotor-tail", tailAxis: "z", hub: -0.1 },
+  },
 } as const satisfies Record<string, Rig>;
 
 /**
@@ -158,4 +184,21 @@ export function poseVehicle(model: Object3D, rig: Rig, pose: Pose) {
   model.rotation.set(-pose.lean, 0, -pose.pitch, "XYZ");
   const contact = new Vector3(pose.pitch < 0 ? -(rig.back ?? rig.front) : rig.front, 0, 0);
   model.position.copy(contact).sub(contact.clone().applyEuler(new Euler(-pose.lean, 0, -pose.pitch, "XYZ")));
+}
+
+/**
+ * Poses a helicopter's model by its rig: its main rotor turned to the blades' angle (clockwise from above, as the
+ * Écureuil's turns), its tail rotor to its own, and the model moved so its mast stands over the group's origin. Its
+ * tilt is its group's.
+ */
+export function poseHelicopter(
+  model: Object3D,
+  rig: Rig,
+  { blades, tail }: { readonly blades: number; readonly tail: number },
+) {
+  const rotors = rig.rotors!;
+  model.getObjectByName(rotors.main)?.rotation.set(0, -blades, 0);
+  const spinner = model.getObjectByName(rotors.tail);
+  spinner?.rotation.set(rotors.tailAxis === "x" ? tail : 0, 0, rotors.tailAxis === "z" ? tail : 0);
+  model.position.set(-rotors.hub, 0, 0);
 }

@@ -2,7 +2,8 @@
 // The city at eye height: a perspective camera over the walker's shoulder, the city's meshes as the map draws them, the
 // walker and the nearest of the vehicles parked about (from a pool of models), drawn every frame while the walk goes on.
 // On a bicycle or a motorbike the rider sits in its frame, leaning and pitching with it, hands on the bars, feet on the
-// pedals or the pegs, or a foot on the ground; a car is drawn by its whole turn, on its springs or on its side.
+// pedals or the pegs, or a foot on the ground; a car is drawn by its whole turn, on its springs or on its side; the
+// helicopter tilted as it flies, its rotors turning with its rotor's speed.
 import type { Theme } from "@citymap/themes";
 import { PerspectiveCamera } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -31,14 +32,22 @@ import {
   reachFor,
   thrownPose,
 } from "../explore/models/pedalling";
-import { bicycle, car, figure, motorbike, paletteOf } from "../explore/models/procedural";
-import { PROCEDURAL_RIGS, RIGS, poseVehicle, type Rig } from "../explore/models/rig";
+import { bicycle, car, figure, helicopter, motorbike, paletteOf } from "../explore/models/procedural";
+import { PROCEDURAL_RIGS, RIGS, poseHelicopter, poseVehicle, type Rig } from "../explore/models/rig";
 import { poseStride, swingOf } from "../explore/models/stride";
 import { assignPool } from "../explore/pool";
 import { BASE, FLOOR } from "../explore/sight";
 import { SIGN_POOL, middleOf, nearestLots, wallFacing, type Wall } from "../explore/signs";
 import { METRE } from "../explore/street";
-import { MODEL_KINDS, VEHICLE_POOL, modelOf, nearestOf, type ModelKind, type Vehicle } from "../explore/vehicles";
+import {
+  MODEL_KINDS,
+  VEHICLE_POOL,
+  modelOf,
+  nearestOf,
+  tiltedOf,
+  type ModelKind,
+  type Vehicle,
+} from "../explore/vehicles";
 import { log, reasonOf } from "../log";
 import { Buildings, Mesh } from "./CityMeshes";
 import type { ExploreCanvasProps, Signage } from "./ExploreView";
@@ -216,6 +225,7 @@ const FILES = {
   pickup: GLTF_MODELS.pickup,
   motorbike: GLTF_MODELS.motorbike,
   bicycle: GLTF_MODELS.bicycle,
+  helicopter: GLTF_MODELS.helicopter,
 } as const satisfies Record<ModelKind | "person", ModelFile>;
 type Models = { readonly [K in keyof typeof FILES]: Promise<Loaded | null> };
 let models: Models | null = null;
@@ -227,6 +237,7 @@ const modelsNow = (): Models => {
     pickup: loading(FILES.pickup),
     motorbike: loading(FILES.motorbike),
     bicycle: loading(FILES.bicycle),
+    helicopter: loading(FILES.helicopter),
   };
   return models;
 };
@@ -252,6 +263,7 @@ function slotOf(kind: ModelKind, loaded: Loaded | null, theme: Theme): Slot {
   if (loaded) return { kind, model: loaded.make(), rig: kind === "saloon" ? RIGS.car : RIGS[kind] };
   if (kind === "bicycle") return { kind, model: bicycle(palette), rig: PROCEDURAL_RIGS.bicycle };
   if (kind === "motorbike") return { kind, model: motorbike(palette), rig: PROCEDURAL_RIGS.motorbike };
+  if (kind === "helicopter") return { kind, model: helicopter(palette), rig: PROCEDURAL_RIGS.helicopter };
   return { kind, model: car(palette), rig: PROCEDURAL_RIGS.car };
 }
 
@@ -272,6 +284,13 @@ function placeVehicle(slot: Slot, group: Object3D, vehicle: Vehicle, rolled: Rol
   rolled.set(vehicle.id, now);
   group.visible = true;
   group.position.set(vehicle.feet.x * METRE, vehicle.feet.y * METRE, vehicle.feet.z * METRE);
+  if (vehicle.kind === "helicopter") {
+    const { heli } = vehicle;
+    const turn = tiltedOf(vehicle.heading, heli.pitch, heli.roll);
+    group.quaternion.set(turn.x, turn.y, turn.z, turn.w);
+    poseHelicopter(slot.model, slot.rig, heli);
+    return;
+  }
   if (vehicle.kind === "car")
     group.quaternion.set(vehicle.attitude.x, vehicle.attitude.y, vehicle.attitude.z, vehicle.attitude.w);
   else group.rotation.set(0, vehicle.heading, 0);
@@ -356,6 +375,7 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
   const pickup = use(files.pickup);
   const motorbikeFile = use(files.motorbike);
   const bicycleFile = use(files.bicycle);
+  const helicopterFile = use(files.helicopter);
   const model = useMemo(() => loaded?.make() ?? figure(paletteOf(theme)), [loaded, theme]);
   const animator = useMemo(() => (loaded ? new Animator(model, loaded.clips) : null), [loaded, model]);
   const limbs = useMemo(() => ({ legs: legsOf(model), arms: armsOf(model) }), [model]);
@@ -367,11 +387,12 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
       pickup,
       motorbike: motorbikeFile,
       bicycle: bicycleFile,
+      helicopter: helicopterFile,
     };
     return MODEL_KINDS.flatMap((kind) =>
       Array.from({ length: VEHICLE_POOL[kind] }, () => slotOf(kind, byKind[kind], theme)),
     );
-  }, [saloon, pickup, motorbikeFile, bicycleFile, theme]);
+  }, [saloon, pickup, motorbikeFile, bicycleFile, helicopterFile, theme]);
   const showing = useRef<Showing[]>([]);
   const placed = useRef<Object3D>(null);
   const rolled = useRef<Rolled>(new Map());
@@ -408,7 +429,8 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
       else group.visible = false;
     });
     const ridden = riding === null ? undefined : byId.get(riding);
-    walker.visible = ridden?.kind !== "car";
+    // In a car or the helicopter, the walker is inside, out of sight.
+    walker.visible = ridden?.kind !== "car" && ridden?.kind !== "helicopter";
     walker.scale.setScalar(METRE);
     const at = shows.findIndex((s) => s.id === riding);
     const ridingGroup = shows[at]?.group;

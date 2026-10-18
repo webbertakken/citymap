@@ -1,4 +1,5 @@
-// Devices as intents: held keys, a touch stick, a jump button and a gamepad become what the walker means to do. Pure.
+// Devices as intents: held keys, a touch stick, jump and down buttons and a gamepad become what the walker means to do.
+// Pure.
 import type { Intents } from "./walker";
 
 /** A touch stick's push: right and forward, each −1 to 1, never beyond the unit circle. */
@@ -14,9 +15,19 @@ const LEFT = ["KeyA", "ArrowLeft"];
 const RIGHT = ["KeyD", "ArrowRight"];
 const RUN = ["ShiftLeft", "ShiftRight"];
 const JUMP = ["Space"];
+/** Flying (the helicopter or the free camera), these sink as Space rises. */
+const SINK = ["KeyC", "ControlLeft", "ControlRight", ...RUN];
 
 /** Every key the walker answers to: the view keeps them from the page while exploring. */
-export const WALK_KEYS: ReadonlySet<string> = new Set([...FORWARD, ...BACK, ...LEFT, ...RIGHT, ...RUN, ...JUMP]);
+export const WALK_KEYS: ReadonlySet<string> = new Set([
+  ...FORWARD,
+  ...BACK,
+  ...LEFT,
+  ...RIGHT,
+  ...RUN,
+  ...JUMP,
+  ...SINK,
+]);
 
 /** A stick pushed at least this far runs. */
 export const RUN_PUSH = 0.9;
@@ -26,14 +37,15 @@ const axis = (keys: ReadonlySet<string>, plus: readonly string[], minus: readonl
   (held(keys, plus) ? 1 : 0) - (held(keys, minus) ? 1 : 0);
 
 /**
- * What the held keys, the touch stick (when pushed), the jump button and a gamepad mean: the touch stick wins over the
- * pad's, and either over the keys.
+ * What the held keys, the touch stick (when pushed), the jump and down buttons and a gamepad mean: the touch stick wins
+ * over the pad's, and either over the keys.
  */
 export function intentsOf(
   keys: ReadonlySet<string>,
   stick: Stick | null,
   jumping: boolean,
   pad: Pad | null = null,
+  sinking = false,
 ): Intents {
   const touched = stick && (stick.x !== 0 || stick.y !== 0) ? stick : null;
   const padded = pad && (pad.stick.x !== 0 || pad.stick.y !== 0) ? pad.stick : null;
@@ -43,6 +55,7 @@ export function intentsOf(
     right: pushed ? pushed.x : axis(keys, RIGHT, LEFT),
     run: pushed ? Math.hypot(pushed.x, pushed.y) >= RUN_PUSH : held(keys, RUN),
     jump: jumping || (pad?.jump ?? false) || held(keys, JUMP),
+    sink: sinking || (pad?.sink ?? false) || held(keys, SINK),
   };
 }
 
@@ -53,10 +66,11 @@ export interface PadState {
   readonly buttons: readonly { readonly pressed: boolean; readonly value: number }[];
 }
 
-/** A pad's part in the intents: its stick (the left stick, with the triggers pedalling and braking) and A held. */
+/** A pad's part in the intents: its stick (the left stick, with the triggers pedalling and braking), A and B held. */
 export interface Pad {
   readonly stick: Stick;
   readonly jump: boolean;
+  readonly sink: boolean;
 }
 
 /** What a pad's buttons asked for on the frame they went down: get on or off, ring, fly, and gear steps. */
@@ -73,7 +87,7 @@ export const DEAD_ZONE = 0.15;
 export const PAD_LOOK = 900;
 
 /** The standard mapping's buttons and axes. */
-const PAD = { a: 0, x: 2, y: 3, lb: 4, rb: 5, lt: 6, rt: 7, view: 8 } as const;
+const PAD = { a: 0, b: 1, x: 2, y: 3, lb: 4, rb: 5, lt: 6, rt: 7, view: 8 } as const;
 
 /** An axis with its dead zone taken out: zero within it, rising from zero past it to one at the end. */
 const live = (value: number) =>
@@ -96,6 +110,7 @@ export function padOf(state: PadState, before: readonly boolean[], seconds: numb
       y: Math.max(-1, Math.min(1, -live(state.axes[1] ?? 0) + value(PAD.rt) - value(PAD.lt))),
     },
     jump: pressed[PAD.a] ?? false,
+    sink: pressed[PAD.b] ?? false,
   };
   const presses: PadPresses = {
     use: down(PAD.y),
