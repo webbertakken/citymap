@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { slowToPhone } from "./phone";
+import { cannotTimeAPhone, slowToPhone } from "./phone";
 
 // Core Web Vitals as the viewer spec sets them: the largest paint is text painted before the scene loads, nothing
 // shifts, and every interaction answers within 200 ms on a phone (here with its processor slowed fourfold).
@@ -72,6 +72,8 @@ test("answers every interaction within 200 ms on a slowed phone", async ({ page,
   test.skip(!isMobile, "the phone budget");
   await record(page);
   await page.goto("/");
+  const why = await cannotTimeAPhone(page);
+  test.skip(why !== null, why ?? "");
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("button", { name: /^livediagram/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("livediagram");

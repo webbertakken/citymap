@@ -57,3 +57,28 @@ export async function slowToPhone(page: Page): Promise<number> {
   console.log(`e2e/phone work=${measured.toFixed(1)} rate=${rate.toFixed(2)}`);
   return rate;
 }
+
+/** Below this many cores, software drawing is too slow to stand for a phone's GPU. */
+export const SOFTWARE_DRAWING_CORES = 8;
+
+/**
+ * Why this browser cannot time a phone's answers, or null when it can. Without a GPU Chromium draws WebGL in software
+ * (SwiftShader) across the processor's cores: a workstation's many cores keep up with a phone's GPU, a 4-core CI runner
+ * does not, and no slowing of the main thread corrects for that. The budget then gates where it can be measured: the
+ * local run before every merge.
+ */
+export async function cannotTimeAPhone(page: Page): Promise<string | null> {
+  const { renderer, cores } = await page.evaluate(() => {
+    const gl = document.createElement("canvas").getContext("webgl");
+    const info = gl?.getExtension("WEBGL_debug_renderer_info");
+    return {
+      renderer: gl && info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "none",
+      cores: navigator.hardwareConcurrency,
+    };
+  });
+  const software = /SwiftShader|llvmpipe|Software/i.test(renderer);
+  console.log(`e2e/drawing software=${software} cores=${cores}`);
+  return software && cores < SOFTWARE_DRAWING_CORES
+    ? `software drawing on ${cores} cores cannot stand for a phone's GPU; this budget gates in the local run`
+    : null;
+}
