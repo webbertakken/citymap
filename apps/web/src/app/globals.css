@@ -1367,7 +1367,8 @@ mark {
 /* The bicycle's numbers: speed, gear and cadence, in a row in the walk's card. */
 .explore-hud dl {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 4px 16px;
   margin: 0;
 }
 .explore-hud dt {
@@ -1479,7 +1480,8 @@ mark {
       "up primary"
       "down primary";
   }
-  .explore-dock[data-pad="flying"] .explore-pad {
+  .explore-dock[data-pad="flying"] .explore-pad,
+  .explore-dock[data-pad="helicopter"] .explore-pad {
     grid-template-areas:
       ". fly"
       "sink primary";
@@ -1542,8 +1544,15 @@ mark {
     left: var(--gap);
     grid-template-columns: 1fr auto;
     align-items: center;
-    width: min(360px, calc(50% - var(--gap)));
+    width: min(440px, calc(50% - var(--gap)));
     translate: none;
+  }
+  /* The helicopter's five readings on one line, so the card ends above the stick. */
+  .explore-hud dl {
+    gap: 2px 12px;
+  }
+  .explore-hud dd {
+    font-size: 15px;
   }
   .explore-card > * {
     grid-column: 1 / -1;

@@ -1,5 +1,7 @@
+import { GROUND } from "@citymap/world";
 import { describe, expect, it } from "vitest";
 import { resting } from "./bicycle";
+import { started, parkedHeli } from "./helicopter";
 import { hudOfRide } from "./hud";
 import { parkedMoto } from "./motorbike";
 import { standing } from "./vehicles";
@@ -18,6 +20,7 @@ describe("the HUD of a ride", () => {
       ],
       foot: "up",
       fallen: false,
+      flight: null,
     });
     const down = { ...bicycle, cycle: { ...resting(), fall: { time: 0, side: 1, cause: "hit", speed: 4 } } } as const;
     expect(hudOfRide(down, true)).toMatchObject({ foot: "down", fallen: true });
@@ -34,6 +37,7 @@ describe("the HUD of a ride", () => {
       ],
       foot: "down",
       fallen: false,
+      flight: null,
     });
     const thrown = {
       ...moto,
@@ -50,6 +54,44 @@ describe("the HUD of a ride", () => {
       ["Engine", "2,300 rpm"],
     ]);
     expect(hudOfRide({ ...car, gear: 1 }, true).rows[1]).toEqual(["Gear", "2"]);
-    expect(hudOfRide(car, false)).toEqual({ label: "Speed", rows: [["Speed", "11 km/h"]], foot: null, fallen: false });
+    expect(hudOfRide(car, false)).toEqual({
+      label: "Speed",
+      rows: [["Speed", "11 km/h"]],
+      foot: null,
+      fallen: false,
+      flight: null,
+    });
+  });
+
+  it("says the helicopter's altitude above the street, its climb, speed and rotor, and what lies under it", () => {
+    const flying = {
+      ...standing("h", "helicopter", { x: 0, y: GROUND + 42.4, z: 0 }, 0),
+      heli: { ...started(parkedHeli()), grounded: false, rotor: 0.874, velocity: { x: 10, y: -2.46, z: 0 } },
+    };
+    expect(hudOfRide(flying, true, GROUND + 20)).toEqual({
+      label: "Altitude, climb, speed and rotor",
+      rows: [
+        ["Altitude", "42 m"],
+        ["Climb", "−2.5 m/s"],
+        ["Speed", "36 km/h"],
+        ["Rotor", "87 %"],
+        ["Below", "Roof"],
+      ],
+      foot: null,
+      fallen: false,
+      flight: { over: "roof", landed: false, heading: 0, room: true },
+    });
+    // A taller building within the rotor's reach: no room to land.
+    expect(hudOfRide(flying, true, GROUND + 20, false).rows[4]).toEqual(["Below", "Roof, no room"]);
+    expect(hudOfRide(flying, true, GROUND, false).rows[4]).toEqual(["Below", "Street, no room"]);
+    expect(hudOfRide(flying, true, GROUND, false).flight?.room).toBe(false);
+    const climbing = { ...flying, heli: { ...flying.heli, velocity: { x: 0, y: 3, z: 0 } } };
+    expect(hudOfRide(climbing, true, GROUND).rows[1]).toEqual(["Climb", "+3.0 m/s"]);
+    expect(hudOfRide(climbing, true, GROUND).flight).toEqual({ over: "street", landed: false, heading: 0, room: true });
+    expect(hudOfRide({ ...climbing, heading: -Math.PI / 2 }, true).flight?.heading).toBe(270);
+    expect(hudOfRide({ ...climbing, heading: 4 * Math.PI + 0.5 }, true).flight?.heading).toBe(29);
+    const landed = { ...standing("h", "helicopter", { x: 0, y: GROUND, z: 0 }, 0) };
+    expect(hudOfRide(landed, true, GROUND)).toMatchObject({ flight: { over: "street", landed: true } });
+    expect(hudOfRide(landed, true, GROUND).rows[1]).toEqual(["Climb", "0.0 m/s"]);
   });
 });

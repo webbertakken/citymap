@@ -144,9 +144,15 @@ The showpiece: a bicycle that rides like one.
 
 ## Phase 7: helicopter
 
-- [ ] Flight model: collective, cyclic, tail rotor, ground effect, rotor spin-up; lands on ground and roofs
-- [ ] Collision with buildings at any height; altitude and vertical speed in the HUD
-- [ ] E2E; gate, commit, local build; Webber tests; feedback folded in
+- [x] The AS350 B2 built from Sketchfab (token optional, the glb committed), 107 KB; parked on open ground along the
+      landing's road, boarded with E
+- [x] Flight model: collective, cyclic, tail rotor, ground effect, rotor spin-up; lands on ground and roofs (tests
+      first)
+- [x] Collision with buildings at any height; altitude and vertical speed in the HUD
+- [x] Controls on keyboard, touch (nothing overlapping at 412 × 915 and on its side) and gamepad; a camera for flying
+- [x] E2E: board, spin up, lift, fly, land on a roof, get out; gate, commit, local build
+- [ ] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
+- [ ] Webber tests on desktop and phone; feedback folded in
 
 ## Phase 8: phones, gamepads and the hosted site
 

@@ -349,6 +349,34 @@ describe("the car on Rapier", () => {
     expect(vehicles[1]!.feet.x).toBeGreaterThan(4);
   });
 
+  it("stops a car at a parked helicopter, which it never moves", async () => {
+    const garage = await garageOf([]);
+    // Facing north, its tail 11 m long across the car's road 12 m on.
+    const helicopter = standing("helicopter", "helicopter", { x: 14, y: GROUND, z: -2 }, Math.PI / 2);
+    const path = drive(garage, [car(), helicopter], 4, () => ({ ...NO_INTENTS, forward: 0.5 }));
+    expect(Math.max(...path.map((v) => first(v).feet.x))).toBeLessThan(14 - 0.9);
+    expect(path.every((v) => v[1] === helicopter)).toBe(true);
+  });
+
+  it("moves the helicopter where its flight puts it, out of a car's way once it has lifted, and lets it go far off", async () => {
+    const garage = await garageOf([]);
+    const parked = standing("helicopter", "helicopter", { x: 14, y: GROUND, z: -2 }, Math.PI / 2);
+    let vehicles: readonly Vehicle[] = [car(), parked];
+    for (let i = 0; i < 480; i++) {
+      const lifted = { ...parked, feet: { ...parked.feet, y: GROUND + Math.min(20, i * DT * 8) } };
+      vehicles = [vehicles[0]!, lifted];
+      if (i % 4 === 0) garage.follow(first(vehicles).feet, { x: 5, z: 0 }, vehicles, 50);
+      const next = garage.drive(vehicles, new Map([["car", { ...NO_INTENTS, forward: 0.5 }]]), DT);
+      expect(next[1]).toBe(lifted);
+      vehicles = next;
+    }
+    expect(first(vehicles).feet.x).toBeGreaterThan(16);
+    garage.follow({ x: 3000, y: GROUND, z: 0 }, { x: 0, z: 0 }, [car(3000, 0), parked], 5);
+    garage.follow({ x: 0, y: GROUND, z: 0 }, { x: 0, z: 0 }, [car(), parked], 5);
+    const back = drive(garage, [car(), parked], 4, () => ({ ...NO_INTENTS, forward: 0.5 }));
+    expect(Math.max(...back.map((v) => first(v).feet.x))).toBeLessThan(14 - 0.9);
+  });
+
   it("lets far vehicles go and brings them back as they were, and places afresh a car changed outside it", async () => {
     const garage = await garageOf([]);
     const away = car(STREETS_KEEP + 50, 0, 0, "away");
