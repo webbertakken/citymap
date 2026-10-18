@@ -116,7 +116,8 @@ The Rust implementation of the CLI lives in `rust/`: see
   - **End-to-end**: the example cities from the cache (keyed by the Rust CLI's sources, its lockfile, `mise.toml` and
     the bundle script) or laid afresh by `bun run bundle`; a throwaway loopback certificate (`bun run cert`); Chromium;
     then `bun run --cwd apps/web e2e` (the export, then the Playwright suite). On failure, `test-results/` (traces and
-    screenshots) is uploaded for seven days.
+    screenshots) is uploaded for seven days. The phone interaction budget is skipped there, with its reason: the runner
+    draws in software on 4 cores. It gates in the local end-to-end run, which every PR gets before merging.
 - `.github/workflows/workflows.yml` runs actionlint when a workflow or `mise.toml` changes; it is not a required check.
 - A newer push to a pull request cancels its running checks; runs on `main` always finish.
 - Every action is pinned by full commit SHA with its version in a comment; Dependabot (`.github/dependabot.yml`)
