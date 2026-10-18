@@ -533,7 +533,7 @@ const OVER_THE_MARK = 6;
 /** Letting go slows it at about this, in m/s² (the hover assist's 2, less its lag): the approach never outruns it. */
 const LETTING_GO = 1.5;
 /** The fastest it approaches at, km/h; and the slowest, so it never stalls short. */
-const APPROACH_MOST = 30;
+const APPROACH_MOST = 50;
 const APPROACH_LEAST = 5;
 /** Arrived: this slow, within `OVER_THE_MARK`. */
 const ARRIVED = 10;
@@ -590,7 +590,8 @@ test("flies the helicopter: in, spun up, lifted, onto a marked roof, set down th
   page,
   isMobile,
 }, info) => {
-  test.setTimeout(RIDING_MS * 2);
+  // A flight holds a spin-up, a climb, an approach and a descent: three rides' time on a slow runner.
+  test.setTimeout(RIDING_MS * 3);
   const lines = logOf(page);
   await walkDown(page, isMobile);
   // It stands straight on along the landing's road: a run reaches its tail.
