@@ -697,10 +697,11 @@ width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in `packages/scene`), `ELEVA
   first frame (uploading about 1.5 million vertices and, headless, reading the drawn canvas back) and handing its 43 MB
   text to the worker (about 100 ms).
 - The phone budget (`vitals.spec.ts`), alternating with the viewer before the city's worker, run by run, under heavy
-  machine load (calibration work 45 to 138 ms against the reference 43): 17, 16, 18 and 16 of 20 passed, against 11, 12,
-  10 and 15; slowest answer medians 128 to 168 ms against 176 to 200 ms. Every run whose calibration work stayed under
-  50 ms passed (11 of 11); the misses came with a machine slower than the phone, where drawing in software on contended
-  cores is not slowed in step with the main thread.
+  machine load (calibration work 45 to 236 ms against the reference 43): 17, 16, 18, 16, 16 and 14 of 20 passed, against
+  11, 12, 10, 15, 10 and 12; slowest answer medians 128 to 168 ms against 176 to 200 ms. Runs whose calibration work
+  stayed under 50 ms passed 25 of 26 (main 19 of 21); the misses came with a machine slower than the phone, where
+  drawing in software on contended cores is not slowed in step with the main thread, mostly on Details, a drill or the
+  breadcrumb.
 - `e2e/vitals-opening.spec.ts` (the vitals projects; phone only, and only where a phone can be timed) records `longtask`
   entries before the page's scripts run and reports, per opening, the longest main-thread task and the blocking time
   (the time beyond 50 ms of every task) on the slowed phone: livediagram from More, then its Quarters layout, asserted
