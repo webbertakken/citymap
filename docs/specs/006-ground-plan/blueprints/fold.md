@@ -72,8 +72,29 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
   file and folder born at 0 (`identity = path@0`), submodules read at their pins (§ Submodules), members from its root
   manifests. The CLI's `--no-history` lays it once instead of folding (no lock): the scale corpus is shown this way.
 - `GIT_NO_LAZY_FETCH=1` is set, and blob reads allow no protocol (`GIT_ALLOW_PROTOCOL=none`, which every git honours),
-  so a blob-less clone never fetches, but for one named exception: with a file history, the laid commit's `.mailmap`
-  blob, fetched alone ([buildings](../../008-buildings/blueprints/buildings.md) § Mailmap).
+  so a blob-less clone never fetches, but for two named exceptions: the root manifests of the commits it lays (below),
+  and, with a file history, the laid commit's `.mailmap` blob, fetched alone
+  ([buildings](../../008-buildings/blueprints/buildings.md) § Mailmap).
+- The manifests' fetch (`packages/history/src/fetch-manifests.ts`, Rust `fetch_manifests.rs`), before the log (and
+  before `readTree` lists its tree), only in a partial clone (`extensions.partialclone` or a `remote.<name>.promisor`
+  set; `promisorRemotes(dir)`, `extensions.partialclone`'s remote first, then the promisor remotes in the config's
+  order):
+  1. The laid commits' root trees: `git log --first-parent --reverse --format=%T <head>` gives every commit's root tree
+     by index; those of the commits `isLaid(schedule, index, from)` names (the single state: the one commit's), each
+     tree once, are read through one `git cat-file --batch` (trees are held; `rootTree` parses `<mode> <name>\0<id>`
+     entries, ids `idBytes` long, 20 or 32 by the head's length).
+  2. Their manifests: each entry named as `isManifest` names, not a folder (`40000`) or a gitlink (`160000`): its blob.
+     `laidManifests` is every such blob, each once, sorted: exactly the blobs the fold's `Workspaces.wanted` asks for.
+  3. Those the clone does not hold (`heldBlobs`) are fetched in one call, as git's own lazy fetch asks for objects:
+     `git -c fetch.negotiationAlgorithm=noop fetch <remote> --no-tags --no-write-fetch-head --recurse-submodules=no --filter=blob:none --stdin`,
+     the blob ids on its input, `GIT_NO_LAZY_FETCH` left out and `GIT_TERMINAL_PROMPT=0`, killed after
+     `MANIFESTS_FETCH_TIMEOUT` 30 s; each promisor remote in turn for what is still missing. Then the held blobs are
+     listed again.
+  4. One event, `history/manifests status=<held|fetched|unfetchable> blobs=<n> fetched=<n>` (and for `unfetchable`
+     `reason=<timeout|exit-<code>|no-remote>` and `error=<git's first line>`), after `history/schedule`; a full clone
+     logs nothing. `unfetchable` when a wanted blob is still not held: every snapshot of that read carries
+     `manifests: "unfetchable"`, and the fold goes on as before (`history/manifest-unavailable`, the fallbacks). The
+     `BlobReader` is made after it, so its list of held blobs includes what was fetched.
 - Every git call clears the variables a git hook sets (`GIT_DIR`, `GIT_INDEX_FILE` and the like), so a fold run from a
   hook reads the folder it was given.
 - Failures: `history/git-failed` (exit code, stderr's first line), `history/parse` (offset), `history/bad-schedule` (a

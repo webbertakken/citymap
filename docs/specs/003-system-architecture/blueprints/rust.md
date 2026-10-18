@@ -56,6 +56,8 @@ history reader hands the files' history over as its last item (`HistoryItem::Fil
 (`contents.rs`) gives each file a `Store` (`Repository`, `GitData(path)` for a submodule's, `Nowhere` for an unread
 submodule's `.gitlink`), where TypeScript's `TreeFile.store` is absent, a path or null; `read_blobs` reads each store
 through `BlobReader::new` or `BlobReader::on_git_data`, as `new BlobReader(dir, { gitData })`.
+`packages/history/src/fetch-manifests.ts` maps to `fetch_manifests.rs`: `laid_manifests`, `promisor_remotes`,
+`fetch_blobs` and `HistoryEvent::Manifests`.
 
 ## Types
 

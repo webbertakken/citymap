@@ -525,7 +525,15 @@ phone), so nothing the cards do moves the map or each other.
   the spec's text word for word), as the toggles are. No `separable` (a city file written before, or none recorded): no
   fieldset. With `declared` and Workspaces on, Apps and Packages are `disabled` and the fieldset shows "Declared
   workspaces decide; turn Workspaces off to choose." (`.toggles-note`) before its list. A city file disables the
-  fieldset as it does the toggles.
+  fieldset as it does the toggles. `Toggles` also takes `unfetched` (the city's `manifests === "unfetchable"`): the
+  fieldset then shows `UNFETCHED_NOTE`, "This clone's workspace manifests could not be fetched: its workspaces are not
+  known." (`.toggles-note`), first, and stands for the note alone when `separable` is empty.
+- Unread submodules (`card/submodule.ts`): `unreadFolders(city)` is every folder holding a lot whose path ends
+  `/.gitlink` (`GITLINK_FILE`), kept per city. `submoduleRows(hit, folders, via)` adds one row, label "Submodule", value
+  "Not read", its note `UNREAD_SUBMODULE[via]` ("This submodule's files are not in this clone"; for `github` "This
+  submodule's files could not be read from GitHub"), to a lot whose file is `.gitlink` in such a folder, to that
+  folder's ground and to a town whose root is such a folder. `via` is `github` for a city laid from GitHub, else
+  `clone`. The Viewer's `rowsOf` puts them before a lot's measures.
 - `Viewer` holds `separate` (`DEFAULT_SEPARATIONS` at start; not remembered). A change re-opens what is shown as a
   toggle change does: a live repository lays again with `{ toggles, separate }`; a bundled city loads
   `variantOf(entry, { toggles, separate })`.

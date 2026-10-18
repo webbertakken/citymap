@@ -67,6 +67,11 @@ Each concept has one name; the names in brackets are not used.
 - A committed lockfile overrides the fold. A folder without git keeps its plat as local state.
 - The fold reads commits and trees, and the contents of the repository's root workspace manifests and `.gitmodules`
   only, at the commits that change them; it never needs any other file's contents.
+- A clone without file contents (a partial clone) lays the towns a full clone lays: it fetches exactly the root
+  workspace manifests of the commits it lays, and nothing else, from the clone's own remote. Without them its workspaces
+  would be unknown, and its towns would differ from a full clone's of the same commit. When they cannot be fetched
+  (offline, no remote to ask, no answer in time), the city says so, and the viewer shows it (its workspaces are not
+  known).
 - A submodule's files are part of the tree: the files of its pinned commit, read from the submodule's own git data,
   under the submodule's folder (Submodules).
 - A file's identity follows exact renames: the fold carries it through every commit that moves a file unchanged (equal
@@ -364,7 +369,9 @@ member of its kind of folder as a town of its own, a separate town, joined by a 
 - Every pin move is read, whatever `.gitmodules` says to ignore, and in a clone that does not hold `.gitmodules` too.
 - A submodule whose pinned commit cannot be read (not initialised, not fetched, on a host not reached) is one file,
   `.gitlink`, in its folder, and the log names it; it keeps its identity while the pin moves. Its separate town is a
-  single lot.
+  single lot. A clone does not hold a submodule's files unless it was initialised, and a partial clone never fetches
+  them: such a submodule lays as this one folder, and its cards say why ("This submodule's files are not in this
+  clone").
 - The same repository at the same commit, with the same submodules at hand, yields the same plat and city.
 - What a submodule's buildings show (its files' own contents, and no history of their own) is the
   [buildings](../008-buildings/buildings.md) spec's.

@@ -94,6 +94,9 @@ Under the toggles, the same popover holds a second group, "Separate towns": a sw
 - The group lists only the separations the city shown records as changing its layout; a city with none shows no group.
 - While Workspaces is on and the city declares workspaces, Apps and Packages are disabled, with the line "Declared
   workspaces decide; turn Workspaces off to choose."
+- A city whose workspace manifests could not be fetched (a partial clone, offline) shows the group with the line "This
+  clone's workspace manifests could not be fetched: its workspaces are not known.", the group shown for the line alone
+  when nothing would change the city.
 - The switches behave as the toggles do: at once, the popover staying open, tooltips on hover and focus, defaults on
   every visit, disabled for a city file.
 - A bundled city precomputes, for each combination of the four toggles, the combinations of the separations it records;
@@ -250,6 +253,9 @@ what it means, so a person who has never read this spec understands the map.
   - a town: its name, its lots and districts, and its form in words (e.g. "a radial town: districts round a centre");
     for a town whose name is a path (a workspace group's or a separate town), its last folder as the title and the whole
     path as its folder.
+  - a submodule whose files were not read (one folder holding its `.gitlink` lot): its lot's, its folder's and its
+    town's cards say why, "This submodule's files are not in this clone", or for a GitHub repository "This submodule's
+    files could not be read from GitHub".
 - **Measures**: a lot's card adds its building's facts as rows, each with where it came from: "Size 1,240 lines",
   "Tested 62 % (coverage report)" or "Tested: a test names it (by name)", "Changed 3 days ago", "142 commits", "5
   authors", "2 TODOs"; unknown says so and why ("needs the CLI's history"). A lot of several files lists them.

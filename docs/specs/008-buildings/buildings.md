@@ -45,13 +45,15 @@ people switch and read it lives in the [viewer](../004-interface-design/viewer.m
   are never read, so a clone with a checkout, one without, and one whose `.mailmap` was edited lay the same city, and a
   resumed fold the same as an uninterrupted one. A laid commit without a `.mailmap` file maps nobody, and the CLI says
   so.
-- **The one fetch**: the CLI reads a clone without fetching, with one exception. A partial clone that does not hold the
-  laid commit's `.mailmap` fetches exactly that one object from its promisor remote, and nothing else, so every clone of
-  a commit, partial or whole, counts its authors alike. Sizes and comments need every file's contents, so a partial
-  clone leaves them unknown rather than fetch the repository; the `.mailmap` is one small file that changes every author
-  count at once. When it cannot be fetched (offline, no promisor remote, no answer in time), authors are unknown in that
-  city, never mapped silently by nobody: the switch and the card say "The laid commit's .mailmap could not be fetched",
-  and the CLI logs why.
+- **The fetches**: the CLI reads a clone without fetching, with two exceptions, each for a few small files that decide
+  the whole city. The root workspace manifests of the commits a partial clone lays are fetched, and nothing else, so it
+  lays the towns a full clone lays ([ground plan](../006-ground-plan/ground-plan.md) § Input). A partial clone that does
+  not hold the laid commit's `.mailmap` fetches exactly that one object from its promisor remote, and nothing else, so
+  every clone of a commit, partial or whole, counts its authors alike. Sizes and comments need every file's contents, so
+  a partial clone leaves them unknown rather than fetch the repository; the `.mailmap` is one small file that changes
+  every author count at once. When it cannot be fetched (offline, no promisor remote, no answer in time), authors are
+  unknown in that city, never mapped silently by nobody: the switch and the card say "The laid commit's .mailmap could
+  not be fetched", and the CLI logs why.
 - **A submodule's files** are measured from their own contents at the commit the submodule is pinned to, read from the
   submodule's own git data, as any file is. They carry no history: the repository's commits only move the pin, and a
   submodule's own commits are not read, so their recency, churn and authors are unknown, and say why ("A submodule's own
