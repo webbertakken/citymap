@@ -293,3 +293,50 @@ export function unproject(
   const t = (p[1] - height) / b.eye[1];
   return { x: p[0] - b.eye[0] * t, z: p[2] - b.eye[2] * t };
 }
+
+/** A building's name over its roof: where its roof's middle is (scene units, `y` its height) and its words. */
+export interface Roof {
+  readonly text: string;
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
+/** Roofs are named from this zoom on (pixels per street width): a lot is then wide enough on screen for a name. */
+export const ROOF_ZOOM = 60;
+/** At most this many roofs are named at once, the nearest the middle of the screen first. */
+export const ROOF_MOST = 60;
+/** A roof's name is set this many pixels high, and as wide as its letters. */
+const ROOF_FONT = 11;
+
+/**
+ * The roofs to name in the Buildings view, placed on screen: none in plan view or below `ROOF_ZOOM`; else those on
+ * screen, nearest the middle first, each kept only if clear of every one kept before, at most `ROOF_MOST`.
+ */
+export function roofLabels(
+  roofs: readonly Roof[],
+  view: View,
+  viewport: Viewport,
+  mode: Mode,
+): (Roof & { readonly left: number; readonly top: number })[] {
+  if (mode !== "buildings" || view.zoom < ROOF_ZOOM) return [];
+  // Only roofs within the screen's reach of the centre are looked at, so a large city costs little.
+  const reach = Math.hypot(viewport.width, viewport.height) / view.zoom;
+  const near = roofs
+    .map((roof) => ({ roof, d: Math.hypot(roof.x - view.centre.x, roof.z - view.centre.z) }))
+    .filter(({ d }) => d <= reach)
+    .toSorted((a, b) => a.d - b.d);
+  const kept: (Roof & { left: number; top: number })[] = [];
+  const boxes: [number, number, number, number][] = [];
+  for (const { roof } of near) {
+    if (kept.length >= ROOF_MOST) break;
+    const at = project(view, viewport, roof, mode);
+    const half = (roof.text.length * ROOF_FONT * 0.62 + 8) / 2;
+    const box: [number, number, number, number] = [at.x - half, at.y - ROOF_FONT, at.x + half, at.y + ROOF_FONT];
+    if (box[0] < 0 || box[1] < 0 || box[2] > viewport.width || box[3] > viewport.height) continue;
+    if (boxes.some((b) => b[0] < box[2] && box[0] < b[2] && b[1] < box[3] && box[1] < b[3])) continue;
+    boxes.push(box);
+    kept.push({ ...roof, left: at.x, top: at.y });
+  }
+  return kept;
+}

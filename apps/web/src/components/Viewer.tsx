@@ -1,5 +1,13 @@
 "use client";
-import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } from "@citymap/ground-plan";
+import {
+  DEFAULT_TOGGLES,
+  UNIT,
+  centroid,
+  toggleList,
+  type City,
+  type Snapshot,
+  type Toggle,
+} from "@citymap/ground-plan";
 import type { Measures } from "@citymap/measures";
 import { buildScene, folderHit, pick, pickIndex, type ColourBy, type Hit, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
@@ -22,7 +30,7 @@ import { footprintsOf } from "../explore/footprints";
 import { inspector } from "../explore/inspect";
 import { landingOf, type Landing } from "../explore/landing";
 import type { RaiseWalls } from "../explore/physics/raise";
-import { roadGrid, roadSegments, type RoadGrid } from "../explore/signs";
+import { roadGrid, roadSegments, signName, type RoadGrid } from "../explore/signs";
 import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
 import { readRepository, type Fetcher } from "../github/read";
@@ -231,6 +239,27 @@ export function Viewer({
         ? measureRows(buildingOf(buildings, hit.townKey, hit.key), buildings.measures, Date.now())
         : [],
     [buildings],
+  );
+  // Every building's name over its roof, for the Buildings view close up: its files from its measures, else its path.
+  const roofs = useMemo(
+    () =>
+      shown && drawnTable
+        ? shown.towns.flatMap((place) =>
+            place.lots
+              .filter((lot) => !lot.vacant && lot.path !== "")
+              .map((lot) => {
+                const middle = centroid(lot.pts);
+                return {
+                  text: signName(buildingOf(buildings, place.key, lot.key)?.files ?? [lot.path]),
+                  x: middle.x / UNIT,
+                  // Every built lot of the city shown is in its own lot table.
+                  y: drawnTable.heights.of(place.key, lot.key)!,
+                  z: -middle.y / UNIT,
+                };
+              }),
+          )
+        : [],
+    [shown, drawnTable, buildings],
   );
   const uses = useMemo(() => [...new Set(scene?.buildings.order.map((ref) => ref.use))], [scene]);
   const [picked, setPickedHit] = useState<Hit | null>(null);
@@ -625,6 +654,7 @@ export function Viewer({
             mode={mode}
             table={drawnTable.table}
             heights={drawnTable.heights}
+            roofs={roofs}
             focused={focus !== null}
             github={source !== null}
             Canvas={Canvas}

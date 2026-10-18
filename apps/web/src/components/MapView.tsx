@@ -11,10 +11,12 @@ import {
   DRAG_TURN,
   pan,
   project,
+  roofLabels,
   turned,
   zoomAt,
   type Insets,
   type Mode,
+  type Roof,
   type View,
   type Viewport,
 } from "../view/view";
@@ -46,6 +48,8 @@ export interface MapViewProps {
   /** The lot table the buildings are drawn from, and how tall each stands, for picking at their tops. */
   readonly table: Float32Array;
   readonly heights?: Heights | null;
+  /** Each building's name over its roof, for the Buildings view close up. */
+  readonly roofs?: readonly Roof[];
   /** One town is shown alone; the hover card's hint then offers no town. */
   readonly focused?: boolean;
   /** The city came from GitHub; the hover card's hint offers opening a file or folder there. */
@@ -61,6 +65,9 @@ const sizeOf = (element: HTMLElement): Viewport => ({
   width: element.clientWidth || 800,
   height: element.clientHeight || 600,
 });
+
+/** No roofs to name: a city without buildings. */
+const NO_ROOFS: readonly Roof[] = [];
 
 /** A press that moves less than this many pixels is a click or a tap. */
 const CLICK_SLOP = 4;
@@ -79,6 +86,7 @@ export function MapView({
   mode = "plan",
   table,
   heights = null,
+  roofs = NO_ROOFS,
   focused = false,
   github = false,
   Canvas,
@@ -197,6 +205,7 @@ export function MapView({
   }, []);
 
   const labels = declutter(scene.labels, view, viewport, mode);
+  const named = roofLabels(roofs, view, viewport, mode);
   const mark = marker ? project(view, viewport, { x: marker.x, y: 0, z: marker.z }, mode) : null;
   return (
     <div
@@ -224,6 +233,20 @@ export function MapView({
             }}
           >
             {l.text}
+          </span>
+        ))}
+        {named.map((roof) => (
+          <span
+            key={`${roof.text}@${roof.x},${roof.z}`}
+            className="label roof"
+            style={{
+              left: roof.left,
+              top: roof.top,
+              color: theme.text,
+              textShadow: `0 0 3px ${theme.halo}, 0 0 3px ${theme.halo}`,
+            }}
+          >
+            {roof.text}
           </span>
         ))}
       </div>

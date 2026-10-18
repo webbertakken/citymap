@@ -99,3 +99,23 @@ describe("zooming at the pointer", () => {
     }
   });
 });
+
+/** The roof names on the map. */
+const roofs = () => Array.from(document.querySelectorAll(".label.roof"), (l) => l.textContent);
+
+describe("roof names", () => {
+  it("names the buildings over their roofs close up in the Buildings view, and not from afar or in plan view", async () => {
+    await inBuildings();
+    expect(roofs()).toEqual([]);
+    // Flown to the building, then closer still.
+    type("a.t");
+    fireEvent.keyDown(searchField(), { key: "Enter" });
+    for (let i = 0; i < 10; i++) {
+      const at = project(turnedView(), viewport, { x: 1.5, y: 0, z: -0.5 }, "buildings");
+      fireEvent.wheel(map(), { deltaY: -100, clientX: at.x, clientY: at.y });
+    }
+    expect(roofs()).toEqual(["a.ts"]);
+    fireEvent.click(screen.getByRole("button", { name: "Plan" }));
+    expect(roofs()).toEqual([]);
+  });
+});

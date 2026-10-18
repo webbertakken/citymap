@@ -3,6 +3,8 @@ import {
   ELEVATION,
   KEY_TILT,
   KEY_TURN,
+  ROOF_MOST,
+  ROOF_ZOOM,
   NO_INSETS,
   TILT_MAX,
   TILT_MIN,
@@ -13,6 +15,7 @@ import {
   onKey,
   pan,
   project,
+  roofLabels,
   turned,
   unproject,
   zoomAt,
@@ -312,5 +315,44 @@ describe("zoomAt", () => {
       expect(stays.x).toBeCloseTo(600, 6);
       expect(stays.y).toBeCloseTo(150, 6);
     }
+  });
+});
+
+/** A roof named `text` over (x, z), so high. */
+const roof = (text: string, x: number, z: number, y = 1) => ({ text, x, y, z });
+
+describe("roofLabels", () => {
+  const screenSize = { width: 800, height: 600 };
+  const close: View = { centre: { x: 0, z: 0 }, zoom: ROOF_ZOOM };
+
+  it("names no roof in plan view, or before the view is close enough", () => {
+    const roofs = [roof("a.ts", 0, 0)];
+    expect(roofLabels(roofs, close, screenSize, "plan")).toEqual([]);
+    expect(roofLabels(roofs, { ...close, zoom: ROOF_ZOOM - 1 }, screenSize, "buildings")).toEqual([]);
+  });
+
+  it("names a roof over the roof, at its height", () => {
+    const [label] = roofLabels([roof("a.ts", 0, 0, 2)], close, screenSize, "buildings");
+    const at = project(close, screenSize, { x: 0, y: 2, z: 0 }, "buildings");
+    expect(label).toMatchObject({ text: "a.ts", left: at.x, top: at.y });
+  });
+
+  it("keeps the nearest the middle where names would overlap, and none off screen or out of reach", () => {
+    const labels = roofLabels(
+      [roof("far.ts", 0.05, 0.05), roof("near.ts", 0, 0), roof("off.ts", 100, 0), roof("edge.ts", 9.2, 0)],
+      close,
+      screenSize,
+      "buildings",
+    );
+    expect(labels.map((l) => l.text)).toEqual(["near.ts"]);
+  });
+
+  it("names at most a handful at once", () => {
+    const many = Array.from({ length: 400 }, (_unused, i) =>
+      roof(`f${i}.ts`, (i % 20) * 0.6 - 6, Math.floor(i / 20) * 0.4 - 4),
+    );
+    expect(
+      roofLabels(many, { ...close, zoom: ROOF_ZOOM * 3 }, { width: 4000, height: 3000 }, "buildings"),
+    ).toHaveLength(ROOF_MOST);
   });
 });
