@@ -1,11 +1,12 @@
 import { rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { BlobReader } from "./blobs";
 import { parseRawLog, readHistory, type HistoryEvent } from "./read";
 import type { Strides } from "./schedule";
 import { Pins, SubmoduleReader, gitmodulesAfter } from "./submodules";
-import { commit, commitIndex, git, repoWith, removeRepos, write } from "./testing/repos";
+import { commit, commitIndex, git, repo, repoWith, removeRepos, write } from "./testing/repos";
 
 afterEach(removeRepos);
 
@@ -29,6 +30,30 @@ function pin(parent: string, path: string, sha: string, message: string) {
 }
 
 describe("readHistory with submodules", () => {
+  it("folds a blob-less clone that does not hold its .gitmodules, and reads every pin whatever it says to ignore", async () => {
+    const lib = repoWith({ "a.ts": "a" });
+    const parent = repoWith({ "main.ts": "m" });
+    git(parent, "submodule", "add", "-q", lib, "vendor/lib");
+    // A .gitmodules that would have git leave the submodule's changes out of every diff.
+    git(parent, "config", "-f", ".gitmodules", "submodule.vendor/lib.ignore", "all");
+    git(parent, "add", ".gitmodules");
+    commit(parent, "add lib");
+    write(lib, "b.ts", "b");
+    pin(parent, "vendor/lib", commit(lib, "more"), "bump");
+    const whole = await read(parent);
+    expect(whole.snaps.at(-1)?.files.map((f) => f.path)).toContain("vendor/lib/b.ts");
+    // A blob-less clone without a checkout holds no .gitmodules blob, and never fetches one.
+    git(parent, "config", "uploadpack.allowFilter", "true");
+    const clone = repo("citymap-partial-");
+    rmSync(clone, { recursive: true, force: true });
+    git(tmpdir(), "clone", "-q", "--no-checkout", "--filter=blob:none", `file://${parent}`, clone);
+    const partial = await read(clone);
+    expect(partial.snaps.map((s) => s.commit)).toEqual(whole.snaps.map((s) => s.commit));
+    expect(partial.snaps.at(-1)?.files.map((f) => f.path)).toEqual(
+      ["main.ts", ".gitmodules", "vendor/lib/.gitlink"].toSorted(),
+    );
+  });
+
   it("lays a submodule's files at each pin, renames followed, births at the commit that laid them", async () => {
     const lib = repoWith({ "a.ts": "a", "b.ts": "b" });
     const first = git(lib, "rev-parse", "HEAD");

@@ -269,6 +269,9 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
       "--raw",
       "-z",
       "--no-renames",
+      // Every gitlink change, whatever .gitmodules says to ignore: git would read that blob, which a blob-less clone
+      // does not hold and may not fetch, and a submodule it ignores would vanish from the fold.
+      "--ignore-submodules=none",
       "--no-abbrev",
       // The author as written: %aE would map it through the working tree's .mailmap.
       "--format=%x01%H%x02%ct%x02%ae%x02%an",

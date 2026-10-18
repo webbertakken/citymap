@@ -371,6 +371,43 @@ fn submodule_events(events: &[HistoryEvent]) -> Vec<&HistoryEvent> {
 }
 
 #[test]
+fn folds_a_blob_less_clone_without_its_gitmodules_and_reads_every_pin_whatever_it_says_to_ignore() {
+    let lib = Repo::with(&[("a.ts", "a")]);
+    let parent = Repo::with(&[("main.ts", "m")]);
+    parent.git(&["submodule", "add", "-q", &lib.url(), "vendor/lib"]);
+    // A .gitmodules that would have git leave the submodule's changes out of every diff.
+    parent.git(&["config", "-f", ".gitmodules", "submodule.vendor/lib.ignore", "all"]);
+    parent.git(&["add", ".gitmodules"]);
+    parent.commit("add lib");
+    lib.write("b.ts", "b");
+    let more = lib.commit("more");
+    pin(&parent, "vendor/lib", &more, "bump");
+    let (whole, _) = read(parent.path(), None, None);
+    let last = whole.last().expect("a snapshot");
+    assert!(last.files.iter().any(|f| &*f.path == "vendor/lib/b.ts"));
+    // A blob-less clone without a checkout holds no .gitmodules blob, and never fetches one.
+    parent.git(&["config", "uploadpack.allowFilter", "true"]);
+    let clone = Repo::new();
+    std::fs::remove_dir_all(clone.path()).expect("an empty place");
+    let url = format!("file://{}", parent.url());
+    git(
+        &std::env::temp_dir(),
+        &["clone", "-q", "--no-checkout", "--filter=blob:none", &url, &clone.url()],
+    );
+    let (partial, _) = read(clone.path(), None, None);
+    let commits = |snaps: &[Snapshot]| snaps.iter().map(|s| s.commit.clone()).collect::<Vec<_>>();
+    assert_eq!(commits(&partial), commits(&whole));
+    let paths: Vec<&str> = partial
+        .last()
+        .expect("a snapshot")
+        .files
+        .iter()
+        .map(|f| &*f.path)
+        .collect();
+    assert_eq!(paths, [".gitmodules", "main.ts", "vendor/lib/.gitlink"]);
+}
+
+#[test]
 fn lays_a_submodule_s_files_at_each_pin_renames_followed_births_at_the_commit_that_laid_them() {
     let lib = Repo::with(&[("a.ts", "a"), ("b.ts", "b")]);
     let parent = Repo::with(&[("main.ts", "m")]);
