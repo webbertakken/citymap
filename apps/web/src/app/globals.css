@@ -1411,6 +1411,11 @@ mark {
     touch-action: none;
   }
 }
+/* A finished load holds its card for a moment; its Cancel has nothing left to stop, so it keeps its place unseen. */
+.cancel[data-held="true"] {
+  visibility: hidden;
+}
+
 /* A narrow window on a fine pointer may open a local repository: the search leaves the button its room. */
 @media (max-width: 760px) and (pointer: fine) {
   .finder {

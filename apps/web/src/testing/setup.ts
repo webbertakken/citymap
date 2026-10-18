@@ -1,5 +1,9 @@
-// The web app's test set-up: a busy machine can take more than Testing Library's default second to load and draw a
-// city in jsdom, so its waits allow five before they fail.
+// Testing Library waits up to this long for what a test awaits (a city to load and draw, a card to appear). Its default,
+// one second, is a heuristic that a contended machine (many test projects and other jobs at once) overruns; waiting
+// longer for the same outcome asserts the same thing, and a passing wait still returns as soon as it is met.
 import { configure } from "@testing-library/react";
 
-configure({ asyncUtilTimeout: 5000 });
+/** The longest wait for an awaited element, in milliseconds. */
+export const ASYNC_WAIT_MS = 5000;
+
+configure({ asyncUtilTimeout: ASYNC_WAIT_MS });

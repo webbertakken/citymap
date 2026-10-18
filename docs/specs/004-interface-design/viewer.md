@@ -119,6 +119,8 @@ The settings cog opens a popover, "City layout", of four switches: the ground pl
 - "Cancel" (and Escape, anywhere but in the search box or an open menu) stops the work: requests are aborted, the layout
   worker ends, and the last city stays as it was. Opening something else while one load runs replaces it. The last city
   stays visible, dimmed, under the card while the next one loads; search, the menus and the drawer stay usable.
+- Once the load is done the card holds a moment with its bar full and Cancel gone from view (keeping its place); nothing
+  is left to cancel, so Escape is the map's again.
 - A failure removes the card and says why in the notice, as elsewhere.
 - The card floats: it moves nothing (CLS 0), and its progress is a `progressbar` with its value and phase as text; only
   phase changes are announced, not every step.

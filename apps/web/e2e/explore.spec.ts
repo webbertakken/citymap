@@ -1,5 +1,5 @@
 import { AxeBuilder } from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 // Walking in the city: down from the map through the loading card, on foot by keys or by touch, and back to the map.
 
@@ -111,23 +111,22 @@ test("gets on the bicycle parked by the road with E, rides it, and gets off once
   isMobile,
 }) => {
   test.skip(isMobile, "the keyboard's E; touch uses the prompt's button");
-  const hold = async (key: string, ms: number) => {
-    await page.keyboard.down(key);
-    await page.waitForTimeout(ms);
-    await page.keyboard.up(key);
+  // Held until what it waits for shows, whatever the frame rate: a slow software renderer steps the walk in fewer,
+  // capped frames, so a fixed time covers less ground.
+  const holdUntil = async (keys: readonly string[], shown: Locator) => {
+    await Promise.all(keys.map((key) => page.keyboard.down(key)));
+    await expect(shown).toBeVisible({ timeout: 30_000 });
+    await Promise.all(keys.map((key) => page.keyboard.up(key)));
   };
   await page.getByRole("button", { name: "Walk" }).click();
   await drawn(page);
-  // The bicycle stands 4 m up the street, at the kerb on the right.
-  await hold("KeyW", 2500);
-  await hold("KeyD", 2000);
-  await expect(page.getByRole("button", { name: "Get on the bicycle" })).toBeVisible();
+  // The bicycle stands 4 m up the street, 3.2 m to the right at the kerb: diagonally ahead and right.
+  await holdUntil(["KeyW", "KeyD"], page.getByRole("button", { name: "Get on the bicycle" }));
   await page.keyboard.press("KeyE");
   await expect(page.getByRole("region", { name: "On the bicycle" })).toBeVisible();
-  await page.keyboard.down("KeyW");
+  await holdUntil(["KeyW"], page.getByRole("button", { name: "Slow down to get off the bicycle" }));
   await expect(page.getByRole("button", { name: "Slow down to get off the bicycle" })).toBeDisabled();
-  await page.keyboard.up("KeyW");
-  await hold("Space", 2500);
+  await holdUntil(["Space"], page.getByRole("button", { name: "Get off the bicycle" }));
   await page.keyboard.press("KeyE");
   await expect(page.getByRole("region", { name: "On foot" })).toBeVisible();
 });

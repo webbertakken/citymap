@@ -518,10 +518,9 @@ export function Viewer({
   const colours = THEMES[theme];
   // While something opens, the status names it and its phase; the last city's status comes back if it is cancelled.
   const statusLine = loading.progress ? loadingStatus(loading.progress) : status;
-  const { cancel } = loading;
-  // A load the card shows that is still under way; once done, the card only lingers and Escape is the map's again.
-  const carded = loading.shown && loading.progress !== null && loading.progress.fraction < 1;
-  // Escape cancels a load the card shows, unless the search or an open menu takes it first.
+  const { cancellable, cancel } = loading;
+  // Escape cancels a running load the card shows, unless the search or an open menu takes it first; once the load is
+  // done the card only holds, and Escape is the map's again.
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -529,9 +528,9 @@ export function Viewer({
       event.stopPropagation();
       cancel();
     };
-    if (carded) window.addEventListener("keydown", escape, { capture: true });
+    if (cancellable) window.addEventListener("keydown", escape, { capture: true });
     return () => window.removeEventListener("keydown", escape, { capture: true });
-  }, [carded, cancel]);
+  }, [cancellable, cancel]);
   const changeMode = (next: Mode) => {
     log.info("viewer/mode", { mode: next });
     cancelAnimationFrame(flight.current);
@@ -651,7 +650,7 @@ export function Viewer({
           </div>
         )}
         {loading.shown && loading.progress && (
-          <LoadingCard progress={loading.progress} now={loading.now} onCancel={loading.cancel} />
+          <LoadingCard progress={loading.progress} cancellable={loading.cancellable} onCancel={loading.cancel} />
         )}
         <ViewControls
           mode={mode}
