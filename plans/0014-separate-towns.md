@@ -112,9 +112,12 @@ rebased.
       names the submodule folders (both CLIs)
 - [x] Spec: the combinatorial limit of precomputed variants, laying in the browser on demand as the long-term answer; a
       submodule's files without history
+- [x] Merge `origin/main` once more (#49 the layout worker, #55 to #57, #56 the `.mailmap` fetch), with a merge commit;
+      the worker lays with the separations; `measures/done` counts what the section holds in Rust too
 - [ ] `bun run check`; `bun run parity` in every mode (state, fold, resume, checkout, coverage) and with separations
       (each alone, none), plus a repository with submodules
-- [ ] End to end (`CITYMAP_E2E_PORT=5198`); screenshots of separated towns in plan and Buildings views, light and dark
+- [x] End to end (`CITYMAP_E2E_PORT=5198`; 120 passed, 46 skipped by device, 0 failed); screenshots of separated towns
+      in plan and Buildings views, light and dark
 - [ ] PR description updated
-- [ ] Fold-back: specs and blueprints across both features, `docs/specs/README.md`, every symbol, file and reference
+- [x] Fold-back: specs and blueprints across both features, `docs/specs/README.md`, every symbol, file and reference
       verified
