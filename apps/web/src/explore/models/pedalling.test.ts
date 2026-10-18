@@ -1,7 +1,7 @@
 import { Group, Object3D, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { DOWN, FALLING, RISING, type Fall } from "../bicycle";
-import { THROWN, THROWN_ASIDE, legsOf, pedalsOf, reachFor, thrownPose } from "./pedalling";
+import { THROWN, THROWN_ASIDE, armsOf, legsOf, pedalsOf, reachFor, thrownPose } from "./pedalling";
 import { PROCEDURAL_RIGS, RIGS } from "./rig";
 
 describe("pedalsOf", () => {
@@ -103,6 +103,21 @@ describe("legsOf", () => {
 
 /** A fall to the right, so long under way. */
 const fall = (time: number): Fall => ({ time, side: -1, cause: "hit", speed: 5 });
+
+describe("armsOf", () => {
+  it("finds a person's upper arms, forearms and hands by their bones' names, or nothing in a figure without them", () => {
+    const body = new Group();
+    for (const name of ["UpperArmL", "ForeArmL", "HandL", "UpperArmR", "ForeArmR", "HandR"]) {
+      const bone = new Object3D();
+      bone.name = name;
+      body.add(bone);
+    }
+    const arms = armsOf(body)!;
+    expect(arms.left.upper.name).toBe("UpperArmL");
+    expect(arms.right.hand.name).toBe("HandR");
+    expect(armsOf(new Group())).toBeNull();
+  });
+});
 
 describe("thrownPose", () => {
   it("throws the rider ahead and to the side the bicycle falls, lying, and brings them back to the saddle", () => {

@@ -1,5 +1,5 @@
 import { AxeBuilder } from "@axe-core/playwright";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 // Walking in the city: down from the map through the loading card, on foot by keys or by touch, and back to the map.
 
@@ -106,29 +106,90 @@ test("walks as Kenney's figure, its model loaded with the walk", async ({ page }
   expect(lines.some((l) => l.startsWith("explore/model-failed"))).toBe(false);
 });
 
+/**
+ * Keys held until what it waits for holds, whatever the frame rate: a slow software renderer steps the walk in fewer,
+ * capped frames, so a fixed time covers less ground.
+ */
+async function holdUntil(page: Page, keys: readonly string[], until: () => Promise<void>) {
+  await Promise.all(keys.map((key) => page.keyboard.down(key)));
+  await until();
+  await Promise.all(keys.map((key) => page.keyboard.up(key)));
+}
+
+/** On foot from the landing to the bicycle, 4 m up the street and 3.2 m right at the kerb; its prompt to get on. */
+async function toTheBicycle(page: Page) {
+  const prompt = page.getByRole("button", { name: "Get on the bicycle" });
+  await holdUntil(page, ["KeyW", "KeyD"], () => expect(prompt).toBeVisible({ timeout: 30_000 }));
+  return prompt;
+}
+
 test("gets on the bicycle parked by the road with E, rides it, and gets off once stopped", async ({
   page,
   isMobile,
 }) => {
   test.skip(isMobile, "the keyboard's E; touch uses the prompt's button");
-  // Held until what it waits for shows, whatever the frame rate: a slow software renderer steps the walk in fewer,
-  // capped frames, so a fixed time covers less ground.
-  const holdUntil = async (keys: readonly string[], shown: Locator) => {
-    await Promise.all(keys.map((key) => page.keyboard.down(key)));
-    await expect(shown).toBeVisible({ timeout: 30_000 });
-    await Promise.all(keys.map((key) => page.keyboard.up(key)));
-  };
+  const slow = page.getByRole("button", { name: "Slow down to get off the bicycle" });
   await page.getByRole("button", { name: "Walk" }).click();
   await drawn(page);
-  // The bicycle stands 4 m up the street, 3.2 m to the right at the kerb: diagonally ahead and right.
-  await holdUntil(["KeyW", "KeyD"], page.getByRole("button", { name: "Get on the bicycle" }));
+  await toTheBicycle(page);
   await page.keyboard.press("KeyE");
   await expect(page.getByRole("region", { name: "On the bicycle" })).toBeVisible();
-  await holdUntil(["KeyW"], page.getByRole("button", { name: "Slow down to get off the bicycle" }));
-  await expect(page.getByRole("button", { name: "Slow down to get off the bicycle" })).toBeDisabled();
-  await holdUntil(["Space"], page.getByRole("button", { name: "Get off the bicycle" }));
+  await holdUntil(page, ["KeyW"], () => expect(slow).toBeVisible({ timeout: 30_000 }));
+  await expect(slow).toBeDisabled();
+  const off = page.getByRole("button", { name: "Get off the bicycle" });
+  await holdUntil(page, ["Space"], () => expect(off).toBeVisible({ timeout: 30_000 }));
   await page.keyboard.press("KeyE");
   await expect(page.getByRole("region", { name: "On foot" })).toBeVisible();
+});
+
+test("rides the bicycle: pedals, shifts, brakes, and stops with a foot down, the HUD saying so", async ({
+  page,
+  isMobile,
+}, info) => {
+  test.skip(isMobile, "the keyboard rides here; the phone's buttons below");
+  const lines = logOf(page);
+  await page.getByRole("button", { name: "Walk" }).click();
+  await drawn(page);
+  // The city's own vehicles stand about, worked out from its plan.
+  expect(lines.find((l) => l.startsWith("explore/parked"))).toMatch(
+    /^explore\/parked bicycles=[1-9]\d* cars=[1-9]\d*$/,
+  );
+  await toTheBicycle(page);
+  await page.keyboard.press("KeyE");
+  const hud = page.getByRole("region", { name: "Speed, gear and cadence" });
+  await expect(hud).toHaveAttribute("data-foot", "down");
+  await expect(hud).toContainText("3 of 7");
+  await page.keyboard.press("KeyR");
+  await expect(hud).toContainText("4 of 7");
+  // Pedalled to a city pace: the crank turns and the foot comes up.
+  await holdUntil(page, ["KeyW"], () => expect(hud).toContainText(/Speed\s*(1\d|[2-9]\d) km\/h/, { timeout: 30_000 }));
+  await expect(hud).toHaveAttribute("data-foot", "up");
+  await page.screenshot({ path: info.outputPath("riding.png") });
+  const found = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+  expect(found.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
+  // Both brakes to a stop: a foot goes down.
+  await holdUntil(page, ["Space", "KeyS"], () => expect(hud).toHaveAttribute("data-foot", "down", { timeout: 30_000 }));
+  await expect(hud).toContainText(/Speed\s*0 km\/h/);
+  await page.keyboard.press("KeyB");
+  await expect.poll(() => lines.some((l) => l === "explore/bell" || l === "explore/bell-silent")).toBe(true);
+  expect(lines.some((l) => l.startsWith("explore/thrown"))).toBe(false);
+});
+
+test("rides the bicycle by its touch buttons on a phone: brake, ring and the gears", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the touch buttons are for touch");
+  const lines = logOf(page);
+  await page.getByRole("button", { name: "Walk" }).tap();
+  await drawn(page);
+  await (await toTheBicycle(page)).tap();
+  await expect(page.getByRole("region", { name: "On the bicycle" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Brake" })).toBeVisible();
+  const hud = page.getByRole("region", { name: "Speed, gear and cadence" });
+  await page.getByRole("button", { name: "Gear up" }).tap();
+  await expect(hud).toContainText("4 of 7");
+  await page.getByRole("button", { name: "Gear down" }).tap();
+  await expect(hud).toContainText("3 of 7");
+  await page.getByRole("button", { name: "Ring" }).tap();
+  await expect.poll(() => lines.some((l) => l === "explore/bell" || l === "explore/bell-silent")).toBe(true);
 });
 
 /** The city shown, as laid: its built lots, each with its path and its footprint in scene units (z south). */

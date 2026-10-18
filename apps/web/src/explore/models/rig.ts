@@ -18,7 +18,12 @@ export interface Rig {
   readonly front: number;
   /** A bicycle's pedals: the crank arm's length and how far out each pedal is (the right hangs down at rest). */
   readonly pedals?: { readonly arm: number; readonly out: number };
+  /** A bicycle's grips, in its fork's own frame, so they turn with the bars: where a rider's hands go. */
+  readonly grips?: { readonly left: Grip; readonly right: Grip };
 }
+
+/** A point in a part's own frame. */
+export type Grip = readonly [number, number, number];
 
 const quartet = (prefix: string, rear = "rear") =>
   ["front_left", "front_right", `${rear}_left`, `${rear}_right`].map((w) => ({
@@ -40,6 +45,8 @@ export const RIGS = {
     // Measured from the file: wheels 1.02 m apart, pedals 0.133 m out on the crank and 0.165 m to the side.
     front: 0.507,
     pedals: { arm: 0.133, out: 0.165 },
+    // In the fork's frame as the file has it (x to the rider's left, z ahead): the bars' two ends, behind the stem.
+    grips: { left: [0.35, 0.61, -0.14], right: [-0.15, 0.69, -0.14] },
   },
   car: { wheels: quartet("sedan_blue"), radius: 0.31, roll: { axis: "x", sign: 1 }, front: 1.3 },
 } as const satisfies Record<string, Rig>;
@@ -57,6 +64,7 @@ export const PROCEDURAL_RIGS = {
     roll: { axis: "z", sign: -1 },
     front: 0.55,
     pedals: { arm: 0.17, out: 0.13 },
+    grips: { left: [0.02, 0.3, -0.25], right: [0.02, 0.3, 0.25] },
   },
   car: {
     wheels: ["front-left", "front-right", "rear-left", "rear-right"].map((w) => ({

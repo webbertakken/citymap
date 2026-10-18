@@ -1370,10 +1370,12 @@ mark {
   bottom: var(--gap);
   left: var(--gap);
   z-index: 20;
+  padding: 8px 16px;
+}
+.explore-hud dl {
   display: flex;
   gap: 16px;
   margin: 0;
-  padding: 8px 16px;
 }
 .explore-hud dt {
   font-size: 12px;
@@ -1460,6 +1462,8 @@ mark {
     right: var(--gap);
     bottom: calc(var(--gap) + 48px + 72px + 16px + 56px + 16px);
     left: auto;
+  }
+  .explore-hud dl {
     flex-direction: column;
     gap: 4px;
   }

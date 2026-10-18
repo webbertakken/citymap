@@ -453,10 +453,10 @@ describe("ExploreView", () => {
   it("shows the bicycle's speed, gear and cadence while riding it, a foot down at a stop, and none on foot", () => {
     show();
     toTheKerb(25);
-    expect(screen.queryByRole("list", { name: "Bicycle" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Speed, gear and cadence" })).toBeNull();
     fireEvent.keyDown(window, { code: "KeyE" });
     walk();
-    expect(hud().getAttribute("aria-label")).toBe("Bicycle");
+    expect(hud().getAttribute("aria-label")).toBe("Speed, gear and cadence");
     expect(hud().dataset.foot).toBe("down");
     expect(hud().textContent).toContain("0 km/h");
     expect(hud().textContent).toContain("3 of 7");

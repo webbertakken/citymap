@@ -19,7 +19,17 @@ import {
 import { Animator } from "../explore/models/animator";
 import { GLTF_MODELS, loadModel, type Loaded, type ModelFile } from "../explore/models/gltf";
 import { motionOf, paceOf } from "../explore/models/motion";
-import { FOOT_OUT, KNEE_AHEAD, SADDLE, legsOf, pedalsOf, reachFor, thrownPose } from "../explore/models/pedalling";
+import {
+  ELBOW_OUT,
+  FOOT_OUT,
+  KNEE_AHEAD,
+  SADDLE,
+  armsOf,
+  legsOf,
+  pedalsOf,
+  reachFor,
+  thrownPose,
+} from "../explore/models/pedalling";
 import { bicycle, car, figure, paletteOf } from "../explore/models/procedural";
 import { PROCEDURAL_RIGS, RIGS, poseVehicle, type Rig } from "../explore/models/rig";
 import { poseStride, swingOf } from "../explore/models/stride";
@@ -240,16 +250,23 @@ function placeVehicle(slot: Slot, group: Object3D, vehicle: Vehicle, rolled: Rol
 
 const scratch = { at: new Vector3(), turn: new Quaternion() };
 
+/** A rider's limbs to bend onto the bicycle, when the figure has them. */
+interface Limbs {
+  readonly legs: ReturnType<typeof legsOf>;
+  readonly arms: ReturnType<typeof armsOf>;
+}
+
 /**
  * The rider on a bicycle: thrown, beside it on the ground, rolled onto the side it fell; else in its saddle, in its
- * frame, the legs bent onto the pedals (the left foot on the ground at a stop) when the figure has legs to bend.
+ * frame, the legs bent onto the pedals (the left foot on the ground at a stop) and the hands on the grips, when the
+ * figure has limbs to bend.
  */
 function seat(
   walker: Object3D,
   slot: Slot,
   group: Object3D,
   vehicle: Vehicle & { kind: "bicycle" },
-  legs: ReturnType<typeof legsOf>,
+  { legs, arms }: Limbs,
 ) {
   const { cycle } = vehicle;
   if (cycle.fall) {
@@ -263,9 +280,16 @@ function seat(
   machine.updateWorldMatrix(true, false);
   walker.position.copy(machine.localToWorld(scratch.at.set(0, SADDLE, 0)));
   walker.quaternion.copy(machine.getWorldQuaternion(scratch.turn));
+  walker.updateMatrixWorld(true);
+  const fork = slot.rig.fork ? machine.getObjectByName(slot.rig.fork) : undefined;
+  if (arms && fork && slot.rig.grips) {
+    const grip = (at: readonly [number, number, number]) => fork.localToWorld(new Vector3(...at));
+    const out = (side: Vector3) => side.clone().applyQuaternion(scratch.turn);
+    reachFor(arms.left.upper, arms.left.fore, arms.left.hand, grip(slot.rig.grips.left), out(ELBOW_OUT.left));
+    reachFor(arms.right.upper, arms.right.fore, arms.right.hand, grip(slot.rig.grips.right), out(ELBOW_OUT.right));
+  }
   const crank = slot.rig.crank ? machine.getObjectByName(slot.rig.crank) : undefined;
   if (!legs || !crank || !slot.rig.pedals) return;
-  walker.updateMatrixWorld(true);
   const pivot = machine.worldToLocal(crank.getWorldPosition(new Vector3()));
   const pedals = pedalsOf(cycle.crank, slot.rig.pedals);
   const toWorld = (p: { x: number; y: number; z: number }) =>
@@ -283,7 +307,7 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
   const bikeModel = use(bike);
   const model = useMemo(() => loaded?.make() ?? figure(paletteOf(theme)), [loaded, theme]);
   const animator = useMemo(() => (loaded ? new Animator(model, loaded.clips) : null), [loaded, model]);
-  const legs = useMemo(() => legsOf(model), [model]);
+  const limbs = useMemo(() => ({ legs: legsOf(model), arms: armsOf(model) }), [model]);
   // The pool: so many models of each kind, the PSX ones with their rigs, or the procedural stand-ins (with their own)
   // when a file could not load. Each is drawn inside a group that places and turns it, so its own pose stays its own.
   const slots = useMemo<Slot[]>(
@@ -342,7 +366,7 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
     const ridingGroup = shows[at]?.group;
     if (ridden?.kind === "bicycle" && ridingGroup) {
       animator?.play(ridden.cycle.fall ? "idle" : "drive", 1, seconds);
-      seat(walker, slots[at]!, ridingGroup, ridden, legs);
+      seat(walker, slots[at]!, ridingGroup, ridden, limbs);
     } else if (!ridden) {
       // Drawn between its last two steps, so it moves as smoothly as the frames come.
       const { feet, heading, walked } = now.shown;

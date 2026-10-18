@@ -107,19 +107,21 @@ The thinnest path through every layer: world, one mover, intents, camera, render
 
 ## Phase 5: parked vehicles and the bicycle
 
-- [ ] Parked vehicles: where they stand in a city (deterministic from the plan), walking up to one, getting on and off
+- [x] Parked vehicles: where they stand in a city (deterministic from the plan), walking up to one, getting on and off
 
 The showpiece: a bicycle that rides like one.
 
-- [ ] Single-track core: lean, steering geometry with trail and self-stability, countersteer, weight transfer, tyre grip
+- [x] Single-track core: lean, steering geometry with trail and self-stability, countersteer, weight transfer, tyre grip
       limit, low-speed wobble (tests first: rides straight hands-free above its stable speed, falls below it, turns by
       leaning)
-- [ ] Drivetrain: pedalling cadence and torque, gears up and down, freewheel, front and rear brakes (a hard front brake
+- [x] Drivetrain: pedalling cadence and torque, gears up and down, freewheel, front and rear brakes (a hard front brake
       lifts the rear), rolling resistance and air drag
-- [ ] Rider: pedals, legs and wheels turn in step with cadence and speed; foot down at a stop; a fall on a hard hit or a
+- [x] Rider: pedals, legs and wheels turn in step with cadence and speed; foot down at a stop; a fall on a hard hit or a
       lean past grip, then back up
-- [ ] Bell, HUD (speed, gear, cadence), controls on keyboard, touch and gamepad
-- [ ] E2E: ride, shift, brake, stop with a foot down; gate, commit, local build; Webber tests; feedback folded in
+- [x] Bell, HUD (speed, gear, cadence), controls on keyboard, touch and gamepad
+- [x] E2E: ride, shift, brake, stop with a foot down; gate, commit, local build
+- [ ] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
+- [ ] Webber tests on desktop and phone; feedback folded in
 
 ## Phase 6: motorbike and car
 

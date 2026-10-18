@@ -10,8 +10,9 @@ export const FOOT_OUT = 0.25;
 /** Thrown, the rider lands this far ahead of the bicycle and this far to the side it falls. */
 export const THROWN = 0.9;
 export const THROWN_ASIDE = 0.4;
-/** A knee bends ahead of the leg, a little up. */
+/** A knee bends ahead of the leg, a little up; an elbow down, back and out to its side (+z right). */
 export const KNEE_AHEAD = new Vector3(1, 0.3, 0).normalize();
+export const ELBOW_OUT = { left: new Vector3(-0.3, -1, -1).normalize(), right: new Vector3(-0.3, -1, 1).normalize() };
 
 type Point = { readonly x: number; readonly y: number; readonly z: number };
 
@@ -34,18 +35,39 @@ export interface Leg {
   readonly foot: Object3D;
 }
 
-/** A person's legs, by their bones' names as three.js keeps them; null for a figure without them. */
-export function legsOf(person: Object3D): { readonly left: Leg; readonly right: Leg } | null {
+/** One arm's bones: the upper arm from the shoulder, the forearm from the elbow, and the hand. */
+export interface Arm {
+  readonly upper: Object3D;
+  readonly fore: Object3D;
+  readonly hand: Object3D;
+}
+
+/** A limb's three bones on each side, by their names as the rig gives them (".L" and ".R"), as three.js keeps them. */
+function limbs(person: Object3D, names: readonly [string, string, string]) {
   const bone = (name: string) => person.getObjectByName(PropertyBinding.sanitizeNodeName(name));
   const side = (s: "L" | "R") => {
-    const thigh = bone(`UpperLeg.${s}`);
-    const shin = bone(`LowerLeg.${s}`);
-    const foot = bone(`Foot.${s}`);
-    return thigh && shin && foot ? { thigh, shin, foot } : null;
+    const [a, b, c] = names.map((name) => bone(`${name}.${s}`));
+    return a && b && c ? ([a, b, c] as const) : null;
   };
   const left = side("L");
   const right = side("R");
   return left && right ? { left, right } : null;
+}
+
+type Bones = readonly [Object3D, Object3D, Object3D];
+const leg = ([thigh, shin, foot]: Bones): Leg => ({ thigh, shin, foot });
+const arm = ([upper, fore, hand]: Bones): Arm => ({ upper, fore, hand });
+
+/** A person's legs; null for a figure without them. */
+export function legsOf(person: Object3D): { readonly left: Leg; readonly right: Leg } | null {
+  const found = limbs(person, ["UpperLeg", "LowerLeg", "Foot"]);
+  return found ? { left: leg(found.left), right: leg(found.right) } : null;
+}
+
+/** A person's arms; null for a figure without them. */
+export function armsOf(person: Object3D): { readonly left: Arm; readonly right: Arm } | null {
+  const found = limbs(person, ["UpperArm", "ForeArm", "Hand"]);
+  return found ? { left: arm(found.left), right: arm(found.right) } : null;
 }
 
 /** Turns a bone (in the world) so that a direction from it becomes another, whatever its own axes. */

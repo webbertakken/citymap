@@ -92,8 +92,9 @@ build).
   turn rate 1.5 rad/s, response 7. Power tapers `accelerate · (1 − (v/top)²)`; the aimed turn is
   `−right · min(|v| / radius, rate) · sign(v)`, reached at `response` per second; the wheel angle
   `atan(turn · wheelbase / v)` held to `MAX_STEER` 0.6.
-- The landing's pair: `PARKING.bicycle` 4 m ahead, 0.8 m in from the kerb; `PARKING.car` 10 m and 1.4 m; moved out from
-  the road's middle by the walls; ids `bicycle` and `car`.
+- The landing's pair: `PARKING.bicycle` 4 m ahead, 0.8 m in from the kerb on the right, facing along the road;
+  `PARKING.car` 10 m ahead and 1.4 m in from the far kerb (`side` −1), facing back, so the bicycle's line along its kerb
+  is clear; moved out from the road's middle by the walls; ids `bicycle` and `car`.
 - Gears in a frame: riding a bicycle (not flying), `Controls.gears` shifts it, once per frame, before the steps.
 
 ## Parked vehicles (`explore/parking.ts`)
@@ -101,12 +102,13 @@ build).
 - `parkedIn(city, landing, walls)`: every town road of class street, collector, avenue or boulevard, in metres; kerb
   places every `PLACE_GAP` 24 m along its polyline at `(k + ½) · PLACE_GAP`, on the right kerb for even `k` and the left
   for odd, facing along the road on the right and against it on the left. A place is skipped within `JUNCTION_GAP` 8 m
-  of any road's end (its own included, found in a 16 m grid) and within `LANDING_CLEAR` 12 m of the landing.
-  `placeHash(road, k)` (32-bit integer mix to [0, 1)) below `BICYCLE_SHARE` 0.3 parks a bicycle, below
+  of any road's end (its own included, found in a 16 m grid) and within `LANDING_CLEAR` 16 m of the landing (clear of
+  its pair). `placeHash(road, k)` (32-bit integer mix to [0, 1)) below `BICYCLE_SHARE` 0.3 parks a bicycle, below
   `BICYCLE_SHARE + CAR_SHARE` (0.6) a car; inset as `PARKING`, moved out from the road's middle by the walls. A
   bicycle's crank starts at `placeHash · 2π`. Ids `parked-{road}-{k}`. Kept: the `PARKED_MOST` 200 nearest the landing,
-  nearest first, ties by id. Logs `explore/parked bicycles cars places`.
-- `Viewer` adds them after the landing's pair and hands them to the walk (`ExploreView.parked`).
+  nearest first, ties by id.
+- `Viewer` adds them after the landing's pair, logs `explore/parked bicycles cars`, and hands them to the walk
+  (`ExploreView.parked`).
 
 ## The bicycle (`explore/bicycle.ts`)
 
@@ -114,8 +116,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 
 - `Cycle`: `lean`, `leanRate`, `steer`, `steerRate`, `aim` (the lean aimed at, slewed), `crank` (radians, forwards),
   `cadence` (crank rad/s, 0 freewheeling), `gear` (index), `pitch` and `pitchRate` (the back wheel lifted, about the
-  front contact), `footDown`, `fallen` (seconds since thrown, or null), `side` (1 left, −1 right: where it fell),
-  `wobble` (seconds, the searching phase). `resting(gear = START_GEAR, crank = 0)`: upright, still, a foot down.
+  front contact), `footDown`, `fall` (null, or `Fall`: `time` since thrown, `side` 1 left or −1 right, `cause` `hit`,
+  `grip` or `lean`, and the `speed` it was thrown at), `wobble` (seconds, the searching phase).
+  `resting(gear = START_GEAR, crank = 0)`: upright, still, a foot down.
 - `whipple(lean, v, leanTorque, steerTorque, dt)`: `M q̈ + v C1 q̇ + (g K0 + v² K2) q = T`, the benchmark's matrices
   (Meijaard et al. 2007, Table 2): `M` [[80.81722, 2.31941332208709], [2.31941332208709, 0.29784188199686]], `C1`
   [[0, 33.86641391492494], [−0.85035641456978, 1.68540397397560]], `K0` [[−80.95, −2.59951685249872],
@@ -137,23 +140,29 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 - Drivetrain: `GEARS` [1.2, 1.5, 1.8, 2.2, 2.6, 3.1, 3.6] wheel turns per crank turn, `START_GEAR` 2, `WHEEL_RADIUS`
   0.337 m. Pedalling (`forward > 0`): crank speed `max(0, v) / (G r)`, torque
   `forward · TORQUE_MOST · max(0, 1 − crank speed / CADENCE_MOST)` (150 N·m, 14.66 rad/s = 140 rpm), drive
-  `torque / (G r)`, held to `GRIP · back load`; the crank turns at the crank speed and `cadence` is it. Not pedalling,
-  the crank holds and `cadence` is 0 (freewheel).
+  `torque / (G r)`, held to what the back tyre holds; the crank turns at the crank speed and `cadence` is it. Not
+  pedalling, the crank holds and `cadence` is 0 (freewheel).
 - Resistance against the motion: `ROLLING` 0.006 `m g` and `½ AIR_DENSITY DRAG_AREA v²` (1.2 kg/m³, 0.5 m²).
-- Brakes: S (`forward < 0`) asks `−forward · REAR_BRAKE` (600 N), Space (`jump`) `FRONT_BRAKE` (850 N); each held to
-  `GRIP` times its wheel's load at the acceleration first found (one refinement). Brakes and resistance stop the
-  bicycle, never reverse it. A foot down, stopped and `forward < 0`, it walks back towards `−WALK_BACK` 0.8 m/s at
-  `WALK_BACK_RATE` 2 m/s²; backwards otherwise, it stops at the same rate.
+- Brakes: S (`forward < 0`) asks `−forward · REAR_BRAKE` (600 N), Space (`jump`) `FRONT_BRAKE` (850 N). A tyre holds
+  `sqrt(GRIP² − (s / g)²)` of its load along its way, `s` the sideways acceleration (its friction circle); loads move
+  with the acceleration they allow, found by halving `LOAD_ROUNDS` 26 times between ±3 g (net(a) − a falls as a rises),
+  then the net force at that acceleration. Brakes and resistance stop the bicycle, never reverse it. A foot down,
+  stopped and `forward < 0`, it walks back towards `−WALK_BACK` 0.8 m/s at `WALK_BACK_RATE` 2 m/s²; backwards otherwise,
+  it stops at the same rate.
 - Pitch (a stoppie): about the front contact, `(L² + h²) θ̈ = d · (L sin θ + h cos θ) − g · (L cos θ − h sin θ)`, `d` the
   deceleration, `L = WHEELBASE − MASS_AHEAD`; held at 0 while it would go below; the rider holds it at `STOPPIE_MOST`
   0.3 rad (the rate zeroed there).
-- A foot: down below `FOOT_DOWN` 0.6 m/s, up above `FOOT_UP` 1.2 m/s. Down, the lean eases to `FOOT_LEAN` 0.12 rad (to
-  the left, onto the foot) at `FOOT_EASE` 1 rad/s and the bars to `−right · FOOT_STEER` (0.6 rad) at `BAR_EASE` 4 rad/s;
-  the aim follows the lean.
-- Falls (`thrown(cycle)`): the lateral and longitudinal accelerations together past `GRIP · g`, `|φ|` past `FALL_LEAN`
-  0.9 rad, or a hit at `HARD_HIT` 3 m/s. Thrown, it falls to the side it leans (left when upright), slides to a stop at
-  `SLIDE · g` (0.5), lies at `LYING` 1.35 rad, reached over `FALLING` 0.4 s and left over the last `RISING` 0.6 s of
-  `DOWN` 2.5 s; then `resting` with its gear. Intents count for nothing meanwhile.
+- A foot: down below `FOOT_DOWN` 0.6 m/s, up above `FOOT_UP` 1.2 m/s. Down, the lean eases to
+  `FOOT_LEAN · max(0, 1 − v / FOOT_UP)` (0.12 rad to the left, onto the foot, at a stop; upright by the time it lifts,
+  so it leaves on its line) at `FOOT_EASE` 1 rad/s and the bars to `−right · FOOT_STEER` (0.6 rad) at `BAR_EASE` 4
+  rad/s; the aim follows the lean.
+- Falls (`thrown(cycle, cause, speed)`): `lean` when `|φ|` passes `FALL_LEAN` 0.9 rad; `grip` when a brake asks more
+  than its tyre holds while turning harder than `LEANED` 2 m/s², or the turn alone asks more than `GRIP · g`; `hit` at
+  `HARD_HIT` 3 m/s (`bumped`). Sideways is what the lean balances, `g tan φ`, above `FOOT_UP` (below it a lean is a
+  fall, not a turn); the path's own `v · turn` spikes as the rider countersteers while the tyres' load follows the lean.
+  Thrown, it falls to the side it leans (left when upright), slides to a stop at `SLIDE · g` (0.5), lies at `LYING` 1.35
+  rad, reached over `FALLING` 0.4 s and left over the last `RISING` 0.6 s of `DOWN` 2.5 s; then `resting` with its gear.
+  Intents count for nothing meanwhile.
 - `shift(cycle, steps)`: the gear moved by `steps`, within the gears. `hudOf(cycle, v)`: `speed` km/h, `gear` (from 1),
   `gears`, `cadence` rpm, each rounded. `rideCycle(cycle, v, intents, dt)` does one step: falling, else longitudinal
   (drive, brakes, resistance, pitch, crank), the foot, the lean (foot down, or rider, assist, wobble and `whipple`), the
@@ -171,8 +180,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   model's own frame, each mapped bone's turn `source(t) · source_rest⁻¹ · target_rest`, unmapped bones at rest, the hip
   moved by the source hip's move times `targetHip.y / sourceHip.y`; sampled at `fps` to the clip's end (played once,
   held). Throws `explore/retarget-no-hip` when either lacks the hip.
-- `loadModel`: the file sized to `metres` by `measure`, turned by `yaw` to face +x, on y = 0, centred; measured
-  precisely as posed by its skeleton. `original` is the file's own scene, to retarget against.
+- `loadModel`: the file sized to `metres` by `measure`, turned by `yaw` to face +x, on y = 0, centred; measured once per
+  file (`framingOf`, on a copy, precisely as posed by its skeleton), every copy `framed` alike and posed. `original` is
+  the file's own scene, to retarget against.
 - `Animator`: one action per clip; a motion's clip by `CLIP_OF`, cross-faded over `BLEND` 0.15 s; a missing clip logs
   `explore/clip-missing motion` once and keeps the last.
 - Paces: walk at `speed / WALK_CLIP_SPEED` (1 m/s, measured 0.98), sprint at `speed / SPRINT_CLIP_SPEED` (2.56 m/s,
@@ -181,15 +191,18 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   (the bicycle's own, so it freewheels), fork and front wheels by `steer`; the model leans about its length and pitches
   nose down by `pitch` about its front contact (`rig.front`, metres ahead of its middle), its position moved so that
   contact stays put. `Rig.pedals`: `arm` and `out` (the right pedal hangs down at rest): PSX 0.133 and 0.165 m, front
-  0.507 m; procedural 0.17 and 0.13 m, front 0.55 m.
+  0.507 m; procedural 0.17 and 0.13 m, front 0.55 m. `Rig.grips`: the bars' ends in the fork's own frame, so they turn
+  with it: PSX left (0.35, 0.61, −0.14) and right (−0.15, 0.69, −0.14) in the file's axes; procedural (0.02, 0.3,
+  ∓0.25).
 - `pedalsOf(crank, rig)`: from the crank's pivot in the model's frame (+x ahead, +z right), the right pedal at
   `(-arm sin c, -arm cos c, out)` and the left at `(arm sin c, arm cos c, -out)`.
 - The rider (`models/pedalling.ts`): sat on the bicycle at `SADDLE` 0.38 m up in its model's frame, so it leans and
   pitches with it; after the clip plays, `reachFor(thigh, shin, foot, target, bend)` turns `UpperLeg` and `LowerLeg`
   (each side) so the foot is on its pedal, the knee bent towards `bend` (ahead and up), in world space with no
   assumption about the bones' own axes; out of reach, the leg points straight at the target. A foot down puts the left
-  foot on the ground `FOOT_OUT` 0.25 m left of the crank. Thrown, the rider lies beside the bicycle, turned as it lies,
-  `THROWN` 0.9 m ahead and 0.4 m to its side, back in the saddle once it is up.
+  foot on the ground `FOOT_OUT` 0.25 m left of the crank. The arms (`armsOf`: `UpperArm`, `ForeArm`, `Hand`) reach the
+  grips the same way, elbows `ELBOW_OUT` down, back and out. Thrown, the rider lies beside the bicycle, turned as it
+  lies, `THROWN` 0.9 m ahead and 0.4 m to its side, back in the saddle once it is up.
 - The pool (`nearestOf(vehicles, at, most, keep)`): every `POOL_EVERY` 0.25 s the canvas takes the `VEHICLE_POOL` 8
   nearest of each kind to the walker (the ridden one always), and `assignPool(slots, wanted)` keeps a model on a vehicle
   while it stays wanted and gives freed ones to newcomers; a model without a vehicle is hidden.
@@ -249,10 +262,11 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   prototype: {engine}" while two engines are compared, the keys of the ride, and "Back to the map".
 - The prompt: top centre (above the stick on touch), `E` in a key cap and its words; disabled while "Slow down to …".
 - Touch: a 144 px stick (reach `STICK_REACH` 48 px) and a 72 px Jump button. On the bicycle the Jump button reads
-  "Brake" (the front brake), and Ring, Gear down and Gear up (48 px) stand above it.
-- HUD (`explore-hud`, on the bicycle only): a list named "Bicycle" of Speed ("18 km/h"), Gear ("3 of 7") and Cadence
-  ("72 rpm"), shown when they change, at most every `HUD_EVERY` 0.1 s; `data-foot` "down" or "up", `data-fallen` while
-  thrown. Not live: a screen reader reads it on demand.
+  "Brake" (the front brake), and Ring, Gear down and Gear up (48 px, `explore-ride-buttons`) stand in a column beside
+  it, touch only and not while flying (where Down stands). The HUD on touch stacks at the right above Fly.
+- HUD (`explore-hud`, on the bicycle only): a region named "Speed, gear and cadence" holding a list of Speed ("18
+  km/h"), Gear ("3 of 7") and Cadence ("72 rpm"), shown when they change, at most every `HUD_EVERY` 0.1 s; `data-foot`
+  "down" or "up", `data-fallen` while thrown. Not live: a screen reader reads it on demand.
 - The card's keys on the bicycle: "W pedals · S back brake · Space front brake · A D steer · Q R gears · B rings · E
   gets off · click to look · Esc leaves".
 - The bell (`explore/bell.ts`): `ringBell(context)` strikes twice, `BELL_GAP` 0.12 s apart, each two sine partials
@@ -291,9 +305,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 
 `explore/walls`, `explore/enter landing buildings`, `explore/leave x z`, `explore/failed reason`,
 `explore/no-roads name`, `explore/model-normalised url x y z scale`, `explore/model-failed url reason`,
-`explore/clip-missing motion`, `explore/parked bicycles cars places`, `explore/thrown cause speed` (cause `hit`, `grip`
-or `lean`), `explore/up`, `explore/bell`, `explore/bell-silent`, `explore/gamepad id` (once, when first read), and the
-loading card's `viewer/load-phase source=explore`.
+`explore/clip-missing motion`, `explore/parked bicycles cars`, `explore/thrown cause speed` (the speed thrown at) (cause
+`hit`, `grip` or `lean`), `explore/up`, `explore/bell`, `explore/bell-silent`, `explore/gamepad id` (once, when first
+read), and the loading card's `viewer/load-phase source=explore`.
 
 ## Performance and limits
 

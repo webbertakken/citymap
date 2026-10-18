@@ -140,27 +140,29 @@ const firstPad = (): (PadState & { readonly id: string }) | null =>
 function RideHud({ ride }: { readonly ride: Ride }) {
   const { hud } = ride;
   return (
-    <dl
+    <section
       className="glass explore-hud"
-      aria-label="Bicycle"
+      aria-label="Speed, gear and cadence"
       data-foot={ride.foot ? "down" : "up"}
       data-fallen={ride.fallen || undefined}
     >
-      <div>
-        <dt>Speed</dt>
-        <dd>{hud.speed} km/h</dd>
-      </div>
-      <div>
-        <dt>Gear</dt>
-        <dd>
-          {hud.gear} of {hud.gears}
-        </dd>
-      </div>
-      <div>
-        <dt>Cadence</dt>
-        <dd>{hud.cadence} rpm</dd>
-      </div>
-    </dl>
+      <dl>
+        <div>
+          <dt>Speed</dt>
+          <dd>{hud.speed} km/h</dd>
+        </div>
+        <div>
+          <dt>Gear</dt>
+          <dd>
+            {hud.gear} of {hud.gears}
+          </dd>
+        </div>
+        <div>
+          <dt>Cadence</dt>
+          <dd>{hud.cadence} rpm</dd>
+        </div>
+      </dl>
+    </section>
   );
 }
 
