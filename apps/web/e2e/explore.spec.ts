@@ -1,5 +1,5 @@
 import { AxeBuilder } from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 // Walking in the city: down from the map through the loading card, on foot by keys or by touch, and back to the map.
 
@@ -280,3 +280,193 @@ test("flies the camera freely with F, over the city, and lands it on the walker"
   await page.keyboard.press("KeyF");
   await expect(page.getByRole("region", { name: "On foot" })).toBeVisible();
 });
+
+/** The prompt's words now, read without waiting: null with nothing within reach. */
+const promptNow = (page: Page) =>
+  page.evaluate(() => document.querySelector(".explore-use")?.textContent?.replace(/^E/, "") ?? null);
+
+/** Keys held until the prompt says what is wanted, or `tenths` tenths of a second of frames have passed. */
+async function holdForPrompt(page: Page, keys: readonly string[], wanted: string, tenths: number) {
+  const until = async (left: number): Promise<void> => {
+    if (left <= 0 || (await promptNow(page)) === wanted) return;
+    await frames(page, 6);
+    await until(left - 1);
+  };
+  await Promise.all(keys.map((key) => page.keyboard.down(key)));
+  await until(tenths);
+  await Promise.all(keys.map((key) => page.keyboard.up(key)));
+}
+
+/** On foot from the landing to the motorbike, 7 m back along the street at the near kerb. */
+async function toTheMotorbike(page: Page) {
+  await holdForPrompt(page, ["KeyS", "KeyD"], "Get on the motorbike", 200);
+  return page.getByRole("button", { name: "Get on the motorbike", exact: true });
+}
+
+/** On foot from the landing to the car across the street, 10 m ahead: up the street a little at a time, then across. */
+async function toTheCar(page: Page) {
+  const wanted = "Get in the car";
+  const across = async (tries: number): Promise<void> => {
+    if (tries <= 0 || (await promptNow(page)) === wanted) return;
+    await holdForPrompt(page, ["KeyW"], wanted, 6);
+    await holdForPrompt(page, ["KeyA"], wanted, 14);
+    if ((await promptNow(page)) !== wanted) await holdForPrompt(page, ["KeyD"], wanted, 14);
+    await across(tries - 1);
+  };
+  await across(12);
+  return page.getByRole("button", { name: wanted, exact: true });
+}
+
+test("loads everything once behind the card: the engine, the models, the walls and the nearby streets", async ({
+  page,
+}) => {
+  const lines = logOf(page);
+  await page.getByRole("button", { name: "Walk" }).click();
+  await drawn(page);
+  const phases = lines
+    .filter((l) => l.startsWith("viewer/load-phase source=explore"))
+    .map((l) => /phase=(\w+)/.exec(l)?.[1]);
+  expect(phases).toEqual(["engine", "models", "walls", "streets"]);
+  expect(lines.find((l) => l.startsWith("explore/streets"))).toMatch(/^explore\/streets buildings=[1-9]\d* ms=\d+$/);
+  expect(lines.some((l) => l.startsWith("explore/model-failed"))).toBe(false);
+  expect(lines.some((l) => l.startsWith("explore/arcade"))).toBe(false);
+});
+
+test("rides the motorbike: throttle, gears that change themselves, both brakes to a stop, and off", async ({
+  page,
+  isMobile,
+}, info) => {
+  test.skip(isMobile, "the keyboard rides here; the phone's layout below");
+  await page.getByRole("button", { name: "Walk" }).click();
+  await drawn(page);
+  await expect(await toTheMotorbike(page)).toBeVisible();
+  await page.keyboard.press("KeyE");
+  await expect(page.getByRole("region", { name: "On the motorbike" })).toContainText("W throttle");
+  const hud = page.getByRole("region", { name: "Speed, gear and engine" });
+  await expect(hud).toContainText("1 of 5");
+  await expect(hud).toHaveAttribute("data-foot", "down");
+  // Pulled away hard: it changes up by itself.
+  await holdUntil(page, ["KeyW"], () => expect(hud).toContainText(/Gear\s*[2-5] of 5/, { timeout: 30_000 }));
+  await expect(hud).toHaveAttribute("data-foot", "up");
+  await page.screenshot({ path: info.outputPath("motorbike.png") });
+  await holdUntil(page, ["Space", "KeyS"], () =>
+    expect(page.getByRole("button", { name: "Get off the motorbike", exact: true })).toBeVisible({ timeout: 30_000 }),
+  );
+  await page.keyboard.press("KeyE");
+  await expect(page.getByRole("region", { name: "On foot" })).toBeVisible();
+});
+
+test("drives the car on Rapier: engine and gears, brakes then reverses, and leaves it parked where it stopped", async ({
+  page,
+  isMobile,
+}, info) => {
+  test.skip(isMobile, "the keyboard drives here; the phone's layout below");
+  const lines = logOf(page);
+  await page.getByRole("button", { name: "Walk" }).click();
+  await drawn(page);
+  await expect(await toTheCar(page)).toBeVisible();
+  await page.keyboard.press("KeyE");
+  await expect(page.getByRole("region", { name: "In the car" })).toContainText("Space handbrake");
+  const hud = page.getByRole("region", { name: "Speed, gear and engine" });
+  await expect(hud).toBeVisible();
+  await holdUntil(page, ["KeyW"], () =>
+    expect(hud).toContainText(/Speed\s*([3-9]\d|\d{3}) km\/h/, { timeout: 30_000 }),
+  );
+  await expect(hud).toContainText(/Engine\s*[1-9],?\d{3} rpm/);
+  await page.screenshot({ path: info.outputPath("driving.png") });
+  // S brakes to a stop, then backs up in reverse.
+  await holdUntil(page, ["KeyS"], () => expect(hud).toContainText(/Gear\s*R/, { timeout: 30_000 }));
+  await holdUntil(page, ["Space"], () =>
+    expect(page.getByRole("button", { name: "Get out of the car", exact: true })).toBeVisible({ timeout: 30_000 }),
+  );
+  await page.keyboard.press("KeyE");
+  await expect(page.getByRole("region", { name: "On foot" })).toBeVisible();
+  // Out beside it, the car stands where it stopped: within reach again.
+  await expect(page.getByRole("button", { name: "Get in the car", exact: true })).toBeVisible();
+  expect(lines.some((l) => l.startsWith("explore/arcade"))).toBe(false);
+});
+
+test("drives arcade cars where WebAssembly is missing, and says so once", async ({ page, isMobile }) => {
+  test.skip(isMobile, "the same on every device");
+  const lines = logOf(page);
+  await page.addInitScript(() => Reflect.deleteProperty(globalThis, "WebAssembly"));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Walk" }).click();
+  await drawn(page);
+  await expect(page.getByRole("region", { name: "On foot" })).toContainText(
+    "Cars drive simply here: the physics engine did not load.",
+  );
+  expect(lines.filter((l) => l.startsWith("explore/arcade reason=engine"))).toHaveLength(1);
+  await expect(await toTheCar(page)).toBeVisible();
+  await page.keyboard.press("KeyE");
+  await expect(page.getByRole("region", { name: "Speed" })).toBeVisible();
+});
+
+/** Every visible control box of the walk and the map's top row, and any two that overlap. */
+const overlapsOf = (page: Page) =>
+  page.evaluate(() => {
+    const boxes = [...document.querySelectorAll(".glass, .explore-stick, .icon-button")]
+      .filter((e) => e instanceof HTMLElement && e.offsetParent !== null && getComputedStyle(e).visibility !== "hidden")
+      .filter((e, _i, all) => !all.some((o) => o !== e && o.contains(e)))
+      .map((e) => ({
+        name: (e.getAttribute("aria-label") ?? e.textContent ?? "").trim(),
+        box: e.getBoundingClientRect(),
+      }))
+      .filter(({ box }) => box.width > 0 && box.height > 0);
+    const hits: string[] = [];
+    for (const [i, a] of boxes.entries())
+      for (const b of boxes.slice(i + 1))
+        if (
+          a.box.left < b.box.right &&
+          b.box.left < a.box.right &&
+          a.box.top < b.box.bottom &&
+          b.box.top < a.box.bottom
+        )
+          hits.push(`${a.name} x ${b.name}`);
+    const off = boxes
+      .filter(
+        ({ box }) => box.left < 0 || box.top < 0 || box.right > innerWidth + 0.5 || box.bottom > innerHeight + 0.5,
+      )
+      .map(({ name }) => `${name} off screen`);
+    return [...hits, ...off];
+  });
+
+for (const side of ["upright", "on its side"] as const)
+  test(`lays out each ride's touch controls with nothing overlapping, ${side}`, async ({ page, isMobile }, info) => {
+    test.skip(!isMobile, "the touch layout");
+    test.setTimeout(240_000);
+    if (side === "on its side") {
+      const { width, height } = page.viewportSize()!;
+      await page.setViewportSize({ width: height, height: width });
+    }
+    await page.getByRole("button", { name: "Walk" }).tap();
+    await drawn(page);
+    expect(await overlapsOf(page)).toEqual([]);
+    await page.getByRole("button", { name: "Fly" }).tap();
+    await expect(page.getByRole("button", { name: "Down" })).toBeVisible();
+    expect(await overlapsOf(page)).toEqual([]);
+    await page.getByRole("button", { name: "Fly" }).tap();
+    await (await toTheBicycle(page)).tap();
+    await holdUntil(page, ["KeyW"], () =>
+      expect(page.getByRole("button", { name: "Slow down to get off the bicycle" })).toBeVisible({ timeout: 30_000 }),
+    );
+    await expect(page.getByRole("button", { name: "Gear up" })).toBeVisible();
+    expect(await overlapsOf(page)).toEqual([]);
+    await page.screenshot({ path: info.outputPath("bicycle.png") });
+    /** A fresh walk to a ride, on it and moving, its controls measured. */
+    const ride = async (name: string, reach: (page: Page) => Promise<Locator>, title: string, primary: string) => {
+      await page.goto("/");
+      await page.getByRole("button", { name: "Walk" }).tap();
+      await drawn(page);
+      await (await reach(page)).tap();
+      await expect(page.getByRole("region", { name: title })).toBeVisible();
+      await expect(page.getByRole("button", { name: primary, exact: true })).toBeVisible();
+      await holdUntil(page, ["KeyW"], () =>
+        expect(page.locator(".explore-use")).toContainText("Slow down", { timeout: 30_000 }),
+      );
+      expect(await overlapsOf(page), name).toEqual([]);
+      await page.screenshot({ path: info.outputPath(`${name}.png`) });
+    };
+    await ride("motorbike", toTheMotorbike, "On the motorbike", "Brake");
+    await ride("car", toTheCar, "In the car", "Handbrake");
+  });

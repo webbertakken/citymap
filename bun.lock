@@ -75,6 +75,7 @@
         "fbx2gltf": "0.9.7-p1",
         "jsdom": "30.1.2",
         "obj2gltf": "3.2.0",
+        "sharp": "0.35.5",
       },
     },
     "packages/ground-plan": {

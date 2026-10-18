@@ -643,6 +643,16 @@ describe("ExploreView", () => {
     hold("KeyW", 10);
     expect(hud().textContent).toMatch(/Engine\d[\d,]* rpm/);
     expect(hud().textContent).not.toContain(" 0 km/h");
+    // Both brakes to a stop, then off.
+    fireEvent.keyDown(window, { code: "Space" });
+    fireEvent.keyDown(window, { code: "KeyS" });
+    for (let i = 0; i < 40; i++) walk();
+    fireEvent.keyUp(window, { code: "Space" });
+    fireEvent.keyUp(window, { code: "KeyS" });
+    walk();
+    expect(screen.getByRole("button", { name: "Get off the motorbike" })).toBeTruthy();
+    fireEvent.keyDown(window, { code: "KeyE" });
+    expect(walk().riding).toBeNull();
   });
 
   it("drives the car on the garage, keeps the streets round it each frame, and shows its gear and engine", () => {
