@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Inspect } from "../explore/inspect";
 import type { Landing } from "../explore/landing";
+import { roadGrid } from "../explore/signs";
 import { METRE } from "../explore/street";
 import {
   ExploreView,
@@ -44,10 +45,14 @@ const landing: Landing = {
 let frame: ExploreCanvasProps["frame"] = () => {
   throw new Error("no canvas");
 };
-/** Hands the walk's frame to the test, as the real canvas calls it each frame. */
+/** Hands the walk's frame and signs to the test, as the real canvas calls them each frame. */
+let signage: ExploreCanvasProps["signs"] | null = null;
+let reportSigns: ExploreCanvasProps["onSigns"] = () => undefined;
 function StubCanvas(props: ExploreCanvasProps) {
   useEffect(() => {
     frame = props.frame;
+    signage = props.signs;
+    reportSigns = props.onSigns;
   });
   return <p data-testid="explore-canvas" />;
 }
@@ -96,6 +101,7 @@ const show = (
       theme={theme}
       walls={open}
       footprints={sights.footprints ?? []}
+      roads={roadGrid([])}
       inspect={sights.inspect ?? (() => ({ hit: null, files: [] }))}
       landing={landing}
       engine="Rapier"
@@ -338,6 +344,16 @@ describe("ExploreView", () => {
     show();
     walk(0);
     expect(screen.queryByRole("region", { name: "In sight" })).toBeNull();
+  });
+
+  it("gives the canvas the buildings to sign and their names, and shows how many signs it put up", () => {
+    show(undefined, { footprints: [facing], inspect: inspectAhead });
+    expect(signage?.footprints).toEqual([facing]);
+    expect(signage?.name(0)).toBe("a.ts +1");
+    expect(signage?.roads.nearest(0, 0)).toBeNull();
+    expect(view().dataset.signs).toBe("0");
+    act(() => reportSigns(3));
+    expect(view().dataset.signs).toBe("3");
   });
 
   it("keeps a press on its card from turning the camera", () => {

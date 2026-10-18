@@ -115,6 +115,20 @@ build).
   thing is there) and its files from its measures, else the card's one file.
 - The camera's target is `SHOULDER_SIDE` 0.6 m to the right of the walker's head, short of a wall there by `WALL_GAP`.
 
+## Signs
+
+- `roadSegments(city)`: every road and highway as straight pieces in metres; `roadGrid` puts them in `ROAD_CELL` 32 m
+  cells and finds the nearest point ring by ring, stopping once nothing further can be nearer.
+- `nearestLots(footprints, at)`: the `SIGN_POOL` 24 nearest buildings whose middle is within `SIGN_REACH` 80 m.
+- `wallFacing(footprint, street)`: the wall whose outward normal points most squarely at the street's nearest point to
+  the building's middle; worked out once per building.
+- `signName(files)`: the first file's name, and `+n` for the files that share the building.
+- `SignBoard` (in the canvas) owns 24 planes, each with a 1,024 by 96 px canvas texture lettered in the page's face,
+  light on a dark plaque; every `SIGN_EVERY` 0.25 s it keeps signs whose buildings stay near and letters freed ones for
+  newcomers. A sign is 0.68 m tall (0.42 m lettering), at most 90 % of its wall, 4 cm out from it, centred in the band
+  between the first floor's windows and the second's (1.05 floors up), or at 0.9 of a one-floor building. The walk's
+  element carries `data-signs`, the number shown.
+
 ## Presentation and UX
 
 - Walk: an icon button "Walk", `aria-pressed` while walking; on a coarse pointer at the bottom centre, hidden while the
