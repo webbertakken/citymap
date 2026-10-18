@@ -224,9 +224,10 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   holds), so the parsers and the path matching are compared byte for byte too.
 - The `checkout` mode folds a clone made with a checkout, whose working tree `.mailmap` (and `mailmap.file`, pointed at
   the same text) maps up to `CHECKOUT_AUTHORS` 200 of its authors' emails to one (`checkoutMailmap`), so a CLI that read
-  the working tree would count fewer authors. The CLIs' outputs are compared with each other, and each CLI's city, SVG,
-  lock and log with its own `fold` outputs (a `--no-checkout` clone): `parity/checkout repo=… same` or
-  `parity/checkout-differs repo=… files=<side>:<file>,…` (exit 1).
+  the working tree would count fewer authors. Each such clone logs `parity/checkout-mailmap clone=… lines=…`. The CLIs'
+  outputs are compared with each other, and each CLI's city, SVG, lock and log with its own `fold` outputs (a
+  `--no-checkout` clone): `parity/checkout repo=… same` or `parity/checkout-differs repo=… files=<side>:<file>,…` (exit
+  1).
 - `--toggles=<list>` passes the same flag to both CLIs, so one run proves one toggle setting: the defaults (no flag),
   each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`).
 - One line per run: `parity/same repo=… mode=… ts-ms=… rs-ms=…` or `parity/differs repo=… mode=… files=… …` (exit 1),

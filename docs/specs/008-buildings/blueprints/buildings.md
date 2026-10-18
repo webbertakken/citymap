@@ -227,19 +227,28 @@ interface Report {
   the target's (`to`, resolved before the log), read once before the log starts, and only when a file history is asked
   for; a resume reads the same target's, so the lock carries nothing for it.
 
+- Merges are counted once, by the merge's author: the history read is the first-parent one the fold reads.
+- `listTree(dir, commit)` (`contents.ts`): `git ls-tree -r -z` at the commit, submodules left out;
+  `readBlobs(dir, blobs, onBlob)`: `git cat-file --batch` for each distinct blob the repository holds
+  (`BlobReader.readBytes`, the answer's chunks joined once when whole; a partial clone's missing blobs are never asked
+  for, so nothing is fetched). The CLI counts each blob's bytes (`countText`) for every path that holds it; a blob not
+  held gives the path no size, no lines, no comments. In Rust the history reader hands the files' history over as its
+  last item (`HistoryItem::Files`).
+
 ### Mailmap (`packages/history/src/mailmap.ts`, `rust/crates/history/src/mailmap.rs`)
 
-- `readMailmap(dir, commit, blobs)`: `git ls-tree -z <commit> -- .mailmap` names the root entry. A regular file (mode
-  `100644` or `100755`) is read through the reader's `BlobReader` (never fetched) and parsed: status `read`. No entry is
-  `absent`; a symbolic link, a folder or a submodule is `not-a-file` (git does not follow a `.mailmap` link in a
-  checkout either); a blob the clone does not hold is `unavailable`. Every status but `read` maps nobody. One log line:
-  `history/mailmap status=<read|absent|not-a-file|unavailable> entries=<n>` (`n` the emails the mailmap maps, 0 unless
-  read), after `history/schedule`.
-- `parseMailmap(text)`, as git's `mailmap.c` reads a blob: the text ends at its first NUL; it splits at `\n` (a `\r`
-  stays in the line); a line starting `#` is skipped. A pair is a `<`, the first `>` after it, the email between them
-  (as written, not trimmed) and the name before the `<` trimmed of space, tab, `\r` and `\n` (none when empty). The
-  first pair needs a non-empty email; what follows its `>`, when not empty, is read for a second pair, whose email may
-  be empty. A line without a first pair maps nothing; text after a second pair is ignored.
+- `readMailmap(dir, commit, blobs)` (Rust `read_mailmap`): `git ls-tree -z --full-tree <commit> -- .mailmap` names the
+  root entry, whichever folder of the repository the CLI was given. A regular file (mode `100644` or `100755`) is read
+  through the reader's `BlobReader` (never fetched) and parsed: status `read`. No entry is `absent`; a symbolic link, a
+  folder or a submodule is `not-a-file` (git does not follow a `.mailmap` link in a checkout either); a blob the clone
+  does not hold is `unavailable`. Every status but `read` maps nobody. One log line:
+  `history/mailmap status=<read|absent|not-a-file|unavailable> entries=<n>` (`n` the commit emails it has lines for, 0
+  unless read), after `history/schedule`.
+- `parseMailmap(text)` (Rust `Mailmap::parse`), as git's `mailmap.c` reads a blob: the text ends at its first NUL; it
+  splits at `\n` (a `\r` stays in the line); a line starting `#` is skipped. A pair is a `<`, the first `>` after it,
+  the email between them (as written, not trimmed) and the name before the `<` trimmed of space, tab, `\r` and `\n`
+  (none when empty). The first pair needs a non-empty email; what follows its `>`, when not empty, is read for a second
+  pair, whose email may be empty. A line without a first pair maps nothing; text after a second pair is ignored.
 - The four forms, by what the line gives (first pair: proper; second: as committed):
 
 | Line                                                    | Entry, keyed by the commit email                           |
@@ -252,16 +261,9 @@ interface Report {
 - Keys compare case-insensitively in ASCII only: emails, and names in the fourth form (git's `strcasecmp`). A later line
   for the same key wins: a simple entry's email is replaced only by a line that gives one; a named entry is replaced
   whole.
-- `emailOf(mailmap, author)`: the entry of the author's email, else the author's email. With named entries, the one of
-  the author's name, when there is one, gives the email; otherwise the simple entry does. An entry that gives no email
-  leaves the author's email. The result is then lower-cased in ASCII by `FileHistory`, as before.
-- Merges are counted once, by the merge's author: the history read is the first-parent one the fold reads.
-- `listTree(dir, commit)` (`contents.ts`): `git ls-tree -r -z` at the commit, submodules left out;
-  `readBlobs(dir, blobs, onBlob)`: `git cat-file --batch` for each distinct blob the repository holds
-  (`BlobReader.readBytes`, the answer's chunks joined once when whole; a partial clone's missing blobs are never asked
-  for, so nothing is fetched). The CLI counts each blob's bytes (`countText`) for every path that holds it; a blob not
-  held gives the path no size, no lines, no comments. In Rust the history reader hands the files' history over as its
-  last item (`HistoryItem::Files`).
+- `emailOf(mailmap, author)` (Rust `Mailmap::email_of`): the entry of the author's email, else the author's email. With
+  named entries, the one of the author's name, when there is one, gives the email; otherwise the simple entry does. An
+  entry that gives no email leaves the author's email. `FileHistory` then lower-cases the result in ASCII.
 
 ## The CLI (`apps/cli`, `rust/crates/cli`)
 
@@ -473,7 +475,7 @@ interface Report {
   stay in the page; they reach a city file only through the CLI, run by the person.
 - The CLI reads reports from the working directory and the named files only; git never fetches (`GIT_ALLOW_PROTOCOL`
   `none`, `GIT_NO_LAZY_FETCH`).
-- The mailmap is data from the history: parsed by a bounded line scanner, never handed to git. Nothing outside the laid
+- The mailmap is data from the history: parsed line by line in one pass, never handed to git. Nothing outside the laid
   commit (the working tree, `mailmap.file`, `mailmap.blob`, `log.mailmap`) changes a count.
 
 ## Presentation and accessibility
