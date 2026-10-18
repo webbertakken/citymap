@@ -29,6 +29,8 @@ Buildings view, colour by, cards); in Rust `rust/crates/measures`, `rust/crates/
 | lot table     | `lotTable(order, buildings, colourBy, theme)`    | four floats per lot: floors, lit share, packed colour, flags; the buildings mesh reads it |
 | view mode     | `Mode`                                           | `plan` or `buildings`                                                                     |
 | file history  | `FileHistory`                                    | per identity: last change, commits, authors; filled while the history is read             |
+| author        | `Author` (`{ name, email }`)                     | a commit's raw author, as written (`%an`, `%ae`), never mapped by git                     |
+| mailmap       | `Mailmap`, `parseMailmap`, `emailOf`             | the laid commit's `.mailmap`: which email each author's commits count under               |
 
 ## The city file (`packages/measures/src/section.ts`)
 
@@ -47,7 +49,7 @@ interface FileMeasures {
   readonly named?: boolean; // a test file names it; source files of a known language, when tested is "name"
   readonly changed?: number; // epoch seconds of the last first-parent commit that changed it
   readonly commits?: number; // first-parent commits that changed it (the one that added it included)
-  readonly authors?: number; // distinct author emails among those commits
+  readonly authors?: number; // distinct author emails among those commits, as the laid commit's .mailmap maps them
 }
 interface LotMeasures {
   readonly files: readonly FileMeasures[]; // sorted by compareKeys(path); at least one
@@ -210,14 +212,49 @@ interface Report {
 
 ## File history (`packages/history`)
 
-- The log format gains the commit's committer time and author email: `--format=%x01%H%x02%ct%x02%aE`. `parseRawLog`
-  reads `RawCommit { sha, time, author, entries }`; a header without them reads time 0 and author "".
-- `FileHistory` (`file-history.ts`): `record(identity, time, author)` for each entry of each commit that leaves the path
+- The log format gains the commit's committer time and its raw author, email then name:
+  `--format=%x01%H%x02%ct%x02%ae%x02%an`. Never `%aE`: git maps it through the working tree's `.mailmap` (and
+  `mailmap.file`, `mailmap.blob`), and `--no-mailmap` does not stop it. `parseRawLog` reads
+  `RawCommit { sha, time, author: { name, email }, entries }`: the name is everything after the third `\x02`, so a name
+  holding one stays whole; a header without them reads time 0 and an author of "" and "".
+- `FileHistory` (`file-history.ts`): `record(identity, time, email)` for each entry of each commit that leaves the path
   live (added, modified, renamed in; not deleted, not a submodule), after the commit is applied, so a rename counts
-  under the identity it carries. Per identity: `changed` the largest time, `commits` the count, the set of authors
-  (emails lower-cased in ASCII, interned to integers). `of(identity)` and `authorsAcross(identities)`.
+  under the identity it carries, with the email the mailmap gives the commit's author (`emailOf`). Per identity:
+  `changed` the largest time, `commits` the count, the set of authors (emails lower-cased in ASCII, interned to
+  integers). `of(identity)` and `authorsAcross(identities)`.
 - `readHistory(dir, { fileHistory })` records into it while reading; every commit is recorded, resumed folds included (a
-  resume applies every earlier commit too), so a resumed city's measures match the uninterrupted fold's.
+  resume applies every earlier commit too), so a resumed city's measures match the uninterrupted fold's. The mailmap is
+  the target's (`to`, resolved before the log), read once before the log starts, and only when a file history is asked
+  for; a resume reads the same target's, so the lock carries nothing for it.
+
+### Mailmap (`packages/history/src/mailmap.ts`, `rust/crates/history/src/mailmap.rs`)
+
+- `readMailmap(dir, commit, blobs)`: `git ls-tree -z <commit> -- .mailmap` names the root entry. A regular file (mode
+  `100644` or `100755`) is read through the reader's `BlobReader` (never fetched) and parsed: status `read`. No entry is
+  `absent`; a symbolic link, a folder or a submodule is `not-a-file` (git does not follow a `.mailmap` link in a
+  checkout either); a blob the clone does not hold is `unavailable`. Every status but `read` maps nobody. One log line:
+  `history/mailmap status=<read|absent|not-a-file|unavailable> entries=<n>` (`n` the emails the mailmap maps, 0 unless
+  read), after `history/schedule`.
+- `parseMailmap(text)`, as git's `mailmap.c` reads a blob: the text ends at its first NUL; it splits at `\n` (a `\r`
+  stays in the line); a line starting `#` is skipped. A pair is a `<`, the first `>` after it, the email between them
+  (as written, not trimmed) and the name before the `<` trimmed of space, tab, `\r` and `\n` (none when empty). The
+  first pair needs a non-empty email; what follows its `>`, when not empty, is read for a second pair, whose email may
+  be empty. A line without a first pair maps nothing; text after a second pair is ignored.
+- The four forms, by what the line gives (first pair: proper; second: as committed):
+
+| Line                                                    | Entry, keyed by the commit email                           |
+| ------------------------------------------------------- | ---------------------------------------------------------- |
+| `Proper Name <commit@email>`                            | simple: the name only (no email change)                    |
+| `<proper@email> <commit@email>`                         | simple: email `proper@email`                               |
+| `Proper Name <proper@email> <commit@email>`             | simple: email `proper@email` (and the name)                |
+| `Proper Name <proper@email> Commit Name <commit@email>` | by name `Commit Name`: email `proper@email` (and the name) |
+
+- Keys compare case-insensitively in ASCII only: emails, and names in the fourth form (git's `strcasecmp`). A later line
+  for the same key wins: a simple entry's email is replaced only by a line that gives one; a named entry is replaced
+  whole.
+- `emailOf(mailmap, author)`: the entry of the author's email, else the author's email. With named entries, the one of
+  the author's name, when there is one, gives the email; otherwise the simple entry does. An entry that gives no email
+  leaves the author's email. The result is then lower-cased in ASCII by `FileHistory`, as before.
 - Merges are counted once, by the merge's author: the history read is the first-parent one the fold reads.
 - `listTree(dir, commit)` (`contents.ts`): `git ls-tree -r -z` at the commit, submodules left out;
   `readBlobs(dir, blobs, onBlob)`: `git cat-file --batch` for each distinct blob the repository holds
@@ -376,13 +413,19 @@ interface Report {
 | Lot of several files, some unknown            | sums and the weakest over the known; unknown only when none is             |
 | Folder over 50 MB of tracked files            | bytes from the index; comments unavailable                                 |
 | A file that vanishes while read (folder)      | that file's facts are unknown; counted in `viewer/local-contents` `unread` |
+| No `.mailmap` at the laid commit              | nobody is mapped; `history/mailmap status=absent`                          |
+| `.mailmap` a link, folder or submodule        | nobody is mapped; `history/mailmap status=not-a-file`                      |
+| `.mailmap` blob not held (partial clone)      | nobody is mapped; `history/mailmap status=unavailable`                     |
+| A working tree `.mailmap`, `mailmap.*` config | never read: the city is the same with or without a checkout                |
+| A mailmap line that is not one of the forms   | maps nothing (no `<`, no `>`, an empty first email); the rest still read   |
 
 ## Observability
 
-- CLI: the `measures/*` lines above. Viewer: `viewer/mode` (`mode`), `viewer/colour-by` (`by`), `viewer/measures`
-  (`source`, `size`, `tested`, `lots`) when a city with measures is shown, `viewer/measures-none` when without,
-  `viewer/local-contents` (`files`, `bytes`, `read`, `unread`), `viewer/local-coverage` (`path`, `format`, `files`,
-  `matched`) and `viewer/local-coverage-skipped` (`path`, `reason`).
+- CLI: the `measures/*` lines above, and `history/mailmap` (status, entries) once per fold with measures. Viewer:
+  `viewer/mode` (`mode`), `viewer/colour-by` (`by`), `viewer/measures` (`source`, `size`, `tested`, `lots`) when a city
+  with measures is shown, `viewer/measures-none` when without, `viewer/local-contents` (`files`, `bytes`, `read`,
+  `unread`), `viewer/local-coverage` (`path`, `format`, `files`, `matched`) and `viewer/local-coverage-skipped` (`path`,
+  `reason`).
 
 ## Performance and limits
 
@@ -390,7 +433,8 @@ interface Report {
   1,024 texels, 1.2 MB; a colour change rewrites and uploads it (under 20 ms on a desktop). Picking walks at most
   `ceil(12 · FLOOR_HEIGHT / RAY_STEP)` = 30 steps.
 - CLI: one `ls-tree` and one `cat-file --batch` over held blobs; each distinct blob counted once. History tracking keeps
-  one record per identity and one integer per author per identity.
+  one record per identity and one integer per author per identity. The mailmap is one blob, read once and parsed in one
+  pass; each commit's author costs one or two map lookups.
 - Folder: contents read only under 50 MB.
 
 ## Testing
@@ -398,13 +442,18 @@ interface Report {
 - Unit (100 %): the section's round trip and rejections; every family's markers and the folder endings; every syntax's
   comment counting and marks, binary and empty files; each report format, including wrapped Istanbul files, Cobertura
   method lines, JaCoCo default packages, XML entities, comments and CDATA; path matching's three ways and ambiguity;
-  `lotFiles` on a fold with old towns; aggregation, scales and floors at their ends; ramps' ends and unknown; the lot
-  table; the view basis, pan, fit and unproject in both modes; ray picking over buildings of known heights; the legend,
-  colour by (keyboard, disabled with reasons), and cards with measures.
+  `lotFiles` on a fold with old towns; the mailmap's four forms, its malformed lines, its case rules and its later-wins
+  rule, checked against git's own `%aE` on a repository of nasty identities; the laid commit's mailmap read with and
+  without a checkout, with a different working tree `.mailmap` and `mailmap.file` set, and at an earlier `--to`, all
+  giving the same city; a mailmap that is absent, a link or not held; aggregation, scales and floors at their ends;
+  ramps' ends and unknown; the lot table; the view basis, pan, fit and unproject in both modes; ray picking over
+  buildings of known heights; the legend, colour by (keyboard, disabled with reasons), and cards with measures.
 - Rust: the same tests, case for case (tests by name, text, the XML scanner, the four formats, matching, lots, the
   section, the CLI's measures on temporary repositories, a partial clone included).
 - Parity: `bun run parity` compares city files with measures on every mode, and a mode with a coverage report written
-  into the clone at a usual path in each of the four formats.
+  into the clone at a usual path in each of the four formats. Its `checkout` mode folds a clone with a checkout whose
+  working tree `.mailmap` and `mailmap.file` merge many authors into one, and must match the `fold` mode's
+  `--no-checkout` clone byte for byte, in each CLI.
 - End to end: the view switch, colour by from the keyboard, unavailable measures, a picked fixture folder with an LCOV
   report, the cards, axe in light and dark, no card overlap at every width, and the vitals.
 
@@ -424,6 +473,8 @@ interface Report {
   stay in the page; they reach a city file only through the CLI, run by the person.
 - The CLI reads reports from the working directory and the named files only; git never fetches (`GIT_ALLOW_PROTOCOL`
   `none`, `GIT_NO_LAZY_FETCH`).
+- The mailmap is data from the history: parsed by a bounded line scanner, never handed to git. Nothing outside the laid
+  commit (the working tree, `mailmap.file`, `mailmap.blob`, `log.mailmap`) changes a count.
 
 ## Presentation and accessibility
 

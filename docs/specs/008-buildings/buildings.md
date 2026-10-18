@@ -40,6 +40,11 @@ people switch and read it lives in the [viewer](../004-interface-design/viewer.m
 - **Size** counts lines when the file's contents are at hand and the repository is small enough to read them (the picked
   folder reads contents under 50 MB of tracked files, or, without git, until it has read 50 MB; the CLI always, for
   every file its clone holds); otherwise bytes. A city says which. A binary file has no lines.
+- **Authors** are people, told apart by email as the laid commit's `.mailmap` names them, read as git reads a
+  `.mailmap`. A city is a function of the history alone: the working tree, its `.mailmap` and git's own mailmap settings
+  are never read, so a clone with a checkout, one without, and one whose `.mailmap` was edited lay the same city, and a
+  resumed fold the same as an uninterrupted one. A laid commit without a `.mailmap` file, or whose `.mailmap` the clone
+  does not hold (a partial clone), maps nobody, and the CLI says which.
 - **Unknown** is a value of its own: a measure a source cannot give, or a file a report does not cover, is unknown, and
   every channel and card shows it as unknown, never as zero.
 
