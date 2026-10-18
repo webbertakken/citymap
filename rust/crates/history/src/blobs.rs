@@ -9,7 +9,7 @@ use std::process::{Child, ChildStdin, ChildStdout, Stdio};
 
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
 
-use crate::env::git_command;
+use crate::env::{git_command, git_data_command};
 
 const PARTIAL_CLONE: &str = "^(extensions\\.partialclone|remote\\..*\\.promisor)$";
 
@@ -46,26 +46,33 @@ enum Answer {
 
 pub struct BlobReader {
     dir: PathBuf,
+    /// Whether `dir` is git data itself (a submodule's), not a repository's folder.
+    git_data: bool,
     batch: Option<Batch>,
     held: Held,
 }
 
 /// A git command for blob reads: no protocol is allowed, so a blob-less clone never fetches, whichever git.
-fn blob_git(dir: &Path, args: &[&str]) -> std::process::Command {
-    let mut command = git_command(dir, args);
+fn blob_git(dir: &Path, git_data: bool, args: &[&str]) -> std::process::Command {
+    let mut command = if git_data {
+        git_data_command(dir, args)
+    } else {
+        git_command(dir, args)
+    };
     command.env("GIT_ALLOW_PROTOCOL", "none");
     command
 }
 
 /// The blobs a partial clone holds, or none when the repository is not one (or git cannot say).
-fn held_blobs(dir: &Path) -> Result<Held> {
-    let config = blob_git(dir, &["config", "--get-regexp", PARTIAL_CLONE]).output();
+fn held_blobs(dir: &Path, git_data: bool) -> Result<Held> {
+    let config = blob_git(dir, git_data, &["config", "--get-regexp", PARTIAL_CLONE]).output();
     if !config.is_ok_and(|out| out.status.success()) {
         // No such setting, or no repository: not a partial clone; the batch reports whatever is missing.
         return Ok(Held::All);
     }
     let listing = blob_git(
         dir,
+        git_data,
         &[
             "cat-file",
             "--batch-check=%(objecttype) %(objectname)",
@@ -100,8 +107,8 @@ fn held_blobs(dir: &Path) -> Result<Held> {
     ))
 }
 
-fn start(dir: &Path) -> Option<Batch> {
-    let mut child = blob_git(dir, &["cat-file", "--batch"])
+fn start(dir: &Path, git_data: bool) -> Option<Batch> {
+    let mut child = blob_git(dir, git_data, &["cat-file", "--batch"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -135,12 +142,23 @@ fn answer(batch: &mut Batch) -> Answer {
 }
 
 impl BlobReader {
+    /// A reader of the repository in `dir`.
     #[must_use]
     pub fn new(dir: &Path) -> Self {
         Self {
             dir: dir.to_path_buf(),
+            git_data: false,
             batch: None,
             held: Held::Unknown,
+        }
+    }
+
+    /// A reader of the git data at `dir` (a submodule's).
+    #[must_use]
+    pub fn on_git_data(dir: &Path) -> Self {
+        Self {
+            git_data: true,
+            ..Self::new(dir)
         }
     }
 
@@ -159,7 +177,7 @@ impl BlobReader {
             return Ok(());
         }
         if matches!(self.held, Held::Unknown) {
-            self.held = held_blobs(&self.dir)?;
+            self.held = held_blobs(&self.dir, self.git_data)?;
         }
         let held = match &self.held {
             Held::Only(blobs) => Some(blobs),
@@ -183,7 +201,7 @@ impl BlobReader {
     /// One blob, asked of the batch process; a process that ended at this blob is replaced for the next one.
     fn ask(&mut self, blob: &str) -> Option<Vec<u8>> {
         if self.batch.is_none() {
-            self.batch = start(&self.dir);
+            self.batch = start(&self.dir, self.git_data);
         }
         let batch = self.batch.as_mut()?;
         let asked = batch

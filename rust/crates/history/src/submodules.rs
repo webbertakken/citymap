@@ -65,6 +65,8 @@ pub struct Expanded {
     /// Every submodule folder it holds, itself included, sorted.
     pub submodules: Vec<String>,
     pub unread: Vec<Unread>,
+    /// The git data of each submodule read (folder, git data), itself and nested ones: where their blobs are held.
+    pub stores: Vec<(String, PathBuf)>,
 }
 
 /// A path resolved as `path.resolve` resolves it: each absolute part starts afresh, `.` and `..` resolved lexically.
@@ -213,6 +215,7 @@ impl SubmoduleReader {
                 path: path.to_owned(),
                 reason,
             }],
+            stores: Vec::new(),
         };
         if depth >= SUBMODULE_DEPTH {
             return Ok(unread(UnreadReason::Depth));
@@ -241,6 +244,7 @@ impl SubmoduleReader {
         }
         let mut submodules = vec![path.to_owned()];
         let mut unread_list: Vec<Unread> = Vec::new();
+        let mut stores = vec![(path.to_owned(), git_data.clone())];
         if !nested.is_empty() {
             let text = gitmodules_blob.map_or_else(String::new, |blob| cat_blob(&git_data, &blob));
             let modules = parse_gitmodules(&text);
@@ -258,6 +262,7 @@ impl SubmoduleReader {
                 }
                 submodules.extend(sub.submodules.iter().cloned());
                 unread_list.extend(sub.unread.iter().cloned());
+                stores.extend(sub.stores.iter().cloned());
             }
         }
         submodules.sort_by(|a, b| compare_keys(a, b));
@@ -266,6 +271,7 @@ impl SubmoduleReader {
             files,
             submodules,
             unread: unread_list,
+            stores,
         })
     }
 

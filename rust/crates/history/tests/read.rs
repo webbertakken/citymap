@@ -10,6 +10,7 @@ use citymap_history::submodules::UnreadReason;
 use citymap_history::{
     Author, HistoryEvent, HistoryItem, MailmapStatus, ReadOptions, Strides, read_history, read_tree,
 };
+use citymap_history::{Store, TreeFile};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
@@ -1039,11 +1040,13 @@ fn records_each_files_last_change_commits_and_authors_through_renames() {
     assert_eq!(facts("b.ts@0"), Some((1000, 1, 1)));
     assert_eq!(facts("nothing@0"), None);
     let c = identity("c.ts");
-    assert_eq!(history.authors_across([c.as_str(), "b.ts@0", "nothing@0"]), 2);
+    assert_eq!(history.authors_across([c.as_str(), "b.ts@0", "nothing@0"]), Some(2));
+    // Files no commit read changed (a submodule's) have no people across them, not none.
+    assert_eq!(history.authors_across(["nothing@0"]), None);
 }
 
 #[test]
-fn lists_a_commits_files_and_reads_each_blob_without_submodules() {
+fn lists_a_commits_files_an_unread_submodule_as_its_gitlink_and_reads_each_blob_once() {
     let repo = Repo::new();
     repo.write("src/a.ts", "same\n");
     repo.write("b.ts", "same\n");
@@ -1054,22 +1057,121 @@ fn lists_a_commits_files_and_reads_each_blob_without_submodules() {
         "--cacheinfo",
         &format!("160000,{},vendor/sub", "1".repeat(40)),
     ]);
-    repo.commit("one");
+    // The index as staged: `git add -A` would drop the gitlink, whose folder is not there.
+    repo.git(&["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "one"]);
     let files = citymap_history::list_tree(repo.path(), "HEAD").expect("a tree");
     assert_eq!(
         files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(),
-        vec!["b.ts", "src/a.ts"]
+        vec!["b.ts", "src/a.ts", "vendor/sub/.gitlink"]
+    );
+    // No git data holds the unread submodule: its .gitlink is never asked for.
+    assert_eq!(
+        files[2],
+        TreeFile {
+            path: "vendor/sub/.gitlink".into(),
+            blob: "1".repeat(40),
+            store: Store::Nowhere
+        }
     );
     let mut seen = Vec::new();
-    let blobs: Vec<String> = files.iter().map(|f| f.blob.clone()).chain(["0".repeat(40)]).collect();
-    citymap_history::read_blobs(repo.path(), &blobs, &mut |blob, bytes| {
+    let mut asked = files.clone();
+    asked.push(TreeFile {
+        path: "gone".into(),
+        blob: "0".repeat(40),
+        store: Store::Repository,
+    });
+    citymap_history::read_blobs(repo.path(), &asked, &mut |blob, bytes| {
         seen.push((blob.to_owned(), bytes.map(<[u8]>::len)));
     })
     .expect("blobs");
     seen.sort();
-    let mut expected = vec![(files[0].blob.clone(), Some(5)), ("0".repeat(40), None)];
+    let mut expected = vec![
+        (files[0].blob.clone(), Some(5)),
+        ("0".repeat(40), None),
+        ("1".repeat(40), None),
+    ];
     expected.sort();
     assert_eq!(seen, expected);
+}
+
+#[test]
+fn lists_a_submodules_files_at_its_pin_read_from_its_own_git_data_nested_ones_in_turn() {
+    let inner = Repo::new();
+    inner.write("deep.ts", "deep\n");
+    inner.commit("inner");
+    let lib = Repo::new();
+    lib.write("l.ts", "lib\nlib\n");
+    lib.commit("lib");
+    lib.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "-q",
+        inner.path().to_str().expect("a path"),
+        "deps/inner",
+    ]);
+    lib.commit("nest");
+    let parent = Repo::new();
+    parent.write("main.ts", "m\n");
+    parent.commit("main");
+    parent.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "-q",
+        lib.path().to_str().expect("a path"),
+        "vendor/lib",
+    ]);
+    parent.git(&[
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "update",
+        "-q",
+        "--init",
+        "--recursive",
+    ]);
+    parent.commit("add lib");
+    let files = citymap_history::list_tree(parent.path(), "HEAD").expect("a tree");
+    assert_eq!(
+        files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(),
+        vec![
+            ".gitmodules",
+            "main.ts",
+            "vendor/lib/.gitmodules",
+            "vendor/lib/l.ts",
+            "vendor/lib/deps/inner/deep.ts"
+        ]
+    );
+    assert!(files[..2].iter().all(|f| f.store == Store::Repository));
+    let store = |i: usize| match &files[i].store {
+        Store::GitData(data) => data.to_string_lossy().into_owned(),
+        other => panic!("{other:?}"),
+    };
+    assert!(store(3).ends_with("modules/vendor/lib"), "{}", store(3));
+    assert!(
+        store(4).ends_with("modules/vendor/lib/modules/deps/inner"),
+        "{}",
+        store(4)
+    );
+    // Each blob is read from the git data that holds it; the repository's own holds none of them.
+    let mut read = std::collections::HashMap::new();
+    citymap_history::read_blobs(parent.path(), &files, &mut |blob, bytes| {
+        read.insert(blob.to_owned(), bytes.map(<[u8]>::len));
+    })
+    .expect("blobs");
+    assert_eq!(read[&files[3].blob], Some(8));
+    assert_eq!(read[&files[4].blob], Some(5));
+    assert_eq!(
+        read.len(),
+        files
+            .iter()
+            .map(|f| &f.blob)
+            .collect::<std::collections::HashSet<_>>()
+            .len()
+    );
 }
 
 fn commit_as(repo: &Repo, name: &str, email: &str, message: &str) {

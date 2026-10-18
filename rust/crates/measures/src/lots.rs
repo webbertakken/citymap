@@ -77,7 +77,7 @@ pub fn lot_files(city: &City, plat: &Plat, files: &[FileEntry]) -> LotFiles {
 }
 
 /// The people across a lot's files.
-pub type AuthorsAcross<'a> = &'a dyn Fn(&[String]) -> i64;
+pub type AuthorsAcross<'a> = &'a dyn Fn(&[String]) -> Option<i64>;
 
 /// What the section is built from.
 pub struct MeasuresInput<'a> {
@@ -91,7 +91,7 @@ pub struct MeasuresInput<'a> {
     pub lots: &'a LotFiles,
     /// A file's values; its path is set by the builder.
     pub facts_of: &'a dyn Fn(&str) -> FileMeasures,
-    /// The people across a lot's files, when the history was read.
+    /// The people across a lot's files, when the history was read; none when no commit read changed any.
     pub authors_across: Option<AuthorsAcross<'a>>,
 }
 
@@ -112,7 +112,7 @@ pub fn build_measures(input: &MeasuresInput) -> Measures {
             entries.insert(
                 key.clone(),
                 LotMeasures {
-                    authors: input.authors_across.map(|across| across(paths)),
+                    authors: input.authors_across.and_then(|across| across(paths)),
                     files,
                 },
             );
@@ -249,7 +249,8 @@ mod tests {
             lines: (path == "a").then_some(3),
             ..FileMeasures::default()
         };
-        let across = |paths: &[String]| i64::try_from(paths.len()).unwrap();
+        // The people across a lot: none for the old town's lot of `c`, whose files no commit read changed.
+        let across = |paths: &[String]| (paths != ["c"]).then(|| i64::try_from(paths.len()).unwrap());
         let measures = build_measures(&MeasuresInput {
             source: "cli",
             size: "lines",
@@ -262,6 +263,7 @@ mod tests {
         });
         assert_eq!(measures.lots["demo"]["a@0"].files[0].lines, Some(3));
         assert_eq!(measures.lots["demo"]["a@0"].authors, Some(1));
+        assert_eq!(measures.lots["demo old town"]["c@0"].authors, None);
         assert_eq!(measures.available.len(), 7);
     }
 }

@@ -127,16 +127,11 @@ pub fn measure_city(input: MeasureInput, io: &mut dyn Io) -> Result<Measures> {
     let tree = list_tree(repo, target)?;
     let paths: Vec<String> = tree.iter().map(|f| f.path.clone()).collect();
     let mut by_blob: HashMap<&str, Vec<&str>> = HashMap::new();
-    let mut blobs: Vec<String> = Vec::new();
     for file in &tree {
-        let same = by_blob.entry(&file.blob).or_default();
-        if same.is_empty() {
-            blobs.push(file.blob.clone());
-        }
-        same.push(&file.path);
+        by_blob.entry(&file.blob).or_default().push(&file.path);
     }
     let mut text: HashMap<String, TextFacts> = HashMap::new();
-    read_blobs(repo, &blobs, &mut |blob, bytes| {
+    read_blobs(repo, &tree, &mut |blob, bytes| {
         if let Some(bytes) = bytes {
             for path in &by_blob[blob] {
                 text.insert((*path).to_owned(), count_text(bytes, path));
@@ -190,7 +185,7 @@ pub fn measure_city(input: MeasureInput, io: &mut dyn Io) -> Result<Measures> {
         }
     };
     let across =
-        |files: &[String]| history.map_or(0, |h| h.authors_across(files.iter().map(|p| identity_of[p.as_str()])));
+        |files: &[String]| history.and_then(|h| h.authors_across(files.iter().map(|p| identity_of[p.as_str()])));
     let measures = build_measures(&MeasuresInput {
         source: "cli",
         size: "lines",
@@ -199,7 +194,9 @@ pub fn measure_city(input: MeasureInput, io: &mut dyn Io) -> Result<Measures> {
         tested,
         lots: &lots,
         facts_of: &facts_of,
-        authors_across: history.is_some().then_some(&across as &dyn Fn(&[String]) -> i64),
+        authors_across: history
+            .is_some()
+            .then_some(&across as &dyn Fn(&[String]) -> Option<i64>),
     });
     let files: usize = lots
         .iter()

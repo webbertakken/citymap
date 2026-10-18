@@ -4,7 +4,7 @@ import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { CitymapError, GITLINK_FILE, compareKeys } from "@citymap/ground-plan";
-import { gitEnvironment } from "./env";
+import { gitEnvironment, onGitData } from "./env";
 import { isSafeModulePath, parseGitmodules, type ModuleEntry } from "./gitmodules";
 
 const run = promisify(execFile);
@@ -34,6 +34,8 @@ export interface Expanded {
   /** Every submodule folder it holds, itself included, sorted. */
   readonly submodules: readonly string[];
   readonly unread: readonly { readonly path: string; readonly reason: UnreadReason }[];
+  /** The git data of each submodule read (folder → git data), itself and nested ones: where their blobs are held. */
+  readonly stores: ReadonlyMap<string, string>;
 }
 
 const isDirectory = (path: string) => {
@@ -50,11 +52,6 @@ const isFile = (path: string) => {
     return false;
   }
 };
-/**
- * Git pointed at a submodule's git data. Its working tree is named as the git data itself: git would otherwise change into
- * the configured `core.worktree`, and fail where that folder is gone (a submodule deinitialised, moved or removed).
- */
-const onGitData = (gitData: string) => [`--git-dir=${gitData}`, `--work-tree=${gitData}`];
 const within = (path: string, root: string) => {
   const r = relative(root, path);
   return r === "" || (!r.startsWith("..") && !isAbsolute(r));
@@ -110,6 +107,7 @@ export class SubmoduleReader {
       files: new Map([[`${path}/${GITLINK_FILE}`, commit]]),
       submodules: [path],
       unread: [{ path, reason }],
+      stores: new Map(),
     });
     if (depth >= SUBMODULE_DEPTH) return unread("depth");
     if (!isSafeModulePath(name) || !isSafeModulePath(path)) return unread("bad-name");
@@ -129,6 +127,7 @@ export class SubmoduleReader {
     }
     const submodules = [path];
     const unreadList: { path: string; reason: UnreadReason }[] = [];
+    const stores = new Map([[path, gitData]]);
     if (nested.length > 0) {
       const modules = parseGitmodules(gitmodulesBlob === null ? "" : await this.catBlob(gitData, gitmodulesBlob));
       const order = nested.toSorted(([a], [b]) => compareKeys(a, b));
@@ -139,9 +138,10 @@ export class SubmoduleReader {
         for (const [p, b] of sub.files) files.set(p, b);
         submodules.push(...sub.submodules);
         unreadList.push(...sub.unread);
+        for (const [folder, store] of sub.stores) stores.set(folder, store);
       }
     }
-    return { commit, files, submodules: submodules.toSorted(compareKeys), unread: unreadList };
+    return { commit, files, submodules: submodules.toSorted(compareKeys), unread: unreadList, stores };
   }
 
   /** Where a submodule's git data lies: its parent's `modules/<name>`, else its working tree's `.git`; or null. */

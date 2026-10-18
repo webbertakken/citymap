@@ -100,10 +100,11 @@ rebased.
 - [x] The history reader records a commit's own changes before its pins expand (both CLIs)
 - [x] Local and GitHub reads carry submodule files' sizes (their own indexes, their own trees)
 - [x] Plan renumbered `0012` (0011 is buildings)
-- [ ] CLI measures for submodule files: contents read from each submodule's git data at its pin (both CLIs)
-- [ ] A lot whose files carry no history gives no author count (both CLIs)
-- [ ] `scripts/bundle-cities.ts` lays each city's separation states at its pin; a full `bun run bundle` timed and
-      measured
+- [x] CLI measures for submodule files: contents read from each submodule's git data at its pin (both CLIs)
+- [x] A lot whose files carry no history gives no author count (both CLIs)
+- [x] `scripts/bundle-cities.ts` lays each city's separation states at its pin; a full `bun run bundle` timed and
+      measured (304 variants, 839 s locally, 462 MB raw, 67 MB gzipped; CI matches local per variant)
+- [ ] Webber's answer on the bundle's size and time, applied
 - [ ] `bun run check`; `bun run parity` in every mode (state, fold, resume, checkout, coverage) and with separations
       (each alone, none), plus a repository with submodules
 - [ ] End to end (`CITYMAP_E2E_PORT=5198`); screenshots of separated towns in plan and Buildings views, light and dark

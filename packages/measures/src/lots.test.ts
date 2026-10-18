@@ -140,6 +140,20 @@ describe("buildMeasures", () => {
     });
   });
 
+  it("leaves the people out of a lot whose files no commit read changed", () => {
+    const measures = buildMeasures({
+      source: "cli",
+      size: "lines",
+      history: true,
+      comments: true,
+      tested: "name",
+      lots,
+      factsOf: () => ({}),
+      authorsAcross: () => undefined,
+    });
+    expect(measures.lots).toEqual({ demo: { "a@0": { files: [{ path: "a.ts" }, { path: "b.ts" }] } } });
+  });
+
   it("leaves the people out without history", () => {
     const measures = buildMeasures({
       source: "github",

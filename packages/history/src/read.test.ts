@@ -401,6 +401,8 @@ describe("readHistory with a file history", () => {
     expect(files.of("b.ts@0")).toEqual({ changed: 1000, commits: 1, authors: 1 });
     expect(files.of("nothing@0")).toBeUndefined();
     expect(files.authorsAcross([identity("c.ts"), "b.ts@0", "nothing@0"])).toBe(2);
+    // Files no commit read changed (a submodule's) have no people across them, not none.
+    expect(files.authorsAcross(["nothing@0"])).toBeUndefined();
   });
 });
 

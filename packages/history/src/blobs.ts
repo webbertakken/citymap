@@ -1,7 +1,7 @@
 import { execFile, spawn, type ChildProcessByStdio } from "node:child_process";
 import { finished, type Readable, type Writable } from "node:stream";
 import { promisify } from "node:util";
-import { gitEnvironment } from "./env";
+import { gitEnvironment, onGitData } from "./env";
 
 interface Batch {
   readonly child: ChildProcessByStdio<Writable, Readable, null>;
@@ -29,7 +29,13 @@ export class BlobReader {
   /** The blobs a partial clone holds; null for a full clone, which holds them all. */
   private held: Promise<ReadonlySet<string> | null> | null = null;
 
-  constructor(private readonly dir: string) {}
+  /** Git's arguments that name what it reads: a repository's folder, or git data itself. */
+  private readonly at: readonly string[];
+
+  /** A reader of the repository in `dir`, or, with `gitData`, of the git data at `dir` (a submodule's). */
+  constructor(dir: string, { gitData = false }: { readonly gitData?: boolean } = {}) {
+    this.at = gitData ? onGitData(dir) : ["-C", dir];
+  }
 
   /** Each blob's text, or null when the repository does not hold it. */
   async readAll(blobs: readonly string[]): Promise<Map<string, string | null>> {
@@ -41,7 +47,7 @@ export class BlobReader {
   /** Hands each blob's bytes to `onBlob` as it arrives (null when the repository does not hold it), keeping none. */
   async readBytes(blobs: readonly string[], onBlob: OnBlob): Promise<void> {
     if (blobs.length === 0) return;
-    const held = await (this.held ??= heldBlobs(this.dir));
+    const held = await (this.held ??= heldBlobs(this.at));
     for (const blob of blobs) if (held && !held.has(blob)) onBlob(blob, null);
     await this.ask(held ? blobs.filter((blob) => held.has(blob)) : blobs, onBlob);
   }
@@ -58,7 +64,7 @@ export class BlobReader {
 
   private async ask(blobs: readonly string[], onBlob: OnBlob): Promise<void> {
     if (blobs.length === 0) return;
-    const batch = (this.batch ??= start(this.dir));
+    const batch = (this.batch ??= start(this.at));
     batch.child.stdin.write(blobs.map((blob) => `${blob}\n`).join(""));
     const answered = await answer(batch, blobs, onBlob);
     if (answered === blobs.length) return;
@@ -70,8 +76,8 @@ export class BlobReader {
 }
 
 /** The blobs a partial clone holds, or null when the repository is not one (or git cannot say). */
-async function heldBlobs(dir: string): Promise<ReadonlySet<string> | null> {
-  const git = (...args: string[]) => run("git", ["-C", dir, ...args], { env: ENV, maxBuffer: 1 << 30 });
+async function heldBlobs(at: readonly string[]): Promise<ReadonlySet<string> | null> {
+  const git = (...args: string[]) => run("git", [...at, ...args], { env: ENV, maxBuffer: 1 << 30 });
   try {
     await git("config", "--get-regexp", PARTIAL_CLONE);
   } catch {
@@ -88,8 +94,8 @@ async function heldBlobs(dir: string): Promise<ReadonlySet<string> | null> {
   );
 }
 
-function start(dir: string): Batch {
-  const child = spawn("git", ["-C", dir, "cat-file", "--batch"], { stdio: ["pipe", "pipe", "ignore"], env: ENV });
+function start(at: readonly string[]): Batch {
+  const child = spawn("git", [...at, "cat-file", "--batch"], { stdio: ["pipe", "pipe", "ignore"], env: ENV });
   // A process that ended early fails the writes still queued for it; the end of its output reports those blobs.
   finished(child.stdin, () => {});
   return { child, chunks: (child.stdout as AsyncIterable<Buffer>)[Symbol.asyncIterator](), pending: [] };

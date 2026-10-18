@@ -62,16 +62,18 @@ impl FileHistory {
         })
     }
 
-    /// The people who changed any of these files.
+    /// The people who changed any of these files; none when no commit read changed any (a submodule's files).
     #[must_use]
-    pub fn authors_across<'a>(&self, identities: impl IntoIterator<Item = &'a str>) -> i64 {
+    pub fn authors_across<'a>(&self, identities: impl IntoIterator<Item = &'a str>) -> Option<i64> {
         let mut people = HashSet::new();
+        let mut known = false;
         for identity in identities {
             if let Some(file) = self.files.get(identity) {
+                known = true;
                 people.extend(file.authors.iter().copied());
             }
         }
-        count(people.len())
+        known.then(|| count(people.len()))
     }
 }
 
@@ -94,6 +96,7 @@ mod tests {
             })
         );
         assert_eq!(history.of("c@0"), None);
-        assert_eq!(history.authors_across(["a@0", "b@0", "c@0"]), 2);
+        assert_eq!(history.authors_across(["a@0", "b@0", "c@0"]), Some(2));
+        assert_eq!(history.authors_across(["c@0"]), None);
     }
 }
