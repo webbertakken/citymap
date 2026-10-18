@@ -1,5 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
+import { slowToPhone } from "./phone";
 
 // linux's 75,000 buildings within the vitals' interaction budget on a slowed phone. A phone draws on its graphics
 // processor, and software drawing (a headless browser's default) would time the processor instead, so this file asks
@@ -64,7 +65,7 @@ test("stands linux's buildings and answers within 200 ms on a slowed phone", asy
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("linux", { timeout: 120_000 });
   await expect(page.locator(".status")).toContainText("lots", { timeout: 120_000 });
   const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: await slowToPhone(page) });
   await page.waitForTimeout(1000);
   const before = (await vitals(page)).events.length;
   const started = Date.now();

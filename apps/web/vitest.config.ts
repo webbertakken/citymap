@@ -7,5 +7,6 @@ export default defineProject({
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["src/testing/setup.ts"],
   },
 });

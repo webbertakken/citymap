@@ -21,6 +21,7 @@
     "rust:lint": "cargo fmt --manifest-path rust/Cargo.toml --all --check && cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked --quiet -- -D warnings",
     "rust:lint:mimalloc": "cargo clippy --manifest-path rust/Cargo.toml -p citymap-cli --features mimalloc --all-targets --locked --quiet -- -D warnings",
     "bundle": "bun scripts/bundle-cities.ts",
+    "cert": "bun scripts/loopback-cert.ts",
     "rust:check": "bun run rust:lint && cargo test --manifest-path rust/Cargo.toml --locked --quiet",
     "bench": "bun scripts/bench.ts",
     "parity": "bun scripts/parity.ts",
