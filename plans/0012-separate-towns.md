@@ -1,4 +1,4 @@
-# 0011 Separate towns
+# 0012 Separate towns
 
 Kinds of folder (workspace members, submodules, `apps/`, `packages/`, `libs/`, `crates/`, `services/`, `modules/`,
 `extensions/`, `**/plugins/`) laid as towns of their own, a switch each, replacing `split`; submodules read from their
@@ -87,3 +87,26 @@ Branch `feat/separate-towns`, stacked on `local-beside-search` (#36); rebase ont
 - [x] `bun run check`; e2e; parity
 - [x] PR with images; `~/PR_RESULTS.md` (#37, stacked on #36)
 - [x] Fold-back: spec reconciled to what shipped, blueprints re-derived, every symbol, file and reference verified
+
+## Phase 8: integration with main
+
+Main gained buildings and measures (#40), bundled cities laid by the Pages workflow and never committed (#41), authors
+mapped by the laid commit's `.mailmap` (#42) and the local repository button beside the search (#36). Merged, not
+rebased.
+
+- [x] Merge `origin/main` with a merge commit; every conflict resolved keeping both features whole; the committed city
+      files dropped
+- [x] The Rust city file keeps `declared` and `separable` beside the measures (both CLIs, tested)
+- [x] The history reader records a commit's own changes before its pins expand (both CLIs)
+- [x] Local and GitHub reads carry submodule files' sizes (their own indexes, their own trees)
+- [x] Plan renumbered `0012` (0011 is buildings)
+- [ ] CLI measures for submodule files: contents read from each submodule's git data at its pin (both CLIs)
+- [ ] A lot whose files carry no history gives no author count (both CLIs)
+- [ ] `scripts/bundle-cities.ts` lays each city's separation states at its pin; a full `bun run bundle` timed and
+      measured
+- [ ] `bun run check`; `bun run parity` in every mode (state, fold, resume, checkout, coverage) and with separations
+      (each alone, none), plus a repository with submodules
+- [ ] End to end (`CITYMAP_E2E_PORT=5198`); screenshots of separated towns in plan and Buildings views, light and dark
+- [ ] PR description updated
+- [ ] Fold-back: specs and blueprints across both features, `docs/specs/README.md`, every symbol, file and reference
+      verified
