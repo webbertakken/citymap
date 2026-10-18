@@ -1,25 +1,32 @@
 import { GROUND, PERSON_RADIUS, cityWalls, type Footprint, type Vec3 } from "@citymap/world";
 import { describe, expect, it } from "vitest";
+import { FALL_LEAN, HARD_HIT, START_GEAR, resting } from "./bicycle";
 import type { Landing } from "./landing";
 import {
   BUMP,
+  CAR,
   MAX_STEER,
   PARKING,
   REACH,
   VEHICLES,
   alightFrom,
+  bumped,
   clearOfVehicles,
   distanceTo,
+  nearestOf,
   parkedBy,
+  parkedNow,
   reachable,
   stepVehicle,
+  type Bicycle,
+  type Car,
   type Vehicle,
 } from "./vehicles";
 import { NO_INTENTS, facing } from "./walker";
 
 const open = cityWalls([]);
 const at = (x: number, z: number): Vec3 => ({ x, y: GROUND, z });
-const car = (x = 0, z = 0, heading = 0, speed = 0): Vehicle => ({
+const car = (x = 0, z = 0, heading = 0, speed = 0): Car => ({
   id: "car",
   kind: "car",
   feet: at(x, z),
@@ -27,6 +34,12 @@ const car = (x = 0, z = 0, heading = 0, speed = 0): Vehicle => ({
   speed,
   turn: 0,
   steer: 0,
+});
+const bike = (x = 0, z = 0, heading = 0, speed = 0): Bicycle => ({
+  ...car(x, z, heading, speed),
+  id: "bicycle",
+  kind: "bicycle",
+  cycle: { ...resting(), footDown: speed < 1.2 },
 });
 const box = (x: number, z: number, w: number, d: number): Footprint => ({
   lot: 0,
@@ -38,8 +51,13 @@ const box = (x: number, z: number, w: number, d: number): Footprint => ({
   ],
   top: 10,
 });
+/** The vehicle as a bicycle, failing the test when it is not one. */
+const asBicycle = (vehicle: Vehicle | null | undefined): Bicycle => {
+  if (vehicle?.kind !== "bicycle") throw new Error(`expected a bicycle, got ${vehicle?.kind ?? "nothing"}`);
+  return vehicle;
+};
 /** Steps a vehicle `n` times of a 120th of a second. */
-const ride = (vehicle: Vehicle, intents = NO_INTENTS, n = 120, walls = open) => {
+const ride = (vehicle: Vehicle, intents = NO_INTENTS, n = 120, walls = open): Vehicle => {
   let v = vehicle;
   for (let i = 0; i < n; i++) v = stepVehicle(v, intents, 1 / 120, walls);
   return v;
@@ -56,7 +74,7 @@ const landing: Landing = {
 describe("parkedBy", () => {
   it("parks a bicycle and a car at the kerb on the right of the road, ahead, facing along it", () => {
     const [bicycle, motor] = parkedBy(landing, open);
-    expect(bicycle).toMatchObject({ kind: "bicycle", speed: 0, turn: 0, steer: 0, heading: 0 });
+    expect(bicycle).toMatchObject({ kind: "bicycle", speed: 0, turn: 0, steer: 0, heading: 0, cycle: resting() });
     expect(bicycle!.feet.x).toBeCloseTo(PARKING.bicycle.ahead, 9);
     // Right of a road running east is south: +z, half the 10 m street less the inset.
     expect(bicycle!.feet.z).toBeCloseTo(5 - PARKING.bicycle.inset, 9);
@@ -101,33 +119,28 @@ describe("stepVehicle", () => {
   it("speeds up under throttle, strongly at first and tapering to its top speed, never past it", () => {
     const moving = ride(car(), { ...NO_INTENTS, forward: 1 });
     // A second from a standstill: nearly its full power all the way, as speed is still far from the top.
-    expect(moving.speed).toBeGreaterThan(0.95 * VEHICLES.car.accelerate);
-    expect(moving.speed).toBeLessThan(VEHICLES.car.accelerate);
+    expect(moving.speed).toBeGreaterThan(0.95 * CAR.accelerate);
+    expect(moving.speed).toBeLessThan(CAR.accelerate);
     expect(moving.feet.x).toBeGreaterThan(3);
     const flatOut = ride(car(), { ...NO_INTENTS, forward: 1 }, 120 * 60);
-    expect(flatOut.speed).toBeGreaterThan(0.95 * VEHICLES.car.topSpeed);
-    expect(flatOut.speed).toBeLessThanOrEqual(VEHICLES.car.topSpeed);
-    expect(stepVehicle(car(0, 0, 0, 40), { ...NO_INTENTS, forward: 1 }, 1 / 120, open).speed).toBe(
-      VEHICLES.car.topSpeed,
-    );
+    expect(flatOut.speed).toBeGreaterThan(0.95 * CAR.topSpeed);
+    expect(flatOut.speed).toBeLessThanOrEqual(CAR.topSpeed);
+    expect(stepVehicle(car(0, 0, 0, 40), { ...NO_INTENTS, forward: 1 }, 1 / 120, open).speed).toBe(CAR.topSpeed);
   });
 
   it("brakes with back, reverses once stopped, and no faster than its reverse", () => {
-    expect(ride(car(0, 0, 0, 5), { ...NO_INTENTS, forward: -1 }, 30).speed).toBeCloseTo(5 - VEHICLES.car.brake / 4, 6);
+    expect(ride(car(0, 0, 0, 5), { ...NO_INTENTS, forward: -1 }, 30).speed).toBeCloseTo(5 - CAR.brake / 4, 6);
     const reversing = ride(car(), { ...NO_INTENTS, forward: -1 }, 1200);
-    expect(reversing.speed).toBeLessThan(-0.9 * VEHICLES.car.reverseSpeed);
-    expect(reversing.speed).toBeGreaterThanOrEqual(-VEHICLES.car.reverseSpeed);
+    expect(reversing.speed).toBeLessThan(-0.9 * CAR.reverseSpeed);
+    expect(reversing.speed).toBeGreaterThanOrEqual(-CAR.reverseSpeed);
     expect(reversing.feet.x).toBeLessThan(0);
     // Forward while reversing brakes first.
-    expect(ride(car(0, 0, 0, -3), { ...NO_INTENTS, forward: 1 }, 12).speed).toBeCloseTo(
-      -3 + VEHICLES.car.brake / 10,
-      6,
-    );
+    expect(ride(car(0, 0, 0, -3), { ...NO_INTENTS, forward: 1 }, 12).speed).toBeCloseTo(-3 + CAR.brake / 10, 6);
   });
 
   it("stops hard with the brake and coasts slowly to a stop without it", () => {
     expect(ride(car(0, 0, 0, 5), { ...NO_INTENTS, jump: true }, 240).speed).toBe(0);
-    expect(ride(car(0, 0, 0, 5)).speed).toBeCloseTo(5 - VEHICLES.car.coast, 6);
+    expect(ride(car(0, 0, 0, 5)).speed).toBeCloseTo(5 - CAR.coast, 6);
     expect(ride(car(0, 0, 0, -0.1)).speed).toBe(0);
   });
 
@@ -139,8 +152,8 @@ describe("stepVehicle", () => {
     // Held a second: slow, the tightest radius limits the turn; fast, its fastest rate does.
     const held = (speed: number) => ride(car(0, 0, 0, speed), { ...NO_INTENTS, right: 1 });
     const slowly = held(2);
-    expect(slowly.turn).toBeCloseTo(-slowly.speed / VEHICLES.car.turnRadius, 9);
-    expect(held(25).turn).toBeCloseTo(-VEHICLES.car.turnRate, 9);
+    expect(slowly.turn).toBeCloseTo(-slowly.speed / CAR.turnRadius, 9);
+    expect(held(25).turn).toBeCloseTo(-CAR.turnRate, 9);
     expect(Math.abs(held(25).steer)).toBeLessThan(Math.abs(slowly.steer));
     // Let go, and it runs straight again, quickly.
     expect(ride(slow, NO_INTENTS, 30).turn).toBe(0);
@@ -159,19 +172,82 @@ describe("stepVehicle", () => {
 
   it("bumps off a wall, keeping a little of its speed", () => {
     const walls = cityWalls([box(3, -10, 5, 20)]);
-    let v = car(0, 0, 0, 10);
-    let bumped = false;
-    for (let i = 0; i < 120 && !bumped; i++) {
+    let v: Vehicle = car(0, 0, 0, 10);
+    let knocked = false;
+    for (let i = 0; i < 120 && !knocked; i++) {
       const next = stepVehicle(v, NO_INTENTS, 1 / 120, walls);
-      bumped = next.speed < v.speed * BUMP + 1e-9;
+      knocked = next.speed < v.speed * BUMP + 1e-9;
       v = next;
     }
-    expect(bumped).toBe(true);
+    expect(knocked).toBe(true);
     expect(v.feet.x).toBeLessThanOrEqual(3 - VEHICLES.car.radius + 1e-6);
   });
 
   it("stands still at no speed, with nothing to bump", () => {
     expect(stepVehicle(car(), NO_INTENTS, 1 / 120, open)).toEqual(car());
+  });
+});
+
+describe("stepVehicle on the bicycle", () => {
+  it("rides on its own physics: pedalled, it gains speed and turns its crank; asked right, it leans and turns right", () => {
+    const pedalled = asBicycle(ride(bike(), { ...NO_INTENTS, forward: 1 }, 240));
+    expect(pedalled.speed).toBeGreaterThan(3);
+    expect(pedalled.feet.x).toBeGreaterThan(2);
+    expect(pedalled.cycle.crank).toBeGreaterThan(0);
+    const turning = asBicycle(ride(pedalled, { ...NO_INTENTS, forward: 0.5, right: 1 }, 120));
+    expect(turning.cycle.lean).toBeLessThan(0);
+    expect(turning.turn).toBeLessThan(0);
+    expect(turning.heading).toBeLessThan(0);
+    // The fork shows the bicycle's own steer.
+    expect(turning.steer).toBe(turning.cycle.steer);
+  });
+
+  it("throws its rider at a wall hit hard, and only bumps off it at a walk", () => {
+    const walls = cityWalls([box(3, -10, 5, 20)]);
+    const fast = asBicycle(ride(bike(0, 0, 0, HARD_HIT + 2), NO_INTENTS, 120, walls));
+    expect(fast.cycle.fall?.cause).toBe("hit");
+    const slow = asBicycle(ride(bike(1.5, 0, 0, 2), NO_INTENTS, 120, walls));
+    expect(slow.cycle.fall).toBeNull();
+    expect(slow.feet.x).toBeLessThanOrEqual(3 - VEHICLES.bicycle.radius + 1e-6);
+  });
+});
+
+describe("bumped", () => {
+  it("keeps a little of the speed, and throws a bicycle's rider when the knock is hard", () => {
+    expect(bumped(car(0, 0, 0, 10)).speed).toBeCloseTo(10 * BUMP, 9);
+    const hard = asBicycle(bumped(bike(0, 0, 0, HARD_HIT)));
+    expect(hard.cycle.fall?.cause).toBe("hit");
+    expect(hard.speed).toBeCloseTo(HARD_HIT * BUMP, 9);
+    expect(asBicycle(bumped(bike(0, 0, 0, HARD_HIT - 0.1))).cycle.fall).toBeNull();
+    // Already down, a knock is only a knock.
+    const down = { ...bike(0, 0, 0, 5), cycle: { ...resting(), fall: { time: 1, side: 1, cause: "grip" } } } as const;
+    expect(asBicycle(bumped(down)).cycle.fall).toEqual(down.cycle.fall);
+  });
+});
+
+describe("parkedNow", () => {
+  it("stops a vehicle where it is, a bicycle upright on its stand with its gear and crank kept", () => {
+    const moving = { ...bike(3, 4, 1, 5), turn: 0.4, steer: 0.2 };
+    const rolled = { ...moving, cycle: { ...moving.cycle, lean: -0.3, gear: 5, crank: 7, fall: null } };
+    expect(parkedNow(rolled)).toEqual({ ...rolled, speed: 0, turn: 0, steer: 0, cycle: resting(5, 7) });
+    expect(parkedNow({ ...car(0, 0, 0, 2), turn: 0.1, steer: 0.1 })).toEqual(car());
+    expect(resting().gear).toBe(START_GEAR);
+    expect(FALL_LEAN).toBeGreaterThan(0);
+  });
+});
+
+describe("nearestOf", () => {
+  it("names the nearest few of each kind, and always the one ridden", () => {
+    const vehicles: Vehicle[] = [
+      { ...car(50, 0), id: "far car" },
+      { ...car(5, 0), id: "near car" },
+      { ...bike(9, 0), id: "near bike" },
+      { ...bike(90, 0), id: "far bike" },
+      { ...bike(30, 0), id: "middle bike" },
+    ];
+    expect(nearestOf(vehicles, { x: 0, z: 0 }, 1, null)).toEqual(["near car", "near bike"]);
+    expect(nearestOf(vehicles, { x: 0, z: 0 }, 2, null)).toEqual(["near car", "far car", "near bike", "middle bike"]);
+    expect(nearestOf(vehicles, { x: 0, z: 0 }, 1, "far bike")).toEqual(["far bike", "near car", "near bike"]);
   });
 });
 
@@ -224,7 +300,7 @@ describe("clearOfVehicles", () => {
     const turned = clearOfVehicles(at(0.5, 0), r, [car(0, 0, Math.PI / 2)], null);
     expect(turned.feet.x).toBeCloseTo(width / 2 + r, 9);
     // Dead centre, out through a side.
-    expect(clearOfVehicles(at(0, 0), r, [{ ...car(), kind: "bicycle" }], null).hit).toBe(true);
+    expect(clearOfVehicles(at(0, 0), r, [bike()], null).hit).toBe(true);
     expect(clearOfVehicles(at(0, 0), r, [car()], null).feet.z).toBeCloseTo(width / 2 + r, 9);
   });
 

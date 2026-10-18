@@ -1,4 +1,4 @@
-// Devices as intents: held keys, a touch stick and a jump button become what the walker means to do. Pure.
+// Devices as intents: held keys, a touch stick, a jump button and a gamepad become what the walker means to do. Pure.
 import type { Intents } from "./walker";
 
 /** A touch stick's push: right and forward, each −1 to 1, never beyond the unit circle. */
@@ -25,15 +25,86 @@ const held = (keys: ReadonlySet<string>, codes: readonly string[]) => codes.some
 const axis = (keys: ReadonlySet<string>, plus: readonly string[], minus: readonly string[]) =>
   (held(keys, plus) ? 1 : 0) - (held(keys, minus) ? 1 : 0);
 
-/** What the held keys, the stick (when pushed) and the jump button mean: the stick wins over the keys. */
-export function intentsOf(keys: ReadonlySet<string>, stick: Stick | null, jumping: boolean): Intents {
-  const pushed = stick && (stick.x !== 0 || stick.y !== 0) ? stick : null;
+/**
+ * What the held keys, the touch stick (when pushed), the jump button and a gamepad mean: the touch stick wins over the
+ * pad's, and either over the keys.
+ */
+export function intentsOf(
+  keys: ReadonlySet<string>,
+  stick: Stick | null,
+  jumping: boolean,
+  pad: Pad | null = null,
+): Intents {
+  const touched = stick && (stick.x !== 0 || stick.y !== 0) ? stick : null;
+  const padded = pad && (pad.stick.x !== 0 || pad.stick.y !== 0) ? pad.stick : null;
+  const pushed = touched ?? padded;
   return {
     forward: pushed ? pushed.y : axis(keys, FORWARD, BACK),
     right: pushed ? pushed.x : axis(keys, RIGHT, LEFT),
     run: pushed ? Math.hypot(pushed.x, pushed.y) >= RUN_PUSH : held(keys, RUN),
-    jump: jumping || held(keys, JUMP),
+    jump: jumping || (pad?.jump ?? false) || held(keys, JUMP),
   };
+}
+
+/** What a gamepad gives, as the browser reads it: the standard mapping's axes and buttons. */
+export interface PadState {
+  readonly mapping: string;
+  readonly axes: readonly number[];
+  readonly buttons: readonly { readonly pressed: boolean; readonly value: number }[];
+}
+
+/** A pad's part in the intents: its stick (the left stick, with the triggers pedalling and braking) and A held. */
+export interface Pad {
+  readonly stick: Stick;
+  readonly jump: boolean;
+}
+
+/** What a pad's buttons asked for on the frame they went down: get on or off, ring, fly, and gear steps. */
+export interface PadPresses {
+  readonly use: boolean;
+  readonly ring: boolean;
+  readonly fly: boolean;
+  readonly gears: number;
+}
+
+/** A stick resting within this much of its middle counts as at rest: worn sticks never quite centre. */
+export const DEAD_ZONE = 0.15;
+/** The right stick turns the camera as a drag of this many pixels a second would, pushed fully. */
+export const PAD_LOOK = 900;
+
+/** The standard mapping's buttons and axes. */
+const PAD = { a: 0, x: 2, y: 3, lb: 4, rb: 5, lt: 6, rt: 7, view: 8 } as const;
+
+/** An axis with its dead zone taken out: zero within it, rising from zero past it to one at the end. */
+const live = (value: number) =>
+  Math.abs(value) < DEAD_ZONE ? 0 : (Math.sign(value) * (Math.abs(value) - DEAD_ZONE)) / (1 - DEAD_ZONE);
+
+/**
+ * A gamepad over a frame of `seconds`, given which buttons were down the frame before: its part in the intents, how
+ * far it turns the camera (pixels, as a drag), the buttons pressed this frame, and which are down now. Null for a pad
+ * without the standard mapping, whose buttons mean nothing known.
+ */
+export function padOf(state: PadState, before: readonly boolean[], seconds: number) {
+  if (state.mapping !== "standard") return null;
+  const value = (button: number) => state.buttons[button]?.value ?? 0;
+  const pressed = state.buttons.map((b) => b.pressed);
+  const down = (button: number) => (pressed[button] ?? false) && !(before[button] ?? false);
+  const pad: Pad = {
+    stick: {
+      x: live(state.axes[0] ?? 0),
+      // The stick's y grows downwards; pushed up, or the right trigger, is forward; the left trigger, back.
+      y: Math.max(-1, Math.min(1, -live(state.axes[1] ?? 0) + value(PAD.rt) - value(PAD.lt))),
+    },
+    jump: pressed[PAD.a] ?? false,
+  };
+  const presses: PadPresses = {
+    use: down(PAD.y),
+    ring: down(PAD.x),
+    fly: down(PAD.view),
+    gears: (down(PAD.rb) ? 1 : 0) - (down(PAD.lb) ? 1 : 0),
+  };
+  const look = { dx: live(state.axes[2] ?? 0) * PAD_LOOK * seconds, dy: live(state.axes[3] ?? 0) * PAD_LOOK * seconds };
+  return { pad, look, presses, pressed };
 }
 
 /** A stick's push for a finger at `point`, from where it first touched (`origin`), with a reach of `radius` pixels. */

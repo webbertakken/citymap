@@ -117,7 +117,10 @@ const LOAD_ROUNDS = 26;
 /** Lifted under braking, the rider holds the back wheel at this pitch, short of going over the bars (0.67 rad). */
 export const STOPPIE_MOST = 0.3;
 
-/** A foot goes down below this speed and comes up above that; down, the bicycle leans onto it, the bars as asked. */
+/**
+ * A foot goes down below this speed and comes up above that; down, the bicycle leans onto it at a stop (less as it gets
+ * going), the bars as asked.
+ */
 export const FOOT_DOWN = 0.6;
 export const FOOT_UP = 1.2;
 export const FOOT_LEAN = 0.12;
@@ -220,7 +223,8 @@ function riderTorque(cycle: Cycle, speed: number): number {
 export function balanced(cycle: Cycle, speed: number, right: number, dt: number): Cycle {
   if (cycle.footDown) {
     const steer = towards(cycle.steer, -right * FOOT_STEER, BAR_EASE * dt);
-    const lean = towards(cycle.lean, FOOT_LEAN, FOOT_EASE * dt);
+    // Pushing off, the rider comes upright, so the bicycle leaves the foot balanced and holds its line.
+    const lean = towards(cycle.lean, FOOT_LEAN * Math.max(0, 1 - speed / FOOT_UP), FOOT_EASE * dt);
     return { ...cycle, lean, leanRate: 0, steer, steerRate: (steer - cycle.steer) / dt, aim: lean };
   }
   const aim = towards(cycle.aim, aimedLean(right, speed), LEAN_SLEW * dt);

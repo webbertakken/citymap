@@ -1,15 +1,17 @@
 // Vehicles parked in the city, to walk up to and ride: where they stand, when a person can reach one, and how one moves
-// under its rider. An arcade handling: power that tapers towards top speed, and steering that asks for a rate of turn
-// (tight when slow, wider when fast) which the vehicle follows quickly; it bumps off walls. Metres and seconds; headings
-// as the walker's.
+// under its rider through the walls. The bicycle rides on its own physics (bicycle.ts); the car on an arcade handling:
+// power that tapers towards top speed, and steering that asks for a rate of turn (tight when slow, wider when fast)
+// which the car follows quickly. Both bump off walls; a hard knock throws a bicycle's rider. Metres and seconds;
+// headings as the walker's.
 import { GROUND, PERSON_RADIUS, type Vec3, type Walls } from "@citymap/world";
+import { HARD_HIT, resting, rideCycle, thrown, type Cycle } from "./bicycle";
 import type { Landing } from "./landing";
 import { METRE } from "./street";
 import { GRAVITY, facing, type Intents } from "./walker";
 
 export type VehicleKind = "bicycle" | "car";
 
-/** What a kind of vehicle is: its words, its size and how it handles. */
+/** What a kind of vehicle is: its words, its size, and where the camera follows it from. */
 export interface VehicleSpec {
   /** "the bicycle": what the prompt names. */
   readonly name: string;
@@ -24,7 +26,13 @@ export interface VehicleSpec {
   readonly length: number;
   readonly width: number;
   readonly radius: number;
-  /** Between its axles, for how sharply it turns. */
+  /** Where the camera follows from: how far back and how high above the ground it looks. */
+  readonly follow: { readonly distance: number; readonly height: number };
+}
+
+/** An arcade handling: how a car speeds up, brakes, coasts and turns. */
+export interface Handling {
+  /** Between its axles, for its front wheels' angle. */
   readonly wheelbase: number;
   /**
    * Top speeds forward and in reverse; how fast it gains speed from a standstill (tapering to nothing at top speed),
@@ -40,9 +48,20 @@ export interface VehicleSpec {
   readonly turnRate: number;
   /** How quickly its turn follows the steering, in radians a second, each second. */
   readonly turnResponse: number;
-  /** Where the camera follows from: how far back and how high above the ground it looks. */
-  readonly follow: { readonly distance: number; readonly height: number };
 }
+
+/** The car: GTA's arcade cars, 0 to 100 km/h in about five seconds. */
+export const CAR: Handling = {
+  wheelbase: 2.6,
+  topSpeed: 32,
+  reverseSpeed: 6,
+  accelerate: 9,
+  brake: 14,
+  coast: 1.2,
+  turnRadius: 5.5,
+  turnRate: 1.5,
+  turnResponse: 7,
+};
 
 export const VEHICLES: Readonly<Record<VehicleKind, VehicleSpec>> = {
   bicycle: {
@@ -50,19 +69,10 @@ export const VEHICLES: Readonly<Record<VehicleKind, VehicleSpec>> = {
     enter: "get on",
     leave: "get off",
     riding: "On the bicycle",
-    keys: "W pedals · S brakes, then backs up · A D steer · Space brakes · E gets off · click to look · Esc leaves",
+    keys: "W pedals · S back brake · Space front brake · A D steer · Q R gears · B rings · E gets off · click to look · Esc leaves",
     length: 1.75,
     width: 0.6,
     radius: 0.35,
-    wheelbase: 1.05,
-    topSpeed: 10,
-    reverseSpeed: 1,
-    accelerate: 4.5,
-    brake: 7,
-    coast: 0.4,
-    turnRadius: 3,
-    turnRate: 2.2,
-    turnResponse: 10,
     follow: { distance: 4.5, height: 1.8 },
   },
   car: {
@@ -74,31 +84,39 @@ export const VEHICLES: Readonly<Record<VehicleKind, VehicleSpec>> = {
     length: 4.2,
     width: 1.8,
     radius: 0.95,
-    wheelbase: 2.6,
-    topSpeed: 32,
-    reverseSpeed: 6,
-    accelerate: 9,
-    brake: 14,
-    coast: 1.2,
-    turnRadius: 5.5,
-    turnRate: 1.5,
-    turnResponse: 7,
     follow: { distance: 7, height: 2.2 },
   },
 };
 
 /**
  * A vehicle in the city: which it is, where it stands, which way it faces, its speed, its rate of turn (radians a
- * second, anticlockwise from above) and its front wheel's angle, which follows from them.
+ * second, anticlockwise from above) and its front wheel's angle (positive to the left).
  */
-export interface Vehicle {
+interface Placed {
   readonly id: string;
-  readonly kind: VehicleKind;
   readonly feet: Vec3;
   readonly heading: number;
   readonly speed: number;
   readonly turn: number;
   readonly steer: number;
+}
+
+export interface Car extends Placed {
+  readonly kind: "car";
+}
+
+/** A bicycle carries its own state: its lean, steering, drivetrain, foot and falls. */
+export interface Bicycle extends Placed {
+  readonly kind: "bicycle";
+  readonly cycle: Cycle;
+}
+
+export type Vehicle = Car | Bicycle;
+
+/** A vehicle of a kind standing still, facing a heading; a bicycle at rest, its crank at an angle. */
+export function standing(id: string, kind: VehicleKind, feet: Vec3, heading: number, crank = 0): Vehicle {
+  const placed = { id, feet, heading, speed: 0, turn: 0, steer: 0 };
+  return kind === "bicycle" ? { ...placed, kind, cycle: resting(undefined, crank) } : { ...placed, kind };
 }
 
 /** A person can reach a vehicle from this far from its outline. */
@@ -131,8 +149,15 @@ export function parkedBy(landing: Landing, walls: Walls): Vehicle[] {
     const middle = { x: road.at.x / METRE + along.x * ahead, y: GROUND, z: road.at.z / METRE + along.z * ahead };
     const out = Math.max(0, half - inset);
     const placed = walls.move(middle, { x: right.x * out, y: 0, z: right.z * out }, VEHICLES[kind].radius);
-    return { id: kind, kind, feet: placed.feet, heading, speed: 0, turn: 0, steer: 0 };
+    return standing(kind, kind, placed.feet, heading);
   });
+}
+
+/** Whether a point is further than `reach` from a vehicle's outline for certain: outside the square round its circle. */
+function beyond(point: Vec3, vehicle: Vehicle, reach: number) {
+  const { length, width } = VEHICLES[vehicle.kind];
+  const far = Math.hypot(length, width) / 2 + reach;
+  return Math.abs(point.x - vehicle.feet.x) > far || Math.abs(point.z - vehicle.feet.z) > far;
 }
 
 /** How far a point on the ground is from a vehicle's outline: zero inside it. */
@@ -150,6 +175,7 @@ export function distanceTo(point: Vec3, vehicle: Vehicle): number {
 export function reachable(feet: Vec3, vehicles: readonly Vehicle[]): Vehicle | null {
   let best: { vehicle: Vehicle; distance: number } | null = null;
   for (const vehicle of vehicles) {
+    if (beyond(feet, vehicle, REACH)) continue;
     const distance = distanceTo(feet, vehicle);
     if (distance <= REACH && (!best || distance < best.distance)) best = { vehicle, distance };
   }
@@ -159,14 +185,48 @@ export function reachable(feet: Vec3, vehicles: readonly Vehicle[]): Vehicle | n
 /** The widest a front wheel turns, in radians: what the steering angle shown is held to. */
 export const MAX_STEER = 0.6;
 
+/** A vehicle after a knock: it keeps a little of its speed, and a hard one throws a bicycle's rider. */
+export function bumped(vehicle: Vehicle): Vehicle {
+  const speed = vehicle.speed * BUMP;
+  if (vehicle.kind === "car" || vehicle.cycle.fall || Math.abs(vehicle.speed) < HARD_HIT) return { ...vehicle, speed };
+  return { ...vehicle, speed, cycle: thrown(vehicle.cycle, "hit") };
+}
+
+/** A vehicle left where it is: stopped, a bicycle upright on its stand with its gear and crank as they were. */
+export function parkedNow(vehicle: Vehicle): Vehicle {
+  const stopped = { ...vehicle, speed: 0, turn: 0, steer: 0 };
+  return stopped.kind === "bicycle" ? { ...stopped, cycle: resting(stopped.cycle.gear, stopped.cycle.crank) } : stopped;
+}
+
 /**
- * One step of `dt` seconds under a rider: forward throttles (and, once stopped, a held back reverses), back brakes,
- * jump brakes hard; power tapers towards top speed. Right asks for a right turn, as fast as the vehicle turns at this
- * speed (reversing, the other way, as a car's does), and its turn follows quickly; the front wheel's angle is what that
- * turn takes. The walls take what they allow, a hit costing most of its speed.
+ * A vehicle moved along its new heading at its new speed, as far as the walls let it: a move that gets less than half
+ * its way is a knock.
+ */
+function moved<V extends Vehicle>(vehicle: V, next: V, dt: number, walls: Walls): Vehicle {
+  const ahead = facing(next.heading);
+  const want = Math.abs(next.speed) * dt;
+  const { feet } = walls.move(
+    vehicle.feet,
+    { x: ahead.x * next.speed * dt, y: -GRAVITY * dt * dt, z: ahead.z * next.speed * dt },
+    VEHICLES[vehicle.kind].radius,
+  );
+  const got = Math.hypot(feet.x - vehicle.feet.x, feet.z - vehicle.feet.z);
+  return want > 0 && got < want / 2 ? bumped({ ...next, feet }) : { ...next, feet };
+}
+
+/**
+ * One step of `dt` seconds under a rider. A bicycle rides on its own physics. A car: forward throttles (and, once
+ * stopped, a held back reverses), back brakes, jump brakes hard; power tapers towards top speed. Right asks for a right
+ * turn, as fast as the car turns at this speed (reversing, the other way, as a car's does), and its turn follows
+ * quickly; the front wheels' angle is what that turn takes. The walls take what they allow.
  */
 export function stepVehicle(vehicle: Vehicle, intents: Intents, dt: number, walls: Walls): Vehicle {
-  const spec = VEHICLES[vehicle.kind];
+  if (vehicle.kind === "bicycle") {
+    const { cycle, speed, turn } = rideCycle(vehicle.cycle, vehicle.speed, intents, dt);
+    const next = { ...vehicle, heading: vehicle.heading + turn * dt, speed, turn, steer: cycle.steer, cycle };
+    return moved(vehicle, next, dt, walls);
+  }
+  const spec = CAR;
   const throttle = intents.forward;
   let speed = vehicle.speed;
   // Power tapers to nothing at top speed (or reverse speed), so speed rises smoothly to it.
@@ -183,18 +243,28 @@ export function stepVehicle(vehicle: Vehicle, intents: Intents, dt: number, wall
   const fastest = Math.min(Math.abs(speed) / spec.turnRadius, spec.turnRate);
   const aim = speed === 0 ? 0 : (0 - intents.right) * fastest * Math.sign(speed);
   const turn = towards(vehicle.turn, aim, spec.turnResponse * dt);
-  const heading = vehicle.heading + turn * dt;
   const steer = speed === 0 ? 0 : Math.max(-MAX_STEER, Math.min(MAX_STEER, Math.atan((turn * spec.wheelbase) / speed)));
-  const ahead = facing(heading);
-  const want = Math.abs(speed) * dt;
-  const moved = walls.move(
-    vehicle.feet,
-    { x: ahead.x * speed * dt, y: -GRAVITY * dt * dt, z: ahead.z * speed * dt },
-    spec.radius,
-  );
-  const got = Math.hypot(moved.feet.x - vehicle.feet.x, moved.feet.z - vehicle.feet.z);
-  const hit = want > 0 && got < want / 2;
-  return { ...vehicle, feet: moved.feet, heading, speed: hit ? speed * BUMP : speed, turn, steer };
+  return moved(vehicle, { ...vehicle, heading: vehicle.heading + turn * dt, speed, turn, steer }, dt, walls);
+}
+
+/**
+ * The ids of the `most` vehicles of each kind nearest a point, cars first, nearest first; and before them the one
+ * ridden, which is always drawn.
+ */
+export function nearestOf(
+  vehicles: readonly Vehicle[],
+  at: { readonly x: number; readonly z: number },
+  most: number,
+  keep: string | null,
+): string[] {
+  const near = (kind: VehicleKind) =>
+    vehicles
+      .filter((v) => v.kind === kind && v.id !== keep)
+      .map((v) => ({ id: v.id, distance: Math.hypot(v.feet.x - at.x, v.feet.z - at.z) }))
+      .toSorted((a, b) => a.distance - b.distance)
+      .slice(0, most)
+      .map((v) => v.id);
+  return [...(keep === null ? [] : [keep]), ...near("car"), ...near("bicycle")];
 }
 
 /**
@@ -230,7 +300,7 @@ export function clearOfVehicles(
   let { x, z } = feet;
   let hit = false;
   for (const vehicle of vehicles) {
-    if (vehicle.id === except) continue;
+    if (vehicle.id === except || beyond({ x, y: feet.y, z }, vehicle, radius)) continue;
     const { length, width } = VEHICLES[vehicle.kind];
     const ahead = facing(vehicle.heading);
     const dx = x - vehicle.feet.x;
