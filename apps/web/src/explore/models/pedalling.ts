@@ -1,11 +1,11 @@
-// The rider on the bicycle: where the pedals are as the crank turns, a leg bent so its foot is on its pedal (or on the
-// ground at a stop), and where a thrown rider lies. Metres, in the bicycle model's frame: +x ahead, +y up, +z right.
+// A rider's limbs on a two-wheeler: an arm or a leg bent so its hand or foot is on a target (a grip, a pedal, a peg, or
+// the ground at a stop), how far the body leans forward to reach the bars, and where a thrown rider lies. Metres, in the
+// machine model's frame: +x ahead, +y up, +z right.
 import { PropertyBinding, Quaternion, Vector3, type Object3D } from "three";
 import { DOWN, FALLING, RISING, type Fall } from "../bicycle";
 
-/** A rider sits this high above the bicycle's ground in its frame: its saddle, less the seated figure's hips. */
-export const SADDLE = 0.38;
-/** At a stop, the left foot goes down this far to the left of the crank. */
+/** At a stop, the left foot goes down to the ground this far ahead of the saddle and this far to its left. */
+export const FOOT_AHEAD = 0.15;
 export const FOOT_OUT = 0.25;
 /** Thrown, the rider lands this far ahead of the bicycle and this far to the side it falls. */
 export const THROWN = 0.9;
@@ -14,18 +14,29 @@ export const THROWN_ASIDE = 0.4;
 export const KNEE_AHEAD = new Vector3(1, 0.3, 0).normalize();
 export const ELBOW_OUT = { left: new Vector3(-0.3, -1, -1).normalize(), right: new Vector3(-0.3, -1, 1).normalize() };
 
+/** A point in the machine's frame. */
 type Point = { readonly x: number; readonly y: number; readonly z: number };
 
 /**
- * Where the pedals are from the crank's middle at a crank angle (turning forwards): the right hangs down at rest, the
- * left opposite; each out to its side.
+ * How far a rider leans their body about its base (`pivot`) so a shoulder comes within `reach` of its grip, all in the
+ * machine's frame: radians about its +z (positive back, negative forward), turning the shoulder in the upright plane
+ * along the machine (the shoulder's and grip's distance across it kept). The shoulder ends above the line from the base
+ * to the grip; a grip it cannot come within reach of, it leans as near to as it can.
  */
-export function pedalsOf(crank: number, pedals: { readonly arm: number; readonly out: number }) {
-  const along = -pedals.arm * Math.sin(crank);
-  const up = -pedals.arm * Math.cos(crank);
-  const right: Point = { x: along, y: up, z: pedals.out };
-  const left: Point = { x: -along, y: -up, z: -pedals.out };
-  return { right, left };
+export function tiltToReach(pivot: Point, shoulder: Point, grip: Point, reach: number): number {
+  const across = shoulder.z - grip.z;
+  const along = Math.sqrt(Math.max(0, reach * reach - across * across));
+  const sx = shoulder.x - pivot.x;
+  const sy = shoulder.y - pivot.y;
+  const gx = grip.x - pivot.x;
+  const gy = grip.y - pivot.y;
+  const body = Math.hypot(sx, sy);
+  const toGrip = Math.hypot(gx, gy);
+  const cos = (body * body + toGrip * toGrip - along * along) / (2 * body * toGrip);
+  const wanted = Math.atan2(gy, gx) + Math.acos(Math.max(-1, Math.min(1, cos)));
+  const turn = wanted - Math.atan2(sy, sx);
+  // The nearest way round.
+  return Math.atan2(Math.sin(turn), Math.cos(turn));
 }
 
 /** One leg's bones: the thigh from the hip, the shin from the knee, and the foot. */
@@ -70,14 +81,17 @@ export function armsOf(person: Object3D): { readonly left: Arm; readonly right: 
   return found ? { left: arm(found.left), right: arm(found.right) } : null;
 }
 
-/** Turns a bone (in the world) so that a direction from it becomes another, whatever its own axes. */
-function aim(bone: Object3D, from: Vector3, to: Vector3) {
-  const turn = new Quaternion().setFromUnitVectors(from.normalize(), to.normalize());
+/** Turns a bone by a turn given in the world, whatever its own axes. */
+export function turnInWorld(bone: Object3D, turn: Quaternion) {
   const world = bone.getWorldQuaternion(new Quaternion());
   const parent = bone.parent ? bone.parent.getWorldQuaternion(new Quaternion()) : new Quaternion();
-  bone.quaternion.copy(parent.invert().multiply(turn.multiply(world)));
+  bone.quaternion.copy(parent.invert().multiply(turn.clone().multiply(world)));
   bone.updateMatrixWorld(true);
 }
+
+/** Turns a bone (in the world) so that a direction from it becomes another, whatever its own axes. */
+const aim = (bone: Object3D, from: Vector3, to: Vector3) =>
+  turnInWorld(bone, new Quaternion().setFromUnitVectors(from.normalize(), to.normalize()));
 
 const worldOf = (part: Object3D) => part.getWorldPosition(new Vector3());
 

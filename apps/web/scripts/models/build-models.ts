@@ -4,9 +4,10 @@ import { join, resolve } from "node:path";
 // Builds the models the walk uses into public/models, from their sources, reproducibly:
 //   people:   Wobble Blocks' PS2 Styled Characters (CC0), split into a man and a woman, with the clips of Quaternius'
 //             Universal Animation Library (CC0) retargeted and baked onto their rig;
-//   vehicles: heyheythere's PSX Vehicles Free (CC BY 4.0): bicycle, sedan and pickup, with the pack's atlas attached;
-//             Duhgless' Another PSX Style Low-poly Bike (CC0): the motorbike, its parts rigged to steer and roll;
-//             ArcheoteryxFr's AS350 B2 (CC BY 4.0, Sketchfab): the helicopter, its rotors hung from their hubs.
+//   vehicles: heyheythere's PSX Vehicles Free (CC BY 4.0): bicycle, sedan and pickup, with the pack's atlas attached,
+//             the bicycle stood upright with its kickstand its own part; Duhgless' Another PSX Style Low-poly Bike
+//             (CC0): the motorbike, its parts rigged to steer and roll; ArcheoteryxFr's AS350 B2 (CC BY 4.0, Sketchfab):
+//             the helicopter, its rotors hung from their hubs. Each two-wheeler marks where its rider meets it.
 // Usage: bun scripts/models/build-models.ts   (writes public/models and its CREDITS.md; prints each clip's ground speed)
 // The helicopter comes through Sketchfab's API, which needs a token (SKETCHFAB_TOKEN, or ~/.secrets/sketchfab-api-token);
 // without one, and with nothing cached, the committed helicopter is kept as it is.
@@ -14,6 +15,7 @@ import { Document, NodeIO, type Node as GltfNode, type mat4 } from "@gltf-transf
 import { EXTMeshoptCompression, EXTTextureWebP, KHRONOS_EXTENSIONS } from "@gltf-transform/extensions";
 import {
   clearNodeTransform,
+  compactPrimitive,
   dedup,
   flatten,
   meshopt,
@@ -37,6 +39,18 @@ import {
   type Object3D,
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import {
+  endsOf,
+  hubOf,
+  meanOf,
+  partsOf,
+  rotated,
+  seatOf,
+  topOf,
+  turnBetween,
+  type Point,
+  type Turn,
+} from "../../src/explore/models/contacts";
 import { WOBBLE_FROM_UAL, retargetClip } from "../../src/explore/models/retarget";
 import { download, entry, itch, sketchfab, unzip } from "./sources";
 
@@ -195,6 +209,7 @@ async function vehicle(pack: Map<string, Uint8Array>, scratch: string, name: str
     // Point-filtered, as the PS1 look wants: glTF's NEAREST.
     info.setMagFilter(NEAREST).setMinFilter(NEAREST);
   }
+  if (name === "bicycle_red") await rigBicycle(doc);
   const file = join(out, "vehicles", `${name.split("_")[0]}.glb`);
   await io.write(file, doc);
   console.log(`[models] vehicles/${name.split("_")[0]}.glb ${(Bun.file(file).size / 1024).toFixed(0)} KB`);
@@ -257,6 +272,184 @@ function bake(node: GltfNode, angle: number) {
   node.setRotation([0, 0, 0, 1]).setScale([1, 1, 1]);
 }
 
+/** The named node of a document; a missing one stops the build. */
+function partOf(doc: Document, name: string): GltfNode {
+  const node = doc
+    .getRoot()
+    .listNodes()
+    .find((n) => n.getName() === name);
+  if (!node) throw new Error(`models/no-node ${name}`);
+  return node;
+}
+
+/** Every vertex of a node's mesh, in the node's own frame. */
+function pointsOf(node: GltfNode): Point[] {
+  const mesh = node.getMesh();
+  if (!mesh) throw new Error(`models/no-mesh ${node.getName()}`);
+  return mesh.listPrimitives().flatMap((primitive) => {
+    const positions = primitive.getAttribute("POSITION");
+    if (!positions) throw new Error(`models/no-positions ${node.getName()}`);
+    return Array.from({ length: positions.getCount() }, (_unused, i): Point => {
+      const [x = 0, y = 0, z = 0] = positions.getElement(i, [0, 0, 0]);
+      return [x, y, z];
+    });
+  });
+}
+
+/** A point as the build log writes it. */
+const shown = (p: Point) => p.map((v) => v.toFixed(3)).join(",");
+
+/** A column-major 4×4 matrix moving by an offset. */
+const moving = ([x, y, z]: Point): mat4 => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
+
+/**
+ * A turn given to a whole vehicle about its origin: every node placed by it and every mesh turned by it. Its nodes are
+ * all unturned (so turning each place and each mesh turns the whole) and no mesh is shared (so none turns twice).
+ */
+function turnWhole(doc: Document, turn: Turn) {
+  const nodes = doc.getRoot().listNodes();
+  for (const node of nodes) {
+    if (node.getRotation().some((v, i) => v !== (i === 3 ? 1 : 0)))
+      throw new Error(`models/turned-node ${node.getName()}`);
+    node.setTranslation([...rotated(turn, node.getTranslation())]);
+  }
+  const meshes = nodes.flatMap((n) => n.getMesh() ?? []);
+  if (new Set(meshes).size !== meshes.length) throw new Error("models/shared-mesh");
+  for (const mesh of meshes) transformMesh(mesh, turnedScaled(0, turn, 1));
+}
+
+/** An empty node where a rider meets a vehicle, on the part it moves with, at a point in that part's frame. */
+function contact(doc: Document, part: GltfNode, name: string, at: Point) {
+  part.addChild(doc.createNode(name).setTranslation([...at]));
+}
+
+/**
+ * A part of a node's mesh (its one primitive's triangles) split off into a mesh of its own on a child node, pivoted at a
+ * point in the node's frame, so it can turn about it.
+ */
+function splitOff(doc: Document, node: GltfNode, triangles: readonly number[], name: string, pivot: Point): GltfNode {
+  const [primitive, ...more] = node.getMesh()?.listPrimitives() ?? [];
+  const indices = primitive?.getIndices()?.getArray();
+  if (!primitive || !indices || more.length > 0) throw new Error(`models/not-one-primitive ${node.getName()}`);
+  const taken = new Set(triangles);
+  const kept: number[] = [];
+  const moved: number[] = [];
+  for (let t = 0; t < indices.length / 3; t++)
+    (taken.has(t) ? moved : kept).push(...indices.subarray(t * 3, t * 3 + 3));
+  const buffer = doc.getRoot().listBuffers()[0]!;
+  const indexOf = (list: number[]) =>
+    doc.createAccessor().setType("SCALAR").setArray(new Uint32Array(list)).setBuffer(buffer);
+  const split = primitive.clone().setIndices(indexOf(moved));
+  primitive.setIndices(indexOf(kept));
+  compactPrimitive(primitive);
+  compactPrimitive(split);
+  const mesh = doc.createMesh(name).addPrimitive(split);
+  transformMesh(mesh, moving([-pivot[0], -pivot[1], -pivot[2]]));
+  const child = doc
+    .createNode(name)
+    .setMesh(mesh)
+    .setTranslation([...pivot]);
+  node.addChild(child);
+  return child;
+}
+
+/** How the bicycle's contacts are measured, in its file's units (metres, near enough: it is drawn at 1.687 m of 1.69). */
+const BICYCLE_CONTACTS = {
+  /** A grip is the bars' last 10 cm: a hand's width. */
+  grip: 0.1,
+  /** A pedal is the crank's last 6 cm out: the pedal's own width. */
+  pedal: 0.06,
+  /** The saddle's top: its points within 2 cm of its highest. */
+  saddle: 0.02,
+  /** The kickstand's hinge: its points within 2 cm of its top; its foot, within 2 cm of its bottom. */
+  stand: 0.02,
+} as const;
+
+/**
+ * heyheythere's bicycle, rigged as the walk poses it. The pack leans it onto its kickstand (its wheels 8° off upright),
+ * so a wheel turning about its own x would wobble: the whole bicycle is turned upright about its contact line, by the
+ * turn that takes its back wheel's axle (from its tyre's ring) onto x. The kickstand (the frame's one part to reach the
+ * ground) is split off on its hinge, with its folded turn (swung back along the chainstay, from the crank to the back
+ * hub) and the lean it holds the bicycle at, in its extras. Its grips (the bars' ends, on the fork), saddle (the frame's
+ * top) and pedals (the crank's ends, on the crank) are marked as nodes. The file faces +z, its left +x.
+ */
+async function rigBicycle(doc: Document) {
+  const frame = partOf(doc, "bicycle_red");
+  const fork = partOf(doc, "bicycle_red_fork");
+  const crank = partOf(doc, "bicycle_red_crank");
+  const rear = partOf(doc, "bicycle_red_wheel_rear");
+  const { axle } = hubOf(pointsOf(rear), 0);
+  // Leaning to its left (+x) its axle tips down on that side.
+  const lean = Math.atan2(-axle[1], axle[0]);
+  turnWhole(doc, turnBetween(axle, [1, 0, 0]));
+  const hub = rear.getTranslation();
+  const parts = partsOf(
+    frame.getMesh()!.listPrimitives()[0]!.getAttribute("POSITION")!.getArray()!,
+    frame.getMesh()!.listPrimitives()[0]!.getIndices()!.getArray()!,
+  );
+  const points = pointsOf(frame);
+  const lowest = (part: { readonly vertices: readonly number[] }) =>
+    Math.min(...part.vertices.map((v) => points[v]![1]));
+  const stand = parts.reduce((low, part) => (lowest(part) < lowest(low) ? part : low));
+  const standPoints = stand.vertices.map((v) => points[v]!);
+  const hinge = topOf(standPoints, BICYCLE_CONTACTS.stand);
+  const foot = meanOf(standPoints.filter((p) => p[1] <= lowest(stand) + BICYCLE_CONTACTS.stand));
+  const [cx, cy, cz] = crank.getTranslation();
+  const stay: Point = [hub[0] - cx, hub[1] - cy, hub[2] - cz];
+  const folded = turnBetween([foot[0] - hinge[0], foot[1] - hinge[1], foot[2] - hinge[2]], stay);
+  splitOff(doc, frame, stand.triangles, "bicycle_red_kickstand", hinge).setExtras({ folded: [...folded], lean });
+  const grips = endsOf(pointsOf(fork), 0, BICYCLE_CONTACTS.grip);
+  contact(doc, fork, "bicycle_red_grip_left", grips.high);
+  contact(doc, fork, "bicycle_red_grip_right", grips.low);
+  contact(doc, frame, "bicycle_red_saddle", topOf(pointsOf(frame), BICYCLE_CONTACTS.saddle));
+  const pedals = endsOf(pointsOf(crank), 0, BICYCLE_CONTACTS.pedal);
+  contact(doc, crank, "bicycle_red_pedal_left", pedals.high);
+  contact(doc, crank, "bicycle_red_pedal_right", pedals.low);
+  await doc.transform(prune({ keepLeaves: true }));
+  console.log(
+    `[models] bicycle stood up from a lean of ${((lean * 180) / Math.PI).toFixed(1)}°; kickstand of ${stand.triangles.length} triangles, hinge ${shown(hinge)}`,
+  );
+}
+
+/** How the chopper's contacts are measured, in its file's units (0.474 m each). */
+const MOTORBIKE_CONTACTS = {
+  /** A grip is the bars' last 0.21 (10 cm): a hand's width. */
+  grip: 0.21,
+  /** The seat is the lowest top along the middle line, looked for every 0.05 (2.4 cm). */
+  step: 0.05,
+  /** The pegs are the frame's widest points below 0.45 (24 cm off the ground), within 0.1 (4.7 cm) of the widest. */
+  below: 0.45,
+  peg: 0.1,
+} as const;
+
+/**
+ * Where the chopper's rider meets it, marked as nodes: its grips (the bars' ends, on the fork, in its raked frame), its
+ * seat (the lowest of the frame's top surface along its middle line, between the back hub and the steering head) and its forward
+ * pegs (the frame's widest points low down). The file faces +x, its right +z.
+ */
+function rigMotorbikeRider(doc: Document, frame: GltfNode, fork: GltfNode, hub: Point, head: Point) {
+  const grips = endsOf(pointsOf(fork), 2, MOTORBIKE_CONTACTS.grip);
+  contact(doc, fork, "motorbike_grip_left", grips.low);
+  contact(doc, fork, "motorbike_grip_right", grips.high);
+  const [fx, fy] = frame.getTranslation();
+  const points = pointsOf(frame);
+  const [primitive] = frame.getMesh()?.listPrimitives() ?? [];
+  const positions = primitive?.getAttribute("POSITION")?.getArray();
+  const indices = primitive?.getIndices()?.getArray();
+  if (!positions || !indices) throw new Error("models/no-frame-mesh motorbike");
+  const seat = seatOf(positions, indices, { from: hub[0] - fx, to: head[0] - fx, step: MOTORBIKE_CONTACTS.step });
+  if (!seat) throw new Error("models/no-seat motorbike");
+  contact(doc, frame, "motorbike_seat", seat);
+  const pegs = endsOf(
+    points.filter(([, y]) => y + fy < MOTORBIKE_CONTACTS.below),
+    2,
+    MOTORBIKE_CONTACTS.peg,
+  );
+  contact(doc, frame, "motorbike_peg_left", pegs.low);
+  contact(doc, frame, "motorbike_peg_right", pegs.high);
+  console.log(`[models] motorbike seat ${shown(seat)}, pegs ${shown(pegs.low)} ${shown(pegs.high)} (frame units)`);
+}
+
 /**
  * Duhgless' chopper, rigged as the walk poses it: each part's turn and scale baked into its mesh (so a part's own turn
  * is only its pose); the fork hung from a head tilted to its rake (34.9°, from the head to the front axle) so steering
@@ -305,9 +498,14 @@ async function motorbike() {
   fork.setName("motorbike_fork");
   front.setName("motorbike_wheel_front");
   back.setName("motorbike_wheel_back");
+  rigMotorbikeRider(doc, frame, fork, back.getTranslation(), head);
   for (const material of doc.getRoot().listMaterials())
     material.getBaseColorTextureInfo()?.setMagFilter(NEAREST).setMinFilter(NEAREST);
-  await doc.transform(textureCompress({ encoder: sharp, targetFormat: "webp", resize: [256, 256] }), prune(), dedup());
+  await doc.transform(
+    textureCompress({ encoder: sharp, targetFormat: "webp", resize: [256, 256] }),
+    prune({ keepLeaves: true }),
+    dedup(),
+  );
   const file = join(out, "vehicles", "motorbike.glb");
   await io.write(file, doc);
   console.log(

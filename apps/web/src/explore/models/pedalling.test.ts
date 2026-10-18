@@ -1,21 +1,34 @@
 import { Group, Object3D, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { DOWN, FALLING, RISING, type Fall } from "../bicycle";
-import { THROWN, THROWN_ASIDE, armsOf, legsOf, pedalsOf, reachFor, thrownPose } from "./pedalling";
-import { PROCEDURAL_RIGS, RIGS } from "./rig";
+import { THROWN, THROWN_ASIDE, armsOf, legsOf, reachFor, thrownPose, tiltToReach } from "./pedalling";
 
-describe("pedalsOf", () => {
-  it("hangs the right pedal down and the left up at rest, opposite each other, out to each side", () => {
-    const { right, left } = pedalsOf(0, RIGS.bicycle.pedals);
-    expect(right).toEqual({ x: -0, y: -0.133, z: 0.165 });
-    expect(left).toEqual({ x: 0, y: 0.133, z: -0.165 });
+describe("tiltToReach", () => {
+  const pivot = { x: 0, y: 0, z: 0 };
+
+  it("leans an upright body forward until its shoulder is within reach of a grip ahead", () => {
+    // Body, reach and the base to the grip all 0.5 m: an even triangle, the body 60° up from the grip's line.
+    const tilt = tiltToReach(pivot, { x: 0, y: 0.5, z: 0 }, { x: 0.5, y: 0, z: 0 }, 0.5);
+    expect(tilt).toBeCloseTo(-Math.PI / 6, 9);
   });
 
-  it("turns them forwards: a quarter turn on, the right pedal is behind (as a wheel's foot goes back)", () => {
-    const { right, left } = pedalsOf(Math.PI / 2, PROCEDURAL_RIGS.bicycle.pedals);
-    expect(right.x).toBeCloseTo(-0.17, 9);
-    expect(right.y).toBeCloseTo(0, 9);
-    expect(left.x).toBeCloseTo(0.17, 9);
+  it("leans a body back when its grips are nearer than its reach, and counts the distance across", () => {
+    // Shoulder and grip 0.3 m apart across: a reach of 0.5 leaves 0.4 along, as the body leans back to 90° + 37°.
+    const shoulder = { x: 0.5, y: 0.5, z: -0.3 };
+    const tilt = tiltToReach(pivot, shoulder, { x: 0.5, y: 0, z: 0 }, 0.5);
+    const turned = { x: Math.cos(Math.PI / 4 + tilt), y: Math.sin(Math.PI / 4 + tilt) };
+    const reached = Math.hypot(turned.x * Math.SQRT2 * 0.5 - 0.5, turned.y * Math.SQRT2 * 0.5, 0.3);
+    expect(reached).toBeCloseTo(0.5, 9);
+    expect(turned.y).toBeGreaterThan(0);
+  });
+
+  it("leans straight at a grip out of reach, and straight away from one too near to be held", () => {
+    expect(tiltToReach(pivot, { x: 0, y: 0.5, z: 0 }, { x: 2, y: 0, z: 0 }, 0.5)).toBeCloseTo(-Math.PI / 2, 9);
+    expect(tiltToReach(pivot, { x: 0, y: 0.5, z: 0 }, { x: 0.1, y: 0, z: 0 }, 1)).toBeCloseTo(Math.PI / 2, 9);
+  });
+
+  it("takes the nearest way round", () => {
+    expect(tiltToReach(pivot, { x: -0.5, y: -0.01, z: 0 }, { x: 0.5, y: 0, z: 0 }, 0.5)).toBeLessThan(0);
   });
 });
 

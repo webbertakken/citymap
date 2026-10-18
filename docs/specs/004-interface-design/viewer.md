@@ -259,4 +259,6 @@ what it means, so a person who has never read this spec understands the map.
 - On a phone every step of a visit answers in under 200 ms: a tap on the map, the arrow keys and zoom, another layout, a
   theme, a search and its pick, Details and Hide details, one town alone and the whole city again, the Buildings view,
   the legend and a colour by measure.
+- The phone's answers are timed only on a machine that can stand for the phone: one busier than it (its fixed work
+  taking more than 1.3 times as long as on the reference machine) skips the budget, saying why, instead of failing.
 - Phones draw at a device pixel ratio of at most 2.

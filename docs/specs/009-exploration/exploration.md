@@ -65,6 +65,9 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 - A vehicle left stays where it stopped, as it stopped: a car on its side stays on its side until it is driven again.
   Vehicles stand in the way of walkers and of each other, on their own level: a helicopter on a roof is out of the way
   of the street below.
+- Where a rider sits, holds on and rests their feet on a two-wheeler comes from its own model, measured once when the
+  models are built, never set by eye: the saddle or seat, the grips (which turn with the bars), the pedals (which go
+  round with the crank) or the pegs.
 - **The car**, the motorbike and the helicopter handle as GTA's do: cars on suspension that grip, drift, crash, roll
   over and are put back on their wheels; the motorbike leans on the bicycle's single-track core, with an engine and a
   wheelie; the helicopter flies by collective and cyclic and lands on roofs.
@@ -124,8 +127,10 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 - **The wheelie.** Pulling away hard in a low gear lifts the front wheel; the rider holds it short of going over
   backwards, and it comes down when the throttle eases or the engine reaches its red line, the gearbox holding first
   until it is down. With the front wheel up it steers nothing.
-- **The rider** sits astride with hands on the bars and feet on the pegs, a foot down at a stop, and is thrown off as
-  from the bicycle.
+- **The rider** sits on the seat, hands closed round the grips and feet on the forward pegs, knees bent, leaning forward
+  as far as the high bars ask and coming forward along the seat when they ask more; the hands stay on the grips as the
+  bars turn and the motorbike leans. A foot goes down at a stop, and the rider is thrown off as from the bicycle. It has
+  no kickstand: parked, it stands upright.
 - **The HUD**, while on the motorbike: speed in km/h, the gear, and the engine's turns a minute.
 
 ## The bicycle
@@ -148,9 +153,13 @@ The showpiece: a bicycle that rides like one, and stays fun on a keyboard.
   alone skids long before that. Stopped, S walks the bicycle backwards.
 - **Grip.** The tyres hold a turn and a brake together up to their grip; asking for more, such as braking hard while
   leaned over, slides the bicycle from under its rider.
-- **The rider.** Pedals, legs and wheels turn in step. Coming to a stop, a foot goes down to the ground, and comes up
-  again once moving. A hard hit (from about 11 km/h) or a slide throws the rider off; both lie a moment, then the rider
-  gets back up, on the bicycle, a foot down.
+- **The rider.** The rider sits on the saddle, hands closed round the grips, feet on the pedals as they go round with
+  the crank, knees bent ahead; the hands stay on the grips as the bars turn and the bicycle leans. Pedals, legs and
+  wheels turn in step, and the wheels turn true about their axles, never wobbling. Coming to a stop, a foot goes down to
+  the ground, and comes up again once moving. A hard hit (from about 11 km/h) or a slide throws the rider off; both lie
+  a moment, then the rider gets back up, on the bicycle, a foot down.
+- **The kickstand.** Parked, the bicycle leans on its kickstand. The stand folds up as the rider gets on, stays up while
+  it is ridden, and swings down when it is left; it swings in about 0.3 s, at once where motion is unwelcome.
 - **The bell.** B rings it; on a touch screen, a Ring button.
 - **The HUD**, while on the bicycle: speed in km/h, the gear, and the cadence in turns a minute.
 

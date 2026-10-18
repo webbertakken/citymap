@@ -14,6 +14,8 @@ const phone = devices["Pixel 7"];
 
 export default defineConfig({
   testDir: "e2e",
+  // Journeys are specs; a `.test.ts` beside them is a Vitest unit test of a helper.
+  testMatch: "**/*.spec.ts",
   outputDir: "test-results",
   fullyParallel: true,
   retries: 0,
