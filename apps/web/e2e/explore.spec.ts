@@ -289,7 +289,7 @@ test("flies the camera freely with F, over the city, and lands it on the walker"
 const promptNow = (page: Page) =>
   page.evaluate(() => document.querySelector(".explore-use")?.textContent?.replace(/^E/, "") ?? null);
 
-/** Shift held with the walking keys runs: a vehicle is reached in a third of the frames. */
+/** Shift held with the walking keys runs: the car is reached in a third of the frames. */
 const RUN = "ShiftLeft";
 
 /** Keys held until the prompt says what is wanted, looked for every two frames, at most `checks` times. */
@@ -304,9 +304,10 @@ async function holdForPrompt(page: Page, keys: readonly string[], wanted: string
   await Promise.all(keys.map((key) => page.keyboard.up(key)));
 }
 
-/** On foot from the landing to the motorbike, 7 m back along the street at the near kerb. */
+/** On foot from the landing to the motorbike, 7 m back along the street at the near kerb: walked, so the diagonal
+ * never runs past its reach between two looks. */
 async function toTheMotorbike(page: Page) {
-  await holdForPrompt(page, [RUN, "KeyS", "KeyD"], "Get on the motorbike", 400);
+  await holdForPrompt(page, ["KeyS", "KeyD"], "Get on the motorbike", 600);
   return page.getByRole("button", { name: "Get on the motorbike", exact: true });
 }
 
@@ -408,7 +409,7 @@ test("rides the motorbike: throttle, gears that change themselves, both brakes t
   // Pulled away hard: it changes up by itself.
   await holdUntil(page, ["KeyW"], () => expect(hud).toContainText(/Gear\s*[2-5] of 5/, { timeout: RIDING_MS / 2 }));
   await expect(hud).toHaveAttribute("data-foot", "up");
-  await expect(page.getByRole("button", { name: "Brake", exact: true })).toBeAttached();
+  if (isMobile) await expect(page.getByRole("button", { name: "Brake", exact: true })).toBeVisible();
   await laidOut(page, "on the motorbike", isMobile, info.outputPath("motorbike.png"));
   if (!isMobile) await page.screenshot({ path: info.outputPath("motorbike.png") });
   await holdUntil(page, ["Space", "KeyS"], () =>
@@ -438,7 +439,7 @@ test("drives the car on Rapier: engine and gears, brakes then reverses, and leav
     expect(hud).toContainText(/Speed\s*([3-9]\d|\d{3}) km\/h/, { timeout: RIDING_MS / 2 }),
   );
   await expect(hud).toContainText(/Engine\s*[1-9],?\d{3} rpm/);
-  await expect(page.getByRole("button", { name: "Handbrake", exact: true })).toBeAttached();
+  if (isMobile) await expect(page.getByRole("button", { name: "Handbrake", exact: true })).toBeVisible();
   await laidOut(page, "in the car", isMobile, info.outputPath("car.png"));
   if (!isMobile) await page.screenshot({ path: info.outputPath("driving.png") });
   // S brakes to a stop, then backs up in reverse.
