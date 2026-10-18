@@ -6,6 +6,9 @@ import type { Landing } from "./landing";
 import {
   BICYCLE_SHARE,
   CAR_SHARE,
+  MOTORBIKE_SHARE,
+  PICKUP_SHARE,
+  kindAt,
   JUNCTION_GAP,
   LANDING_CLEAR,
   PARKED_MOST,
@@ -54,8 +57,8 @@ describe("parkedIn", () => {
     for (const vehicle of parked) {
       const k = Number(/^parked-0-(\d+)$/.exec(vehicle.id)![1]);
       const u = placeHash(0, k);
-      expect(vehicle.kind).toBe(u < BICYCLE_SHARE ? "bicycle" : "car");
-      expect(u).toBeLessThan(BICYCLE_SHARE + CAR_SHARE);
+      expect(vehicle.kind).toBe(kindAt(u));
+      expect(u).toBeLessThan(BICYCLE_SHARE + CAR_SHARE + MOTORBIKE_SHARE);
       expect(vehicle.feet.x).toBeCloseTo((k + 0.5) * PLACE_GAP, 9);
       // A street is 10 m wide: the kerb is 5 m out, the vehicle its inset in from it; right of east is +z.
       const out = 5 - PARKING[vehicle.kind].inset;
@@ -65,11 +68,17 @@ describe("parkedIn", () => {
     }
   });
 
-  it("parks bicycles and cars in about the shares asked, over a long street", () => {
+  it("parks bicycles, cars and motorbikes in about the shares asked, over a long street", () => {
     const long = parkedIn(withRoads([road("avenue", [0, 0], [400, 0])]), away, open);
     const share = (kind: string) => long.filter((v) => v.kind === kind).length / Math.floor(4000 / PLACE_GAP);
     expect(share("bicycle")).toBeCloseTo(BICYCLE_SHARE, 1);
     expect(share("car")).toBeCloseTo(CAR_SHARE, 1);
+    expect(share("motorbike")).toBeCloseTo(MOTORBIKE_SHARE, 1);
+    // Cars are saloons and pickups, about a third of them pickups.
+    const cars = long.filter((v) => v.kind === "car");
+    const pickups = cars.filter((v) => v.kind === "car" && v.body === "pickup").length / cars.length;
+    expect(pickups).toBeGreaterThan(PICKUP_SHARE - 0.15);
+    expect(pickups).toBeLessThan(PICKUP_SHARE + 0.15);
   });
 
   it("never parks in a junction, nor along lanes and highways", () => {

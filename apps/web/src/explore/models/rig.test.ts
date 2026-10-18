@@ -83,4 +83,20 @@ describe("poseVehicle", () => {
     poseVehicle(model, RIGS.bicycle, still);
     expect(model.position.toArray()).toEqual([0, 0, 0]);
   });
+
+  it("lifts the front in a wheelie about its back contact, which stays where it was", () => {
+    const model = rigged(RIGS.motorbike);
+    poseVehicle(model, RIGS.motorbike, { ...still, pitch: -0.4 });
+    model.updateMatrixWorld(true);
+    const back = new Vector3(-RIGS.motorbike.back, 0, 0).applyMatrix4(model.matrix);
+    expect(back.x).toBeCloseTo(-RIGS.motorbike.back, 9);
+    expect(back.y).toBeCloseTo(0, 9);
+    const front = new Vector3(RIGS.motorbike.front, 0, 0).applyMatrix4(model.matrix);
+    expect(front.y).toBeGreaterThan(0.5);
+    // A rig that does not say where its back wheel meets the ground lifts about the front's distance behind.
+    const plain = new Group();
+    poseVehicle(plain, { wheels: [], radius: 1, front: 0.5, roll: { axis: "x", sign: 1 } }, { ...still, pitch: -0.4 });
+    plain.updateMatrixWorld(true);
+    expect(new Vector3(-0.5, 0, 0).applyMatrix4(plain.matrix).y).toBeCloseTo(0, 9);
+  });
 });

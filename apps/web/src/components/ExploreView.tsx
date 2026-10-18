@@ -1,11 +1,12 @@
 "use client";
 // On foot in the city: the ground-level canvas, the devices that move the walker (keys, a drag to look, a touch stick
-// and buttons, a gamepad), getting on and off vehicles (E, or the prompt's button), the bicycle's HUD and bell, and a
+// and buttons, a gamepad), getting on and off vehicles (E, or the prompt's button), each ride's HUD, the bicycle's
+// bell, the cars' garage of nearby streets kept round the player (and the arcade cars when it cannot keep up), and a
 // card that says how, with the way back to the map.
 import type { Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
 import { GROUND, cityHits, type Footprint, type Vec3, type Walls } from "@citymap/world";
-import { Bike, Car, Footprints, Video, X } from "lucide-react";
+import { Bike, Car, Footprints, Motorbike, Video, X } from "lucide-react";
 import {
   useEffectEvent,
   useLayoutEffect,
@@ -17,13 +18,16 @@ import {
 } from "react";
 import { describeHit } from "../card/describe";
 import { audioSpeaker, bellRinger } from "../explore/bell";
-import { hudOf, type Hud } from "../explore/bicycle";
 import { cameraOf, easeReach, reachOf } from "../explore/camera";
+import { ARCADE_WORDS, type ArcadeWhy } from "../explore/descent";
 import { flyingCamera } from "../explore/flyer";
+import { hudOfRide, type RideHud as Ride } from "../explore/hud";
 import { WALK_KEYS, padOf, stickAt, type PadState } from "../explore/input";
 import type { Inspect } from "../explore/inspect";
 import type { Landing } from "../explore/landing";
+import type { Garage } from "../explore/physics/garage";
 import {
+  STEP,
   advanceSession,
   followOf,
   newControls,
@@ -39,7 +43,7 @@ import {
 import { sightOf, windowRows, type Sight } from "../explore/sight";
 import { signName, type RoadGrid } from "../explore/signs";
 import { METRE } from "../explore/street";
-import { VEHICLES, type Vehicle, type VehicleKind } from "../explore/vehicles";
+import { VEHICLES, arcadeOf, type Vehicle, type VehicleKind } from "../explore/vehicles";
 import { log } from "../log";
 import { CardBody } from "./CardBody";
 import { useMeasureRows } from "./MeasureRows";
@@ -95,6 +99,9 @@ export interface ExploreViewProps {
   readonly parked: readonly Vehicle[];
   /** The physics engine the walls come from, as the card names it. */
   readonly engine: string;
+  /** The cars' garage of nearby streets on Rapier; null where cars drive as arcade cars, and why. */
+  readonly garage: Garage | null;
+  readonly arcade: ArcadeWhy | null;
   readonly Canvas: ComponentType<ExploreCanvasProps>;
   /** Back to the map, at the walker's place on the ground (scene units). */
   readonly onLeave: (at: { readonly x: number; readonly z: number }) => void;
@@ -130,49 +137,46 @@ function SightCard({ sight, inspect }: { readonly sight: Sight; readonly inspect
 export const STICK_REACH = 48;
 /** The HUD shows its numbers afresh at most this often, in seconds. */
 export const HUD_EVERY = 0.1;
+/** Each frame the garage may spend this many milliseconds raising the nearby streets. */
+export const RAISE_BUDGET = 2;
 /** Keys that shift the bicycle's gears (and set the free camera's speed): down and up, either side of E. */
 const GEAR_KEYS: Readonly<Record<string, number>> = { KeyQ: -1, KeyR: 1 };
-
-/** What the HUD shows of the ridden bicycle: its numbers, whether a foot is down, and whether it is down itself. */
-interface Ride {
-  readonly hud: Hud;
-  readonly foot: boolean;
-  readonly fallen: boolean;
-}
 
 /** The first gamepad the page sees, or null: none, or a browser without gamepads. */
 const firstPad = (): (PadState & { readonly id: string }) | null =>
   (navigator.getGamepads?.() ?? []).find((pad) => pad !== null) ?? null;
 
-/** The bicycle's numbers as the HUD shows them. */
+/** A ride's numbers as the HUD shows them. */
 function RideHud({ ride }: { readonly ride: Ride }) {
-  const { hud } = ride;
   return (
     <section
       className="explore-hud"
-      aria-label="Speed, gear and cadence"
-      data-foot={ride.foot ? "down" : "up"}
+      aria-label={ride.label}
+      data-foot={ride.foot ?? undefined}
       data-fallen={ride.fallen || undefined}
     >
       <dl>
-        <div>
-          <dt>Speed</dt>
-          <dd>{hud.speed} km/h</dd>
-        </div>
-        <div>
-          <dt>Gear</dt>
-          <dd>
-            {hud.gear} of {hud.gears}
-          </dd>
-        </div>
-        <div>
-          <dt>Cadence</dt>
-          <dd>{hud.cadence} rpm</dd>
-        </div>
+        {ride.rows.map(([term, value]) => (
+          <div key={term}>
+            <dt>{term}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
       </dl>
     </section>
   );
 }
+
+/** What the touch buttons are for now: the ride's, or flying's. */
+type Pad = "foot" | "bicycle" | "motorbike" | "car" | "flying";
+/** The main button under the right thumb, by what it is for. */
+const PRIMARY: Readonly<Record<Pad, string>> = {
+  foot: "Jump",
+  bicycle: "Brake",
+  motorbike: "Brake",
+  car: "Handbrake",
+  flying: "Up",
+};
 
 /** Walking: the canvas fills the map; keys, drags, the stick and the jump button move the walker. */
 export function ExploreView({
@@ -187,9 +191,14 @@ export function ExploreView({
   landing,
   parked,
   engine,
+  garage,
+  arcade,
   Canvas,
   onLeave,
 }: ExploreViewProps) {
+  // The cars' physics: the garage while it keeps up; once it cannot (or never loaded), arcade cars, said once.
+  const cars = useRef<Garage | null>(garage);
+  const [simply, setSimply] = useState<ArcadeWhy | null>(arcade);
   const hits = useMemo(() => cityHits(footprints), [footprints]);
   // The signs the canvas shows, and how many: a count tests and the log can read.
   const [signCount, setSignCount] = useState(0);
@@ -203,7 +212,7 @@ export function ExploreView({
   const [start] = useState(() =>
     startSession({ x: landing.at.x / METRE, y: GROUND, z: landing.at.z / METRE }, landing.heading, parked),
   );
-  // The bicycle's HUD, shown afresh at most every HUD_EVERY; whether its rider was down, for the log.
+  // The ride's HUD, shown afresh at most every HUD_EVERY; whether its rider was down, for the log.
   const [ride, setRide] = useState<Ride | null>(null);
   const hudSince = useRef(HUD_EVERY);
   const wasDown = useRef(false);
@@ -242,28 +251,47 @@ export function ExploreView({
     controls.current.gears += read.presses.gears;
     if (read.presses.ring) ringIfRiding();
   };
-  /** The bicycle's HUD and its rider's falls, from the frame's ridden vehicle. */
+  /** The ride's HUD and its rider's falls, from the frame's ridden vehicle. */
   const showRide = (vehicle: Vehicle | null, seconds: number) => {
-    if (vehicle?.kind !== "bicycle") {
+    if (!vehicle) {
       hudSince.current = HUD_EVERY;
       wasDown.current = false;
       if (ride) setRide(null);
       return;
     }
-    const down = vehicle.cycle.fall !== null;
-    if (down && !wasDown.current)
-      log.info("explore/thrown", { cause: vehicle.cycle.fall.cause, speed: vehicle.cycle.fall.speed.toFixed(1) });
-    if (!down && wasDown.current) log.info("explore/up");
-    wasDown.current = down;
+    const fall =
+      vehicle.kind === "bicycle" ? vehicle.cycle.fall : vehicle.kind === "motorbike" ? vehicle.moto.fall : null;
+    if (fall && !wasDown.current) log.info("explore/thrown", { cause: fall.cause, speed: fall.speed.toFixed(1) });
+    if (!fall && wasDown.current) log.info("explore/up");
+    wasDown.current = fall !== null;
     hudSince.current += seconds;
     if (hudSince.current < HUD_EVERY) return;
     hudSince.current = 0;
-    const now: Ride = { hud: hudOf(vehicle.cycle, vehicle.speed), foot: vehicle.cycle.footDown, fallen: down };
+    const now = hudOfRide(vehicle, cars.current !== null);
     if (JSON.stringify(now) !== JSON.stringify(ride)) setRide(now);
+  };
+  /**
+   * The garage kept round the player after a frame: where the walker (or what it rides) is and how fast it moves; and,
+   * driving a car it cannot keep up with, the cars handed to the arcade handling for the rest of the walk.
+   */
+  const keepStreets = (next: Session): Session => {
+    const kept = cars.current;
+    if (!kept) return next;
+    const vehicle = ridden(next);
+    if (vehicle?.kind === "car" && !kept.keepingUp()) {
+      log.error("explore/arcade", { reason: "slow", load: kept.load().toFixed(2) });
+      cars.current = null;
+      setSimply("slow");
+      return { ...next, vehicles: next.vehicles.map((v) => (v.kind === "car" ? arcadeOf(v) : v)) };
+    }
+    const { body, previous } = next;
+    const velocity = { x: (body.feet.x - previous.feet.x) / STEP, z: (body.feet.z - previous.feet.z) / STEP };
+    kept.follow(body.feet, velocity, next.vehicles, RAISE_BUDGET);
+    return next;
   };
   const frame = (seconds: number): ExploreFrame => {
     readPad(seconds);
-    const next = advanceSession(session.current, controls.current, seconds, walls);
+    const next = keepStreets(advanceSession(session.current, controls.current, seconds, walls, cars.current));
     controls.current.look = { dx: 0, dy: 0 };
     controls.current.use = false;
     controls.current.fly = false;
@@ -386,6 +414,9 @@ export function ExploreView({
       document.removeEventListener("pointerlockchange", lockChanged);
       document.removeEventListener("pointerlockerror", lockRefused);
       if (document.pointerLockElement) document.exitPointerLock?.();
+      // What the cars' physics cost over its last seconds of driving: its share of the time it covered.
+      const driven = cars.current;
+      if (driven) log.info("explore/garage", { load: driven.load().toFixed(3) });
     };
   }, []);
 
@@ -434,6 +465,16 @@ export function ExploreView({
     controls.current.stick = null;
   };
   const title = flying ? "Flying" : riding ? VEHICLES[riding].riding : "On foot";
+  const pad: Pad = flying ? "flying" : (riding ?? "foot");
+  const Icon = flying
+    ? Video
+    : riding === "car"
+      ? Car
+      : riding === "motorbike"
+        ? Motorbike
+        : riding === "bicycle"
+          ? Bike
+          : Footprints;
   const sink = (held: boolean) => (event: PointerEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     controls.current.sink = held;
@@ -450,7 +491,7 @@ export function ExploreView({
       data-signs={signCount}
       data-riding={riding ?? undefined}
       role="application"
-      aria-label={`Walking in ${name}. W A S D or the arrow keys walk, Shift runs, Space jumps, E gets on or off, F flies the camera freely and lands it, the wheel sets its speed, click or drag to look around, Escape goes back to the map. On the bicycle, W pedals, S brakes the back wheel and Space the front, Q and R change gear, B rings the bell. A gamepad walks and rides too.`}
+      aria-label={`Walking in ${name}. W A S D or the arrow keys walk, Shift runs, Space jumps, E gets on or off, F flies the camera freely and lands it, the wheel sets its speed, click or drag to look around, Escape goes back to the map. On the bicycle, W pedals, S brakes the back wheel and Space the front, Q and R change gear, B rings the bell. On the motorbike, W opens the throttle, S brakes the back wheel and Space the front. In the car, W accelerates, S brakes then reverses, Space is the handbrake. A gamepad walks and rides too.`}
       tabIndex={0}
       onPointerDown={press}
       onPointerMove={drag}
@@ -462,22 +503,14 @@ export function ExploreView({
       }}
     >
       <span className="explore-crosshair" aria-hidden="true" />
-      {sight && <SightCard sight={sight} inspect={inspect} />}
       <Canvas scene={scene} table={table} theme={theme} frame={frame} signs={signage} onSigns={setSignCount} />
       <section className="glass explore-card" aria-label={title}>
         <h2>
-          {flying ? (
-            <Video size={18} aria-hidden="true" />
-          ) : riding === "car" ? (
-            <Car size={18} aria-hidden="true" />
-          ) : riding === "bicycle" ? (
-            <Bike size={18} aria-hidden="true" />
-          ) : (
-            <Footprints size={18} aria-hidden="true" />
-          )}
+          <Icon size={18} aria-hidden="true" />
           <span>{title}</span>
         </h2>
         <p className="explore-engine">Physics prototype: {engine}</p>
+        {simply && <output className="explore-note">{ARCADE_WORDS[simply]}</output>}
         <p className="explore-keys">
           {flying
             ? "W A S D fly · Space up · C down · wheel speed · F lands · click to look · Esc leaves"
@@ -491,70 +524,79 @@ export function ExploreView({
           <span>Back to the map</span>
         </button>
       </section>
-      {prompt && (
-        <button
-          type="button"
-          className="glass explore-use"
-          disabled={!prompt.ready}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={use}
-        >
-          <kbd className="explore-keys" aria-hidden="true">
-            E
-          </kbd>
-          <span>{promptWords(prompt)}</span>
-        </button>
-      )}
-      <div
-        className="explore-stick"
-        aria-hidden="true"
-        onPointerDown={touchStick}
-        onPointerMove={moveStick}
-        onPointerUp={letStickGo}
-        onPointerCancel={letStickGo}
-      />
-      <button
-        type="button"
-        className="glass explore-jump"
-        onPointerDown={jump(true)}
-        onPointerUp={jump(false)}
-        onPointerCancel={jump(false)}
-      >
-        {flying ? "Up" : riding === "bicycle" ? "Brake" : "Jump"}
-      </button>
-      {riding === "bicycle" && !flying && (
-        <div className="explore-ride-buttons">
-          <button type="button" className="glass" onPointerDown={keep} onClick={ringIfRiding}>
-            Ring
-          </button>
-          <button type="button" className="glass" onPointerDown={keep} onClick={() => gear(-1)}>
-            Gear down
-          </button>
-          <button type="button" className="glass" onPointerDown={keep} onClick={() => gear(1)}>
-            Gear up
-          </button>
+      {/* On a touch screen everything here sits along the bottom in one flow, so nothing overlaps; elsewhere each part
+          keeps its own place. */}
+      <div className="explore-dock" data-pad={pad}>
+        {sight && <SightCard sight={sight} inspect={inspect} />}
+        <div className="explore-controls">
+          {prompt && (
+            <button
+              type="button"
+              className="glass explore-use"
+              disabled={!prompt.ready}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={use}
+            >
+              <kbd className="explore-keys" aria-hidden="true">
+                E
+              </kbd>
+              <span>{promptWords(prompt)}</span>
+            </button>
+          )}
+          <div
+            className="explore-stick"
+            aria-hidden="true"
+            onPointerDown={touchStick}
+            onPointerMove={moveStick}
+            onPointerUp={letStickGo}
+            onPointerCancel={letStickGo}
+          />
+          <div className="explore-pad">
+            {pad === "bicycle" && (
+              <>
+                <button type="button" className="glass explore-ring" onPointerDown={keep} onClick={ringIfRiding}>
+                  Ring
+                </button>
+                <button type="button" className="glass explore-gear-up" onPointerDown={keep} onClick={() => gear(1)}>
+                  Gear up
+                </button>
+                <button type="button" className="glass explore-gear-down" onPointerDown={keep} onClick={() => gear(-1)}>
+                  Gear down
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="glass explore-jump"
+              onPointerDown={jump(true)}
+              onPointerUp={jump(false)}
+              onPointerCancel={jump(false)}
+            >
+              {PRIMARY[pad]}
+            </button>
+            {flying && (
+              <button
+                type="button"
+                className="glass explore-sink"
+                onPointerDown={sink(true)}
+                onPointerUp={sink(false)}
+                onPointerCancel={sink(false)}
+              >
+                Down
+              </button>
+            )}
+            <button
+              type="button"
+              className="glass explore-fly"
+              aria-pressed={flying}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={fly}
+            >
+              Fly
+            </button>
+          </div>
         </div>
-      )}
-      {flying && (
-        <button
-          type="button"
-          className="glass explore-sink"
-          onPointerDown={sink(true)}
-          onPointerUp={sink(false)}
-          onPointerCancel={sink(false)}
-        >
-          Down
-        </button>
-      )}
-      <button
-        type="button"
-        className="glass explore-fly"
-        aria-pressed={flying}
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={fly}
-      >
-        Fly
-      </button>
+      </div>
     </div>
   );
 }

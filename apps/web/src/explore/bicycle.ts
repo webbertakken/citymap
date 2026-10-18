@@ -1,67 +1,56 @@
 // A bicycle that rides like one: a single-track machine whose lean and steering follow the linearised Whipple
 // equations of Meijaard et al.'s benchmark bicycle (2007), so self-stability, countersteering and turning by leaning
-// come from the physics, not a script. A simulated rider balances it (assisted balance): steering asks for a turn, the
-// rider leans into it by torque on the bars, and at walking pace helps with the body. A drivetrain (cadence, gears,
-// freewheel), both brakes with the weight moving between the wheels, the tyres' grip, a foot at a stop, and falls.
-// Pure: no walls here (vehicles.ts moves it through the city). Lean and steer positive to the left, turns
-// anticlockwise, as the rest of the walk; metres, seconds, newtons. The benchmark's equations are linear, so flipping
-// both its coordinates (its lean and steer are positive to the right) leaves its matrices as published.
+// come from the physics, not a script. It rides on the single-track core (singletrack.ts) with the benchmark's build,
+// a simulated rider balancing it (assisted balance); here is its drivetrain (cadence, gears, freewheel) and both
+// brakes, each held to what its tyre holds as the weight moves between the wheels. Pure: no walls here (vehicles.ts
+// moves it through the city). Lean and steer positive to the left, turns anticlockwise, as the rest of the walk;
+// metres, seconds, newtons.
+import {
+  balanceOn,
+  besideOn,
+  fallingOn,
+  leanAsked,
+  loadsOn,
+  matricesOf,
+  pitchedOn,
+  ridden,
+  settled,
+  sidewaysOn,
+  thrownOn,
+  towards,
+  turnOn,
+  whippleOf,
+  type Build,
+  type FallCause,
+  type Lean,
+  type Machine,
+  type Single,
+} from "./singletrack";
 import { GRAVITY, type Intents } from "./walker";
 
-/** The bicycle's lean and steering: angles in radians and their rates, positive to the left. */
-export interface Lean {
-  readonly lean: number;
-  readonly leanRate: number;
-  readonly steer: number;
-  readonly steerRate: number;
-}
-
-/** Why a rider came off: a hard hit, asking more of the tyres than they hold, or leaning past saving. */
-export type FallCause = "hit" | "grip" | "lean";
-
-/** A fall: seconds since the rider was thrown, the side it fell to (1 left, −1 right), why, and how fast it was going. */
-export interface Fall {
-  readonly time: number;
-  readonly side: 1 | -1;
-  readonly cause: FallCause;
-  readonly speed: number;
-}
+export { DOWN, FALLING, RISING, LYING, SLIDE } from "./singletrack";
+export type { Fall, FallCause, Lean } from "./singletrack";
 
 /**
- * The bicycle's own state, beyond where it is: its lean and steering, the lean the rider aims at, the crank's angle and
- * its speed (zero freewheeling), the gear, the back wheel lifted under braking (about the front contact), whether a foot
- * is down, a fall under way, and the phase of the rider's searching at walking pace.
+ * The bicycle's own state, beyond where it is: its single-track state (lean, steering, aim, the back wheel lifted under
+ * braking, a foot, a fall, the searching), the crank's angle and its speed (zero freewheeling), and the gear.
  */
-export interface Cycle extends Lean {
-  readonly aim: number;
+export interface Cycle extends Single {
   readonly crank: number;
   readonly cadence: number;
   readonly gear: number;
-  readonly pitch: number;
-  readonly pitchRate: number;
-  readonly footDown: boolean;
-  readonly fall: Fall | null;
-  readonly wobble: number;
 }
 
-// The benchmark bicycle (Meijaard, Papadopoulos, Ruina and Schwab 2007, table 2): a roadster with an 85 kg rider.
-const M = [
-  [80.81722, 2.31941332208709],
-  [2.31941332208709, 0.29784188199686],
-] as const;
-const C1 = [
-  [0, 33.86641391492494],
-  [-0.85035641456978, 1.6854039739756],
-] as const;
-const K0 = [
-  [-80.95, -2.59951685249872],
-  [-2.59951685249872, -0.80329488458618],
-] as const;
-const K2 = [
-  [0, 76.59734589573222],
-  [0, 2.65431523794604],
-] as const;
-const DET = M[0][0] * M[1][1] - M[0][1] * M[1][0];
+/** The benchmark bicycle (Meijaard, Papadopoulos, Ruina and Schwab 2007, table 1): a roadster with an 85 kg rider. */
+export const BENCHMARK: Build = {
+  wheelbase: 1.02,
+  trail: 0.08,
+  tilt: Math.PI / 10,
+  back: { radius: 0.3, mass: 2, ixx: 0.0603, iyy: 0.12 },
+  body: { x: 0.3, z: -0.9, mass: 85, ixx: 9.2, iyy: 11, izz: 2.8, ixz: 2.4 },
+  fork: { x: 0.9, z: -0.7, mass: 4, ixx: 0.05892, iyy: 0.06, izz: 0.00708, ixz: -0.00756 },
+  front: { radius: 0.35, mass: 3, ixx: 0.1405, iyy: 0.28 },
+};
 
 /** Between the wheels' contacts, the front wheel's trail behind the steering axis, and that axis' tilt from upright. */
 export const WHEELBASE = 1.02;
@@ -114,7 +103,7 @@ export const GRIP = 0.9;
 /** Turning harder than this (m/s² sideways), a skidding tyre slides the bicycle from under its rider. */
 export const LEANED = 2;
 /** The loads and the braking they allow are found together by halving this many times (to a micrometre a second²). */
-const LOAD_ROUNDS = 26;
+export const LOAD_ROUNDS = 26;
 /** Lifted under braking, the rider holds the back wheel at this pitch, short of going over the bars (0.67 rad). */
 export const STOPPIE_MOST = 0.3;
 
@@ -135,17 +124,41 @@ export const WALK_BACK_RATE = 2;
 /** Leaned past this, it falls; a hit this fast throws the rider. */
 export const FALL_LEAN = 0.9;
 export const HARD_HIT = 3;
-/** Fallen: it slides to a stop at this share of g, lies on its side at this lean, reached over `FALLING`, left over the
- * last `RISING` of `DOWN` seconds, when the rider is back up. */
-export const SLIDE = 0.5;
-export const LYING = 1.35;
-export const FALLING = 0.4;
-export const RISING = 0.6;
-export const DOWN = 2.5;
 
-const clamp = (value: number, most: number) => Math.max(-most, Math.min(most, value));
-const towards = (value: number, target: number, step: number) =>
-  value < target ? Math.min(target, value + step) : Math.max(target, value - step);
+/** The benchmark bicycle as the core rides it, with its rider; its middle as the paper rounds it. */
+export const BICYCLE: Machine = {
+  matrices: matricesOf(BENCHMARK, GRAVITY),
+  wheelbase: WHEELBASE,
+  trail: TRAIL,
+  tilt: TILT,
+  steerStop: STEER_STOP,
+  mass: MASS,
+  massAhead: MASS_AHEAD,
+  massHeight: MASS_HEIGHT,
+  grip: GRIP,
+  leaned: LEANED,
+  stoppieMost: STOPPIE_MOST,
+  // Pedalled, it never lifts its front wheel.
+  wheelieMost: 0,
+  fallLean: FALL_LEAN,
+  rider: {
+    turnRadius: TURN_RADIUS,
+    maxLean: MAX_LEAN,
+    leanSlew: LEAN_SLEW,
+    leanGain: LEAN_GAIN,
+    leanRateGain: LEAN_RATE_GAIN,
+    steerGain: STEER_GAIN,
+    steerDamping: STEER_DAMPING,
+    torqueMost: STEER_TORQUE_MOST,
+    assistLean: ASSIST_LEAN,
+    assistDamping: ASSIST_DAMPING,
+    assistUntil: ASSIST_UNTIL,
+    wobbleTorque: WOBBLE_TORQUE,
+    wobbleHz: WOBBLE_HZ,
+    wobbleFrom: WOBBLE_FROM,
+    foot: { down: FOOT_DOWN, up: FOOT_UP, lean: FOOT_LEAN, ease: FOOT_EASE, steer: FOOT_STEER, barEase: BAR_EASE },
+  },
+};
 
 /** A bicycle standing still, upright, on a foot, in a gear, its crank at an angle. */
 export const resting = (gear = START_GEAR, crank = 0): Cycle => ({
@@ -164,130 +177,34 @@ export const resting = (gear = START_GEAR, crank = 0): Cycle => ({
   wobble: 0,
 });
 
-/** The benchmark's stiffness at a speed: gravity's pull and the speed's, on lean (row 0) and steer (row 1). */
-export const stiffness = (speed: number) =>
-  [
-    [GRAVITY * K0[0][0] + speed * speed * K2[0][0], GRAVITY * K0[0][1] + speed * speed * K2[0][1]],
-    [GRAVITY * K0[1][0] + speed * speed * K2[1][0], GRAVITY * K0[1][1] + speed * speed * K2[1][1]],
-  ] as const;
-
-/**
- * One step of the bare bicycle at a speed: M q̈ + v C1 q̇ + (g K0 + v² K2) q = T, a lean torque (the rider's body) and a
- * steering torque (the bars), by semi-implicit Euler; the bars stop at `STEER_STOP`.
- */
-export function whipple(q: Lean, speed: number, leanTorque: number, steerTorque: number, dt: number): Lean {
-  const k = stiffness(speed);
-  const f0 =
-    leanTorque - speed * (C1[0][0] * q.leanRate + C1[0][1] * q.steerRate) - (k[0][0] * q.lean + k[0][1] * q.steer);
-  const f1 =
-    steerTorque - speed * (C1[1][0] * q.leanRate + C1[1][1] * q.steerRate) - (k[1][0] * q.lean + k[1][1] * q.steer);
-  const leanRate = q.leanRate + ((M[1][1] * f0 - M[0][1] * f1) / DET) * dt;
-  let steerRate = q.steerRate + ((M[0][0] * f1 - M[1][0] * f0) / DET) * dt;
-  let steer = q.steer + steerRate * dt;
-  if (Math.abs(steer) >= STEER_STOP) {
-    steer = Math.sign(steer) * STEER_STOP;
-    steerRate = 0;
-  }
-  return { lean: q.lean + leanRate * dt, leanRate, steer, steerRate };
-}
+/** One step of the bare bicycle at a speed, a lean torque (the rider's body) and a steering torque (the bars). */
+export const whipple = (q: Lean, speed: number, leanTorque: number, steerTorque: number, dt: number): Lean =>
+  whippleOf(BICYCLE, q, speed, leanTorque, steerTorque, dt);
 
 /** How fast it turns (anticlockwise, radians a second) at a speed, for its steer: the front wheel's path. */
-export const turnOf = (q: Lean, speed: number) =>
-  ((speed * q.steer + TRAIL * q.steerRate) * Math.cos(TILT)) / WHEELBASE;
+export const turnOf = (q: Lean, speed: number) => turnOn(BICYCLE, q, speed);
 
 /** The lean a turn asks for (right positive asks a right turn): what holds a turn of the radius asked at this speed. */
-export const aimedLean = (right: number, speed: number) =>
-  -clamp(Math.atan((speed * speed * right) / (TURN_RADIUS * GRAVITY)), MAX_LEAN);
+export const aimedLean = (right: number, speed: number) => leanAsked(BICYCLE, right, speed);
 
-/**
- * The rider's steering torque towards the lean aimed at: what holds the turn that lean makes (the steady turn's steer
- * and torque), and more for being off the lean, falling, and off that steer.
- */
-function riderTorque(cycle: Cycle, speed: number): number {
-  const k = stiffness(speed);
-  const held = clamp((-k[0][0] * cycle.aim) / k[0][1], STEER_STOP);
-  const holding = k[1][0] * cycle.aim + k[1][1] * held;
-  return clamp(
-    holding +
-      LEAN_GAIN * (cycle.lean - cycle.aim) +
-      LEAN_RATE_GAIN * cycle.leanRate +
-      STEER_GAIN * (held - cycle.steer) -
-      STEER_DAMPING * cycle.steerRate,
-    STEER_TORQUE_MOST,
-  );
-}
+/** One step of the bicycle's balance at a speed, asked to turn `right`. */
+export const balanced = (cycle: Cycle, speed: number, right: number, dt: number): Cycle =>
+  balanceOn(BICYCLE, cycle, speed, right, dt);
 
-/**
- * One step of the bicycle's balance at a speed, asked to turn `right`: on a foot, it leans onto it and the bars turn as
- * asked; riding, the rider aims at a lean and steers for it, the body helps at walking pace, and the bars search.
- */
-export function balanced(cycle: Cycle, speed: number, right: number, dt: number): Cycle {
-  if (cycle.footDown) {
-    const steer = towards(cycle.steer, -right * FOOT_STEER, BAR_EASE * dt);
-    // Pushing off, the rider comes upright, so the bicycle leaves the foot balanced and holds its line.
-    const lean = towards(cycle.lean, FOOT_LEAN * Math.max(0, 1 - speed / FOOT_UP), FOOT_EASE * dt);
-    return { ...cycle, lean, leanRate: 0, steer, steerRate: (steer - cycle.steer) / dt, aim: lean };
-  }
-  const aim = towards(cycle.aim, aimedLean(right, speed), LEAN_SLEW * dt);
-  const aiming = { ...cycle, aim };
-  const fade = Math.max(0, 1 - speed / ASSIST_UNTIL);
-  const body = -fade * (ASSIST_LEAN * (cycle.lean - aim) + ASSIST_DAMPING * cycle.leanRate);
-  const wobble = cycle.wobble + dt;
-  const searching =
-    WOBBLE_TORQUE * Math.max(0, 1 - speed / WOBBLE_FROM) ** 2 * Math.sin(2 * Math.PI * WOBBLE_HZ * wobble);
-  return { ...aiming, ...whipple(cycle, speed, body, riderTorque(aiming, speed) + searching, dt), wobble };
-}
+/** How the weight sits on each wheel, in newtons, accelerating at `a` (forwards positive). */
+export const loadsOf = (a: number) => loadsOn(BICYCLE, a);
 
-/**
- * How the weight sits on each wheel, in newtons, accelerating at `a` (forwards positive): braking moves it forwards,
- * until all of it is on the front and the back wheel would lift.
- */
-export function loadsOf(a: number): { readonly front: number; readonly back: number } {
-  const weight = MASS * GRAVITY;
-  const back = (MASS * (GRAVITY * (WHEELBASE - MASS_AHEAD) + a * MASS_HEIGHT)) / WHEELBASE;
-  const held = Math.max(0, Math.min(weight, back));
-  return { front: weight - held, back: held };
-}
-
-/** The bicycle thrown down at a speed, falling the way it leans (left when upright). */
-export function thrown(cycle: Cycle, cause: FallCause, speed: number): Cycle {
-  const side = cycle.lean < 0 ? -1 : 1;
-  return { ...cycle, fall: { time: 0, side, cause, speed: Math.abs(speed) }, cadence: 0, pitch: 0, pitchRate: 0 };
-}
+/** The bicycle thrown down at a speed, falling the way it leans (left when upright); the crank stops. */
+export const thrown = (cycle: Cycle, cause: FallCause, speed: number): Cycle => ({
+  ...thrownOn(cycle, cause, speed),
+  cadence: 0,
+});
 
 /** The gear moved by `steps` (up positive), no further than its first and last. */
 export const shift = (cycle: Cycle, steps: number): Cycle => ({
   ...cycle,
   gear: Math.max(0, Math.min(GEARS.length - 1, cycle.gear + steps)),
 });
-
-/** One step of a fall: it slides to a stop on its side, lies, and rises; then the rider is back up, a foot down. */
-function falling(cycle: Cycle, fall: Fall, speed: number, dt: number) {
-  const time = fall.time + dt;
-  if (time >= DOWN) return { cycle: resting(cycle.gear, cycle.crank), speed: 0, turn: 0 };
-  const down = Math.min(1, time / FALLING, (DOWN - time) / RISING);
-  const lean = fall.side * LYING * down;
-  const slid = towards(speed, 0, SLIDE * GRAVITY * dt);
-  return {
-    cycle: { ...cycle, lean, leanRate: 0, steerRate: 0, aim: lean, fall: { ...fall, time } },
-    speed: slid,
-    turn: 0,
-  };
-}
-
-/** One step of the back wheel lifting about the front contact under a deceleration, held by the rider and the road. */
-function pitched(cycle: Cycle, deceleration: number, dt: number) {
-  const behind = WHEELBASE - MASS_AHEAD;
-  const { pitch } = cycle;
-  const height = behind * Math.sin(pitch) + MASS_HEIGHT * Math.cos(pitch);
-  const arm = behind * Math.cos(pitch) - MASS_HEIGHT * Math.sin(pitch);
-  const accel = (deceleration * height - GRAVITY * arm) / (behind * behind + MASS_HEIGHT * MASS_HEIGHT);
-  const rate = cycle.pitchRate + accel * dt;
-  const next = pitch + rate * dt;
-  if (next <= 0) return { pitch: 0, pitchRate: 0 };
-  if (next >= STOPPIE_MOST) return { pitch: STOPPIE_MOST, pitchRate: Math.min(0, rate) };
-  return { pitch: next, pitchRate: rate };
-}
 
 /**
  * One step of the speed, turning with a sideways acceleration `sideways`: pedalling through the gear and both brakes,
@@ -313,8 +230,7 @@ function driven(cycle: Cycle, speed: number, sideways: number, intents: Intents,
     back: speed > 0 && intents.forward < 0 ? -intents.forward * REAR_BRAKE : 0,
     front: speed > 0 && intents.jump ? FRONT_BRAKE : 0,
   };
-  // What a tyre holds along its way, of its load, beside what the turn already takes of it.
-  const beside = Math.sqrt(Math.max(0, GRIP * GRIP - (sideways / GRAVITY) ** 2));
+  const beside = besideOn(BICYCLE, sideways);
   const held = (accel: number) => {
     const loads = lifted ? { front: MASS * GRAVITY, back: 0 } : loadsOf(accel);
     return { front: beside * loads.front, back: beside * loads.back };
@@ -324,36 +240,18 @@ function driven(cycle: Cycle, speed: number, sideways: number, intents: Intents,
     const braking = Math.min(asked.back, tyres.back) + Math.min(asked.front, tyres.front);
     return (Math.min(asked.drive, tyres.back) - braking - resistance) / MASS;
   };
-  // The loads depend on the acceleration they allow. net(a) − a falls as a rises (a tyre's hold moves at most
-  // GRIP · h / w < 1 of the acceleration), so the one acceleration that gives itself is found by halving.
-  let low = -3 * GRAVITY;
-  let high = 3 * GRAVITY;
-  for (let i = 0; i < LOAD_ROUNDS; i++) {
-    const mid = (low + high) / 2;
-    if (net(mid) > mid) low = mid;
-    else high = mid;
-  }
-  // Its own net force at that acceleration: exactly nothing when nothing pushes or holds it.
-  const accel = net((low + high) / 2);
+  const accel = settled(net, GRAVITY, LOAD_ROUNDS);
   const tyres = held(accel);
   const skidding = asked.back > tyres.back || asked.front > tyres.front;
   const next = speed + accel * dt;
   const stopped = speed > 0 && next < 0 ? 0 : next;
-  const deceleration = stopped > 0 ? -accel : 0;
   return {
     ...crank,
     speed: stopped,
-    ...pitched(cycle, deceleration, dt),
+    ...pitchedOn(BICYCLE, cycle, stopped > 0 ? accel : 0, dt),
     slid: skidding && Math.abs(sideways) > LEANED,
   };
 }
-
-/**
- * What the tyres hold sideways in a turn, in m/s²: what a lean balances, g tan φ. Below a walking pace a lean is the
- * bicycle falling over, not turning, and asks nothing of them. (The path's own curvature, v times the turn, spikes as
- * the rider countersteers, while the tyres' load follows the lean.)
- */
-const sidewaysOf = (lean: number, speed: number) => (Math.abs(speed) > FOOT_UP ? GRAVITY * Math.tan(lean) : 0);
 
 /**
  * One step of the ridden bicycle under intents: a fall plays out; else the speed, the foot, the balance and the turn,
@@ -365,19 +263,17 @@ export function rideCycle(
   intents: Intents,
   dt: number,
 ): { readonly cycle: Cycle; readonly speed: number; readonly turn: number } {
-  if (cycle.fall) return falling(cycle, cycle.fall, speed, dt);
-  const { slid, speed: next, ...drive } = driven(cycle, speed, sidewaysOf(cycle.lean, speed), intents, dt);
-  const footDown = cycle.footDown ? Math.abs(next) < FOOT_UP : Math.abs(next) < FOOT_DOWN;
-  const balance = balanced({ ...cycle, ...drive, footDown }, Math.max(0, next), intents.right, dt);
-  const turn = turnOf(balance, next);
-  const overGrip = slid || Math.abs(sidewaysOf(balance.lean, next)) > GRIP * GRAVITY;
-  const fallen =
-    Math.abs(balance.lean) > FALL_LEAN
-      ? thrown(balance, "lean", next)
-      : overGrip
-        ? thrown(balance, "grip", next)
-        : balance;
-  return { cycle: fallen, speed: next, turn: fallen.fall ? 0 : turn };
+  if (cycle.fall) {
+    const fell = fallingOn(BICYCLE, cycle, cycle.fall, speed, dt, (c) => resting(c.gear, c.crank));
+    return { cycle: fell.state, speed: fell.speed, turn: fell.turn };
+  }
+  const { slid, speed: next, ...drive } = driven(cycle, speed, sidewaysOn(BICYCLE, cycle.lean, speed), intents, dt);
+  const rode = ridden(BICYCLE, { ...cycle, ...drive }, next, intents.right, slid, dt);
+  return {
+    cycle: rode.state.fall && !cycle.fall ? { ...rode.state, cadence: 0 } : rode.state,
+    speed: next,
+    turn: rode.turn,
+  };
 }
 
 /** What the HUD shows: speed in km/h, the gear counted from one of so many, and the cadence in turns a minute. */

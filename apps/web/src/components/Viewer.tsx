@@ -26,12 +26,14 @@ import {
 import type { GitHubSource } from "../card/github";
 import { measureRows } from "../card/measures";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
+import type { ArcadeWhy, GoDown } from "../explore/descent";
 import { footprintsOf } from "../explore/footprints";
 import { inspector } from "../explore/inspect";
 import { landingOf, type Landing } from "../explore/landing";
 import { parkedIn } from "../explore/parking";
-import type { RaiseWalls } from "../explore/physics/raise";
+import type { Garage } from "../explore/physics/garage";
 import { roadGrid, roadSegments, signName, type RoadGrid } from "../explore/signs";
+import { METRE } from "../explore/street";
 import { parkedBy, type Vehicle } from "../explore/vehicles";
 import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
@@ -63,11 +65,14 @@ import { LOCAL_STATUS, LOCAL_TITLE, useLocalRepository } from "./useLocalReposit
 import { ViewControls } from "./ViewControls";
 import { ZoomControls } from "./ZoomControls";
 
-/** Going down into the city: the ground-level canvas, the physics engine by name, and how it raises the walls. */
+/**
+ * Going down into the city: the ground-level canvas, the walls' physics engine by name, and how everything the walk
+ * needs is loaded behind the loading card.
+ */
 export interface Explore {
   readonly Canvas: ComponentType<ExploreCanvasProps>;
   readonly engine: string;
-  readonly raise: RaiseWalls;
+  readonly goDown: GoDown;
 }
 
 export interface ViewerProps {
@@ -160,10 +165,15 @@ const sourceOf = (name: string, commit: string): GitHubSource => {
   return { owner: name.slice(0, slash), name: name.slice(slash + 1), commit };
 };
 
-/** A walk under way: the city (or town) it walks in, its walls, where it began, and the vehicles parked about. */
+/**
+ * A walk under way: the city (or town) it walks in, its walls and the cars' garage (null for arcade cars, and why),
+ * where it began, and the vehicles parked about.
+ */
 interface Walking {
   readonly city: City;
   readonly walls: Walls;
+  readonly garage: Garage | null;
+  readonly arcade: ArcadeWhy | null;
   readonly footprints: readonly Footprint[];
   readonly roads: RoadGrid;
   readonly landing: Landing;
@@ -271,7 +281,13 @@ export function Viewer({
   if (walk && walk.city !== shown) setWalk(null);
   const walking = walk?.city === shown ? walk : null;
   // A walk's walls are freed once it is over: ended, replaced, or the viewer gone.
-  useEffect(() => () => walk?.walls.dispose(), [walk]);
+  useEffect(
+    () => () => {
+      walk?.walls.dispose();
+      walk?.garage?.dispose();
+    },
+    [walk],
+  );
   // Where a search took the person: a marker over the map, until the selection changes.
   const [marker, setMarker] = useState<{ x: number; z: number } | null>(null);
   const setPicked = (hit: Hit | null) => {
@@ -575,7 +591,7 @@ export function Viewer({
   // Going down into the city: before the selected building, else on the road nearest the map's middle; the walls rise
   // under the loading card.
   const startWalk = async (
-    raise: RaiseWalls,
+    goDown: GoDown,
     into: { readonly city: City; readonly scene: Scene; table: Float32Array },
   ) => {
     const landing = landingOf(into.city, picked, view.centre);
@@ -587,7 +603,8 @@ export function Viewer({
     const job = begin("explore", into.city.repository);
     try {
       const footprints = footprintsOf(into.scene.buildings, into.table);
-      const walls = await raise(footprints, { onStep: job.step, signal: job.signal });
+      const landed = { x: landing.at.x / METRE, z: landing.at.z / METRE };
+      const { walls, garage, arcade } = await goDown(footprints, landed, { onStep: job.step, signal: job.signal });
       log.info("explore/enter", {
         landing: landing.kind,
         buildings: footprints.length,
@@ -600,13 +617,22 @@ export function Viewer({
         bicycles: parked.filter((v) => v.kind === "bicycle").length,
         cars: parked.filter((v) => v.kind === "car").length,
       });
-      setWalk({ city: into.city, walls, footprints, roads: roadGrid(roadSegments(into.city)), landing, parked });
+      setWalk({
+        city: into.city,
+        walls,
+        garage,
+        arcade,
+        footprints,
+        roads: roadGrid(roadSegments(into.city)),
+        landing,
+        parked,
+      });
       job.done();
     } catch (failure) {
       if (isAbort(failure)) return;
       job.failed();
       log.error("explore/failed", { reason: reasonOf(failure) });
-      setError("Walking could not start: the physics engine did not load.");
+      setError("Walking could not start: the city’s walls did not rise.");
     }
   };
   // Back to the map: centred where the walk ended, when it ended on foot.
@@ -642,6 +668,8 @@ export function Viewer({
             inspect={inspector(scene, walking.footprints, index, buildings)}
             landing={walking.landing}
             parked={walking.parked}
+            garage={walking.garage}
+            arcade={walking.arcade}
             engine={explore.engine}
             Canvas={explore.Canvas}
             onLeave={leaveWalk}
@@ -719,7 +747,7 @@ export function Viewer({
                       ? () =>
                           walking
                             ? leaveWalk(null)
-                            : void startWalk(explore.raise, { city: shown, scene, table: drawnTable.table })
+                            : void startWalk(explore.goDown, { city: shown, scene, table: drawnTable.table })
                       : null,
                 },
               }

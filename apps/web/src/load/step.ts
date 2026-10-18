@@ -14,7 +14,9 @@ export type Phase =
   | "parse"
   | "draw"
   | "engine"
-  | "walls";
+  | "models"
+  | "walls"
+  | "streets";
 
 /**
  * One report: the phase, `done` of `of` in the phase's unit where known, and the API requests so far. `count` is what the

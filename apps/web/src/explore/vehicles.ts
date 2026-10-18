@@ -1,15 +1,17 @@
 // Vehicles parked in the city, to walk up to and ride: where they stand, when a person can reach one, and how one moves
-// under its rider through the walls. The bicycle rides on its own physics (bicycle.ts); the car on an arcade handling:
+// under its rider through the walls. The bicycle and the motorbike ride on the single-track core (bicycle.ts,
+// motorbike.ts); the car drives on Rapier (physics/garage.ts) where it can, and otherwise on the arcade handling here:
 // power that tapers towards top speed, and steering that asks for a rate of turn (tight when slow, wider when fast)
-// which the car follows quickly. Both bump off walls; a hard knock throws a bicycle's rider. Metres and seconds;
+// which the car follows quickly. All bump off walls; a hard knock throws a two-wheeler's rider. Metres and seconds;
 // headings as the walker's.
 import { GROUND, PERSON_RADIUS, type Vec3, type Walls } from "@citymap/world";
 import { HARD_HIT, resting, rideCycle, thrown, type Cycle } from "./bicycle";
 import type { Landing } from "./landing";
+import { parkedMoto, rideMotorbike, thrownMoto, type Moto } from "./motorbike";
 import { METRE } from "./street";
 import { GRAVITY, facing, type Intents } from "./walker";
 
-export type VehicleKind = "bicycle" | "car";
+export type VehicleKind = "bicycle" | "motorbike" | "car";
 
 /** What a kind of vehicle is: its words, its size, and where the camera follows it from. */
 export interface VehicleSpec {
@@ -26,8 +28,17 @@ export interface VehicleSpec {
   readonly length: number;
   readonly width: number;
   readonly radius: number;
-  /** Where the camera follows from: how far back and how high above the ground it looks. */
-  readonly follow: { readonly distance: number; readonly height: number };
+  /**
+   * Where the camera follows from: how far back and how high above the ground it looks; how much further back per metre
+   * a second, up to the farthest; and how many seconds it takes to swing most of the way behind the way it moves.
+   */
+  readonly follow: {
+    readonly distance: number;
+    readonly height: number;
+    readonly stretch?: number;
+    readonly farthest?: number;
+    readonly chase?: number;
+  };
 }
 
 /** An arcade handling: how a car speeds up, brakes, coasts and turns. */
@@ -75,16 +86,27 @@ export const VEHICLES: Readonly<Record<VehicleKind, VehicleSpec>> = {
     radius: 0.35,
     follow: { distance: 4.5, height: 1.8 },
   },
+  motorbike: {
+    name: "the motorbike",
+    enter: "get on",
+    leave: "get off",
+    riding: "On the motorbike",
+    keys: "W throttle · S back brake · Space front brake · A D steer · E gets off · click to look · Esc leaves",
+    length: 2.3,
+    width: 0.8,
+    radius: 0.45,
+    follow: { distance: 5.5, height: 2 },
+  },
   car: {
     name: "the car",
     enter: "get in",
     leave: "get out of",
     riding: "In the car",
-    keys: "W accelerates · S brakes, then reverses · A D steer · Space brakes · E gets out · click to look · Esc leaves",
+    keys: "W accelerates · S brakes, then reverses · A D steer · Space handbrake · E gets out · click to look · Esc leaves",
     length: 4.2,
     width: 1.8,
     radius: 0.95,
-    follow: { distance: 7, height: 2.2 },
+    follow: { distance: 6.5, height: 2.2, stretch: 0.08, farthest: 9.5, chase: 0.35 },
   },
 };
 
@@ -101,8 +123,33 @@ interface Placed {
   readonly steer: number;
 }
 
+/** A turn in three dimensions, as a unit quaternion. */
+export interface Quat {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly w: number;
+}
+
+/** A car's two bodies: heyheythere's saloon and pickup. */
+export type CarBody = "saloon" | "pickup";
+
+/**
+ * A car: its body; its whole turn in the world (its heading, and any pitch and roll on its springs or lying on its side;
+ * the heading alone for an arcade car); its gear (−1 reverse, 0 first) and its engine's speed (0 for an arcade car).
+ */
 export interface Car extends Placed {
   readonly kind: "car";
+  readonly body: CarBody;
+  readonly attitude: Quat;
+  readonly gear: number;
+  readonly rpm: number;
+}
+
+/** A motorbike carries its own state: its lean, steering, engine, gear, foot and falls. */
+export interface Motorbike extends Placed {
+  readonly kind: "motorbike";
+  readonly moto: Moto;
 }
 
 /** A bicycle carries its own state: its lean, steering, drivetrain, foot and falls. */
@@ -111,13 +158,42 @@ export interface Bicycle extends Placed {
   readonly cycle: Cycle;
 }
 
-export type Vehicle = Car | Bicycle;
+export type Vehicle = Car | Bicycle | Motorbike;
 
-/** A vehicle of a kind standing still, facing a heading; a bicycle at rest, its crank at an angle. */
-export function standing(id: string, kind: VehicleKind, feet: Vec3, heading: number, crank = 0): Vehicle {
+/** A turn about the upright by a heading: a car standing level. */
+export const yawOf = (heading: number): Quat => ({ x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) });
+
+/**
+ * A vehicle of a kind standing still, facing a heading: a bicycle at rest, its crank at an angle; a motorbike on its
+ * foot in first; a car level, of a body.
+ */
+export function standing(id: string, kind: "car", feet: Vec3, heading: number, crank?: number, body?: CarBody): Car;
+export function standing(id: string, kind: "motorbike", feet: Vec3, heading: number): Motorbike;
+export function standing(id: string, kind: "bicycle", feet: Vec3, heading: number, crank?: number): Bicycle;
+export function standing(
+  id: string,
+  kind: VehicleKind,
+  feet: Vec3,
+  heading: number,
+  crank?: number,
+  body?: CarBody,
+): Vehicle;
+export function standing(
+  id: string,
+  kind: VehicleKind,
+  feet: Vec3,
+  heading: number,
+  crank = 0,
+  body: CarBody = "saloon",
+): Vehicle {
   const placed = { id, feet, heading, speed: 0, turn: 0, steer: 0 };
-  return kind === "bicycle" ? { ...placed, kind, cycle: resting(undefined, crank) } : { ...placed, kind };
+  if (kind === "bicycle") return { ...placed, kind, cycle: resting(undefined, crank) };
+  if (kind === "motorbike") return { ...placed, kind, moto: parkedMoto() };
+  return { ...placed, kind, body, attitude: yawOf(heading), gear: 0, rpm: 0 };
 }
+
+/** A car as the arcade handling drives it: level on its heading, its engine unread. */
+export const arcadeOf = (car: Car): Car => ({ ...car, attitude: yawOf(car.heading), gear: 0, rpm: 0 });
 
 /** A person can reach a vehicle from this far from its outline. */
 export const REACH = 1.2;
@@ -126,34 +202,38 @@ export const LEAVE_SPEED = 1.5;
 /** Hitting a wall keeps this share of the speed. */
 export const BUMP = 0.2;
 /**
- * Where they park: metres in from the kerb; and by the landing, metres ahead of it, and which kerb (1 the right, −1 the
- * far one across the street, facing back), so the bicycle's line along its kerb is clear of the car.
+ * Where they park: metres in from the kerb; and by the landing, metres ahead of it (behind, negative), which kerb (1
+ * the right, −1 the far one across the street) and which way (1 along the road, −1 back), so each one's first line is
+ * clear of the others: the bicycle ahead along the near kerb, the car across the street facing back, the motorbike
+ * behind on the near kerb facing away.
  */
 export const PARKING: Readonly<
-  Record<VehicleKind, { readonly inset: number; readonly ahead: number; readonly side: 1 | -1 }>
+  Record<VehicleKind, { readonly inset: number; readonly ahead: number; readonly side: 1 | -1; readonly faces: 1 | -1 }>
 > = {
-  bicycle: { inset: 0.8, ahead: 4, side: 1 },
-  car: { inset: 1.4, ahead: 10, side: -1 },
+  bicycle: { inset: 0.8, ahead: 4, side: 1, faces: 1 },
+  motorbike: { inset: 0.9, ahead: -7, side: 1, faces: -1 },
+  car: { inset: 1.4, ahead: 10, side: -1, faces: -1 },
 };
 
 const towards = (value: number, target: number, step: number) =>
   value < target ? Math.min(target, value + step) : Math.max(target, value - step);
 
 /**
- * A bicycle and a car parked a little ahead of the landing: the bicycle at the kerb on the right facing along the road,
- * the car across the street facing back; each kept clear of buildings by moving it from the road's middle to its place.
+ * A bicycle, a car and a motorbike parked by the landing: the bicycle at the kerb on the right a little ahead, facing
+ * along the road; the car across the street facing back; the motorbike behind at the near kerb, facing away; each kept
+ * clear of buildings by moving it from the road's middle to its place.
  */
 export function parkedBy(landing: Landing, walls: Walls): Vehicle[] {
   const { road } = landing;
   const along = road.along;
   const right = { x: -along.z, z: along.x };
   const half = road.width / METRE / 2;
-  return (["bicycle", "car"] as const).map((kind) => {
-    const { ahead, inset, side } = PARKING[kind];
+  return (["bicycle", "car", "motorbike"] as const).map((kind) => {
+    const { ahead, inset, side, faces } = PARKING[kind];
     const middle = { x: road.at.x / METRE + along.x * ahead, y: GROUND, z: road.at.z / METRE + along.z * ahead };
     const out = Math.max(0, half - inset) * side;
     const placed = walls.move(middle, { x: right.x * out, y: 0, z: right.z * out }, VEHICLES[kind].radius);
-    return standing(kind, kind, placed.feet, Math.atan2(-along.z * side, along.x * side));
+    return standing(kind, kind, placed.feet, Math.atan2(-along.z * faces, along.x * faces));
   });
 }
 
@@ -189,17 +269,26 @@ export function reachable(feet: Vec3, vehicles: readonly Vehicle[]): Vehicle | n
 /** The widest a front wheel turns, in radians: what the steering angle shown is held to. */
 export const MAX_STEER = 0.6;
 
-/** A vehicle after a knock: it keeps a little of its speed, and a hard one throws a bicycle's rider. */
+/** A vehicle after a knock: it keeps a little of its speed, and a hard one throws a two-wheeler's rider. */
 export function bumped(vehicle: Vehicle): Vehicle {
   const speed = vehicle.speed * BUMP;
-  if (vehicle.kind === "car" || vehicle.cycle.fall || Math.abs(vehicle.speed) < HARD_HIT) return { ...vehicle, speed };
-  return { ...vehicle, speed, cycle: thrown(vehicle.cycle, "hit", vehicle.speed) };
+  const hard = Math.abs(vehicle.speed) >= HARD_HIT;
+  if (vehicle.kind === "bicycle" && hard && !vehicle.cycle.fall)
+    return { ...vehicle, speed, cycle: thrown(vehicle.cycle, "hit", vehicle.speed) };
+  if (vehicle.kind === "motorbike" && hard && !vehicle.moto.fall)
+    return { ...vehicle, speed, moto: thrownMoto(vehicle.moto, "hit", vehicle.speed) };
+  return { ...vehicle, speed };
 }
 
-/** A vehicle left where it is: stopped, a bicycle upright on its stand with its gear and crank as they were. */
+/**
+ * A vehicle left where it is, as it is: stopped; a bicycle upright on its stand with its gear and crank as they were; a
+ * motorbike on its foot in first; a car as it lies, its engine off.
+ */
 export function parkedNow(vehicle: Vehicle): Vehicle {
   const stopped = { ...vehicle, speed: 0, turn: 0, steer: 0 };
-  return stopped.kind === "bicycle" ? { ...stopped, cycle: resting(stopped.cycle.gear, stopped.cycle.crank) } : stopped;
+  if (stopped.kind === "bicycle") return { ...stopped, cycle: resting(stopped.cycle.gear, stopped.cycle.crank) };
+  if (stopped.kind === "motorbike") return { ...stopped, moto: parkedMoto() };
+  return { ...stopped, gear: 0, rpm: 0 };
 }
 
 /**
@@ -230,6 +319,11 @@ export function stepVehicle(vehicle: Vehicle, intents: Intents, dt: number, wall
     const next = { ...vehicle, heading: vehicle.heading + turn * dt, speed, turn, steer: cycle.steer, cycle };
     return moved(vehicle, next, dt, walls);
   }
+  if (vehicle.kind === "motorbike") {
+    const { moto, speed, turn } = rideMotorbike(vehicle.moto, vehicle.speed, intents, dt);
+    const next = { ...vehicle, heading: vehicle.heading + turn * dt, speed, turn, steer: moto.steer, moto };
+    return moved(vehicle, next, dt, walls);
+  }
   const spec = CAR;
   const throttle = intents.forward;
   let speed = vehicle.speed;
@@ -248,27 +342,38 @@ export function stepVehicle(vehicle: Vehicle, intents: Intents, dt: number, wall
   const aim = speed === 0 ? 0 : (0 - intents.right) * fastest * Math.sign(speed);
   const turn = towards(vehicle.turn, aim, spec.turnResponse * dt);
   const steer = speed === 0 ? 0 : Math.max(-MAX_STEER, Math.min(MAX_STEER, Math.atan((turn * spec.wheelbase) / speed)));
-  return moved(vehicle, { ...vehicle, heading: vehicle.heading + turn * dt, speed, turn, steer }, dt, walls);
+  const heading = vehicle.heading + turn * dt;
+  return moved(vehicle, { ...vehicle, heading, speed, turn, steer, attitude: yawOf(heading) }, dt, walls);
 }
 
+/** What a vehicle is drawn as: a car as its body, anything else as its kind. */
+export type ModelKind = CarBody | "motorbike" | "bicycle";
+export const MODEL_KINDS: readonly ModelKind[] = ["saloon", "pickup", "motorbike", "bicycle"];
+export const modelOf = (vehicle: Vehicle): ModelKind => (vehicle.kind === "car" ? vehicle.body : vehicle.kind);
 /**
- * The ids of the `most` vehicles of each kind nearest a point, cars first, nearest first; and before them the one
- * ridden, which is always drawn.
+ * The canvas draws at most this many of each model, 16 in all, the nearest the walker: a street's worth each way, so a
+ * city full of vehicles costs what one with a few does.
+ */
+export const VEHICLE_POOL: Readonly<Record<ModelKind, number>> = { saloon: 5, pickup: 3, motorbike: 3, bicycle: 5 };
+
+/**
+ * The ids of the vehicles drawn as each model nearest a point, as many of each as `most` says, in `MODEL_KINDS` order,
+ * nearest first; and before them the one ridden, which is always drawn.
  */
 export function nearestOf(
   vehicles: readonly Vehicle[],
   at: { readonly x: number; readonly z: number },
-  most: number,
+  most: Readonly<Record<ModelKind, number>>,
   keep: string | null,
 ): string[] {
-  const near = (kind: VehicleKind) =>
+  const near = (kind: ModelKind) =>
     vehicles
-      .filter((v) => v.kind === kind && v.id !== keep)
+      .filter((v) => modelOf(v) === kind && v.id !== keep)
       .map((v) => ({ id: v.id, distance: Math.hypot(v.feet.x - at.x, v.feet.z - at.z) }))
       .toSorted((a, b) => a.distance - b.distance)
-      .slice(0, most)
+      .slice(0, most[kind])
       .map((v) => v.id);
-  return [...(keep === null ? [] : [keep]), ...near("car"), ...near("bicycle")];
+  return [...(keep === null ? [] : [keep]), ...MODEL_KINDS.flatMap(near)];
 }
 
 /**

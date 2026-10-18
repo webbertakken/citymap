@@ -1,7 +1,8 @@
 "use client";
 // The city at eye height: a perspective camera over the walker's shoulder, the city's meshes as the map draws them, the
 // walker and the nearest of the vehicles parked about (from a pool of models), drawn every frame while the walk goes on.
-// On the bicycle the rider sits in its frame, leaning and pitching with it, legs on the pedals or a foot on the ground.
+// On a bicycle or a motorbike the rider sits in its frame, leaning and pitching with it, hands on the bars, feet on the
+// pedals or the pegs, or a foot on the ground; a car is drawn by its whole turn, on its springs or on its side.
 import type { Theme } from "@citymap/themes";
 import { PerspectiveCamera } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -30,14 +31,14 @@ import {
   reachFor,
   thrownPose,
 } from "../explore/models/pedalling";
-import { bicycle, car, figure, paletteOf } from "../explore/models/procedural";
+import { bicycle, car, figure, motorbike, paletteOf } from "../explore/models/procedural";
 import { PROCEDURAL_RIGS, RIGS, poseVehicle, type Rig } from "../explore/models/rig";
 import { poseStride, swingOf } from "../explore/models/stride";
 import { assignPool } from "../explore/pool";
 import { BASE, FLOOR } from "../explore/sight";
 import { SIGN_POOL, middleOf, nearestLots, wallFacing, type Wall } from "../explore/signs";
 import { METRE } from "../explore/street";
-import { nearestOf, type Vehicle, type VehicleKind } from "../explore/vehicles";
+import { MODEL_KINDS, VEHICLE_POOL, modelOf, nearestOf, type ModelKind, type Vehicle } from "../explore/vehicles";
 import { log, reasonOf } from "../log";
 import { Buildings, Mesh } from "./CityMeshes";
 import type { ExploreCanvasProps, Signage } from "./ExploreView";
@@ -48,10 +49,8 @@ const NEAR = 0.002;
 /** The city fades into the sky from a kilometre and a half to just short of the far plane. */
 const FOG_NEAR = 150;
 const FOG_FAR = 390;
-/** The pool draws this many vehicles of each kind, the nearest the walker, chosen again this often in seconds. */
-const VEHICLE_POOL = 8;
+/** The pool's vehicles, the nearest the walker, are chosen again this often in seconds. */
 const POOL_EVERY = 0.25;
-const KINDS: readonly VehicleKind[] = ["car", "bicycle"];
 
 /** Signs are chosen again this often, in seconds: the walker moves a few metres between. */
 const SIGN_EVERY = 0.25;
@@ -203,21 +202,57 @@ function Signs({
   );
 }
 
-/** A model loaded with this canvas, while the walls rise; null (said in the log) when it cannot load. */
+/** A model loaded behind the loading card; null (said in the log) when it cannot load, for its stand-in. */
 const loading = (file: ModelFile): Promise<Loaded | null> =>
   loadModel(process.env.NEXT_PUBLIC_BASE_PATH ?? "", file).catch((failure: unknown) => {
     log.error("explore/model-failed", { url: file.url, reason: reasonOf(failure) });
     return null;
   });
-const person = loading(GLTF_MODELS.figure);
-const sedan = loading(GLTF_MODELS.car);
-const bike = loading(GLTF_MODELS.bicycle);
 
-/** One model of the pool: its kind, and the model with its rig. */
+/** Every model the walk draws, by what it is. */
+const FILES = {
+  person: GLTF_MODELS.figure,
+  saloon: GLTF_MODELS.car,
+  pickup: GLTF_MODELS.pickup,
+  motorbike: GLTF_MODELS.motorbike,
+  bicycle: GLTF_MODELS.bicycle,
+} as const satisfies Record<ModelKind | "person", ModelFile>;
+type Models = { readonly [K in keyof typeof FILES]: Promise<Loaded | null> };
+let models: Models | null = null;
+/** The walk's models, fetched once a page: the first ask starts them all. */
+const modelsNow = (): Models => {
+  models ??= {
+    person: loading(FILES.person),
+    saloon: loading(FILES.saloon),
+    pickup: loading(FILES.pickup),
+    motorbike: loading(FILES.motorbike),
+    bicycle: loading(FILES.bicycle),
+  };
+  return models;
+};
+
+/** Loads every model the walk draws, counting them as each arrives (or fails, for its stand-in), for the loading card. */
+export async function loadModels(onCount: (done: number, of: number) => void): Promise<void> {
+  const all = Object.values(modelsNow());
+  let done = 0;
+  onCount(done, all.length);
+  await Promise.all(all.map((model) => model.then(() => onCount(++done, all.length))));
+}
+
+/** One model of the pool: what it draws, and the model with its rig. */
 interface Slot {
-  readonly kind: VehicleKind;
+  readonly kind: ModelKind;
   readonly model: Object3D;
   readonly rig: Rig;
+}
+
+/** A pool's model of a kind: its loaded file with its rig, or the procedural stand-in with its own. */
+function slotOf(kind: ModelKind, loaded: Loaded | null, theme: Theme): Slot {
+  const palette = paletteOf(theme);
+  if (loaded) return { kind, model: loaded.make(), rig: kind === "saloon" ? RIGS.car : RIGS[kind] };
+  if (kind === "bicycle") return { kind, model: bicycle(palette), rig: PROCEDURAL_RIGS.bicycle };
+  if (kind === "motorbike") return { kind, model: motorbike(palette), rig: PROCEDURAL_RIGS.motorbike };
+  return { kind, model: car(palette), rig: PROCEDURAL_RIGS.car };
 }
 
 /** What a slot is doing now: the group that places it, and the vehicle it shows (null: hidden). */
@@ -237,14 +272,16 @@ function placeVehicle(slot: Slot, group: Object3D, vehicle: Vehicle, rolled: Rol
   rolled.set(vehicle.id, now);
   group.visible = true;
   group.position.set(vehicle.feet.x * METRE, vehicle.feet.y * METRE, vehicle.feet.z * METRE);
-  group.rotation.set(0, vehicle.heading, 0);
-  const cycle = vehicle.kind === "bicycle" ? vehicle.cycle : null;
+  if (vehicle.kind === "car")
+    group.quaternion.set(vehicle.attitude.x, vehicle.attitude.y, vehicle.attitude.z, vehicle.attitude.w);
+  else group.rotation.set(0, vehicle.heading, 0);
+  const single = vehicle.kind === "bicycle" ? vehicle.cycle : vehicle.kind === "motorbike" ? vehicle.moto : null;
   poseVehicle(slot.model, slot.rig, {
     rolled: now.rolled,
     steer: vehicle.steer,
-    lean: cycle?.lean ?? 0,
-    pitch: cycle?.pitch ?? 0,
-    crank: cycle?.crank ?? 0,
+    lean: single?.lean ?? 0,
+    pitch: single?.pitch ?? 0,
+    crank: vehicle.kind === "bicycle" ? vehicle.cycle.crank : 0,
   });
 }
 
@@ -257,28 +294,29 @@ interface Limbs {
 }
 
 /**
- * The rider on a bicycle: thrown, beside it on the ground, rolled onto the side it fell; else in its saddle, in its
- * frame, the legs bent onto the pedals (the left foot on the ground at a stop) and the hands on the grips, when the
- * figure has limbs to bend.
+ * The rider on a bicycle or a motorbike: thrown, beside it on the ground, rolled onto the side it fell; else in its
+ * saddle, in its frame, the hands on the grips and the legs bent onto the pedals or the pegs (the left foot on the
+ * ground at a stop), when the figure has limbs to bend.
  */
 function seat(
   walker: Object3D,
   slot: Slot,
   group: Object3D,
-  vehicle: Vehicle & { kind: "bicycle" },
+  vehicle: Vehicle & { kind: "bicycle" | "motorbike" },
   { legs, arms }: Limbs,
 ) {
-  const { cycle } = vehicle;
-  if (cycle.fall) {
-    const { ahead, aside, roll, down } = thrownPose(cycle.fall);
-    walker.position.copy(group.localToWorld(scratch.at.set(ahead, SADDLE * (1 - down), -aside)));
+  const single = vehicle.kind === "bicycle" ? vehicle.cycle : vehicle.moto;
+  const saddle = slot.rig.saddle ?? [0, SADDLE, 0];
+  if (single.fall) {
+    const { ahead, aside, roll, down } = thrownPose(single.fall);
+    walker.position.copy(group.localToWorld(scratch.at.set(ahead, saddle[1] * (1 - down), -aside)));
     walker.rotation.order = "YXZ";
     walker.rotation.set(-roll, vehicle.heading, 0);
     return;
   }
   const machine = slot.model;
   machine.updateWorldMatrix(true, false);
-  walker.position.copy(machine.localToWorld(scratch.at.set(0, SADDLE, 0)));
+  walker.position.copy(machine.localToWorld(scratch.at.set(...saddle)));
   walker.quaternion.copy(machine.getWorldQuaternion(scratch.turn));
   walker.updateMatrixWorld(true);
   const fork = slot.rig.fork ? machine.getObjectByName(slot.rig.fork) : undefined;
@@ -288,13 +326,23 @@ function seat(
     reachFor(arms.left.upper, arms.left.fore, arms.left.hand, grip(slot.rig.grips.left), out(ELBOW_OUT.left));
     reachFor(arms.right.upper, arms.right.fore, arms.right.hand, grip(slot.rig.grips.right), out(ELBOW_OUT.right));
   }
+  if (!legs) return;
+  const bend = KNEE_AHEAD.clone().applyQuaternion(scratch.turn);
+  const { pegs } = slot.rig;
+  if (pegs) {
+    const peg = (at: readonly [number, number, number]) => machine.localToWorld(new Vector3(...at));
+    const ground = machine.localToWorld(new Vector3(pegs.left[0], 0, pegs.left[2] - FOOT_OUT));
+    reachFor(legs.left.thigh, legs.left.shin, legs.left.foot, single.footDown ? ground : peg(pegs.left), bend);
+    reachFor(legs.right.thigh, legs.right.shin, legs.right.foot, peg(pegs.right), bend);
+    return;
+  }
   const crank = slot.rig.crank ? machine.getObjectByName(slot.rig.crank) : undefined;
-  if (!legs || !crank || !slot.rig.pedals) return;
+  if (!crank || !slot.rig.pedals || vehicle.kind !== "bicycle") return;
+  const { cycle } = vehicle;
   const pivot = machine.worldToLocal(crank.getWorldPosition(new Vector3()));
   const pedals = pedalsOf(cycle.crank, slot.rig.pedals);
   const toWorld = (p: { x: number; y: number; z: number }) =>
     machine.localToWorld(pivot.clone().add(new Vector3(p.x, p.y, p.z)));
-  const bend = KNEE_AHEAD.clone().applyQuaternion(scratch.turn);
   const ground = machine.localToWorld(new Vector3(pivot.x, 0, -FOOT_OUT));
   reachFor(legs.left.thigh, legs.left.shin, legs.left.foot, cycle.footDown ? ground : toWorld(pedals.left), bend);
   reachFor(legs.right.thigh, legs.right.shin, legs.right.foot, toWorld(pedals.right), bend);
@@ -302,31 +350,28 @@ function seat(
 
 /** The walker and the nearest vehicles, moved by each frame of the walk; the camera follows. */
 function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: ExploreCanvasProps["frame"] }) {
-  const loaded = use(person);
-  const carModel = use(sedan);
-  const bikeModel = use(bike);
+  const files = modelsNow();
+  const loaded = use(files.person);
+  const saloon = use(files.saloon);
+  const pickup = use(files.pickup);
+  const motorbikeFile = use(files.motorbike);
+  const bicycleFile = use(files.bicycle);
   const model = useMemo(() => loaded?.make() ?? figure(paletteOf(theme)), [loaded, theme]);
   const animator = useMemo(() => (loaded ? new Animator(model, loaded.clips) : null), [loaded, model]);
   const limbs = useMemo(() => ({ legs: legsOf(model), arms: armsOf(model) }), [model]);
   // The pool: so many models of each kind, the PSX ones with their rigs, or the procedural stand-ins (with their own)
   // when a file could not load. Each is drawn inside a group that places and turns it, so its own pose stays its own.
-  const slots = useMemo<Slot[]>(
-    () =>
-      KINDS.flatMap((kind) =>
-        Array.from({ length: VEHICLE_POOL }, () => {
-          const made =
-            kind === "car"
-              ? carModel
-                ? { model: carModel.make(), rig: RIGS.car }
-                : { model: car(paletteOf(theme)), rig: PROCEDURAL_RIGS.car }
-              : bikeModel
-                ? { model: bikeModel.make(), rig: RIGS.bicycle }
-                : { model: bicycle(paletteOf(theme)), rig: PROCEDURAL_RIGS.bicycle };
-          return { kind, ...made };
-        }),
-      ),
-    [carModel, bikeModel, theme],
-  );
+  const slots = useMemo<Slot[]>(() => {
+    const byKind: Readonly<Record<ModelKind, Loaded | null>> = {
+      saloon,
+      pickup,
+      motorbike: motorbikeFile,
+      bicycle: bicycleFile,
+    };
+    return MODEL_KINDS.flatMap((kind) =>
+      Array.from({ length: VEHICLE_POOL[kind] }, () => slotOf(kind, byKind[kind], theme)),
+    );
+  }, [saloon, pickup, motorbikeFile, bicycleFile, theme]);
   const showing = useRef<Showing[]>([]);
   const placed = useRef<Object3D>(null);
   const rolled = useRef<Rolled>(new Map());
@@ -343,11 +388,14 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
     if (since.current >= POOL_EVERY || (riding !== null && !shows.some((s) => s.id === riding))) {
       since.current = 0;
       const wanted = nearestOf(now.vehicles, body.feet, VEHICLE_POOL, riding);
-      for (const kind of KINDS) {
+      for (const kind of MODEL_KINDS) {
         const mine = shows.filter((_, i) => slots[i]!.kind === kind);
         const ids = assignPool(
           mine.map((s) => s.id),
-          wanted.filter((id) => byId.get(id)?.kind === kind),
+          wanted.filter((id) => {
+            const vehicle = byId.get(id);
+            return vehicle !== undefined && modelOf(vehicle) === kind;
+          }),
         );
         mine.forEach((show, i) => (show.id = ids[i]!));
       }
@@ -364,8 +412,9 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
     walker.scale.setScalar(METRE);
     const at = shows.findIndex((s) => s.id === riding);
     const ridingGroup = shows[at]?.group;
-    if (ridden?.kind === "bicycle" && ridingGroup) {
-      animator?.play(ridden.cycle.fall ? "idle" : "drive", 1, seconds);
+    if ((ridden?.kind === "bicycle" || ridden?.kind === "motorbike") && ridingGroup) {
+      const fallen = ridden.kind === "bicycle" ? ridden.cycle.fall : ridden.moto.fall;
+      animator?.play(fallen ? "idle" : "drive", 1, seconds);
       seat(walker, slots[at]!, ridingGroup, ridden, limbs);
     } else if (!ridden) {
       // Drawn between its last two steps, so it moves as smoothly as the frames come.
