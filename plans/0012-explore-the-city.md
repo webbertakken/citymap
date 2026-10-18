@@ -73,19 +73,21 @@ The thinnest path through every layer: world, one mover, intents, camera, render
       behind a switch until Webber retires them
 - [x] On-foot mover: walk, run, jump, turn (`explore/walker.ts`, tests first)
 - [x] Intents from keyboard and touch (stick, drag to look, jump button), pure and tested (`explore/input.ts`)
-- [ ] Pointer lock for mouse look on desktop, granted or refused in the log
+- [x] Pointer lock for mouse look on desktop, granted or refused in the log
 - [x] Third-person follow camera that pulls in short of walls (`explore/camera.ts`); perspective renderer, frame loop
       only while walking
-- [ ] Fog in the building shader, so the far city fades instead of ending at the far plane
+- [x] Fog in the building shader, so the far city fades instead of ending at the far plane
 - [x] Explore UI: Walk enters at the landing place (`explore/landing.ts`), Escape, the card or a view leaves; a
       procedural placeholder figure with a stride
 - [x] Logs: `explore/walls`, `explore/enter`, `explore/leave`, `explore/failed`, `explore/no-roads`
 - [x] E2E: enter on foot, move by keyboard and by touch, leave; axe light and dark; phone viewport
-- [ ] E2E: never pass a wall
-- [ ] Gate (`bun run check`), commit, local build served for Webber
-- [ ] Webber tests on desktop and phone; feedback folded into the spec
+- [x] E2E: never pass a wall; run at three selected buildings, each stopped within 12 m and outside it
+- [x] Gate (`bun run check`), commit, local build served for Webber
+- [x] Webber tests on desktop and phone; feedback folded into the spec
 
 ## Phase 3: names and the crosshair
+
+; desktop by Webber (jitter, acceleration, steering folded in); phones once hosted (Webber)
 
 - [ ] World ray query: building, face, floor and window column (tests first)
 - [ ] Inspection: crosshair over a window or a building shows its card; a window says what it holds and whether it is

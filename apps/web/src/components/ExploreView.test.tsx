@@ -15,7 +15,10 @@ import {
 } from "./ExploreView";
 import { city } from "./testing/fixtures";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 /** Open ground at the walking height: every move is taken. */
 const open: Walls = {
@@ -222,6 +225,39 @@ describe("ExploreView", () => {
     expect(walk().riding).toBe("car");
     walk();
     expect(screen.getByRole("region", { name: "In the car" }).textContent).toContain("W accelerates");
+  });
+
+  it("captures a mouse on a click, turns the camera by its movement while captured, and says so in the log", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    show();
+    // Browsers reject the lock's promise when they refuse it, as well as firing pointerlockerror.
+    const lock = vi.fn<() => Promise<void>>(async () => {
+      throw new DOMException("refused", "NotAllowedError");
+    });
+    const element = view();
+    element.requestPointerLock = lock;
+    fireEvent.pointerDown(view(), { pointerId: 1, pointerType: "mouse", clientX: 10, clientY: 10 });
+    expect(lock).toHaveBeenCalledOnce();
+    await lock.mock.results[0]!.value.catch(() => undefined);
+    Object.defineProperty(document, "pointerLockElement", { configurable: true, get: () => element });
+    document.dispatchEvent(new Event("pointerlockchange"));
+    fireEvent.pointerMove(view(), { pointerId: 1, pointerType: "mouse", movementX: 40, movementY: 10 });
+    expect(walk(0).session.orbit.yaw).toBeLessThan(0);
+    // Captured, a click no longer asks again.
+    fireEvent.pointerDown(view(), { pointerId: 1, pointerType: "mouse" });
+    expect(lock).toHaveBeenCalledOnce();
+    const exit = vi.fn<() => void>();
+    document.exitPointerLock = exit;
+    cleanup();
+    expect(exit).toHaveBeenCalledOnce();
+    Object.defineProperty(document, "pointerLockElement", { configurable: true, value: null });
+    show();
+    document.dispatchEvent(new Event("pointerlockchange"));
+    document.dispatchEvent(new Event("pointerlockerror"));
+    const lines = info.mock.calls.map(([line]) => String(line));
+    expect(lines).toEqual(
+      expect.arrayContaining(["explore/pointer-locked", "explore/pointer-released", "explore/pointer-refused"]),
+    );
   });
 
   it("keeps a press on its card from turning the camera", () => {

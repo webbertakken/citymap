@@ -45,7 +45,9 @@ test("walks on foot by the keys and comes back to the map where the walk ended",
   await expect(page.getByRole("region", { name: "On foot" })).toContainText("Physics prototype: bespoke 2.5D");
   // The walls rose and the walk began, both said in the log.
   expect(lines.find((l) => l.startsWith("explore/walls"))).toMatch(/^explore\/walls engine=bespoke buildings=\d+ /);
-  expect(lines.find((l) => l.startsWith("explore/enter"))).toMatch(/^explore\/enter landing=road buildings=\d+$/);
+  expect(lines.find((l) => l.startsWith("explore/enter"))).toMatch(
+    /^explore\/enter landing=road buildings=\d+ x=-?\d+\.\d{3} z=-?\d+\.\d{3}$/,
+  );
   await drawn(page);
   await page.screenshot({ path: info.outputPath("start.png") });
   await page.keyboard.down("KeyW");
@@ -55,7 +57,7 @@ test("walks on foot by the keys and comes back to the map where the walk ended",
   await page.keyboard.press("Escape");
   await expect(page.getByRole("application", { name: /^Map of takken\.io/ })).toBeVisible();
   const leave = lines.find((l) => l.startsWith("explore/leave"));
-  expect(leave).toMatch(/^explore\/leave x=-?\d+\.\d z=-?\d+\.\d$/);
+  expect(leave).toMatch(/^explore\/leave x=-?\d+\.\d{3} z=-?\d+\.\d{3}$/);
 });
 
 test("walks by the stick and the jump button on a phone, and leaves by the card", async ({ page, isMobile }, info) => {
@@ -129,3 +131,58 @@ test("gets on the bicycle parked by the road with E, rides it, and gets off once
   await page.keyboard.press("KeyE");
   await expect(page.getByRole("region", { name: "On foot" })).toBeVisible();
 });
+
+/** The city shown, as laid: its built lots, each with its path and its footprint in scene units (z south). */
+async function lotsOfTakken() {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const file: { towns: { lots: { vacant: boolean; path: string; pts: { x: number; y: number }[] }[] }[] } = JSON.parse(
+    readFileSync(join(import.meta.dirname, "../public/cities/takken.io/corridor-tiers.json"), "utf8"),
+  );
+  return file.towns.flatMap((town) =>
+    town.lots
+      .filter((lot) => !lot.vacant && lot.path !== "")
+      .map((lot) => ({ path: lot.path, pts: lot.pts.map((p) => ({ x: p.x / 64, z: -p.y / 64 })) })),
+  );
+}
+
+/** Strictly inside a convex outline, whichever way round it runs. */
+const inside = (q: { x: number; z: number }, pts: readonly { x: number; z: number }[]) => {
+  const sides = pts.map((a, i) => {
+    const b = pts[(i + 1) % pts.length]!;
+    return (b.x - a.x) * (q.z - a.z) - (b.z - a.z) * (q.x - a.x);
+  });
+  return sides.every((s) => s > 0) || sides.every((s) => s < 0);
+};
+
+for (const which of [0.1, 0.5, 0.9])
+  test(`runs at a selected building and stops at its wall, never inside (${which})`, async ({ page, isMobile }) => {
+    test.skip(isMobile, "the keyboard drives the walker here");
+    const lots = await lotsOfTakken();
+    const target = lots[Math.floor(which * lots.length)]!;
+    const lines = logOf(page);
+    // Selected through the search, the walk lands before the building, facing it.
+    const search = page.getByRole("searchbox");
+    await search.fill(target.path);
+    await search.press("Enter");
+    await page.getByRole("button", { name: "Walk" }).click();
+    await drawn(page);
+    await page.keyboard.down("ShiftLeft");
+    await page.keyboard.down("KeyW");
+    await page.waitForTimeout(4000);
+    await page.keyboard.up("KeyW");
+    await page.keyboard.up("ShiftLeft");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("application", { name: /^Map of takken\.io/ })).toBeVisible();
+    const placeIn = (code: string) => {
+      const [, x, z] = /x=(-?[\d.]+) z=(-?[\d.]+)/.exec(lines.find((l) => l.startsWith(code)) ?? "") ?? [];
+      return { x: Number(x), z: Number(z) };
+    };
+    expect(lines.find((l) => l.startsWith("explore/enter"))).toMatch(/landing=selected/);
+    const start = placeIn("explore/enter");
+    const end = placeIn("explore/leave");
+    // Four seconds at a run is 18 m unhindered: the building stopped it within a few.
+    const travelled = Math.hypot(end.x - start.x, end.z - start.z) * 10;
+    expect(travelled).toBeLessThan(12);
+    expect(lots.filter((lot) => inside(end, lot.pts)).map((lot) => lot.path)).toEqual([]);
+  });

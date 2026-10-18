@@ -21,6 +21,9 @@ import type { ExploreCanvasProps } from "./ExploreView";
 /** The camera sees this far, in street widths (four kilometres), and no nearer than a few centimetres. */
 const FAR = 400;
 const NEAR = 0.002;
+/** The city fades into the sky from a kilometre and a half to just short of the far plane. */
+const FOG_NEAR = 150;
+const FOG_FAR = 390;
 /** A rider sits this high above the bicycle's ground, in metres: its saddle, less the seated figure's hips. */
 const SADDLE = 0.38;
 
@@ -71,6 +74,8 @@ function Walk({
   // How far each vehicle has rolled, for its wheels; and how much the walker bounds, eased.
   const rolled = useRef(new Map<string, { x: number; z: number; rolled: number }>());
   const bounding = useRef(0);
+  // Where motion is unwelcome, a run does not bound.
+  const still = useMemo(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false, []);
   useFrame((state, seconds) => {
     const walker = placed.current;
     if (!walker) return;
@@ -102,7 +107,7 @@ function Walk({
     } else {
       // Drawn between its last two steps, so it moves as smoothly as the frames come.
       const { feet, heading, walked } = now.shown;
-      bounding.current = settle(bounding.current, body.grounded ? runShare(speed) : 0, seconds);
+      bounding.current = settle(bounding.current, body.grounded && !still ? runShare(speed) : 0, seconds);
       const bound = boundOf(walked, bounding.current);
       walker.position.set(feet.x * METRE, (feet.y + bound.lift) * METRE, feet.z * METRE);
       walker.rotation.order = "XYZ";
@@ -136,9 +141,11 @@ function Walk({
 }
 
 export default function ExploreCanvas({ scene, table, theme, frame, vehicles }: ExploreCanvasProps) {
+  const fog = useMemo(() => ({ colour: theme.country, near: FOG_NEAR, far: FOG_FAR }), [theme]);
   return (
     <Canvas className="canvas" dpr={[1, 2]} linear flat aria-hidden="true">
       <color attach="background" args={[theme.country]} />
+      <fog attach="fog" args={[theme.country, FOG_NEAR, FOG_FAR]} />
       <PerspectiveCamera makeDefault fov={60} near={NEAR} far={FAR} />
       {/* Physical lights reach a surface at 1/π of their intensity: these light it at about 1.1 and 0.6 of its colour. */}
       <hemisphereLight args={["#ffffff", "#8a8a8a", 1.1 * Math.PI]} />
@@ -146,7 +153,7 @@ export default function ExploreCanvas({ scene, table, theme, frame, vehicles }: 
       {scene.layers.map((layer) => (
         <Mesh key={layer.name} layer={layer} />
       ))}
-      <Buildings buildings={scene.buildings} table={table} mode="buildings" theme={theme} />
+      <Buildings buildings={scene.buildings} table={table} mode="buildings" theme={theme} fog={fog} />
       <Suspense fallback={null}>
         <Walk theme={theme} frame={frame} vehicles={vehicles} />
       </Suspense>

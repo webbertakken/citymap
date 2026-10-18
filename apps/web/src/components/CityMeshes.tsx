@@ -87,6 +87,9 @@ const FRAGMENT = /* glsl */ `
 uniform float uBuildings;
 uniform vec3 uLit;
 uniform vec3 uUnknown;
+uniform vec3 uFogColour;
+uniform float uFogNear;
+uniform float uFogFar;
 in vec3 vColour;
 in vec3 vWorld;
 in vec2 vFacade;
@@ -95,12 +98,18 @@ in float vLit;
 in float vFlags;
 in float vFloors;
 out vec4 fragColour;
+// Far buildings fade into the fog as the flat layers do (none when its far end is 0): linear from near to far.
+vec3 fogged(vec3 colour) {
+  if (uFogFar <= 0.0) return colour;
+  float share = smoothstep(uFogNear, uFogFar, distance(cameraPosition, vWorld));
+  return mix(colour, uFogColour, share);
+}
 void main() {
   vec3 colour = vColour;
   if (vLength < 0.0) {
     if (uBuildings > 0.5 && mod(vFlags, 2.0) >= 1.0 && fract((vWorld.x + vWorld.z) / ${(2 * HATCH).toFixed(4)}) < 0.5)
       colour *= 0.7;
-    fragColour = vec4(colour, 1.0);
+    fragColour = vec4(fogged(colour), 1.0);
     return;
   }
   vec3 normal = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
@@ -124,7 +133,7 @@ void main() {
       }
     }
   }
-  fragColour = vec4(colour, 1.0);
+  fragColour = vec4(fogged(colour), 1.0);
 }`;
 
 /** Every lot's building in one mesh, its look from the lot table: plinths in plan view, standing in the Buildings view. */
@@ -133,11 +142,14 @@ export function Buildings({
   table,
   mode,
   theme,
+  fog = null,
 }: {
   readonly buildings: BuildingsData;
   readonly table: Float32Array;
   readonly mode: Mode;
   readonly theme: Theme;
+  /** Fog the far buildings fade into, in scene units from the camera; none on the map. */
+  readonly fog?: { readonly colour: string; readonly near: number; readonly far: number } | null;
 }) {
   // Two geometries over the same vertices: every face for the Buildings view, the roofs alone for plan view, where no
   // wall shows; the vertices are uploaded once and shared.
@@ -185,9 +197,12 @@ export function Buildings({
           uBuildings: { value: mode === "buildings" ? 1 : 0 },
           uLit: { value: new Color(WINDOW_LIT) },
           uUnknown: { value: new Color(windowUnknown(theme)) },
+          uFogColour: { value: new Color(fog?.colour ?? "#000000") },
+          uFogNear: { value: fog?.near ?? 0 },
+          uFogFar: { value: fog?.far ?? 0 },
         },
       }),
-    [texture, mode, theme],
+    [texture, mode, theme, fog],
   );
   useEffect(() => () => material.dispose(), [material]);
   // Heights come from the texture, so the geometry's own bounds say nothing of them: never culled.

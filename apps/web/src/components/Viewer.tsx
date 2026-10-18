@@ -551,7 +551,12 @@ export function Viewer({
     try {
       const footprints = footprintsOf(into.scene.buildings, into.table);
       const walls = await raise(footprints, { onStep: job.step, signal: job.signal });
-      log.info("explore/enter", { landing: landing.kind, buildings: footprints.length });
+      log.info("explore/enter", {
+        landing: landing.kind,
+        buildings: footprints.length,
+        x: landing.at.x.toFixed(3),
+        z: landing.at.z.toFixed(3),
+      });
       setWalk({ city: into.city, walls, landing });
       job.done();
     } catch (failure) {
@@ -563,7 +568,8 @@ export function Viewer({
   };
   // Back to the map: centred where the walk ended, when it ended on foot.
   const leaveWalk = (at: { readonly x: number; readonly z: number } | null) => {
-    log.info("explore/leave", at ? { x: at.x.toFixed(1), z: at.z.toFixed(1) } : {});
+    // To the centimetre (a thousandth of a street width): where the walk ended, to check it never ended in a wall.
+    log.info("explore/leave", at ? { x: at.x.toFixed(3), z: at.z.toFixed(3) } : {});
     setWalk(null);
     if (at) settle({ ...view, centre: at });
   };

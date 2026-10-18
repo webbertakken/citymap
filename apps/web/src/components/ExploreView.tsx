@@ -25,6 +25,7 @@ import {
 } from "../explore/session";
 import { METRE } from "../explore/street";
 import { VEHICLES, parkedBy, type Vehicle, type VehicleKind } from "../explore/vehicles";
+import { log } from "../log";
 
 /**
  * One frame of the walk: the session after it, where to draw the walker and the vehicles, what the walker rides (if
@@ -146,19 +147,40 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", away);
+    // Whether the mouse was captured, refused or let go, the log says.
+    const lockChanged = () =>
+      log.info(document.pointerLockElement ? "explore/pointer-locked" : "explore/pointer-released");
+    const lockRefused = () => log.info("explore/pointer-refused");
+    document.addEventListener("pointerlockchange", lockChanged);
+    document.addEventListener("pointerlockerror", lockRefused);
     box.current?.focus();
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", away);
+      document.removeEventListener("pointerlockchange", lockChanged);
+      document.removeEventListener("pointerlockerror", lockRefused);
+      if (document.pointerLockElement) document.exitPointerLock?.();
     };
   }, []);
 
+  // A mouse captured (pointer lock) turns the camera by how far it moves, with no drag; Escape lets it go.
+  const locked = () => document.pointerLockElement === box.current;
   const press = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && !locked()) {
+      // A refusal is logged by `pointerlockerror`; the promise only says the same again.
+      box.current?.requestPointerLock?.()?.catch(() => undefined);
+      return;
+    }
     event.currentTarget.setPointerCapture?.(event.pointerId);
     dragging.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
   };
   const drag = (event: PointerEvent<HTMLDivElement>) => {
+    if (locked()) {
+      const { look } = controls.current;
+      controls.current.look = { dx: look.dx + event.movementX, dy: look.dy + event.movementY };
+      return;
+    }
     const from = dragging.current;
     if (from?.id !== event.pointerId) return;
     const { look } = controls.current;
@@ -197,7 +219,7 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
       ref={box}
       className="map explore"
       role="application"
-      aria-label={`Walking in ${name}. W A S D or the arrow keys walk, Shift runs, Space jumps, drag to look around, Escape goes back to the map.`}
+      aria-label={`Walking in ${name}. W A S D or the arrow keys walk, Shift runs, Space jumps, E gets on or off, click or drag to look around, Escape goes back to the map.`}
       tabIndex={0}
       onPointerDown={press}
       onPointerMove={drag}
@@ -220,7 +242,7 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
         <p className="explore-keys">
           {riding
             ? VEHICLES[riding].keys
-            : "W A S D walk · Shift runs · Space jumps · E gets in · drag to look · Esc leaves"}
+            : "W A S D walk · Shift runs · Space jumps · E gets in · click to look · Esc leaves"}
         </p>
         <button type="button" className="text-button" onPointerDown={(event) => event.stopPropagation()} onClick={back}>
           <X size={16} aria-hidden="true" />
