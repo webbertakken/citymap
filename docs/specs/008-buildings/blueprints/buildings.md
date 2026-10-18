@@ -84,16 +84,21 @@ interface CityFile {
 | Source                  | size | tested | kind | recency | churn | authors | comments | size counted in |
 | ----------------------- | ---- | ------ | ---- | ------- | ----- | ------- | -------- | --------------- |
 | `cli` (folded)          | yes  | yes    | yes  | yes     | yes   | yes     | yes      | lines           |
+| `cli` (folded, no map)  | yes  | yes    | yes  | yes     | yes   | no      | yes      | lines           |
 | `cli` (`--no-history`)  | yes  | yes    | yes  | no      | no    | no      | yes      | lines           |
 | `github`                | yes  | yes    | yes  | no      | no    | no      | no       | bytes           |
 | `folder`, contents read | yes  | yes    | yes  | no      | no    | no      | yes      | lines           |
 | `folder`, not read      | yes  | yes    | yes  | no      | no    | no      | no       | bytes           |
 
+- "No map" is a fold whose laid commit's `.mailmap` a partial clone does not hold and could not fetch (§ Mailmap): its
+  authors are unknown, its files and lots carry no `authors`, and `available` leaves `authors` out. The section carries
+  no reason field: a `cli` city whose `available` holds `recency` but not `authors` is that city, and no other.
 - `tested` is `coverage` when at least one coverage report was read and matched at least one file, else `name`.
 - The reason an unavailable measure gives (`unavailableReason(measure, measures)`): recency, churn and authors "needs
-  the CLI's history" (or "laid without history" for a `cli` source); comments "needs the files' contents"; a city
-  without measures gives "this city file has no measures" for every measure but kind (kind is the lot's land use and the
-  path's language, always known).
+  the CLI's history" (or "laid without history" for a `cli` source); authors, in a `cli` city with recency, "The laid
+  commit's .mailmap could not be fetched"; comments "needs the files' contents"; a city without measures gives "this
+  city file has no measures" for every measure but kind (kind is the lot's land use and the path's language, always
+  known).
 
 ## Tests by name (`packages/measures/src/by-name.ts`)
 
@@ -240,10 +245,23 @@ interface Report {
 - `readMailmap(dir, commit, blobs)` (Rust `read_mailmap`): `git ls-tree -z --full-tree <commit> -- .mailmap` names the
   root entry, whichever folder of the repository the CLI was given. A regular file (mode `100644` or `100755`) is read
   through the reader's `BlobReader` (never fetched) and parsed: status `read`. No entry is `absent`; a symbolic link, a
-  folder or a submodule is `not-a-file` (git does not follow a `.mailmap` link in a checkout either); a blob the clone
-  does not hold is `unavailable`. Every status but `read` maps nobody. One log line:
-  `history/mailmap status=<read|absent|not-a-file|unavailable> entries=<n>` (`n` the commit emails it has lines for, 0
-  unless read), after `history/schedule`.
+  folder or a submodule is `not-a-file` (git does not follow a `.mailmap` link in a checkout either). Both map nobody.
+- A regular file whose blob the clone does not hold is fetched, that one object and nothing else
+  (`fetchBlob(dir, blob)`, Rust `fetch_blob`): the promisor remotes are `extensions.partialclone`, then each
+  `remote.<name>.promisor` set true, in config order (`git config --get-regexp`), each tried in turn until one gives the
+  object, as git's own lazy fetch does:
+  `git -c fetch.negotiationAlgorithm=noop fetch --quiet --no-tags --no-write-fetch-head --recurse-submodules=no --filter=blob:none <remote> <blob>`,
+  with `GIT_TERMINAL_PROMPT=0` (no credential prompt), `GIT_NO_LAZY_FETCH=1` (nothing else is fetched on the side) and
+  standard input closed, killed after `MAILMAP_FETCH_TIMEOUT` 30 s. Then `git cat-file blob <blob>` reads it and it is
+  parsed: status `fetched`. When no remote gives it, the status is `unfetchable` with a reason: `no-promisor` (no
+  promisor remote: a clone that is not partial yet lacks the blob), `timeout`, or `exit-<code>` (git's exit code, from
+  the last remote tried). An unfetchable `.mailmap` makes the authors unknown: the reader calls
+  `fileHistory.forgetAuthors()` (Rust `FileHistory::forget_authors`), after which `authorsKnown` (Rust
+  `authors_known()`) is false; the commits are still recorded for recency and churn.
+- One log line, after `history/schedule`:
+  `history/mailmap status=<read|fetched|absent|not-a-file|unfetchable> entries=<n>` (`n` the commit emails it has lines
+  for, 0 unless read or fetched); an unfetchable one adds `reason=<no-promisor|timeout|exit-N>` and, when git said why,
+  `error=<git's first stderr line>`.
 - `parseMailmap(text)` (Rust `Mailmap::parse`), as git's `mailmap.c` reads a blob: the text ends at its first NUL; it
   splits at `\n` (a `\r` stays in the line); a line starting `#` is skipped. A pair is a `<`, the first `>` after it,
   the email between them (as written, not trimmed) and the name before the `<` trimmed of space, tab, `\r` and `\n`
@@ -287,8 +305,10 @@ interface Report {
   members from `plat.towns[town.key].shares` (every record of every folder and use, by lot key); for an old town, from
   the `OldTown` whose `town.key` is the town's key (`members`). A lot's files are its members that are live, as paths,
   sorted; a lot with none falls back to its own `path`. Vacant lots are skipped.
-- `buildMeasures({ source, size, history, comments, city, lots, factsOf, authorsAcross })` assembles the section;
-  `factsOf(path)` returns the file's fields, and `available` follows from `source`, `history` and `comments`.
+- `buildMeasures({ source, size, history, authors, comments, city, lots, factsOf, authorsAcross })` assembles the
+  section; `factsOf(path)` returns the file's fields, and `available` follows from `source`, `history`, `authors` (the
+  history's `authorsKnown`) and `comments` (`availableFor`). Without authors, the CLI gives `factsOf` no `authors` and
+  `buildMeasures` no `authorsAcross`.
 
 ## Buildings, aggregation and scales (`packages/measures/src/building.ts`)
 
@@ -380,8 +400,9 @@ interface Report {
   the marks: "2 TODOs"), each of the last four only when the city has it. An unknown value says "Not known" with why as
   its note ("Its contents were not read here", "The coverage report does not cover it", "Only source files are judged by
   name", "No commit read changed it"); measures the city does not have say so in one row each, "Changed, commits,
-  authors" and "Comments", "Not known" with `unavailableReason` as the note. A lot of several files adds "{n} files"
-  listing their names (at most `FILES_SHOWN` 7, then "and N more").
+  authors" and "Comments", "Not known" with `unavailableReason` as the note; a city with recency but not authors shows
+  "Changed" and "Commits" as usual and "Authors", "Not known", noted "The laid commit's .mailmap could not be fetched".
+  A lot of several files adds "{n} files" listing their names (at most `FILES_SHOWN` 7, then "and N more").
 - With no measures (a city file without them), no measure rows show.
 
 ## Readers in the browser (`apps/web/src/github`, `apps/web/src/local`, `apps/web/src/lay`)
@@ -416,18 +437,21 @@ interface Report {
 | Folder over 50 MB of tracked files            | bytes from the index; comments unavailable                                 |
 | A file that vanishes while read (folder)      | that file's facts are unknown; counted in `viewer/local-contents` `unread` |
 | No `.mailmap` at the laid commit              | nobody is mapped; `history/mailmap status=absent`                          |
+| `.mailmap` blob not held (partial clone)      | that one blob fetched; `history/mailmap status=fetched`                    |
+| `.mailmap` blob not fetchable                 | authors unknown, reason on switch and card; `status=unfetchable reason=…`  |
+| No promisor remote, blob missing              | `status=unfetchable reason=no-promisor`; authors unknown                   |
+| Fetch hangs (a prompt, a stalled network)     | killed after 30 s; `status=unfetchable reason=timeout`; authors unknown    |
 | `.mailmap` a link, folder or submodule        | nobody is mapped; `history/mailmap status=not-a-file`                      |
-| `.mailmap` blob not held (partial clone)      | nobody is mapped; `history/mailmap status=unavailable`                     |
 | A working tree `.mailmap`, `mailmap.*` config | never read: the city is the same with or without a checkout                |
 | A mailmap line that is not one of the forms   | maps nothing (no `<`, no `>`, an empty first email); the rest still read   |
 
 ## Observability
 
-- CLI: the `measures/*` lines above, and `history/mailmap` (status, entries) once per fold with measures. Viewer:
-  `viewer/mode` (`mode`), `viewer/colour-by` (`by`), `viewer/measures` (`source`, `size`, `tested`, `lots`) when a city
-  with measures is shown, `viewer/measures-none` when without, `viewer/local-contents` (`files`, `bytes`, `read`,
-  `unread`), `viewer/local-coverage` (`path`, `format`, `files`, `matched`) and `viewer/local-coverage-skipped` (`path`,
-  `reason`).
+- CLI: the `measures/*` lines above, and `history/mailmap` (status, entries, and for an unfetchable one its reason and
+  git's error) once per fold with measures. Viewer: `viewer/mode` (`mode`), `viewer/colour-by` (`by`), `viewer/measures`
+  (`source`, `size`, `tested`, `lots`) when a city with measures is shown, `viewer/measures-none` when without,
+  `viewer/local-contents` (`files`, `bytes`, `read`, `unread`), `viewer/local-coverage` (`path`, `format`, `files`,
+  `matched`) and `viewer/local-coverage-skipped` (`path`, `reason`).
 
 ## Performance and limits
 
@@ -447,17 +471,22 @@ interface Report {
   `lotFiles` on a fold with old towns; the mailmap's four forms, its malformed lines, its case rules and its later-wins
   rule, checked against git's own `%aE` on a repository of nasty identities; the laid commit's mailmap read with and
   without a checkout, with a different working tree `.mailmap` and `mailmap.file` set, and at an earlier `--to`, all
-  giving the same city; a mailmap that is absent, a link or not held; aggregation, scales and floors at their ends;
-  ramps' ends and unknown; the lot table; the view basis, pan, fit and unproject in both modes; ray picking over
-  buildings of known heights; the legend, colour by (keyboard, disabled with reasons), and cards with measures.
+  giving the same city; a mailmap that is absent, a link, a folder, fetched into a partial clone (that one blob, and no
+  other object, arrives), unfetchable offline, unfetchable without a promisor remote, and a fetch that outlives its
+  timeout; a city without authors (its section, the switch's reason, the card's row); aggregation, scales and floors at
+  their ends; ramps' ends and unknown; the lot table; the view basis, pan, fit and unproject in both modes; ray picking
+  over buildings of known heights; the legend, colour by (keyboard, disabled with reasons), and cards with measures.
 - Rust: the same tests, case for case (tests by name, text, the XML scanner, the four formats, matching, lots, the
   section, the CLI's measures on temporary repositories, a partial clone included).
 - Parity: `bun run parity` compares city files with measures on every mode, and a mode with a coverage report written
   into the clone at a usual path in each of the four formats. Its `checkout` mode folds a clone with a checkout whose
   working tree `.mailmap` and `mailmap.file` merge many authors into one, and must match the `fold` mode's
-  `--no-checkout` clone byte for byte, in each CLI.
-- End to end: the view switch, colour by from the keyboard, unavailable measures, a picked fixture folder with an LCOV
-  report, the cards, axe in light and dark, no card overlap at every width, and the vitals.
+  `--no-checkout` clone byte for byte, in each CLI. Its `partial` mode folds a blob-less `--no-checkout` clone, which
+  fetches the `.mailmap` when its laid commit has one, and its authors (`available`, every file's and lot's `authors`)
+  must match the `fold` mode's, in each CLI.
+- End to end: the view switch, colour by from the keyboard, unavailable measures (a city without authors: the switch's
+  reason and the card's row), a picked fixture folder with an LCOV report, the cards, axe in light and dark, no card
+  overlap at every width, and the vitals.
 
 ## Behaviour and state
 
@@ -474,7 +503,10 @@ interface Report {
 - Author emails never leave the history reader: the section holds counts only. A picked folder's contents and reports
   stay in the page; they reach a city file only through the CLI, run by the person.
 - The CLI reads reports from the working directory and the named files only; git never fetches (`GIT_ALLOW_PROTOCOL`
-  `none`, `GIT_NO_LAZY_FETCH`).
+  `none`, `GIT_NO_LAZY_FETCH`), with one named exception: the laid commit's `.mailmap` blob, when a partial clone does
+  not hold it, is fetched by its object id from the clone's own promisor remote, alone (`GIT_NO_LAZY_FETCH` stays set,
+  so the fetch brings nothing else), without prompts, within 30 s. Why this one: it is one small file that decides every
+  author count, while sizes and comments would need the whole tree.
 - The mailmap is data from the history: parsed line by line in one pass, never handed to git. Nothing outside the laid
   commit (the working tree, `mailmap.file`, `mailmap.blob`, `log.mailmap`) changes a count.
 
@@ -496,19 +528,20 @@ interface Report {
 
 ## Constants and configuration
 
-| Constant             | Value            | Where                               |
-| -------------------- | ---------------- | ----------------------------------- |
-| `MEASURES_VERSION`   | 1                | `packages/measures/src/section.ts`  |
-| `BINARY_PROBE`       | 8,000 bytes      | `packages/measures/src/text.ts`     |
-| `MAX_REPORT_BYTES`   | 268,435,456      | `packages/measures/src/reports/`    |
-| `USUAL_REPORTS`      | eight paths      | `packages/measures/src/reports/`    |
-| `FLOORS`             | 1 to 12          | `packages/measures/src/building.ts` |
-| `PERCENTILES`        | 5 and 99         | `packages/measures/src/building.ts` |
-| `FLOOR_HEIGHT`       | 0.25 u           | `packages/scene/src/buildings.ts`   |
-| `WINDOW_PITCH`       | 0.25 u           | `packages/scene/src/buildings.ts`   |
-| `DATA_COLUMNS`       | 1,024            | `packages/scene/src/buildings.ts`   |
-| `RAY_STEP`           | 0.1 u            | `apps/web/src/view/hover.ts`        |
-| `ELEVATION`, `YAW`   | 30°, 45°         | `apps/web/src/view/view.ts`         |
-| `CONTENTS_LIMIT`     | 50,000,000 bytes | `apps/web/src/local/contents.ts`    |
-| `CONTENTS_IN_FLIGHT` | 8                | `apps/web/src/local/contents.ts`    |
-| `FILES_SHOWN`        | 7                | `apps/web/src/card/measures.ts`     |
+| Constant                | Value            | Where                               |
+| ----------------------- | ---------------- | ----------------------------------- |
+| `MEASURES_VERSION`      | 1                | `packages/measures/src/section.ts`  |
+| `BINARY_PROBE`          | 8,000 bytes      | `packages/measures/src/text.ts`     |
+| `MAX_REPORT_BYTES`      | 268,435,456      | `packages/measures/src/reports/`    |
+| `USUAL_REPORTS`         | eight paths      | `packages/measures/src/reports/`    |
+| `FLOORS`                | 1 to 12          | `packages/measures/src/building.ts` |
+| `PERCENTILES`           | 5 and 99         | `packages/measures/src/building.ts` |
+| `FLOOR_HEIGHT`          | 0.25 u           | `packages/scene/src/buildings.ts`   |
+| `WINDOW_PITCH`          | 0.25 u           | `packages/scene/src/buildings.ts`   |
+| `DATA_COLUMNS`          | 1,024            | `packages/scene/src/buildings.ts`   |
+| `RAY_STEP`              | 0.1 u            | `apps/web/src/view/hover.ts`        |
+| `ELEVATION`, `YAW`      | 30°, 45°         | `apps/web/src/view/view.ts`         |
+| `CONTENTS_LIMIT`        | 50,000,000 bytes | `apps/web/src/local/contents.ts`    |
+| `CONTENTS_IN_FLIGHT`    | 8                | `apps/web/src/local/contents.ts`    |
+| `FILES_SHOWN`           | 7                | `apps/web/src/card/measures.ts`     |
+| `MAILMAP_FETCH_TIMEOUT` | 30 s             | `packages/history/src/mailmap.ts`   |
