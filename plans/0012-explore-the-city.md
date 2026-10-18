@@ -121,8 +121,10 @@ The showpiece: a bicycle that rides like one.
 
 - [ ] Nearby streets for Rapier: only buildings within a window round the player, added and removed as it moves, in a
       frame centred near the player (no 32-bit drift); memory and raising time measured at linux's size (tests first)
-- [ ] Rapier loaded on getting into a car, behind the loading card; falls back to the arcade car (logged) where it
-      cannot load (no WebAssembly) or cannot keep up (frame time), saying so once
+- [ ] Everything loads once, behind the Walk loading card (Rapier, every model, the walls), so nothing waits after:
+      getting into a car is instant; falls back to the arcade car (logged) where Rapier cannot load (no WebAssembly) or
+      cannot keep up (frame time), saying so once
+- [ ] Nearby streets swapped in without a hitch: raised ahead of the player within a frame's budget, never waited on
 - [ ] Car on Rapier's ray-cast vehicle controller: suspension, tyre grip, drift, crashes and roll-overs, getting it back
       on its wheels; engine, automatic gearbox, handbrake; follow camera tuned for it
 - [ ] Measured on a 4x slowed phone: the car and 20 other Rapier cars at 30 fps, memory within budget
