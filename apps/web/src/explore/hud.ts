@@ -5,7 +5,9 @@ import { GROUND } from "@citymap/world";
 import { hudOf } from "./bicycle";
 import { heliHud } from "./helicopter";
 import { motoHud, RPM_SHOWN } from "./motorbike";
+import type { Rooftop } from "./rooftops";
 import type { Vehicle } from "./vehicles";
+import { turnBetween } from "./walker";
 
 /**
  * A ride's HUD: its name for a screen reader, its rows of a term and a value, a foot down or up, and a fall; flying,
@@ -22,8 +24,23 @@ export interface RideHud {
     readonly landed: boolean;
     readonly heading: number;
     readonly room: boolean;
+    /** The nearest roof with room: metres off, and degrees off the nose (positive to the left). */
+    readonly landing: { readonly distance: number; readonly bearing: number } | null;
   } | null;
 }
+
+/**
+ * What lies below a helicopter: the height of the roof or street under it, whether its rotor has room to land there,
+ * and the nearest marked roof.
+ */
+export interface Below {
+  readonly under: number;
+  readonly room: boolean;
+  readonly landing: Rooftop | null;
+}
+
+/** Nothing below but the open street. */
+export const OPEN: Below = { under: GROUND, room: true, landing: null };
 
 /** Something under a helicopter higher than the street by more than this is a roof, in metres. */
 const ROOF_ABOVE = 0.01;
@@ -36,10 +53,9 @@ const climbOf = (climb: number) => `${climb > 0 ? "+" : climb < 0 ? "−" : ""}$
 
 /**
  * The HUD of a vehicle being ridden; a car's engine is read only on Rapier (`engine`); a helicopter's height is above
- * the street, `under` is the height of what lies beneath it, a roof or the street, and `room` whether its rotor has
- * room to land there.
+ * the street, and what lies below it is `below`.
  */
-export function hudOfRide(vehicle: Vehicle, engine: boolean, under = GROUND, room = true): RideHud {
+export function hudOfRide(vehicle: Vehicle, engine: boolean, { under, room, landing }: Below = OPEN): RideHud {
   if (vehicle.kind === "helicopter") {
     const hud = heliHud(vehicle.heli, vehicle.feet.y - GROUND);
     const over = under > GROUND + ROOF_ABOVE ? "roof" : "street";
@@ -59,6 +75,14 @@ export function hudOfRide(vehicle: Vehicle, engine: boolean, under = GROUND, roo
         landed: vehicle.heli.grounded,
         heading: ((Math.round((vehicle.heading * 180) / Math.PI) % 360) + 360) % 360,
         room,
+        landing: landing && {
+          distance: Math.round(landing.distance),
+          bearing: Math.round(
+            (turnBetween(vehicle.heading, Math.atan2(-(landing.at.z - vehicle.feet.z), landing.at.x - vehicle.feet.x)) *
+              180) /
+              Math.PI,
+          ),
+        },
       },
     };
   }

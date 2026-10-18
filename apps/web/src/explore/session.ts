@@ -189,6 +189,7 @@ export function advanceSession(
   seconds: number,
   walls: Walls,
   garage: Garage | null = null,
+  pad: Vec3 | null = null,
 ): Session {
   let orbit = turned(session.orbit, controls.look.dx, controls.look.dy);
   const intents = intentsOf(controls.keys, controls.stick, controls.jump, controls.pad, controls.sink);
@@ -214,7 +215,7 @@ export function advanceSession(
     } else if (vehicle) {
       // Other vehicles are in the way of the one ridden: a bump costs most of its speed, a hard one a rider. With the
       // garage, the parked two-wheelers are shoved by the ridden one's body instead.
-      const stepped = stepVehicle(vehicle, steering, STEP, walls);
+      const stepped = stepVehicle(vehicle, steering, STEP, walls, pad);
       const clear = clearOfVehicles(
         stepped.feet,
         VEHICLES[vehicle.kind].radius,

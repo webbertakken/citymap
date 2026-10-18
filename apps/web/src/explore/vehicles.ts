@@ -405,8 +405,14 @@ function moved<V extends Vehicle>(vehicle: V, next: V, dt: number, walls: Walls)
  * turn, as fast as the car turns at this speed (reversing, the other way, as a car's does), and its turn follows
  * quickly; the front wheels' angle is what that turn takes. The walls take what they allow.
  */
-export function stepVehicle(vehicle: Vehicle, intents: Intents, dt: number, walls: Walls): Vehicle {
-  if (vehicle.kind === "helicopter") return flyThrough(vehicle, intents, dt, walls);
+export function stepVehicle(
+  vehicle: Vehicle,
+  intents: Intents,
+  dt: number,
+  walls: Walls,
+  pad: Vec3 | null = null,
+): Vehicle {
+  if (vehicle.kind === "helicopter") return flyThrough(vehicle, intents, dt, walls, pad);
   if (vehicle.kind === "bicycle") {
     const { cycle, speed, turn } = rideCycle(vehicle.cycle, vehicle.speed, intents, dt);
     const next = { ...vehicle, heading: vehicle.heading + turn * dt, speed, turn, steer: cycle.steer, cycle };
@@ -465,16 +471,17 @@ export function belowOf(feet: Vec3, walls: Walls): number {
  * take its move: across, its rotor's disc against anything as high as the disc and its cabin against anything lower;
  * up or down, its skids onto what lies below them (a roof or the ground), and its disc no lower than any top it
  * overlaps (the rotor would strike it), from which it is eased away. The speed they take is lost; a hard hit strikes
- * the rotor.
+ * the rotor. Sinking near `pad` (a marked roof's middle), it sets itself down there.
  */
-function flyThrough(vehicle: Helicopter, intents: Intents, dt: number, walls: Walls): Helicopter {
+function flyThrough(vehicle: Helicopter, intents: Intents, dt: number, walls: Walls, pad: Vec3 | null): Helicopter {
   const flight = {
     forward: intents.forward,
     right: intents.right,
     up: (intents.jump ? 1 : 0) - (intents.sink ? 1 : 0),
   };
   const { feet } = vehicle;
-  const flown = flyHeli(vehicle.heli, { y: feet.y, heading: vehicle.heading }, flight, belowOf(feet, walls), dt);
+  const toPad = pad && { x: pad.x - feet.x, z: pad.z - feet.z };
+  const flown = flyHeli(vehicle.heli, { y: feet.y, heading: vehicle.heading }, flight, belowOf(feet, walls), dt, toPad);
   const v = flown.heli.velocity;
   const disc = walls.move({ ...feet, y: feet.y + MAST }, { x: v.x * dt, y: 0, z: v.z * dt }, ROTOR_RADIUS).feet;
   const cabin = walls.move(feet, { x: disc.x - feet.x, y: 0, z: disc.z - feet.z }, BODY_RADIUS).feet;
@@ -501,11 +508,11 @@ function flyThrough(vehicle: Helicopter, intents: Intents, dt: number, walls: Wa
 
 /**
  * Whether a helicopter over a point could land on what lies there, `under` metres up: no top within its rotor's reach
- * stands higher than the disc would be, standing on it.
+ * (and a `margin` beyond it) stands higher than the disc would be, standing on it.
  */
-export function roomToLand(feet: Vec3, under: number, walls: Walls): boolean {
+export function roomToLand(feet: Vec3, under: number, walls: Walls, margin = 0): boolean {
   const disc = { x: feet.x, y: under + MAST - PERCH_PROBE, z: feet.z };
-  const out = walls.move(disc, { x: 0, y: 0, z: 0 }, ROTOR_RADIUS).feet;
+  const out = walls.move(disc, { x: 0, y: 0, z: 0 }, ROTOR_RADIUS + margin).feet;
   return out.x === disc.x && out.z === disc.z;
 }
 

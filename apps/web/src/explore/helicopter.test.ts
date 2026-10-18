@@ -7,6 +7,8 @@ import {
   HELI_MASS,
   HOVER_TILT,
   LAND_SINK,
+  PAD_CENTRED,
+  PAD_PULL,
   PITCH_MOST,
   ROLL_MOST,
   ROTOR_RADIUS,
@@ -48,7 +50,13 @@ interface Flown {
  * Flies `seconds` from a state over flat ground at y = 0 with nothing in the way: each step flown, then moved by its
  * velocity, landing on the ground below. Every step kept.
  */
-function fly(start: Heli, flight: Flight, seconds: number, from: { y: number; heading?: number }) {
+function fly(
+  start: Heli,
+  flight: Flight,
+  seconds: number,
+  from: { y: number; heading?: number },
+  pad: { x: number; z: number } | null = null,
+) {
   const path: Flown[] = [];
   let heli = start;
   let { y } = from;
@@ -56,7 +64,7 @@ function fly(start: Heli, flight: Flight, seconds: number, from: { y: number; he
   let z = 0;
   let heading = from.heading ?? 0;
   for (let i = 0; i < Math.round(seconds / DT); i++) {
-    const step = flyHeli(heli, { y, heading }, flight, y, DT);
+    const step = flyHeli(heli, { y, heading }, flight, y, DT, pad && { x: pad.x - x, z: pad.z - z });
     const v = step.heli.velocity;
     const next = y + v.y * DT;
     const grounded = next <= 0;
@@ -240,6 +248,44 @@ describe("the tail rotor", () => {
     const end = last(fly(turning.heli, STILL, 10, { y: turning.y, heading: turning.heading }));
     expect(Math.abs(end.heli.roll)).toBeLessThan(0.01);
     expect(Math.abs(end.heli.yawRate)).toBeLessThan(0.01);
+  });
+});
+
+describe("the landing assist", () => {
+  it("sets it down on a marked roof's middle when it sinks within reach of it, nothing else asked", () => {
+    const pad = { x: 2.5, z: -1.5 };
+    const path = fly(hovering(20), DOWN, 30, { y: 20, heading: 0.7 }, pad);
+    const down = path.find((s) => s.heli.grounded)!;
+    expect(down).toBeDefined();
+    expect(Math.hypot(down.x - pad.x, down.z - pad.z)).toBeLessThan(0.1);
+    expect(Math.max(...path.map((s) => Math.abs(s.heli.pitch)))).toBeLessThanOrEqual(HOVER_TILT + 0.01);
+  });
+
+  it("sets it down on the middle from near the edge of its reach, never far past it", () => {
+    const pad = { x: -8, z: 4 };
+    const path = fly(hovering(30), DOWN, 60, { y: 30, heading: 2 }, pad);
+    const down = path.find((s) => s.heli.grounded)!;
+    expect(Math.hypot(down.x - pad.x, down.z - pad.z)).toBeLessThan(0.1);
+    expect(Math.max(...path.map((s) => Math.hypot(s.x - pad.x, s.z - pad.z)))).toBeLessThan(PAD_PULL);
+  });
+
+  it("sinks no faster than a landing until it is over the mark's middle", () => {
+    const pad = { x: 3, z: 0 };
+    const path = fly(hovering(30), DOWN, 30, { y: 30 }, pad);
+    const off = path.filter((s) => Math.hypot(s.x - pad.x, s.z - pad.z) > PAD_CENTRED);
+    expect(off.length).toBeGreaterThan(0);
+    expect(Math.min(...off.map((s) => s.heli.velocity.y))).toBeGreaterThan(-LAND_SINK - 0.2);
+    // Once over it, it sinks at its most.
+    expect(Math.min(...path.map((s) => s.heli.velocity.y))).toBeLessThan(-SINK_MOST + 0.5);
+  });
+
+  it("pulls nothing beyond its reach, nor while the cyclic or a turn is asked, nor holding height", () => {
+    const far = last(fly(hovering(20), DOWN, 3, { y: 20 }, { x: PAD_PULL + 0.5, z: 0 }));
+    expect(Math.hypot(far.x, far.z)).toBeLessThan(0.01);
+    const turning = last(fly(hovering(20), { ...DOWN, right: 1 }, 3, { y: 20 }, { x: 2, z: 0 }));
+    expect(Math.hypot(turning.x, turning.z)).toBeLessThan(0.01);
+    const held = last(fly(hovering(20), STILL, 3, { y: 20 }, { x: 2, z: 0 }));
+    expect(Math.hypot(held.x, held.z)).toBeLessThan(0.01);
   });
 });
 
