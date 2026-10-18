@@ -7,7 +7,7 @@ import type { CanvasProps } from "./MapView";
 
 /** The city in WebGL: an orthographic camera from the view, drawn only when something changes. */
 export default function CityCanvas({ scene, view, theme, mode, table }: CanvasProps) {
-  const b = basis(mode);
+  const b = basis(mode, view);
   const distance = 2000;
   return (
     <Canvas className="canvas" frameloop="demand" dpr={[1, 2]} linear flat aria-hidden="true">

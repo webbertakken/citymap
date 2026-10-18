@@ -1,7 +1,8 @@
 // A walk through the city, frame by frame: what the devices hold, the walker and the vehicles they move, and the camera.
 // Everything steps at a fixed rate, whatever the screen's, so a walk is the same on every device. Metres.
 import { PERSON_RADIUS, type Vec3, type Walls } from "@citymap/world";
-import { ON_FOOT, behind, turned, type Follow, type Orbit } from "./camera";
+import { ON_FOOT, behind, cameraOf, turned, type Follow, type Orbit } from "./camera";
+import { FLY_SPEED, geared, stepFlyer, type Flyer } from "./flyer";
 import { intentsOf, type Stick } from "./input";
 import {
   BUMP,
@@ -25,6 +26,12 @@ export interface Controls {
   look: { dx: number; dy: number };
   /** Getting on or off was asked for since the last frame. */
   use: boolean;
+  /** Flying freely, or landing again, was asked for since the last frame. */
+  fly: boolean;
+  /** Wheel steps since the last frame: faster forward, slower back. */
+  gears: number;
+  /** Sinking, while flying, is held (a touch button). */
+  sink: boolean;
 }
 
 export const newControls = (): Controls => ({
@@ -33,6 +40,9 @@ export const newControls = (): Controls => ({
   jump: false,
   look: { dx: 0, dy: 0 },
   use: false,
+  fly: false,
+  gears: 0,
+  sink: false,
 });
 
 /**
@@ -49,6 +59,8 @@ export interface Session {
   readonly orbit: Orbit;
   readonly spare: number;
   readonly walked: number;
+  /** The free camera, while it flies; null while it follows the walker. */
+  readonly flyer: Flyer | null;
 }
 
 /** Everything steps 120 times a second. */
@@ -72,8 +84,20 @@ export const startSession = (feet: Vec3, heading: number, vehicles: readonly Veh
     orbit: behind(heading),
     spare: 0,
     walked: 0,
+    flyer: null,
   };
 };
+
+/** Keys that sink the free camera, as Space raises it. */
+const SINK_KEYS = ["KeyC", "ControlLeft", "ControlRight"];
+
+/** The free camera lifted from where the follow camera is, or landed back on the walker. */
+function toggleFlight(session: Session, walls: Walls): Session {
+  if (session.flyer) return { ...session, flyer: null };
+  const shown = shownOf(session);
+  const { eye } = cameraOf(shown.feet, session.orbit, walls, followOf(session));
+  return { ...session, flyer: { at: eye, speed: FLY_SPEED } };
+}
 
 /** The vehicle being ridden, or null on foot. */
 export const ridden = (session: Session): Vehicle | null =>
@@ -100,7 +124,18 @@ function use(session: Session, walls: Walls): Session {
 export function advanceSession(session: Session, controls: Readonly<Controls>, seconds: number, walls: Walls): Session {
   let orbit = turned(session.orbit, controls.look.dx, controls.look.dy);
   const intents = intentsOf(controls.keys, controls.stick, controls.jump);
-  const used = controls.use ? use(session, walls) : session;
+  const toggled = controls.fly ? toggleFlight(session, walls) : session;
+  const used = controls.use && !toggled.flyer ? use(toggled, walls) : toggled;
+  // While the camera flies, the walker and any ride are left alone, and the keys fly the camera.
+  const flight = used.flyer
+    ? {
+        forward: intents.forward,
+        right: intents.right,
+        up: (intents.jump ? 1 : 0) - (controls.sink || SINK_KEYS.some((k) => controls.keys.has(k)) ? 1 : 0),
+      }
+    : null;
+  const steering = flight ? { ...intents, forward: 0, right: 0, jump: false, run: false } : intents;
+  let flyer = used.flyer && controls.gears !== 0 ? geared(used.flyer, controls.gears) : used.flyer;
   let { body, previous, vehicles, previousVehicles, speed, walked } = used;
   let spare = used.spare + Math.min(seconds, LONGEST_FRAME);
   while (spare >= STEP) {
@@ -109,14 +144,14 @@ export function advanceSession(session: Session, controls: Readonly<Controls>, s
     previousVehicles = vehicles;
     if (vehicle) {
       // Other vehicles are in the way of the one ridden: a bump costs most of its speed.
-      const stepped = stepVehicle(vehicle, intents, STEP, walls);
+      const stepped = stepVehicle(vehicle, steering, STEP, walls);
       const clear = clearOfVehicles(stepped.feet, VEHICLES[vehicle.kind].radius, vehicles, vehicle.id);
       const moved = { ...stepped, feet: clear.feet, speed: clear.hit ? stepped.speed * BUMP : stepped.speed };
       vehicles = vehicles.map((v) => (v === vehicle ? moved : v));
       next = { feet: moved.feet, rise: 0, heading: moved.heading, grounded: true };
     } else {
       // Vehicles are in a walker's way, as walls are.
-      const stepped = stepWalker(body, intents, orbit.yaw, STEP, walls);
+      const stepped = stepWalker(body, steering, orbit.yaw, STEP, walls);
       next = { ...stepped, feet: clearOfVehicles(stepped.feet, PERSON_RADIUS, vehicles, null).feet };
     }
     const stride = Math.hypot(next.feet.x - body.feet.x, next.feet.z - body.feet.z);
@@ -124,6 +159,7 @@ export function advanceSession(session: Session, controls: Readonly<Controls>, s
     speed = stride / STEP;
     previous = body;
     body = next;
+    if (flyer && flight) flyer = stepFlyer(flyer, flight, orbit, STEP);
     spare -= STEP;
   }
   const dragged = controls.look.dx !== 0 || controls.look.dy !== 0;
@@ -132,7 +168,7 @@ export function advanceSession(session: Session, controls: Readonly<Controls>, s
       ...orbit,
       yaw: orbit.yaw + turnBetween(orbit.yaw, body.heading) * (1 - Math.exp(-Math.min(seconds, LONGEST_FRAME) / CHASE)),
     };
-  return { ...used, body, previous, vehicles, previousVehicles, speed, orbit, spare, walked };
+  return { ...used, body, previous, vehicles, previousVehicles, speed, orbit, spare, walked, flyer };
 }
 
 const between = (a: number, b: number, share: number) => a + (b - a) * share;
@@ -186,6 +222,7 @@ export interface Prompt {
 }
 
 export function promptOf(session: Session): Prompt | null {
+  if (session.flyer) return null;
   const vehicle = ridden(session);
   if (vehicle) return { action: "leave", kind: vehicle.kind, ready: Math.abs(vehicle.speed) < LEAVE_SPEED };
   if (!session.body.grounded) return null;

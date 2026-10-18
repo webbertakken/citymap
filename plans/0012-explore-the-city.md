@@ -92,17 +92,17 @@ The thinnest path through every layer: world, one mover, intents, camera, render
 - [x] Inspection: crosshair over a window or a building shows its card; a window says what it holds and whether it is
       lit, and why
 - [x] Signs: the nearest buildings' names on their street-facing walls, pooled, self-hosted font
-- [ ] Roofs named in the turned Buildings view (Phase 4)
+- [x] Roofs named in the turned Buildings view (Phase 4)
 - [x] E2E: aim at a known building and window, read the card; signs never more than the pool
 - [x] Gate, commit, local build; Webber tests; feedback folded in (crosshair: shoulder offset, panel at the right, touch
       scrolling)
 
 ## Phase 4: cameras, the Buildings view turned and free
 
-- [ ] Buildings view gains rotate and tilt (perspective), zoom to the cursor, drag and edge pan, touch gestures (tests
-      first on the maths)
-- [ ] Free camera: fly in six directions, speed by wheel, no collision
-- [ ] View switch: Plan, Buildings, Free; the view's centre carries across every switch
+- [x] Buildings view gains rotate and tilt (orthographic kept; no edge pan), zoom to the cursor, drag, touch gestures
+      (tests first on the maths)
+- [x] Free camera: fly in six directions, speed by wheel, no collision (F from the walk; Fly on touch)
+- [x] View switch: Plan and Buildings keep centre, zoom and turn; the free camera lifts from the walk and lands back
 - [ ] E2E and vitals in each view; gate, commit, local build; Webber tests; feedback folded in
 
 ## Phase 5: parked vehicles and the bicycle

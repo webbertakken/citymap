@@ -211,6 +211,54 @@ describe("ExploreView", () => {
     expect(z).toBeCloseTo(2 / METRE, 9);
   });
 
+  it("flies the camera freely by F, at a speed the wheel sets, and lands it on the walker by F again", () => {
+    show();
+    fireEvent.keyDown(window, { code: "KeyF" });
+    // A held F lifts once.
+    fireEvent.keyDown(window, { code: "KeyF", repeat: true });
+    const lifted = walk();
+    expect(lifted.session.flyer).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Flying" })).toBeTruthy();
+    expect(screen.getByText(/F lands/)).toBeTruthy();
+    fireEvent.keyUp(window, { code: "KeyF" });
+    fireEvent.wheel(view(), { deltaY: -100 });
+    fireEvent.wheel(view(), { deltaY: 0 });
+    const faster = walk();
+    expect(faster.session.flyer!.speed).toBeGreaterThan(lifted.session.flyer!.speed);
+    fireEvent.keyDown(window, { code: "KeyW" });
+    const ahead = walk(0.5);
+    fireEvent.keyUp(window, { code: "KeyW" });
+    expect(ahead.camera.eye).toEqual(ahead.session.flyer!.at);
+    expect(ahead.session.body.feet).toEqual(lifted.session.body.feet);
+    fireEvent.keyDown(window, { code: "KeyF" });
+    expect(walk().session.flyer).toBeNull();
+    expect(screen.getByRole("heading", { name: "On foot" })).toBeTruthy();
+  });
+
+  it("flies by the touch buttons: Fly, then Up and Down while held, and Fly again to land", () => {
+    show();
+    expect(screen.queryByRole("button", { name: "Down" })).toBeNull();
+    const fly = screen.getByRole("button", { name: "Fly" });
+    fireEvent.pointerDown(fly, { pointerId: 4 });
+    fireEvent.click(fly);
+    const lifted = walk();
+    expect(fly.getAttribute("aria-pressed")).toBe("true");
+    const up = screen.getByRole("button", { name: "Up" });
+    fireEvent.pointerDown(up, { pointerId: 3 });
+    const risen = walk(0.5);
+    fireEvent.pointerUp(up, { pointerId: 3 });
+    expect(risen.session.flyer!.at.y).toBeGreaterThan(lifted.session.flyer!.at.y);
+    const down = screen.getByRole("button", { name: "Down" });
+    fireEvent.pointerDown(down, { pointerId: 3 });
+    const sunk = walk(0.5);
+    fireEvent.pointerCancel(down, { pointerId: 3 });
+    expect(sunk.session.flyer!.at.y).toBeLessThan(risen.session.flyer!.at.y);
+    expect(walk(0.5).session.flyer!.at.y).toBe(sunk.session.flyer!.at.y);
+    fireEvent.click(fly);
+    walk();
+    expect(fly.getAttribute("aria-pressed")).toBe("false");
+  });
+
   it("jumps while the jump button is held", () => {
     show();
     const jump = screen.getByRole("button", { name: "Jump" });

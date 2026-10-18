@@ -79,7 +79,14 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 
 ## Cameras
 
-- The Buildings view gains rotate and tilt, and zoom to the cursor; a free camera flies anywhere, through anything.
+- The Buildings view turns and tilts: Q and E, Page Up and Page Down, a right-drag or a Shift-drag, or two fingers
+  twisting and moving together. It stays orthographic, the map's own drawing; the turn is the person's, kept through
+  fitting, flights and switching views. The wheel and a pinch zoom about the point under the pointer, in either view.
+  The map does not pan at its edges.
+- Close up in the Buildings view, the buildings nearest the middle are named over their roofs.
+- The free camera flies from the walk: F lifts it from where the follow camera is and lands it on the walker again. It
+  flies where it looks and through anything, Space and C (or Control) rise and sink, the wheel sets its speed; on touch,
+  a Fly button and Up and Down. The walker and any ride wait where they are, and the crosshair reads from the camera.
 
 ## People and vehicles, and their sources
 

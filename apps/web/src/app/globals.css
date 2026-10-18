@@ -130,6 +130,11 @@ button {
   font-size: 11px;
   font-weight: 600;
 }
+/* A building's name over its roof, close up in the Buildings view. */
+.label.roof {
+  font-size: 11px;
+  font-weight: 600;
+}
 /* Under the names, so it rings a place without hiding what it is called. */
 .marker {
   position: absolute;
@@ -1361,7 +1366,9 @@ mark {
 }
 /* Touch only: a stick under the left thumb, a jump button under the right. */
 .explore-stick,
-.explore-jump {
+.explore-jump,
+.explore-sink,
+.explore-fly {
   display: none;
 }
 @media (pointer: coarse) {
@@ -1397,7 +1404,9 @@ mark {
     border-radius: 50%;
     touch-action: none;
   }
-  .explore-jump {
+  .explore-jump,
+  .explore-sink,
+  .explore-fly {
     position: absolute;
     right: calc(var(--gap) + 24px);
     bottom: calc(var(--gap) + 48px);
@@ -1409,6 +1418,20 @@ mark {
     font-weight: 600;
     border-radius: 50%;
     touch-action: none;
+  }
+  /* Down beside Up while flying; Fly above them, smaller, as it is pressed seldom. */
+  .explore-sink {
+    right: calc(var(--gap) + 24px + 72px + 12px);
+  }
+  .explore-fly {
+    right: calc(var(--gap) + 24px + 8px);
+    bottom: calc(var(--gap) + 48px + 72px + 16px);
+    width: 56px;
+    height: 56px;
+  }
+  .explore-fly[aria-pressed="true"] {
+    color: var(--accent-ink);
+    background: var(--accent);
   }
 }
 /* A finished load holds its card for a moment; its Cancel has nothing left to stop, so it keeps its place unseen. */

@@ -5,10 +5,11 @@
 import type { Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
 import { GROUND, cityHits, type Footprint, type Vec3, type Walls } from "@citymap/world";
-import { Bike, Car, Footprints, X } from "lucide-react";
+import { Bike, Car, Footprints, Video, X } from "lucide-react";
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type ComponentType, type PointerEvent } from "react";
 import { describeHit } from "../card/describe";
 import { cameraOf, easeReach, reachOf } from "../explore/camera";
+import { flyingCamera } from "../explore/flyer";
 import { WALK_KEYS, stickAt } from "../explore/input";
 import type { Inspect } from "../explore/inspect";
 import type { Landing } from "../explore/landing";
@@ -153,6 +154,8 @@ export function ExploreView({
   // What E would do now: shown as a button, changed only when it changes.
   const [prompt, setPrompt] = useState<Prompt | null>(() => promptOf(start));
   const [riding, setRiding] = useState<VehicleKind | null>(null);
+  // Whether the camera flies freely, for the card and the touch controls.
+  const [flying, setFlying] = useState(false);
   const said = useRef(JSON.stringify(promptOf(start)));
   // How far back the camera sits: in at once to a wall, back out gently.
   const reach = useRef<number | null>(null);
@@ -167,7 +170,10 @@ export function ExploreView({
     const next = advanceSession(session.current, controls.current, seconds, walls);
     controls.current.look = { dx: 0, dy: 0 };
     controls.current.use = false;
+    controls.current.fly = false;
+    controls.current.gears = 0;
     session.current = next;
+    if ((next.flyer !== null) !== flying) setFlying(next.flyer !== null);
     const now = promptOf(next);
     const words = JSON.stringify(now);
     if (words !== said.current) {
@@ -180,7 +186,9 @@ export function ExploreView({
     const follow = followOf(next);
     const wanted = reachOf(shown.feet, next.orbit, walls, follow);
     reach.current = reach.current === null ? wanted : easeReach(reach.current, wanted, seconds);
-    const camera = cameraOf(shown.feet, next.orbit, walls, follow, reach.current);
+    const camera = next.flyer
+      ? flyingCamera(next.flyer, next.orbit)
+      : cameraOf(shown.feet, next.orbit, walls, follow, reach.current);
     readSight(camera);
     return { session: next, shown, vehicles: shownVehicles(next), riding: kind, camera };
   };
@@ -208,6 +216,9 @@ export function ExploreView({
   const use = () => {
     controls.current.use = true;
   };
+  const fly = () => {
+    controls.current.fly = true;
+  };
   const back = () => {
     const { feet } = session.current.body;
     onLeave({ x: feet.x * METRE, z: feet.z * METRE });
@@ -221,6 +232,11 @@ export function ExploreView({
     if (event.code === "KeyE") {
       event.preventDefault();
       if (down && !event.repeat) use();
+      return;
+    }
+    if (event.code === "KeyF") {
+      event.preventDefault();
+      if (down && !event.repeat) fly();
       return;
     }
     if (!WALK_KEYS.has(event.code)) return;
@@ -299,7 +315,11 @@ export function ExploreView({
     stick.current = null;
     controls.current.stick = null;
   };
-  const title = riding ? VEHICLES[riding].riding : "On foot";
+  const title = flying ? "Flying" : riding ? VEHICLES[riding].riding : "On foot";
+  const sink = (held: boolean) => (event: PointerEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    controls.current.sink = held;
+  };
   const jump = (held: boolean) => (event: PointerEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     controls.current.jump = held;
@@ -311,12 +331,16 @@ export function ExploreView({
       className="map explore"
       data-signs={signCount}
       role="application"
-      aria-label={`Walking in ${name}. W A S D or the arrow keys walk, Shift runs, Space jumps, E gets on or off, click or drag to look around, Escape goes back to the map.`}
+      aria-label={`Walking in ${name}. W A S D or the arrow keys walk, Shift runs, Space jumps, E gets on or off, F flies the camera freely and lands it, the wheel sets its speed, click or drag to look around, Escape goes back to the map.`}
       tabIndex={0}
       onPointerDown={press}
       onPointerMove={drag}
       onPointerUp={release}
       onPointerCancel={release}
+      onWheel={(event) => {
+        // The wheel sets the free camera's speed: away from you faster.
+        if (event.deltaY !== 0) controls.current.gears -= Math.sign(event.deltaY);
+      }}
     >
       <span className="explore-crosshair" aria-hidden="true" />
       {sight && <SightCard sight={sight} inspect={inspect} />}
@@ -331,7 +355,9 @@ export function ExploreView({
       />
       <section className="glass explore-card" aria-label={title}>
         <h2>
-          {riding === "car" ? (
+          {flying ? (
+            <Video size={18} aria-hidden="true" />
+          ) : riding === "car" ? (
             <Car size={18} aria-hidden="true" />
           ) : riding === "bicycle" ? (
             <Bike size={18} aria-hidden="true" />
@@ -342,9 +368,11 @@ export function ExploreView({
         </h2>
         <p className="explore-engine">Physics prototype: {engine}</p>
         <p className="explore-keys">
-          {riding
-            ? VEHICLES[riding].keys
-            : "W A S D walk · Shift runs · Space jumps · E gets in · click to look · Esc leaves"}
+          {flying
+            ? "W A S D fly · Space up · C down · wheel speed · F lands · click to look · Esc leaves"
+            : riding
+              ? VEHICLES[riding].keys
+              : "W A S D walk · Shift runs · Space jumps · E gets in · F flies · click to look · Esc leaves"}
         </p>
         <button type="button" className="text-button" onPointerDown={(event) => event.stopPropagation()} onClick={back}>
           <X size={16} aria-hidden="true" />
@@ -380,7 +408,27 @@ export function ExploreView({
         onPointerUp={jump(false)}
         onPointerCancel={jump(false)}
       >
-        Jump
+        {flying ? "Up" : "Jump"}
+      </button>
+      {flying && (
+        <button
+          type="button"
+          className="glass explore-sink"
+          onPointerDown={sink(true)}
+          onPointerUp={sink(false)}
+          onPointerCancel={sink(false)}
+        >
+          Down
+        </button>
+      )}
+      <button
+        type="button"
+        className="glass explore-fly"
+        aria-pressed={flying}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={fly}
+      >
+        Fly
       </button>
     </div>
   );

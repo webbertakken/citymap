@@ -69,8 +69,10 @@ in `BufferGeometry`.
 - Camera: a `Mode`, `plan` (the default, on every visit) or `buildings`. Plan looks straight down with `up = (0, 0, −1)`
   (`basis("plan")`: eye `(0, 1, 0)`, screen right `(1, 0, 0)`, screen up `(0, 0, −1)`); the Buildings view from
   `ELEVATION` 30° and `YAW` 45° (`basis("buildings")`: eye `(cos30·sin45, sin30, cos30·cos45)`, `up = (0, 1, 0)`). A
-  `View` is `{ centre, zoom }`; `project`, `pan`, `fit`, `framed`, `onKey`, `declutter` and `unproject` take the mode,
-  plan by default, so switching keeps the centre and the zoom. Zoom fits the bounds' four corners on load and on `0`.
+  `View` is `{ centre, zoom, yaw?, tilt? }`: the Buildings view's turn (default `YAW`, `ELEVATION`;
+  `basis(mode, turn)`), ignored in plan view; `project`, `pan`, `fit`, `framed`, `onKey`, `declutter` and `unproject`
+  take the mode, plan by default, so switching keeps the centre and the zoom. Zoom fits the bounds' four corners on load
+  and on `0`.
 - Hover: `hitAt(index, view, viewport, pointer, mode, heights)` picks the ground in plan view (a lot's top lies over its
   footprint); in the Buildings view it walks the view ray down from the tallest top in steps of `RAY_STEP` 0.1 u and
   answers the first lot whose building reaches that height, else the ground. The hover card is described under Hover
