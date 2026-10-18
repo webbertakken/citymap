@@ -361,6 +361,7 @@ member of its kind of folder as a town of its own, a separate town, joined by a 
 - In the fold, a moved gitlink changes the submodule's files by the difference between its pinned tree as last laid and
   its pinned tree now: files born, deleted, and renamed exactly (equal blob ids), as any commit's files. A window reads
   each moved submodule once, at its end; the submodule's own commits are never folded.
+- Every pin move is read, whatever `.gitmodules` says to ignore, and in a clone that does not hold `.gitmodules` too.
 - A submodule whose pinned commit cannot be read (not initialised, not fetched, on a host not reached) is one file,
   `.gitlink`, in its folder, and the log names it; it keeps its identity while the pin moves. Its separate town is a
   single lot.

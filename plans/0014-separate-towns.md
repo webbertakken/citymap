@@ -116,6 +116,8 @@ rebased.
       the worker lays with the separations; `measures/done` counts what the section holds in Rust too
 - [ ] `bun run check`; `bun run parity` in every mode (state, fold, resume, checkout, coverage) and with separations
       (each alone, none), plus a repository with submodules
+- [x] Every pin read whatever `.gitmodules` says to ignore, and in a blob-less clone that does not hold it
+      (`--ignore-submodules=none`, both CLIs; found by parity's partial mode on rust)
 - [x] End to end (`CITYMAP_E2E_PORT=5198`; 120 passed, 46 skipped by device, 0 failed); screenshots of separated towns
       in plan and Buildings views, light and dark
 - [ ] PR description updated

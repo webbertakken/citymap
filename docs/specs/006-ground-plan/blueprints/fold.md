@@ -38,10 +38,13 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
 
 - `readHistory(repoDir, { from?, to = "HEAD", strides? })` yields snapshots, oldest first, of the commits the fold
   schedule lays (§ Fold schedule), from **one** streaming process:
-  `git -c core.quotepath=off log --first-parent --reverse --diff-merges=first-parent --raw -z --no-renames --no-abbrev --format=%x01%H <commit> --`.
-  Arguments are an array; `repoDir` must be an existing directory (`history/not-a-repo`). Before the log, `to` is
-  resolved to its commit (`resolveCommit`) and the commits are counted on that commit (`countCommits`), so the count and
-  the log walk the same history even when a ref moves.
+  `git -c core.quotepath=off log --first-parent --reverse --diff-merges=first-parent --raw -z --no-renames --ignore-submodules=none --no-abbrev --format=%x01%H%x02%ct%x02%ae%x02%an <commit> --`.
+  `--ignore-submodules=none` keeps git from reading `.gitmodules` for each submodule's `ignore` setting: a blob-less
+  clone without a checkout does not hold that blob (the log would fail), and a submodule set to `ignore = all` would
+  vanish from the fold; every gitlink change is read, whatever `.gitmodules` says. Arguments are an array; `repoDir`
+  must be an existing directory (`history/not-a-repo`). Before the log, `to` is resolved to its commit (`resolveCommit`)
+  and the commits are counted on that commit (`countCommits`), so the count and the log walk the same history even when
+  a ref moves.
 - Every commit applies to the tree state; a commit the schedule does not lay builds no snapshot.
 - The tree state is a sorted map path → { blob, identity, firstSeen }; each commit's raw entries apply in order: `A`
   adds (identity `${path}@${index}`), `D` deletes, `M`/`T` keep identity. Exact renames: within one commit, deleted and
