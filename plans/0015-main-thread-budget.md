@@ -63,6 +63,6 @@ Where main's time goes on the phone journey (livediagram, slowed fourfold, profi
 - [x] Unit tests at 100 %; `bun run check`
 - [ ] End-to-end: the full suite; the opening spec against main; the phone budget passes 20 of 20 runs twice
       (alternating with main); linux's buildings budget
-- [ ] Screenshots before and after (dark and light)
-- [ ] Fold-back: spec and blueprint reconciled to what shipped; every symbol, file and reference checked
+- [x] Screenshots before and after (dark and light)
+- [x] Fold-back: spec and blueprint reconciled to what shipped; every symbol, file and reference checked
 - [ ] PR with the measurements (not merged)

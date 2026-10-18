@@ -687,15 +687,20 @@ width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in `packages/scene`), `ELEVA
   dispose the old one first, so three.js would delete the program and link another, which the browser compiles inside
   the next frame (40 to 50 ms of drawing against 17 ms on the slowed phone). Traced after: no program is linked on a
   switch of view, a colour, a drill or going back.
-- Opening anything: the worker reads or lays the city, builds its scene and its pick grid, and hands their buffers over;
-  the main thread parses the city file's text once, attaches the grid, draws, and builds the search index in slices. The
+- Opening anything: the city's worker reads or lays the city, makes its first look (a lot table and the whole city's
+  scene), its pick grid, floors and roofs, and hands their buffers over; the city crosses in pieces, each received and
+  parsed in a task of its own; the main thread attaches the grid, draws, and builds the search index in slices. The
   card's sweep runs on the compositor meanwhile. The loading card shifts nothing and its Cancel answers within the
-  budget (`vitals.spec.ts`). On the slowed phone (medians of three runs, alternating with the main thread building both
-  indexes, the scene and the city's validation itself): livediagram's longest task 68 ms (was 188 ms), its Quarters
-  layout none over 50 ms (was 137 ms), linux from a city file 763 ms (was 2,097 ms), linux from GitHub 749 ms (was 1,342
-  ms). What remains for linux is parsing its 43 MB city file on the main thread (about 290 ms there) and the buildings'
-  lot table built from its measures (`cityBuildings`, `tableFor`: about 450 ms over the opening), neither of them an
-  index.
+  budget (`vitals.spec.ts`). On the slowed phone (medians of three runs, alternating with the viewer before the city's
+  worker, under heavy machine load): livediagram's longest task 50 ms (was 79 ms), its Quarters layout 55 ms (was 64
+  ms), linux from a city file 438 ms (was 962 ms), linux from GitHub 519 ms (was 883 ms). What remains for linux is its
+  first frame (uploading about 1.5 million vertices and, headless, reading the drawn canvas back) and handing its 43 MB
+  text to the worker (about 100 ms).
+- The phone budget (`vitals.spec.ts`), alternating with the viewer before the city's worker, run by run, under heavy
+  machine load (calibration work 45 to 138 ms against the reference 43): 17, 16, 18 and 16 of 20 passed, against 11, 12,
+  10 and 15; slowest answer medians 128 to 168 ms against 176 to 200 ms. Every run whose calibration work stayed under
+  50 ms passed (11 of 11); the misses came with a machine slower than the phone, where drawing in software on contended
+  cores is not slowed in step with the main thread.
 - `e2e/vitals-opening.spec.ts` (the vitals projects; phone only, and only where a phone can be timed) records `longtask`
   entries before the page's scripts run and reports, per opening, the longest main-thread task and the blocking time
   (the time beyond 50 ms of every task) on the slowed phone: livediagram from More, then its Quarters layout, asserted
