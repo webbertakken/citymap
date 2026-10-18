@@ -5,15 +5,25 @@ import {
   settingKey,
   layCity,
   parseLock,
-  serialiseCity,
   serialiseLock,
   type City,
   type FoldState,
   type Options,
+  type Snapshot,
 } from "@citymap/ground-plan";
-import { FOLD_STRIDES, isAncestor, readHistory, readTree, resolveCommit, type Strides } from "@citymap/history";
+import {
+  FOLD_STRIDES,
+  FileHistory,
+  isAncestor,
+  readHistory,
+  readTree,
+  resolveCommit,
+  type Strides,
+} from "@citymap/history";
+import { serialiseCityFile } from "@citymap/measures";
 import { renderCity } from "@citymap/svg";
 import type { LayCommand } from "./args";
+import { measureCity, readNamedReports } from "./measures";
 
 /** The outside world the CLI touches, injected so runs are testable. */
 export interface Io {
@@ -75,9 +85,13 @@ export async function runLay(
     toggles: command.toggles,
   };
   const target = await resolveCommit(repo, command.to);
+  // Named reports are read first, so a bad one fails before the fold.
+  const named = command.measures ? readNamedReports(repo, command.coverage, io) : [];
+  const fileHistory = command.measures && command.history ? new FileHistory() : null;
   const lock = command.history ? await readLock(repo, target, options, io) : null;
   let state = lock?.state ?? initialState(options);
   let city: City | null = null;
+  let last: Snapshot | null = null;
   let laidCount = 0;
   let index = 0;
   const onEvent = (e: { code: string; detail: Readonly<Record<string, string | number>> }) =>
@@ -88,7 +102,13 @@ export async function runLay(
   };
   // One state, every file at once; or the history, folded on its schedule from the lock or the first commit.
   const snapshots = command.history
-    ? readHistory(repo, { to: target, ...(lock ? { from: lock.index } : {}), strides, onEvent })
+    ? readHistory(repo, {
+        to: target,
+        ...(lock ? { from: lock.index } : {}),
+        strides,
+        onEvent,
+        ...(fileHistory ? { fileHistory } : {}),
+      })
     : (async function* () {
         yield await readTree(repo, target, { onEvent });
       })();
@@ -96,6 +116,7 @@ export async function runLay(
     const laid = layCity(snapshot, state, options);
     state = laid.state;
     city = laid.city;
+    last = snapshot;
     index = snapshot.index;
     laidCount++;
     // The lock's own commit is laid again to restore the towns as they stood; its decisions are already in the plat.
@@ -105,7 +126,20 @@ export async function runLay(
   const laid = city!;
   const lots = laid.towns.reduce((sum, t) => sum + t.stats.lots, 0);
   const overflow = laid.towns.reduce((sum, t) => sum + t.stats.overflow, 0);
-  if (command.out) io.writeFile(command.out, serialiseCity(laid));
+  const measures =
+    command.measures && command.out
+      ? await measureCity({
+          repo,
+          target,
+          city: laid,
+          plat: state.plat,
+          snapshot: last!,
+          history: fileHistory,
+          named,
+          io,
+        })
+      : null;
+  if (command.out) io.writeFile(command.out, serialiseCityFile({ city: laid, measures }));
   if (command.svg)
     io.writeFile(
       command.svg,

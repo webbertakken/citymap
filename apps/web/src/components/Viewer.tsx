@@ -1,6 +1,7 @@
 "use client";
 import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } from "@citymap/ground-plan";
-import { buildScene, folderHit, pick, pickIndex, type Hit, type Scene } from "@citymap/scene";
+import type { Measures } from "@citymap/measures";
+import { buildScene, folderHit, pick, pickIndex, type ColourBy, type Hit, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import {
   startTransition,
@@ -14,6 +15,7 @@ import {
   type ComponentType,
 } from "react";
 import type { GitHubSource } from "../card/github";
+import { measureRows } from "../card/measures";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
 import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
@@ -25,15 +27,18 @@ import { afterPaint } from "../load/paint";
 import { loadingStatus, useLoading, type Job } from "../load/useLoading";
 import type { LocalPorts } from "../local/ports";
 import { log, reasonOf } from "../log";
+import type { LiveFacts } from "../measures/live";
 import { searchIndex, type SearchEntry } from "../search/search";
+import { buildingOf, cityBuildings, colourFor, tableFor } from "../view/buildings";
 import { FLY_MS, between, ease, flyTo } from "../view/fly";
 import { insetsFor } from "../view/insets";
-import { fit, onKey, type View, type Viewport } from "../view/view";
+import { fit, onKey, type Mode, type View, type Viewport } from "../view/view";
 import { Drawer } from "./Drawer";
 import { Legend } from "./Legend";
 import { LoadingCard } from "./LoadingCard";
 import { LocalButton } from "./LocalButton";
 import { MapView, type CanvasProps } from "./MapView";
+import { MeasureRows, type RowsOf } from "./MeasureRows";
 import { Notice } from "./Notice";
 import { SearchBox } from "./SearchBox";
 import { TitleCard } from "./TitleCard";
@@ -85,6 +90,8 @@ type Origin =
       readonly via: "github" | "local";
       readonly name: string;
       readonly snapshot: Snapshot;
+      /** What the source told of its files, so another layout keeps the same measures. */
+      readonly facts: LiveFacts;
       /** What the status says of it: a single state. */
       readonly note: string;
       /** The tab's title, when it is not the name (a local repository's stays private). */
@@ -98,10 +105,21 @@ interface Shown {
   readonly name: string;
   readonly file: string;
   readonly origin: Origin;
+  /** The city's measures, beside its layout; null for a city file written without them. */
+  readonly measures: Measures | null;
   readonly prebuilt?: Drawn | null;
   readonly title?: string;
   readonly relaid?: boolean;
 }
+
+/** What GitHub's tree tells of each file: its size in bytes, with no request more. */
+const githubFacts = (sizes: ReadonlyMap<string, number>): LiveFacts => ({
+  source: "github",
+  size: "bytes",
+  comments: false,
+  files: new Map([...sizes].map(([path, bytes]) => [path, { bytes }])),
+  coverage: new Map(),
+});
 
 /** The city with only the town of that key, and no highways. */
 export const focusOn = (city: City, key: string): City => ({
@@ -129,6 +147,10 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const [origin, setOrigin] = useState<Origin | null>(null);
   const [selected, setSelected] = useState("");
   const [city, setCity] = useState<City | null>(null);
+  const [measures, setMeasures] = useState<Measures | null>(null);
+  // How the map is seen, and what the colours mean: plan and folder on every visit.
+  const [mode, setMode] = useState<Mode>("plan");
+  const [colourAsked, setColourBy] = useState<ColourBy>("folder");
   const [status, setStatus] = useState("Loading the cities…");
   const [error, setError] = useState("");
   // The person's choice of theme, else Night atlas when the system prefers dark, else Paper atlas.
@@ -160,9 +182,24 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const [drawer, setDrawer] = useState<boolean | null>(null);
   const insets = useMemo(() => insetsFor(viewport, drawer), [viewport, drawer]);
   const view = useMemo(
-    () => (fitted && scene ? fit(scene.bounds, viewport, insets) : moved),
-    [fitted, scene, viewport, insets, moved],
+    () => (fitted && scene ? fit(scene.bounds, viewport, insets, mode) : moved),
+    [fitted, scene, viewport, insets, moved, mode],
   );
+  // Each lot's measures together, the lot table the buildings are drawn from, and the cards' measure rows.
+  const buildings = useMemo(() => cityBuildings(measures), [measures]);
+  const colourBy = colourFor(colourAsked, measures);
+  const drawnTable = useMemo(
+    () => (scene ? tableFor(scene, buildings, colourBy, THEMES[theme]) : null),
+    [scene, buildings, colourBy, theme],
+  );
+  const rowsOf: RowsOf = useCallback(
+    (hit: Hit) =>
+      hit.kind === "lot" && !hit.vacant
+        ? measureRows(buildingOf(buildings, hit.townKey, hit.key), buildings.measures, Date.now())
+        : [],
+    [buildings],
+  );
+  const uses = useMemo(() => [...new Set(scene?.buildings.order.map((ref) => ref.use))], [scene]);
   const [picked, setPickedHit] = useState<Hit | null>(null);
   // Where a search took the person: a marker over the map, until the selection changes.
   const [marker, setMarker] = useState<{ x: number; z: number } | null>(null);
@@ -214,9 +251,9 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const goTo = (entry: SearchEntry, { bounds, picking }: NonNullable<typeof finder>) => {
     const leaving = focus !== null && focus !== entry.townKey;
     if (leaving) setFocus(null);
-    const whole = fit(bounds, viewport, insets);
+    const whole = fit(bounds, viewport, insets, mode);
     const from = leaving ? whole : view;
-    flyView(from, flyTo(viewport, entry, whole, insets));
+    flyView(from, flyTo(viewport, entry, whole, insets, mode));
     const hit: Hit | null =
       entry.kind === "file" ? pick(picking, entry.x, entry.z) : folderHit(picking, entry.townKey, entry.path);
     setPickedHit(hit);
@@ -246,6 +283,15 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
       await afterPaint();
       job.signal.throwIfAborted();
       setDrawn(prebuilt && { city: next, ...prebuilt });
+      setMeasures(how.measures);
+      if (how.measures)
+        log.info("viewer/measures", {
+          source: how.measures.source,
+          size: how.measures.size,
+          tested: how.measures.tested,
+          lots: Object.values(how.measures.lots).reduce((n, byKey) => n + Object.keys(byKey).length, 0),
+        });
+      else log.info("viewer/measures-none", { name });
       show(next, name, title, relaid);
       setOrigin(from);
       setSelected(file);
@@ -261,7 +307,13 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
       const job = begin("bundled", entry.name);
       try {
         const next = await loadCity(fetcher, entry, layout, basePath, { signal: job.signal, onStep: job.step });
-        await draw(job, next, { name: entry.name, file: entry.name, relaid, origin: { kind: "bundled", entry } });
+        await draw(job, next.city, {
+          name: entry.name,
+          file: entry.name,
+          relaid,
+          origin: { kind: "bundled", entry },
+          measures: next.measures,
+        });
       } catch (failure) {
         if (isAbort(failure)) return;
         job.failed();
@@ -285,7 +337,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         const load = begin("github", name);
         job = load;
         let requests = 0;
-        const snapshot = await readRepository(github, repo, {
+        const { snapshot, sizes } = await readRepository(github, repo, {
           signal: load.signal,
           onStep: (step) => {
             requests = step.requests;
@@ -293,9 +345,10 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
           },
         });
         load.step({ phase: "lay", files: snapshot.files.length });
-        const laid = await lay(snapshot, { signal: load.signal, onProgress: load.step, theme, toggles });
-        const from: Origin = { kind: "live", via: "github", name, snapshot, note: GITHUB_STATUS, title: name };
-        await draw(load, laid.city, { name, file: "", prebuilt: laid.scene, origin: from });
+        const facts = githubFacts(sizes);
+        const laid = await lay(snapshot, { signal: load.signal, onProgress: load.step, theme, toggles, facts });
+        const from: Origin = { kind: "live", via: "github", name, snapshot, facts, note: GITHUB_STATUS, title: name };
+        await draw(load, laid.city, { name, file: "", prebuilt: laid.scene, origin: from, measures: laid.measures });
         setStatus((done) => `${done} · ${GITHUB_STATUS}`);
         log.info("viewer/github-read", {
           repo: name,
@@ -323,20 +376,43 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     status,
     setStatus,
     setError,
-    present: async (job, laid, name, snapshot) => {
-      const from: Origin = { kind: "live", via: "local", name, snapshot, note: LOCAL_STATUS, title: LOCAL_TITLE };
-      await draw(job, laid.city, { name, file: "", prebuilt: laid.scene, title: LOCAL_TITLE, origin: from });
+    present: async (job, laid, name, snapshot, facts) => {
+      const from: Origin = {
+        kind: "live",
+        via: "local",
+        name,
+        snapshot,
+        facts,
+        note: LOCAL_STATUS,
+        title: LOCAL_TITLE,
+      };
+      await draw(job, laid.city, {
+        name,
+        file: "",
+        prebuilt: laid.scene,
+        title: LOCAL_TITLE,
+        origin: from,
+        measures: laid.measures,
+      });
       setStatus((done) => `${done} · ${LOCAL_STATUS}`);
     },
   });
   // A live repository's snapshot laid again with other toggles, off the main thread.
   const relay = async (live: Extract<Origin, { kind: "live" }>, layout: readonly Toggle[]) => {
-    const { via, name, snapshot, note, title } = live;
+    const { via, name, snapshot, facts, note, title } = live;
     const job = begin(via, name);
     try {
       job.step({ phase: "lay", files: snapshot.files.length });
-      const laid = await lay(snapshot, { signal: job.signal, onProgress: job.step, theme, toggles: layout });
-      await draw(job, laid.city, { name, file: "", prebuilt: laid.scene, title, relaid: true, origin: live });
+      const laid = await lay(snapshot, { signal: job.signal, onProgress: job.step, theme, toggles: layout, facts });
+      await draw(job, laid.city, {
+        name,
+        file: "",
+        prebuilt: laid.scene,
+        title,
+        relaid: true,
+        origin: live,
+        measures: laid.measures,
+      });
       setStatus((done) => `${done} · ${note}`);
     } catch (failure) {
       if (isAbort(failure)) return;
@@ -377,7 +453,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     const job = begin("file", file.name);
     try {
       const next = await readCityFile(file, { signal: job.signal, onStep: job.step });
-      await draw(job, next, { name: file.name, file: "", origin: { kind: "file" } });
+      await draw(job, next.city, { name: file.name, file: "", origin: { kind: "file" }, measures: next.measures });
     } catch (failure) {
       if (isAbort(failure)) return;
       job.failed();
@@ -418,94 +494,123 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
     if (carded) window.addEventListener("keydown", escape, { capture: true });
     return () => window.removeEventListener("keydown", escape, { capture: true });
   }, [carded, cancel]);
+  const changeMode = (next: Mode) => {
+    log.info("viewer/mode", { mode: next });
+    cancelAnimationFrame(flight.current);
+    setMode(next);
+  };
+  const changeColour = (next: ColourBy) => {
+    log.info("viewer/colour-by", { by: next });
+    startTransition(() => setColourBy(next));
+  };
   return (
-    <main className="viewer" style={{ background: colours.country }} data-theme={theme} data-loading={loading.shown}>
-      {scene && city && index ? (
-        <MapView
-          name={city.repository}
-          scene={scene}
-          index={index}
-          onSelect={setPicked}
-          onEscape={() => {
-            // Escape clears the selection, else leaves the town for the whole city.
-            if (picked) setPicked(null);
-            else if (focus !== null) drill(null);
-          }}
-          view={view}
-          insets={insets}
-          marker={marker}
-          theme={colours}
+    <main
+      className="viewer"
+      style={{ background: colours.country }}
+      data-theme={theme}
+      data-loading={loading.shown}
+      data-mode={mode}
+    >
+      <MeasureRows value={rowsOf}>
+        {scene && city && index && drawnTable ? (
+          <MapView
+            name={city.repository}
+            scene={scene}
+            index={index}
+            onSelect={setPicked}
+            onEscape={() => {
+              // Escape clears the selection, else leaves the town for the whole city.
+              if (picked) setPicked(null);
+              else if (focus !== null) drill(null);
+            }}
+            view={view}
+            insets={insets}
+            marker={marker}
+            theme={colours}
+            mode={mode}
+            table={drawnTable.table}
+            heights={drawnTable.heights}
+            focused={focus !== null}
+            github={source !== null}
+            Canvas={Canvas}
+            onView={settle}
+            onViewport={setViewport}
+          />
+        ) : (
+          <div className="map empty" />
+        )}
+        <TitleCard
+          title={city?.repository ?? "citymap"}
+          status={statusLine}
+          town={town?.towns[0]!.name ?? null}
+          onWhole={() => drill(null)}
+        />
+        <div className="finder">
+          <SearchBox
+            index={finder?.search ?? null}
+            // Matches come only from `finder`'s index, so `finder` is there whenever one is picked.
+            onPick={(entry) => goTo(entry, finder!)}
+            onRepository={(name) => void openRepository(name)}
+            suggester={suggester}
+            allowance={allowance}
+          />
+          <LocalButton local={local} />
+        </div>
+        {loading.shown && loading.progress && (
+          <LoadingCard progress={loading.progress} now={loading.now} onCancel={loading.cancel} />
+        )}
+        <ViewControls
+          mode={mode}
+          onMode={changeMode}
+          theme={theme}
+          cities={cities}
+          selected={selected}
+          // The menu closes in the next frame; the map redraws in its new colours after it.
+          onTheme={(next) => startTransition(() => setTheme(next))}
+          onCity={(entry) => void open(entry, toggles)}
+          onFile={(file) => void openFile(file)}
+          local={local}
+          toggles={toggles}
+          fixed={origin?.kind === "file"}
+          onToggle={toggle}
+        />
+        {local.input}
+        <Drawer
+          city={shown}
+          settled={statusLine === ""}
+          selected={picked}
           focused={focus !== null}
-          github={source !== null}
-          Canvas={Canvas}
-          onView={settle}
-          onViewport={setViewport}
-        />
-      ) : (
-        <div className="map empty" />
-      )}
-      <TitleCard
-        title={city?.repository ?? "citymap"}
-        status={statusLine}
-        town={town?.towns[0]!.name ?? null}
-        onWhole={() => drill(null)}
-      />
-      <div className="finder">
-        <SearchBox
-          index={finder?.search ?? null}
-          // Matches come only from `finder`'s index, so `finder` is there whenever one is picked.
-          onPick={(entry) => goTo(entry, finder!)}
-          onRepository={(name) => void openRepository(name)}
-          suggester={suggester}
-          allowance={allowance}
-        />
-        <LocalButton local={local} />
-      </div>
-      {loading.shown && loading.progress && (
-        <LoadingCard progress={loading.progress} now={loading.now} onCancel={loading.cancel} />
-      )}
-      <ViewControls
-        theme={theme}
-        cities={cities}
-        selected={selected}
-        // The menu closes in the next frame; the map redraws in its new colours after it.
-        onTheme={(next) => startTransition(() => setTheme(next))}
-        onCity={(entry) => void open(entry, toggles)}
-        onFile={(file) => void openFile(file)}
-        local={local}
-        toggles={toggles}
-        fixed={origin?.kind === "file"}
-        onToggle={toggle}
-      />
-      {local.input}
-      <Drawer
-        city={shown}
-        settled={statusLine === ""}
-        selected={picked}
-        focused={focus !== null}
-        open={drawer}
-        onOpen={(next) => {
-          log.info("viewer/drawer", { open: next ? "open" : "closed" });
-          setDrawer(next);
-        }}
-        onDrill={drill}
-        github={source}
-        onFailure={setError}
-      />
-      {scene && (
-        <ZoomControls
-          onKey={(key) => {
-            if (key === "0") {
-              cancelAnimationFrame(flight.current);
-              setFitted(true);
-              return;
-            }
-            settle(onKey(key, view, viewport, scene.bounds, insets)!);
+          open={drawer}
+          onOpen={(next) => {
+            log.info("viewer/drawer", { open: next ? "open" : "closed" });
+            setDrawer(next);
           }}
+          onDrill={drill}
+          github={source}
+          onFailure={setError}
         />
-      )}
-      <Legend theme={colours} />
-      {error && <Notice message={error} onDismiss={() => setError("")} />}
+        {scene && (
+          <ZoomControls
+            onKey={(key) => {
+              if (key === "0") {
+                cancelAnimationFrame(flight.current);
+                setFitted(true);
+                return;
+              }
+              settle(onKey(key, view, viewport, scene.bounds, insets, mode)!);
+            }}
+          />
+        )}
+        <Legend
+          theme={colours}
+          mode={mode}
+          colourBy={colourBy}
+          onColourBy={changeColour}
+          city={buildings}
+          uses={uses}
+        />
+        {error && <Notice message={error} onDismiss={() => setError("")} />}
+      </MeasureRows>
     </main>
   );
 }

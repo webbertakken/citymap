@@ -7,6 +7,7 @@
       "dependencies": {
         "@citymap/ground-plan": "workspace:*",
         "@citymap/history": "workspace:*",
+        "@citymap/measures": "workspace:*",
         "@citymap/svg": "workspace:*",
         "@citymap/themes": "workspace:*",
       },
@@ -32,6 +33,7 @@
       "dependencies": {
         "@citymap/ground-plan": "workspace:*",
         "@citymap/history": "workspace:*",
+        "@citymap/measures": "workspace:*",
         "@citymap/svg": "workspace:*",
         "@citymap/themes": "workspace:*",
       },
@@ -42,6 +44,7 @@
       "dependencies": {
         "@citymap/ground-plan": "workspace:*",
         "@citymap/history": "workspace:*",
+        "@citymap/measures": "workspace:*",
         "@citymap/scene": "workspace:*",
         "@citymap/themes": "workspace:*",
         "@fontsource-variable/inter": "5.3.0",
@@ -84,11 +87,20 @@
         "@citymap/ground-plan": "workspace:*",
       },
     },
+    "packages/measures": {
+      "name": "@citymap/measures",
+      "version": "0.0.0",
+      "dependencies": {
+        "@citymap/ground-plan": "workspace:*",
+        "valibot": "1.5.0",
+      },
+    },
     "packages/scene": {
       "name": "@citymap/scene",
       "version": "0.0.0",
       "dependencies": {
         "@citymap/ground-plan": "workspace:*",
+        "@citymap/measures": "workspace:*",
         "@citymap/themes": "workspace:*",
       },
     },
@@ -136,6 +148,8 @@
     "@citymap/ground-plan": ["@citymap/ground-plan@workspace:packages/ground-plan"],
 
     "@citymap/history": ["@citymap/history@workspace:packages/history"],
+
+    "@citymap/measures": ["@citymap/measures@workspace:packages/measures"],
 
     "@citymap/scene": ["@citymap/scene@workspace:packages/scene"],
 

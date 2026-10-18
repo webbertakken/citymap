@@ -11,6 +11,9 @@
       "path": "packages/history"
     },
     {
+      "path": "packages/measures"
+    },
+    {
       "path": "packages/svg"
     },
     {

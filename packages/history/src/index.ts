@@ -24,3 +24,15 @@ export {
 export { isManifest, patternsOf, resolveWorkspaces, type Patterns } from "./manifests";
 export { gitEnvironment } from "./env";
 export { readTree, type TreeOptions } from "./tree";
+export { FileHistory, type FileFacts } from "./file-history";
+export {
+  emailOf,
+  parseMailmap,
+  readMailmap,
+  type Author,
+  type Mailmap,
+  type MailmapRead,
+  type MailmapStatus,
+} from "./mailmap";
+export { listTree, readBlobs, type TreeFile } from "./contents";
+export type { OnBlob } from "./blobs";

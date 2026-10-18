@@ -7,6 +7,7 @@ import { describeHit } from "../card/describe";
 import type { GitHubSource } from "../card/github";
 import { Actions } from "./Actions";
 import { CardBody } from "./CardBody";
+import { useMeasureRows } from "./MeasureRows";
 
 /** The towns listed before "Show all": the largest by lots. */
 export const TOWNS_SHOWN = 7;
@@ -32,7 +33,8 @@ export interface DrawerProps {
 export function Drawer({ city, settled, selected, focused, open, onOpen, onDrill, github, onFailure }: DrawerProps) {
   const [all, setAll] = useState(false);
   const hint = useId();
-  const card = selected ? describeHit(selected) : null;
+  const rowsOf = useMeasureRows();
+  const card = selected ? describeHit(selected, rowsOf(selected)) : null;
   const towns = (city?.towns ?? []).toSorted((a, b) => b.stats.lots - a.stats.lots);
   const shown = all ? towns : towns.slice(0, TOWNS_SHOWN);
   const state = open === null ? "auto" : String(open);

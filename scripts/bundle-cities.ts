@@ -1,17 +1,24 @@
-// Lays the viewer's bundled cities: every combination of the toggles (16 variants) for each public city, folded by the
-// Rust CLI from its clone under ~/.cache/citymap/repos (or $CITYMAP_REPOS), into apps/web/public/cities/<name>/, with
-// an index. Only the public repositories named here are bundled. Run it under PM2: it folds 96 histories.
-// Usage: bun scripts/bundle-cities.ts
+// Lays the viewer's bundled cities: every combination of the toggles (16 variants) for each public city pinned in
+// `BUNDLED`, folded by the Rust CLI from a fresh clone at its pinned commit, into apps/web/public/cities/<name>/, with an
+// index. The Pages workflow runs it before building the site; the cities are not committed. Locally, run it under PM2.
+// Usage: bun run bundle
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { parseCity } from "@citymap/ground-plan";
-import { combinations, indexEntry, layArgs, summary, variantFile, variantName } from "./bundle/bundle.ts";
+import { parseCityFile } from "@citymap/measures";
+import {
+  BUNDLED,
+  cloneArgs,
+  combinations,
+  indexEntry,
+  layArgs,
+  summary,
+  variantFile,
+  variantName,
+} from "./bundle/bundle.ts";
 
-const PUBLIC = ["takken.io", "redux", "game-ci-cli", "studio-worker", "livediagram", "react"] as const;
 const root = join(import.meta.dirname, "..");
-const repos = process.env.CITYMAP_REPOS ?? join(homedir(), ".cache/citymap/repos");
 const target = join(root, "apps/web/public/cities");
 const cli = join(root, "rust/target/release/citymap");
 
@@ -22,21 +29,28 @@ function run(command: string[], cwd = root) {
 }
 
 run(["cargo", "build", "--release", "--quiet", "-p", "citymap-cli"], join(root, "rust"));
-// Each repository is folded from its own shared clone, so no lockfile in the cache is read or written.
+// Each repository is cloned afresh and checked out at its pinned commit, so its files are present for the measures and
+// a local run writes the same bytes as the Pages workflow.
+rmSync(target, { recursive: true, force: true });
 const scratch = mkdtempSync(join(tmpdir(), "citymap-bundle-"));
 const sizes: { bytes: number; gzip: number }[] = [];
 const index = [];
 try {
-  for (const name of PUBLIC) {
+  for (const { name, url, commit } of BUNDLED) {
     const clone = join(scratch, name);
-    run(["git", "clone", "--shared", "--no-checkout", "--quiet", join(repos, name), clone]);
+    const cloning = performance.now();
+    run(cloneArgs(url, clone));
+    run(["git", "-C", clone, "checkout", "--quiet", "--detach", commit]);
+    console.log(
+      `bundle/cloned name=${name} commit=${commit.slice(0, 12)} ms=${Math.round(performance.now() - cloning)}`,
+    );
     mkdirSync(join(target, name), { recursive: true });
     const variants = combinations().map((toggles) => {
       const out = join(target, variantFile(name, toggles));
       const started = performance.now();
-      run(layArgs(cli, clone, out, toggles));
+      run(layArgs(cli, clone, out, toggles, commit));
       const text = readFileSync(out, "utf8");
-      const lots = parseCity(text).towns.reduce((sum, t) => sum + t.stats.lots, 0);
+      const lots = parseCityFile(text).city.towns.reduce((sum, t) => sum + t.stats.lots, 0);
       const size = { bytes: Buffer.byteLength(text), gzip: gzipSync(text).length };
       sizes.push(size);
       console.log(

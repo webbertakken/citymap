@@ -63,8 +63,8 @@ describe("variantOf", () => {
 describe("loadCity and readCityFile", () => {
   it("parse a city, the bundled one in the variant the toggles name", async () => {
     const files = { "/cities/demo/quarters.json": serialiseCity(city) };
-    expect(await loadCity(fetcher(files), entryOf("demo", 0), ["quarters"])).toEqual(city);
-    expect(await readCityFile(new Blob([serialiseCity(city)]))).toEqual(city);
+    expect(await loadCity(fetcher(files), entryOf("demo", 0), ["quarters"])).toEqual({ city, measures: null });
+    expect(await readCityFile(new Blob([serialiseCity(city)]))).toEqual({ city, measures: null });
   });
 
   it("count the bytes as they arrive, of the length when it is known, then say they read the city", async () => {
@@ -75,7 +75,7 @@ describe("loadCity and readCityFile", () => {
       await loadCity(chunked(body, { "content-length": length }), entry, DEFAULT_TOGGLES, "", {
         onStep: (s) => steps.push(s),
       }),
-    ).toEqual(city);
+    ).toEqual({ city, measures: null });
     const size = Number(length);
     const half = Math.floor(size / 2);
     expect(steps).toEqual([
@@ -103,7 +103,7 @@ describe("loadCity and readCityFile", () => {
 
   it("read a body without a stream whole", async () => {
     const plain = async () => Object.assign(new Response(null), { text: async () => serialiseCity(city) });
-    expect(await loadCity(plain, entry, DEFAULT_TOGGLES)).toEqual(city);
+    expect(await loadCity(plain, entry, DEFAULT_TOGGLES)).toEqual({ city, measures: null });
   });
 
   it("stop when their signal aborts, while downloading or before reading", async () => {

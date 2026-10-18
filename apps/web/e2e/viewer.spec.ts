@@ -48,11 +48,11 @@ test("starts in Night atlas and a dark interface because the system prefers dark
   expect(ink).toBe("rgb(238, 241, 245)");
 });
 
-test("switches city and theme, in plan view only", async ({ page }) => {
+test("switches city and theme, starting in plan view", async ({ page }) => {
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("button", { name: /^redux/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("redux");
-  await expect(page.getByRole("button", { name: "3D" })).toHaveCount(0);
+  await expect(page.locator("main")).toHaveAttribute("data-mode", "plan");
   await chooseTheme(page, "Dracula");
   await expect(page.locator("main")).toHaveAttribute("data-theme", "dracula");
   await expect(page.getByRole("radio", { name: "Dracula" })).toBeHidden();
@@ -132,9 +132,11 @@ test("opens a city file, and keeps the last city when a file is not a city", asy
 
 test("reaches every control and the map by keyboard, and moves the map with keys", async ({ page, isMobile }) => {
   test.skip(isMobile, "keyboard journey on desktop");
-  const reached = await tabThrough(page, 9);
+  const reached = await tabThrough(page, 11);
   expect(reached.join(" | ")).toMatch(/Map of takken.io/);
   expect(reached.join(" | ")).toMatch(/Search files and folders/);
+  expect(reached.join(" | ")).toMatch(/Plan/);
+  expect(reached.join(" | ")).toMatch(/Buildings/);
   expect(reached.join(" | ")).toMatch(/Theme/);
   expect(reached.join(" | ")).toMatch(/Layout/);
   expect(reached.join(" | ")).toMatch(/More/);
@@ -152,7 +154,16 @@ test("reaches every control and the map by keyboard, and moves the map with keys
     .toBeCloseTo(before?.x ?? 0, 0);
 });
 
-const CARDS = [".card-title", ".search", ".controls", ".zoom", ".legend", ".drawer", ".details-button"];
+const CARDS = [
+  ".card-title",
+  ".search",
+  ".controls",
+  ".zoom",
+  ".legend",
+  ".legend-button",
+  ".drawer",
+  ".details-button",
+];
 
 /** Every pair of visible cards whose boxes meet. */
 async function overlapping(page: Page): Promise<string[]> {
@@ -250,7 +261,7 @@ const EDGES: [string, string[]][] = [
   ["the bottom right corner", [...Array<string>(4).fill("ArrowLeft"), ...Array<string>(4).fill("ArrowUp")]],
   ["the top right corner", [...Array<string>(4).fill("ArrowLeft"), ...Array<string>(4).fill("ArrowDown")]],
   // The legend holds the very corner, so the place stops just above it.
-  ["the bottom left corner", [...Array<string>(4).fill("ArrowRight"), ...Array<string>(3).fill("ArrowUp")]],
+  ["the bottom left corner", [...Array<string>(4).fill("ArrowRight"), ...Array<string>(2).fill("ArrowUp")]],
   ["the top left corner", [...Array<string>(4).fill("ArrowRight"), ...Array<string>(4).fill("ArrowDown")]],
 ];
 

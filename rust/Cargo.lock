@@ -102,9 +102,11 @@ version = "0.0.0"
 dependencies = [
  "citymap-ground-plan",
  "citymap-history",
+ "citymap-measures",
  "citymap-svg",
  "citymap-themes",
  "mimalloc",
+ "serde_json",
 ]
 
 [[package]]
@@ -125,6 +127,15 @@ version = "0.0.0"
 dependencies = [
  "citymap-ground-plan",
  "regress",
+ "serde_json",
+]
+
+[[package]]
+name = "citymap-measures"
+version = "0.0.0"
+dependencies = [
+ "citymap-ground-plan",
+ "serde",
  "serde_json",
 ]
 

@@ -16,6 +16,8 @@ use citymap_ground_plan::{CitymapError, ErrorCode, Result};
 use crate::ancestry::{count_commits, resolve_commit};
 use crate::blobs::BlobReader;
 use crate::env::git_command;
+use crate::file_history::FileHistory;
+use crate::mailmap::{Author, Mailmap, MailmapStatus, read_mailmap};
 use crate::schedule::{FOLD_STRIDES, Strides, fold_schedule, is_laid, laid_count};
 use crate::workspaces::{Change, Workspaces};
 
@@ -30,6 +32,8 @@ pub enum HistoryEvent {
     SkipSubmodule { path: String, index: i64 },
     /// A root manifest's blob could not be read (a blob-less clone never fetches).
     ManifestUnavailable { path: String, index: i64 },
+    /// The target's `.mailmap`, read for a file history: what was found, and how many commit emails it has lines for.
+    Mailmap { status: MailmapStatus, entries: i64 },
     /// The fold schedule a read follows: the history's length, its zone boundaries, the first index and how many it lays.
     Schedule {
         commits: i64,
@@ -46,6 +50,7 @@ impl HistoryEvent {
         match self {
             Self::SkipSubmodule { .. } => "history/skip-submodule",
             Self::ManifestUnavailable { .. } => "history/manifest-unavailable",
+            Self::Mailmap { .. } => "history/mailmap",
             Self::Schedule { .. } => "history/schedule",
         }
     }
@@ -56,6 +61,9 @@ impl HistoryEvent {
         match self {
             Self::SkipSubmodule { path, index } | Self::ManifestUnavailable { path, index } => {
                 format!("{} path={path} index={index}", self.code())
+            }
+            Self::Mailmap { status, entries } => {
+                format!("{} status={} entries={entries}", self.code(), status.as_str())
             }
             Self::Schedule {
                 commits,
@@ -80,11 +88,38 @@ pub struct RawEntry {
     pub path: String,
 }
 
-/// One first-parent commit and its changes.
+/// One first-parent commit: its id, its committer time (epoch seconds), its author as written, and its changes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawCommit {
     pub sha: String,
+    pub time: i64,
+    pub author: Author,
     pub entries: Vec<RawEntry>,
+}
+
+/// The largest safe integer of a JavaScript number: a time beyond it reads 0, as the reference reads it.
+const MAX_SAFE: i64 = (1 << 53) - 1;
+
+/// A commit's header, "<sha>\x02<time>\x02<email>\x02<name>" after its \x01 mark: the name is the rest, so one holding a
+/// \x02 stays whole; a time that is no number reads 0.
+fn header_of(header: &str) -> RawCommit {
+    let mut parts = header.splitn(4, '\u{2}');
+    let sha = parts.next().unwrap_or("").to_owned();
+    let time = parts.next().unwrap_or("");
+    let seconds = if !time.is_empty() && time.bytes().all(|b| b.is_ascii_digit()) {
+        time.parse::<i64>().ok().filter(|t| *t <= MAX_SAFE).unwrap_or(0)
+    } else {
+        0
+    };
+    RawCommit {
+        sha,
+        time: seconds,
+        author: Author {
+            email: parts.next().unwrap_or("").to_owned(),
+            name: parts.next().unwrap_or("").to_owned(),
+        },
+        entries: vec![],
+    }
 }
 
 /// Parses git's `log --raw -z` tokens (split at NUL) into commits, one token at a time.
@@ -99,9 +134,8 @@ impl RawLogParser {
     pub fn push(&mut self, raw: &str) -> Result<Option<RawCommit>> {
         let token = raw.strip_prefix('\n').unwrap_or(raw);
         if let Some(header) = token.strip_prefix('\u{1}') {
-            let sha = header.get(..40).unwrap_or(header).to_owned();
             self.meta = None;
-            return Ok(self.current.replace(RawCommit { sha, entries: vec![] }));
+            return Ok(self.current.replace(header_of(header)));
         }
         if token.is_empty() {
             return Ok(None);
@@ -255,11 +289,12 @@ impl Tree {
     }
 }
 
-/// What the reader hands over, in order.
+/// What the reader hands over, in order; with `files` asked for, the files' history comes last.
 #[derive(Debug)]
 pub enum HistoryItem {
     Event(HistoryEvent),
     Snapshot(Snapshot),
+    Files(FileHistory),
 }
 
 /// Where and how to read.
@@ -274,6 +309,8 @@ pub struct ReadOptions {
     pub strides: Strides,
     /// The repository's display name; the folder name by default.
     pub repository: Option<String>,
+    /// Record every commit's changes by identity, for the files' own measures, handed over at the end.
+    pub files: bool,
 }
 
 impl Default for ReadOptions {
@@ -283,6 +320,7 @@ impl Default for ReadOptions {
             from: None,
             strides: FOLD_STRIDES,
             repository: None,
+            files: false,
         }
     }
 }
@@ -369,6 +407,16 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
     if send.send(Ok(HistoryItem::Event(chosen))).is_err() {
         return Ok(());
     }
+    let mut blobs = BlobReader::new(dir);
+    // The target's own .mailmap names the people, so the history alone decides who they are. Read before the log starts.
+    let mut mailmap = Mailmap::default();
+    if options.files {
+        let (read, event) = read_mailmap(dir, &head, &mut blobs)?;
+        if send.send(Ok(HistoryItem::Event(event))).is_err() {
+            return Ok(());
+        }
+        mailmap = read;
+    }
     let args = [
         "-c",
         "core.quotepath=off",
@@ -382,7 +430,8 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
         "-z",
         "--no-renames",
         "--no-abbrev",
-        "--format=%x01%H",
+        // The author as written: %aE would map it through the working tree's .mailmap.
+        "--format=%x01%H%x02%ct%x02%ae%x02%an",
         head.as_str(),
         "--",
     ];
@@ -406,8 +455,8 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
         files: None,
         folder_map: None,
     };
-    let mut blobs = BlobReader::new(dir);
     let mut parser = RawLogParser::default();
+    let mut files = options.files.then(FileHistory::default);
     let mut index = 0;
     let mut token = Vec::new();
     let mut lay = |commit: RawCommit, index: &mut i64| -> Result<bool> {
@@ -431,6 +480,9 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
         if tree.apply(&commit, *index, &mut on_event)? {
             tree.files = None;
             tree.folder_map = None;
+        }
+        if let Some(history) = files.as_mut() {
+            record_changes(history, &mailmap, &tree, &commit);
         }
         let snapshot = if laid(*index) {
             let workspaces = tree
@@ -488,8 +540,28 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
         .with("code", &code)
         .with("stderr", &first));
     }
-    if let Some(commit) = parser.finish() {
-        lay(commit, &mut index)?;
+    if let Some(commit) = parser.finish()
+        && !lay(commit, &mut index)?
+    {
+        return Ok(());
+    }
+    if let Some(history) = files {
+        let _ = send.send(Ok(HistoryItem::Files(history)));
     }
     Ok(())
+}
+
+/// Records a commit's changes to the files it leaves live, after it is applied, by the identities they carry, under the
+/// email the mailmap gives its author.
+fn record_changes(history: &mut FileHistory, mailmap: &Mailmap, tree: &Tree, commit: &RawCommit) {
+    let email = mailmap.email_of(&commit.author);
+    for entry in &commit.entries {
+        if entry.status == "D" || entry.mode == SUBMODULE {
+            continue;
+        }
+        // Applying the commit made every such path live.
+        if let Some(live) = tree.state.get(entry.path.as_str()) {
+            history.record(&live.identity, commit.time, email);
+        }
+    }
 }

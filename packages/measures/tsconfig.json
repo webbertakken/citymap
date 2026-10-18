@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "../../node_modules/.cache/tsc/measures",
+    "tsBuildInfoFile": "../../node_modules/.cache/tsc/measures.tsbuildinfo"
+  },
+  "include": ["src"],
+  "references": [{ "path": "../ground-plan" }]
+}

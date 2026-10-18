@@ -68,6 +68,11 @@ test.beforeAll(() => {
   fixtures.linked = join(root, "linked");
   fixtures.bare = join(root, "bare.git");
   execFileSync("git", ["init", "--quiet", "--bare", fixtures.bare], { env });
+  // A repository with a coverage report where Vitest writes it, outside what git tracks.
+  fixtures.covered = repository(root, "covered");
+  folder(fixtures.covered, "coverage", {
+    "lcov.info": "SF:packages/ui/src/button.tsx\nDA:1,1\nDA:2,0\nend_of_record\n",
+  });
   fixtures.site = folder(root, "site", {
     ".gitignore": "out/\n*.log\n",
     "index.html": "",
@@ -284,4 +289,36 @@ test("offers no local repository on a phone", async ({ page, isMobile }) => {
   await page.getByRole("button", { name: "More" }).click();
   await expect(page.getByRole("button", { name: /^Open a city file/ })).toBeVisible();
   await expect(page.getByRole("button", { name: PICK })).toHaveCount(0);
+});
+
+test.describe("a local repository's measures", () => {
+  test.skip(({ isMobile }) => isMobile, "a phone picks no folders");
+
+  test.beforeEach(async ({ page }) => {
+    await standInForTheDialog(page);
+    await page.goto("/");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
+  });
+
+  test("reads its files' lines and its coverage report, keeping both on the machine", async ({ page }, info) => {
+    await stage(page, "covered");
+    const leaks = watchRequests(page, "covered");
+    await openFolder(page);
+    await expect(page.locator(".status")).toContainText("local, single state, not folded");
+    await page.getByRole("searchbox").fill("button");
+    await page.keyboard.press("Enter");
+    const selected = page.getByRole("region", { name: "Selected" });
+    await expect(selected.getByRole("heading", { level: 3 })).toHaveText("button.tsx");
+    await expect(selected.getByText("50 %")).toBeVisible();
+    await expect(selected.getByText("Coverage report")).toBeVisible();
+    await expect(selected.locator(".hit-rows > div", { hasText: "Size" })).toContainText("1 line");
+    await page.getByRole("button", { name: /^Colour by/ }).click();
+    await expect(page.getByRole("radio", { name: "Size" })).toBeEnabled();
+    await expect(page.getByRole("radio", { name: /^Churn/ })).toHaveAccessibleDescription("Needs the CLI's history");
+    await page.getByRole("radio", { name: "Tested" }).click();
+    await page.getByRole("button", { name: "Buildings" }).click();
+    await drawn(page);
+    await page.screenshot({ path: info.outputPath("covered.png") });
+    expect(leaks).toEqual([]);
+  });
 });

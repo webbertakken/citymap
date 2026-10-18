@@ -5,6 +5,7 @@
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 mod args;
+mod measures;
 mod run;
 
 use std::io::Write as _;

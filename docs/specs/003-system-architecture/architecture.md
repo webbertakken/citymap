@@ -11,15 +11,17 @@ them to a surface.
 | Workspace              | Role                                                                                                                                                                                                                                                 |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/ground-plan` | The engine: tree snapshots in, plat and city model out. Pure, deterministic, integer core.                                                                                                                                                           |
-| `packages/history`     | Reads a git repository into tree snapshots (first-parent history, trees, exact renames).                                                                                                                                                             |
+| `packages/history`     | Reads a git repository into tree snapshots (first-parent history, trees, exact renames), each file's history, and a commit's contents without fetching.                                                                                              |
+| `packages/measures`    | Measures of a city's files: the city file's measures section, tests by name, languages and comments, coverage reports, and buildings and their scales. Pure.                                                                                         |
 | `packages/svg`         | Draws a city model as SVG, per theme.                                                                                                                                                                                                                |
 | `packages/scene`       | Turns a city model into Three.js geometry (instanced lots, merged roads), framework free.                                                                                                                                                            |
 | `apps/cli`             | `citymap`: a repository in, a city (JSON, SVG) and a lockfile out.                                                                                                                                                                                   |
 | `apps/web`             | The viewer: Next.js with React and react-three-fiber, drawing `packages/scene` output; a static export on GitHub Pages that also lays any public GitHub repository's single state in the browser, and a repository's folder on the person's machine. |
 | `rust/`                | The Rust implementation of the CLI and the packages it uses (below).                                                                                                                                                                                 |
 
-- Dependencies point one way: apps depend on packages; `svg` and `scene` depend on `ground-plan`'s model types only;
-  `history` and `ground-plan` do not know each other, and the apps join them.
+- Dependencies point one way: apps depend on packages; `svg` depends on `ground-plan`'s model types only, `scene` on
+  them and on `measures`; `measures` depends on `ground-plan` only; `history` and `ground-plan` do not know each other,
+  and the apps join them.
 - The research prototype in `docs/research/city-layout/variants/` stays as research; the packages are a fresh, tested
   implementation of the specs, not a move of the prototype.
 
@@ -27,7 +29,11 @@ them to a surface.
 
 ```text
 git repository ──history──▶ snapshots ──ground-plan fold──▶ plat ──ground-plan lay──▶ city model ──▶ svg │ scene
+      └──history: contents, file history; coverage reports──measures──▶ measures section (beside the city) ──▶ scene
 ```
+
+- **Measures**: each lot's files and their values (size, tested, history, comments), read where the city came from, in
+  their own section of the city file beside the layout; see [buildings](../008-buildings/buildings.md).
 
 - **Snapshot**: one commit's tree as sorted file records (path, identity, land use, binary flag) plus the commit's order
   index. Identities follow exact renames.
@@ -49,8 +55,8 @@ A second implementation of the `citymap` command, for speed: a full fold of a la
 hour on the TypeScript engine (linux), and a fold service needs it in a minute or two.
 
 - It lives in `rust/`, one Cargo workspace whose crates mirror the TypeScript workspaces they implement:
-  `citymap-ground-plan`, `citymap-history`, `citymap-themes`, `citymap-svg` and `citymap-cli` (the `citymap` binary).
-  The scene and the web app stay TypeScript only.
+  `citymap-ground-plan`, `citymap-history`, `citymap-measures`, `citymap-themes`, `citymap-svg` and `citymap-cli` (the
+  `citymap` binary). The scene and the web app stay TypeScript only.
 - The TypeScript packages are the reference implementation: the specs describe both, and a change lands in TypeScript
   and Rust in the same pull request.
 - **Parity** is the contract: for the same repository, commit and flags, the Rust CLI writes the same bytes as the

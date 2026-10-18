@@ -11,7 +11,7 @@ export const PHASES: Readonly<Record<Source, readonly Phase[]>> = {
   bundled: ["download", "parse", "draw"],
   file: ["download", "parse", "draw"],
   // A folder with git reads its index; one without is walked instead.
-  local: ["index", "folder", "manifests", "lay", "draw"],
+  local: ["index", "folder", "manifests", "contents", "coverage", "lay", "draw"],
 };
 
 /** Each phase's share of the bar, per source: their shares of the time linux takes (see DEFAULTS.md). */
@@ -19,7 +19,7 @@ export const PHASE_WEIGHTS: Readonly<Record<Source, Partial<Record<Phase, number
   github: { commit: 0.03, tree: 0.67, manifests: 0.02, lay: 0.18, draw: 0.1 },
   bundled: { download: 0.6, parse: 0.15, draw: 0.25 },
   file: { download: 0.1, parse: 0.3, draw: 0.6 },
-  local: { index: 0.1, folder: 0.2, manifests: 0.05, lay: 0.5, draw: 0.15 },
+  local: { index: 0.1, folder: 0.15, manifests: 0.05, contents: 0.15, coverage: 0.05, lay: 0.4, draw: 0.1 },
 };
 
 /** The share of the bar, and the time spent, before the time left is estimated. */
@@ -83,6 +83,8 @@ const WORDS: Readonly<Record<Phase, string>> = {
   index: "Reading the git index",
   folder: "Reading the folder",
   manifests: "Reading workspace manifests",
+  contents: "Reading the files",
+  coverage: "Looking for coverage reports",
   lay: "Laying out the files",
   download: "Downloading",
   parse: "Reading the city",
@@ -113,6 +115,7 @@ export function countWords({ phase, step }: Progress): string | null {
   }
   if (phase === "folder") return `${plural(done, "file", "files")} found`;
   if (phase === "manifests" && of !== undefined) return `${number(done)} of ${number(of)} manifests`;
+  if (phase === "contents" && of !== undefined) return `${number(done)} of ${number(of)} files`;
   if (phase === "lay") return step.count ? `${number(step.count.done)} of ${number(step.count.of)} lots` : null;
   if (phase === "download") return bytes(done, of);
   return null;

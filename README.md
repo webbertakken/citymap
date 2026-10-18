@@ -74,8 +74,19 @@ keeps the name to your own screen.
 
   ![linux, vscode and godot at HEAD](docs/img/scale.png)
 
-- **Themes and views.** Five themes (Paper atlas, Night atlas, Beck, Nolli, Dracula), plan view, or 2:1 dimetric 3D in
-  the SVG export, and optional Voronoi district regions.
+- **Buildings that show health.** Every lot carries a building. In the viewer's Buildings view it stands as tall as its
+  files are big (1 to 12 floors, on a scale fitted to the city), its floors' windows lit as far as its tests reach, and
+  coloured by its folder or, from the legend's "Colour by", by how tested, big, recent, often changed or widely written
+  it is, or by its kind. What a city can tell depends on where it came from: a GitHub repository live gives sizes and
+  finds tests by their names; a folder on your machine adds lines, comments and a coverage report if one is there; the
+  CLI adds when, how often and by how many people each file changed, from the history it folds, and reads coverage
+  reports in LCOV, Istanbul JSON, Cobertura and JaCoCo (`--coverage=<file>`, or where your tools write them). What is
+  not known says so, never zero.
+
+  ![livediagram in plan view and in the Buildings view, then coloured by how tested each file is (light), and takken.io's card for a building with its measures](docs/img/buildings.png)
+
+- **Themes and views.** Five themes (Paper atlas, Night atlas, Beck, Nolli, Dracula), plan view and the Buildings view
+  in the viewer, plan or 2:1 dimetric 3D in the SVG export, and optional Voronoi district regions.
 
   ![react in five themes](docs/img/themes.png)
 
@@ -107,11 +118,12 @@ bun apps/cli/src/bin.ts ~/path/to/repo --svg=city.svg
 Explore cities in the browser:
 
 ```bash
+bun run bundle   # once: lays the example cities (needs Rust; about four minutes)
 bun run --cwd apps/web dev
 ```
 
-The viewer opens with a few bundled cities. Drop any city file the CLI wrote (`--out=city.json`) onto the page to see
-your own.
+The viewer opens with a few bundled cities, laid from public repositories at pinned commits. Drop any city file the CLI
+wrote (`--out=city.json`) onto the page to see your own.
 
 ## The CLI
 
@@ -119,19 +131,21 @@ your own.
 bun apps/cli/src/bin.ts <repository> [options]
 ```
 
-| Option             | What it does                                                           |
-| ------------------ | ---------------------------------------------------------------------- |
-| `--svg=<file>`     | Write the city as an SVG                                               |
-| `--out=<file>`     | Write the city as JSON, for the viewer                                 |
-| `--theme=<name>`   | `paper-atlas`, `night-atlas`, `beck`, `nolli`, `dracula`               |
-| `--camera=<view>`  | `plan` or `dimetric`                                                   |
-| `--to=<ref>`       | Draw the city as it was at that commit                                 |
-| `--lock`           | Save progress in `citymap.lock.json`, and resume from it               |
-| `--no-history`     | Lay one state, every file at once, without folding the history         |
-| `--voronoi`        | Fill each folder's region beneath its blocks                           |
-| `--split=<groups>` | Which workspace groups become a town per member (default `apps`)       |
-| `--toggles=<list>` | Archetype toggles on (default `corridor,tiers`; `--toggles=` for none) |
-| `--help`           | Show every option                                                      |
+| Option              | What it does                                                           |
+| ------------------- | ---------------------------------------------------------------------- |
+| `--svg=<file>`      | Write the city as an SVG                                               |
+| `--out=<file>`      | Write the city as JSON, for the viewer                                 |
+| `--theme=<name>`    | `paper-atlas`, `night-atlas`, `beck`, `nolli`, `dracula`               |
+| `--camera=<view>`   | `plan` or `dimetric`                                                   |
+| `--to=<ref>`        | Draw the city as it was at that commit                                 |
+| `--lock`            | Save progress in `citymap.lock.json`, and resume from it               |
+| `--no-history`      | Lay one state, every file at once, without folding the history         |
+| `--voronoi`         | Fill each folder's region beneath its blocks                           |
+| `--split=<groups>`  | Which workspace groups become a town per member (default `apps`)       |
+| `--toggles=<list>`  | Archetype toggles on (default `corridor,tiers`; `--toggles=` for none) |
+| `--coverage=<file>` | A coverage report to read for how tested each file is (repeatable)     |
+| `--no-measures`     | Write the city without its measures                                    |
+| `--help`            | Show every option                                                      |
 
 A long history folds its last 1,000 to 1,999 commits one by one and older ones in windows of 100 commits (of 1,000
 beyond the last 10,000), so a full fold takes seconds for small repositories and minutes for the largest: react (15,000
@@ -145,6 +159,7 @@ single state in seconds.
 | ---------------------- | ------------------------------------------------------------------------- |
 | `packages/ground-plan` | The layout engine: integer-only and deterministic                         |
 | `packages/history`     | Reads git history and workspace manifests                                 |
+| `packages/measures`    | Measures of each file: sizes, tests, coverage reports, history            |
 | `packages/scene`       | Turns a city into 3D layers                                               |
 | `packages/svg`         | Draws a city as an SVG                                                    |
 | `packages/themes`      | The colour themes                                                         |

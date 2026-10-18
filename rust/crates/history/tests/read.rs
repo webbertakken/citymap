@@ -6,7 +6,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use citymap_ground_plan::ErrorCode;
 use citymap_ground_plan::snapshot::Snapshot;
 use citymap_history::read::parse_raw_log;
-use citymap_history::{HistoryEvent, HistoryItem, ReadOptions, Strides, read_history, read_tree};
+use citymap_history::{
+    Author, HistoryEvent, HistoryItem, MailmapStatus, ReadOptions, Strides, read_history, read_tree,
+};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
@@ -87,6 +89,7 @@ fn collect(dir: &Path, from: i64) -> (Vec<Snapshot>, Vec<HistoryEvent>) {
         match item.expect("an item") {
             HistoryItem::Snapshot(s) => snapshots.push(s),
             HistoryItem::Event(e) => events.push(e),
+            HistoryItem::Files(_) => unreachable!("the files' history is not asked for"),
         }
     }
     (snapshots, events)
@@ -372,6 +375,7 @@ fn read(dir: &Path, from: Option<i64>, strides: Strides) -> (Vec<Snapshot>, Vec<
         match item.expect("an item") {
             HistoryItem::Snapshot(s) => snapshots.push(s),
             HistoryItem::Event(e) => events.push(e),
+            HistoryItem::Files(_) => unreachable!("the files' history is not asked for"),
         }
     }
     (snapshots, events)
@@ -572,8 +576,8 @@ fn rejects_a_path_longer_than_the_engine_reads_by_name() {
 #[test]
 fn parses_raw_log_tokens() {
     assert_eq!(parse_raw_log([]).expect("nothing"), vec![]);
-    let a = format!("\u{1}{}", "a".repeat(40));
-    let b = format!("\n\u{1}{}", "b".repeat(40));
+    let a = format!("\u{1}{}\u{2}12\u{2}A@B\u{2}Ann \u{2} Lee", "a".repeat(40));
+    let b = format!("\n\u{1}{}\u{2}soon", "b".repeat(40));
     let commits = parse_raw_log([a.as_str(), "", "\n:100644 100644 x y M", "f.ts", b.as_str()]).expect("commits");
     assert_eq!(commits.len(), 2);
     assert_eq!(commits[0].sha, "a".repeat(40));
@@ -588,7 +592,18 @@ fn parses_raw_log_tokens() {
         ),
         ("M", "f.ts")
     );
+    let author = |name: &str, email: &str| Author {
+        name: name.to_owned(),
+        email: email.to_owned(),
+    };
+    assert_eq!(
+        (commits[0].time, &commits[0].author),
+        (12, &author("Ann \u{2} Lee", "A@B"))
+    );
+    assert_eq!((commits[1].time, &commits[1].author), (0, &author("", "")));
     assert_eq!(commits[1].entries, vec![]);
+    let huge = format!("\u{1}{}\u{2}99999999999999999", "c".repeat(40));
+    assert_eq!(parse_raw_log([huge.as_str()]).expect("one")[0].time, 0);
     assert_eq!(
         parse_raw_log([":100644 100644 a b M", "x"]).unwrap_err().code,
         ErrorCode::HistoryParse
@@ -947,5 +962,197 @@ fn reads_one_commit_s_files_as_born_together_with_every_folder_and_its_members()
             path: "vendor/lib".into(),
             index: 0
         }]
+    );
+}
+
+#[test]
+fn records_each_files_last_change_commits_and_authors_through_renames() {
+    let repo = Repo::new();
+    let commit_as = |email: &str, time: i64, message: &str| {
+        repo.git(&["add", "-A"]);
+        let date = format!("@{time} +0000");
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(repo.path())
+            .args([
+                "-c",
+                &format!("user.email={email}"),
+                "-c",
+                "user.name=x",
+                "commit",
+                "-q",
+                "--allow-empty",
+            ])
+            .args(["--date", &date, "-m", message])
+            .env("GIT_COMMITTER_DATE", &date)
+            .env_remove("GIT_DIR")
+            .output()
+            .expect("git runs");
+        assert!(out.status.success());
+    };
+    repo.write("a.ts", "1");
+    repo.write("b.ts", "1");
+    commit_as("Ann@X.org", 1000, "one");
+    repo.write("a.ts", "2");
+    commit_as("ann@x.org", 2000, "two");
+    repo.git(&["mv", "a.ts", "c.ts"]);
+    repo.write("sub/.keep", "");
+    commit_as("bob@x.org", 3000, "three");
+    repo.git(&["rm", "-q", "b.ts"]);
+    commit_as("cy@x.org", 4000, "four");
+    let options = ReadOptions {
+        files: true,
+        ..ReadOptions::default()
+    };
+    let mut last = None;
+    let mut history = None;
+    for item in read_history(repo.path(), options).expect("a history") {
+        match item.expect("an item") {
+            HistoryItem::Snapshot(s) => last = Some(s),
+            HistoryItem::Event(_) => {}
+            HistoryItem::Files(f) => history = Some(f),
+        }
+    }
+    let (last, history) = (last.expect("a snapshot"), history.expect("the files' history"));
+    let identity = |path: &str| {
+        last.files
+            .iter()
+            .find(|f| &*f.path == path)
+            .expect("a file")
+            .identity
+            .to_string()
+    };
+    let facts = |identity: &str| history.of(identity).map(|f| (f.changed, f.commits, f.authors));
+    assert_eq!(facts(&identity("c.ts")), Some((3000, 3, 2)));
+    assert_eq!(facts(&identity("sub/.keep")), Some((3000, 1, 1)));
+    assert_eq!(facts("b.ts@0"), Some((1000, 1, 1)));
+    assert_eq!(facts("nothing@0"), None);
+    let c = identity("c.ts");
+    assert_eq!(history.authors_across([c.as_str(), "b.ts@0", "nothing@0"]), 2);
+}
+
+#[test]
+fn lists_a_commits_files_and_reads_each_blob_without_submodules() {
+    let repo = Repo::new();
+    repo.write("src/a.ts", "same\n");
+    repo.write("b.ts", "same\n");
+    repo.git(&["add", "-A"]);
+    repo.git(&[
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        &format!("160000,{},vendor/sub", "1".repeat(40)),
+    ]);
+    repo.commit("one");
+    let files = citymap_history::list_tree(repo.path(), "HEAD").expect("a tree");
+    assert_eq!(
+        files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(),
+        vec!["b.ts", "src/a.ts"]
+    );
+    let mut seen = Vec::new();
+    let blobs: Vec<String> = files.iter().map(|f| f.blob.clone()).chain(["0".repeat(40)]).collect();
+    citymap_history::read_blobs(repo.path(), &blobs, &mut |blob, bytes| {
+        seen.push((blob.to_owned(), bytes.map(<[u8]>::len)));
+    })
+    .expect("blobs");
+    seen.sort();
+    let mut expected = vec![(files[0].blob.clone(), Some(5)), ("0".repeat(40), None)];
+    expected.sort();
+    assert_eq!(seen, expected);
+}
+
+fn commit_as(repo: &Repo, name: &str, email: &str, message: &str) {
+    repo.git(&["add", "-A"]);
+    repo.git(&[
+        "-c",
+        &format!("user.email={email}"),
+        "-c",
+        &format!("user.name={name}"),
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        message,
+    ]);
+}
+
+/// The authors of `a.ts` in a read to `to`, and the mailmap events it logged.
+fn authors_of_a(dir: &Path, to: &str) -> (Option<i64>, Vec<HistoryEvent>) {
+    let options = ReadOptions {
+        to: to.to_owned(),
+        files: true,
+        ..ReadOptions::default()
+    };
+    let (mut last, mut history, mut events) = (None, None, Vec::new());
+    for item in read_history(dir, options).expect("a history") {
+        match item.expect("an item") {
+            HistoryItem::Snapshot(s) => last = Some(s),
+            HistoryItem::Event(e @ HistoryEvent::Mailmap { .. }) => events.push(e),
+            HistoryItem::Event(_) => {}
+            HistoryItem::Files(f) => history = Some(f),
+        }
+    }
+    let last = last.expect("a snapshot");
+    let identity = &last.files.iter().find(|f| &*f.path == "a.ts").expect("a.ts").identity;
+    (
+        history.expect("the files' history").of(identity).map(|f| f.authors),
+        events,
+    )
+}
+
+#[test]
+fn counts_people_as_the_target_commits_mailmap_names_them_whatever_the_working_tree_and_gits_settings_say() {
+    let repo = Repo::new();
+    repo.write("a.ts", "1");
+    commit_as(&repo, "Ann", "ann@old.org", "one");
+    repo.write("a.ts", "2");
+    repo.write(".mailmap", "<ann@new.org> <ann@old.org>\n");
+    commit_as(&repo, "Ann", "ANN@new.org", "two");
+    repo.write("a.ts", "3");
+    repo.write(
+        ".mailmap",
+        "<ann@new.org> <ann@old.org>\n<ann@new.org> Bob <bob@x.org>\n",
+    );
+    commit_as(&repo, "Bob", "bob@x.org", "three");
+    let read = HistoryEvent::Mailmap {
+        status: MailmapStatus::Read,
+        entries: 2,
+    };
+    assert_eq!(authors_of_a(repo.path(), "HEAD"), (Some(1), vec![read.clone()]));
+    assert_eq!(read.line(), "history/mailmap status=read entries=2");
+    // The second commit's .mailmap knows Ann's two addresses, not Bob's.
+    assert_eq!(authors_of_a(repo.path(), "HEAD~1").0, Some(1));
+    // A working tree and settings that would merge nobody, or everybody, change nothing.
+    repo.write(".mailmap", "");
+    repo.write(
+        "elsewhere",
+        "<one@x> <ann@old.org>\n<two@x> <ann@new.org>\n<three@x> <bob@x.org>\n",
+    );
+    let elsewhere = repo.path().join("elsewhere");
+    repo.git(&["config", "mailmap.file", &elsewhere.display().to_string()]);
+    repo.git(&["config", "mailmap.blob", "HEAD~2:a.ts"]);
+    assert_eq!(authors_of_a(repo.path(), "HEAD").0, Some(1));
+    let unmapped = Repo::new();
+    unmapped.write("a.ts", "1");
+    commit_as(&unmapped, "Ann", "ann@old.org", "one");
+    unmapped.write("a.ts", "2");
+    commit_as(&unmapped, "Bob", "bob@x.org", "two");
+    unmapped.write(".mailmap", "<ann@new.org> <ann@old.org>\n<ann@new.org> <bob@x.org>\n");
+    let absent = HistoryEvent::Mailmap {
+        status: MailmapStatus::Absent,
+        entries: 0,
+    };
+    assert_eq!(authors_of_a(unmapped.path(), "HEAD"), (Some(2), vec![absent]));
+}
+
+#[test]
+fn reads_no_mailmap_without_a_file_history() {
+    let repo = Repo::new();
+    repo.write("a.ts", "1");
+    repo.commit("one");
+    let (_, events) = collect(repo.path(), 0);
+    assert_eq!(
+        events.iter().map(HistoryEvent::code).collect::<Vec<_>>(),
+        ["history/schedule"]
     );
 }
