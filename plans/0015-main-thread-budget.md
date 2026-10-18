@@ -36,20 +36,20 @@ Where main's time goes on the phone journey (livediagram, slowed fourfold, profi
 
 ## Phase 3: the city's worker
 
-- [ ] The opening's worker stays while its city is shown and ends when another opens, on cancel, and on leaving (tests
+- [x] The opening's worker stays while its city is shown and ends when another opens, on cancel, and on leaving (tests
       first, through a port with a calling-thread stand-in, as `layHere` is)
-- [ ] Every town's scene is built there after the city's, in the theme shown, and handed over; a drill draws the one at
+- [x] Every town's scene is built there after the city's, in the theme shown, and handed over; a drill draws the one at
       hand and builds nothing on the main thread
-- [ ] A theme change asks the worker for the city's and the towns' scenes in the new theme; the map keeps its colours
+- [x] A theme change asks the worker for the city's and the towns' scenes in the new theme; the map keeps its colours
       until they arrive, and nothing is built on the main thread
 
 ## Phase 4: the buildings off the main thread
 
-- [ ] The lot table and the buildings' heights for a scene and a colour are made in the worker and handed over;
+- [x] The lot table and the buildings' heights for a scene and a colour are made in the worker and handed over;
       switching between the whole city and a town, or the colour, builds no table on the main thread
-- [ ] The cards' measure rows read one lot's measures when asked, so the main thread never builds every building; the
+- [x] The cards' measure rows read one lot's measures when asked, so the main thread never builds every building; the
       legend's scales come from the worker
-- [ ] The Buildings view's shader is compiled while the main thread is idle after the city shows
+- [x] The Buildings view's shader is compiled while the main thread is idle after the city shows
 
 ## Phase 5: the city taken in by slices
 

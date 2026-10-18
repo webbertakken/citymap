@@ -10,6 +10,7 @@ import {
   type Town,
 } from "@citymap/ground-plan";
 import { folderOf, parseAddress } from "./address";
+import { hasBuilding } from "./buildings";
 
 /** The town a hit lies in: its name, its key, and the folder it is laid from (`root`). */
 interface InTown {
@@ -173,6 +174,8 @@ export interface PickGrid {
   readonly folders: Uint32Array<ArrayBuffer>;
   /** A highway's towns nearest its two ends, by index in `city.towns`; −1 for none. */
   readonly ends: Int32Array<ArrayBuffer>;
+  /** A lot's building, by its index in the whole city's scene (`buildings.order`); −1 for any other entry. */
+  readonly building: Int32Array<ArrayBuffer>;
   /** The first cell's column and row (`floor(coordinate / CELL)`), and how many of each the grid holds. */
   readonly column0: number;
   readonly row0: number;
@@ -227,6 +230,8 @@ export function pickGrid(city: City): PickGrid {
   const lots = new Uint32Array(n);
   const folders = new Uint32Array(n);
   const ends = new Int32Array(2 * n).fill(-1);
+  const building = new Int32Array(n).fill(-1);
+  let buildings = 0;
   let e = 0;
   const add = (kind: Layer, t: number, i: number, bounds: readonly number[]) => {
     layer[e] = kind;
@@ -245,7 +250,9 @@ export function pickGrid(city: City): PickGrid {
     const root = townRoot(city, t);
     t.lots.forEach((lot, i) => {
       const folder = lot.vacant ? (parseAddress(lot.address)?.folder ?? root) : folderOf(lot.path);
-      lots[polygon(LOT, ti, i, lot.pts)] = counts.direct.get(folder) ?? 0;
+      const at = polygon(LOT, ti, i, lot.pts);
+      lots[at] = counts.direct.get(folder) ?? 0;
+      if (hasBuilding(lot)) building[at] = buildings++;
     });
     t.blocks.forEach((b, i) => polygon(BLOCK, ti, i, b.pts));
     t.roads.forEach((r, i) => add(ROAD, ti, i, boxOf(r.pts, roadWidth(r) / 2)));
@@ -262,7 +269,7 @@ export function pickGrid(city: City): PickGrid {
     ends[2 * at] = nearestTown(city, h.pts[0]!);
     ends[2 * at + 1] = nearestTown(city, h.pts.at(-1)!);
   });
-  return { layer, town, item, box, area, lots, folders, ends, ...cellsOf(box, n) };
+  return { layer, town, item, box, area, lots, folders, ends, building, ...cellsOf(box, n) };
 }
 
 /** The cells (columns, rows) an entry's box touches; empty for a shape without points. */
@@ -315,6 +322,7 @@ export const pickBuffers = (grid: PickGrid): ArrayBuffer[] =>
     grid.lots,
     grid.folders,
     grid.ends,
+    grid.building,
     grid.starts,
     grid.members,
   ].map((column) => column.buffer);
@@ -477,4 +485,14 @@ export function pick(index: PickIndex, x: number, z: number): Hit | null {
     if (e !== undefined) return keptHit(index, e, folder);
   }
   return null;
+}
+
+/**
+ * The building of the topmost thing at a map point (scene units) when it is a lot, by its index in the whole city's
+ * order; −1 when it is not a lot, or a lot without a building. What `pick` answers there, without making a hit.
+ */
+export function buildingAt(index: PickIndex, x: number, z: number): number {
+  const p = { x: x * UNIT, y: -z * UNIT };
+  const lot = entriesAt(index, p).find((e) => index.grid.layer[e] === LOT && holds(index, e, p));
+  return lot === undefined ? -1 : index.grid.building[lot]!;
 }

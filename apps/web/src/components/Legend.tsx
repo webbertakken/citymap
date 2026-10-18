@@ -5,7 +5,7 @@ import type { Theme } from "@citymap/themes";
 import { ChevronUp, Palette } from "lucide-react";
 import { useId, useState } from "react";
 import { LEGEND, USE } from "../card/words";
-import { colourChoices, floorEnds, rampEnds, type CityBuildings } from "../view/buildings";
+import { colourChoices, floorEnds, rampEnds, type CityScales } from "../view/buildings";
 import type { Mode } from "../view/view";
 import { Popover } from "./Popover";
 
@@ -37,7 +37,7 @@ export interface LegendProps {
   readonly mode: Mode;
   readonly colourBy: ColourBy;
   readonly onColourBy: (by: ColourBy) => void;
-  readonly city: CityBuildings;
+  readonly city: CityScales;
   /** The land uses that have buildings in the city shown, for colour by kind. */
   readonly uses: readonly LandUse[];
 }

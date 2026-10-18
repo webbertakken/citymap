@@ -1,11 +1,13 @@
 import { CitymapError, stateSnapshot } from "@citymap/ground-plan";
 import { parseCityFile, serialiseCityFile } from "@citymap/measures";
-import { buildScene, pick, pickIndex } from "@citymap/scene";
+import { buildScene, lotRefs, pick, pickIndex } from "@citymap/scene";
 import { THEMES } from "@citymap/themes";
 import { describe, expect, it } from "vitest";
 import { city as cityNamed } from "../components/testing/fixtures";
 import type { Step } from "../load/step";
-import { buffersOf, errorOf, failureOf, layHere, layStep, readHere, throttled, trustedCityFile, wireText } from "./lay";
+import { cityBuildings, cityFloors, tableFor } from "../view/buildings";
+import { errorOf, failureOf, layHere, layStep, readHere, throttled, trustedCityFile, wireText } from "./lay";
+import type { Answer } from "./work";
 
 const snapshot = stateSnapshot(
   "demo",
@@ -47,46 +49,60 @@ describe("throttled", () => {
 });
 
 describe("layHere", () => {
-  it("lays the snapshot and tells how far it has come, ending at the whole bar", async () => {
+  it("lays the snapshot and tells how far it has come, ending at the whole bar, then drawing", async () => {
     const steps: Step[] = [];
-    const { city, scene } = await layHere(snapshot, { onProgress: (s) => steps.push(s) });
+    const { city } = await layHere(snapshot, { theme: "dracula", onProgress: (s) => steps.push(s) });
     expect(city.repository).toBe("demo");
-    expect(scene).toBeNull();
     expect(steps[0]).toMatchObject({ phase: "lay", done: 0 });
-    const last = steps.at(-1)!;
-    expect(last.done).toBe(last.of);
-    expect((await layHere(snapshot)).city).toEqual(city);
+    const laid = steps.findLast((s) => s.phase === "lay")!;
+    expect(laid.done).toBe(laid.of);
+    expect(steps.at(-1)).toEqual({ phase: "draw" });
+    expect((await layHere(snapshot, { theme: "dracula" })).city).toEqual(city);
   });
 
   it("builds the measures beside the city when given what the source knows", async () => {
     const facts = { source: "github", size: "bytes", comments: false, files: new Map(), coverage: new Map() } as const;
-    const { measures } = await layHere(snapshot, { facts });
+    const { measures, scales } = await layHere(snapshot, { theme: "dracula", facts });
     expect(measures).toMatchObject({ source: "github", tested: "name" });
-    expect((await layHere(snapshot)).measures).toBeNull();
+    expect(scales).toEqual(cityBuildings(measures).scales);
+    expect((await layHere(snapshot, { theme: "dracula" })).measures).toBeNull();
   });
 
-  it("draws the scene too when given a theme, saying so first", async () => {
-    const steps: Step[] = [];
-    const { city, scene } = await layHere(snapshot, { theme: "dracula", onProgress: (s) => steps.push(s) });
-    expect(steps.at(-1)).toEqual({ phase: "draw" });
-    expect(scene).toEqual({ theme: "dracula", scene: buildScene(city, THEMES.dracula) });
-    // The pick index is built beside them, for the city laid.
-    const laid = await layHere(snapshot);
+  it("makes the first look with the city: its table and its whole scene, its floors and pick index beside", async () => {
+    const laid = await layHere(snapshot, { theme: "dracula", colourBy: "size" });
+    const refs = lotRefs(laid.city);
+    expect(laid.answers).toEqual([
+      {
+        kind: "table",
+        theme: "dracula",
+        colourBy: "folder",
+        table: tableFor(refs, cityBuildings(null), "folder", THEMES.dracula),
+      },
+      { kind: "scene", theme: "dracula", town: null, scene: buildScene(laid.city, THEMES.dracula) },
+    ]);
+    expect(laid.floors).toEqual(cityFloors(refs, cityBuildings(null)));
     expect(laid.pick.city).toBe(laid.city);
     expect(pick(laid.pick, 0, 0)).toEqual(pick(pickIndex(laid.city), 0, 0));
+    // The port goes on with every town, and answers what is asked on the calling thread.
+    const heard: Answer[] = [];
+    laid.port.listen((answer) => heard.push(answer));
+    expect(heard.map((a) => a.kind === "scene" && a.town)).toEqual(laid.city.towns.map((town) => town.key));
+    laid.port.ask({ ask: "table", theme: "beck", colourBy: "kind" });
+    expect(heard.at(-1)).toMatchObject({ kind: "table", theme: "beck", colourBy: "kind" });
   });
 
-  it("lists the scene's buffers, to hand over without a copy", () => {
-    const scene = buildScene(cityNamed("x"), THEMES.dracula);
-    const buffers = buffersOf(scene);
-    expect(buffers).toHaveLength(scene.layers.length * 3 + 4);
-    expect(buffers[0]).toBe(scene.layers[0]!.positions.buffer);
+  it("makes the town asked for with the first look", async () => {
+    const { city, answers } = await layHere(snapshot, { theme: "dracula", town: "demo" });
+    expect(answers.at(-1)).toMatchObject({ kind: "scene", town: "demo" });
+    expect(city.towns.map((town) => town.key)).toContain("demo");
   });
 
   it("lays nothing once aborted", async () => {
     const controller = new AbortController();
     controller.abort();
-    await expect(layHere(snapshot, { signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+    await expect(layHere(snapshot, { theme: "dracula", signal: controller.signal })).rejects.toMatchObject({
+      name: "AbortError",
+    });
   });
 });
 
@@ -94,28 +110,34 @@ describe("readHere", () => {
   const file = { city: cityNamed("x"), measures: null };
   const text = serialiseCityFile(file);
 
-  it("reads a city file, saying so, and builds its scene and pick index", async () => {
+  it("reads a city file, saying so, and makes its first look and pick index", async () => {
     const steps: Step[] = [];
     const laid = await readHere(text, { theme: "dracula", onProgress: (s) => steps.push(s) });
     expect(steps).toEqual([{ phase: "parse" }, { phase: "draw" }]);
     expect(laid).toMatchObject({ city: file.city, measures: null });
-    expect(laid.scene).toEqual({ theme: "dracula", scene: buildScene(file.city, THEMES.dracula) });
+    expect(laid.answers[1]).toEqual({
+      kind: "scene",
+      theme: "dracula",
+      town: null,
+      scene: buildScene(file.city, THEMES.dracula),
+    });
     expect(pick(laid.pick, 0.5, -0.5)).toEqual(pick(pickIndex(file.city), 0.5, -0.5));
-    expect((await readHere(text)).scene).toBeNull();
   });
 
   it("rejects what is not a city with the file's code, and reads nothing once aborted", async () => {
-    await expect(readHere("{}")).rejects.toMatchObject({ code: "city/bad-shape" });
+    await expect(readHere("{}", { theme: "dracula" })).rejects.toMatchObject({ code: "city/bad-shape" });
     const controller = new AbortController();
     controller.abort();
-    await expect(readHere(text, { signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+    await expect(readHere(text, { theme: "dracula", signal: controller.signal })).rejects.toMatchObject({
+      name: "AbortError",
+    });
   });
 });
 
 describe("wireText and trustedCityFile", () => {
   it("carry a laid city file across as text, equal to the validated one, with or without measures", async () => {
     const facts = { source: "github", size: "bytes", comments: false, files: new Map(), coverage: new Map() } as const;
-    const { city, measures } = await layHere(snapshot, { facts });
+    const { city, measures } = await layHere(snapshot, { theme: "dracula", facts });
     for (const file of [
       { city, measures },
       { city, measures: null },

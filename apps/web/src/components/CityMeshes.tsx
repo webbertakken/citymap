@@ -26,7 +26,6 @@ import {
   GLSL3,
   NearestFilter,
   RGBAFormat,
-  ShaderMaterial,
 } from "three";
 import type { Mode } from "../view/view";
 
@@ -183,28 +182,39 @@ export function Buildings({
     return t;
   }, [table]);
   useEffect(() => () => texture.dispose(), [texture]);
-  // A material per look: the shader's program is compiled once and shared, as its code never changes.
-  const material = useMemo(
-    () =>
-      new ShaderMaterial({
-        glslVersion: GLSL3,
-        vertexShader: VERTEX,
-        fragmentShader: FRAGMENT,
-        // Every face is wound outwards, so a wall facing away is never drawn.
-        side: FrontSide,
-        uniforms: {
-          uTable: { value: texture },
-          uBuildings: { value: mode === "buildings" ? 1 : 0 },
-          uLit: { value: new Color(WINDOW_LIT) },
-          uUnknown: { value: new Color(windowUnknown(theme)) },
-          uFogColour: { value: new Color(fog?.colour ?? "#000000") },
-          uFogNear: { value: fog?.near ?? 0 },
-          uFogFar: { value: fog?.far ?? 0 },
-        },
-      }),
-    [texture, mode, theme, fog],
+  // One material for the mesh's life, its look in uniforms (set through react-three-fiber's props): a new material
+  // would dispose the old one first, so three.js would delete the program and link another, which the browser compiles
+  // inside the next frame. Kept, the program is linked with the first frame, and the view, a colour, a theme or a town
+  // alone only changes uniforms.
+  const uniforms = useMemo(
+    () => ({
+      uTable: { value: null },
+      uBuildings: { value: 0 },
+      uLit: { value: new Color(WINDOW_LIT) },
+      uUnknown: { value: new Color() },
+      uFogColour: { value: new Color() },
+      uFogNear: { value: 0 },
+      uFogFar: { value: 0 },
+    }),
+    [],
   );
-  useEffect(() => () => material.dispose(), [material]);
   // Heights come from the texture, so the geometry's own bounds say nothing of them: never culled.
-  return <mesh geometry={geometries[mode]} material={material} frustumCulled={false} />;
+  return (
+    <mesh geometry={geometries[mode]} frustumCulled={false}>
+      <shaderMaterial
+        glslVersion={GLSL3}
+        vertexShader={VERTEX}
+        fragmentShader={FRAGMENT}
+        // Every face is wound outwards, so a wall facing away is never drawn.
+        side={FrontSide}
+        uniforms={uniforms}
+        uniforms-uTable-value={texture}
+        uniforms-uBuildings-value={mode === "buildings" ? 1 : 0}
+        uniforms-uUnknown-value={windowUnknown(theme)}
+        uniforms-uFogColour-value={fog?.colour ?? "#000000"}
+        uniforms-uFogNear-value={fog?.near ?? 0}
+        uniforms-uFogFar-value={fog?.far ?? 0}
+      />
+    </mesh>
+  );
 }
