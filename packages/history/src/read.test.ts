@@ -308,7 +308,7 @@ describe("parseRawLog", () => {
   it("skips empty tokens and yields every commit", () => {
     const commits = [
       ...parseRawLog([
-        "\u0001" + "a".repeat(40) + "\u000212\u0002A@B",
+        "\u0001" + "a".repeat(40) + "\u000212\u0002A@B\u0002Ann \u0002 Lee",
         "",
         "\n:100644 100644 x y M",
         "f.ts",
@@ -319,10 +319,10 @@ describe("parseRawLog", () => {
       {
         sha: "a".repeat(40),
         time: 12,
-        author: "A@B",
+        author: { name: "Ann \u0002 Lee", email: "A@B" },
         entries: [{ mode: "100644", blob: "y", status: "M", path: "f.ts" }],
       },
-      { sha: "b".repeat(40), time: 0, author: "", entries: [] },
+      { sha: "b".repeat(40), time: 0, author: { name: "", email: "" }, entries: [] },
     ]);
     // A time beyond what a number holds exactly reads 0, as an absent one does.
     const [late] = [...parseRawLog(["\u0001" + "c".repeat(40) + "\u000299999999999999999"])];
@@ -414,5 +414,66 @@ describe("readHistory with a file history", () => {
     expect(files.of("b.ts@0")).toEqual({ changed: 1000, commits: 1, authors: 1 });
     expect(files.of("nothing@0")).toBeUndefined();
     expect(files.authorsAcross([identity("c.ts"), "b.ts@0", "nothing@0"])).toBe(2);
+  });
+});
+
+const as = (dir: string, name: string, email: string, message: string) => {
+  git(dir, "add", "-A");
+  git(dir, "-c", `user.email=${email}`, "-c", `user.name=${name}`, "commit", "-q", "--allow-empty", "-m", message);
+};
+
+/** The authors of `a.ts` in a read to `to`, and the mailmap events it logged. */
+async function authorsOfA(dir: string, to?: string) {
+  const files = new FileHistory();
+  const events: HistoryEvent[] = [];
+  const snaps = [];
+  const options = { fileHistory: files, onEvent: (e: HistoryEvent) => events.push(e), ...(to ? { to } : {}) };
+  for await (const s of readHistory(dir, options)) snaps.push(s);
+  const identity = snaps.at(-1)!.files.find((f) => f.path === "a.ts")!.identity;
+  return { authors: files.of(identity)?.authors, events: events.filter((e) => e.code === "history/mailmap") };
+}
+
+describe("readHistory's authors", () => {
+  it("counts people as the target commit's .mailmap names them, whatever the working tree and git's settings say", async () => {
+    const dir = repo();
+    write(dir, "a.ts", "1");
+    as(dir, "Ann", "ann@old.org", "one");
+    write(dir, "a.ts", "2");
+    write(dir, ".mailmap", "<ann@new.org> <ann@old.org>\n");
+    as(dir, "Ann", "ANN@new.org", "two");
+    write(dir, "a.ts", "3");
+    write(dir, ".mailmap", "<ann@new.org> <ann@old.org>\n<ann@new.org> Bob <bob@x.org>\n");
+    as(dir, "Bob", "bob@x.org", "three");
+    expect(await authorsOfA(dir)).toEqual({
+      authors: 1,
+      events: [{ code: "history/mailmap", detail: { status: "read", entries: 2 } }],
+    });
+    // The second commit's .mailmap knows Ann's two addresses, not Bob's.
+    expect((await authorsOfA(dir, "HEAD~1")).authors).toBe(1);
+    // A working tree and settings that would merge nobody, or everybody, change nothing.
+    write(dir, ".mailmap", "");
+    write(dir, "elsewhere", "<one@x> <ann@old.org>\n<two@x> <ann@new.org>\n<three@x> <bob@x.org>\n");
+    git(dir, "config", "mailmap.file", join(dir, "elsewhere"));
+    git(dir, "config", "mailmap.blob", "HEAD~2:a.ts");
+    expect((await authorsOfA(dir)).authors).toBe(1);
+    const unmapped = repo();
+    write(unmapped, "a.ts", "1");
+    as(unmapped, "Ann", "ann@old.org", "one");
+    write(unmapped, "a.ts", "2");
+    as(unmapped, "Bob", "bob@x.org", "two");
+    write(unmapped, ".mailmap", "<ann@new.org> <ann@old.org>\n<ann@new.org> <bob@x.org>\n");
+    expect(await authorsOfA(unmapped)).toEqual({
+      authors: 2,
+      events: [{ code: "history/mailmap", detail: { status: "absent", entries: 0 } }],
+    });
+  });
+
+  it("reads no .mailmap without a file history", async () => {
+    const dir = repo();
+    write(dir, "a.ts", "1");
+    commit(dir, "one");
+    const events: HistoryEvent[] = [];
+    await collect(dir, events);
+    expect(events.map((e) => e.code)).toEqual(["history/schedule"]);
   });
 });

@@ -313,3 +313,70 @@ describe("runLay's measures", () => {
     await expect(runLay(command(dir, "--out=c.json", "--no-history"), io)).rejects.toThrow("disk on fire");
   });
 });
+
+/** A fresh folder named `fixture`, so every copy lays under the same repository name. */
+const fixtureFolder = () => {
+  const parent = mkdtempSync(join(tmpdir(), "citymap-cli-mailmap-"));
+  dirs.push(parent);
+  return join(parent, "fixture");
+};
+/** Ann under two addresses and Bob; the last commit's .mailmap makes Ann one person, an earlier one knew nobody. */
+function mailmapped(): string {
+  const dir = fixtureFolder();
+  mkdirSync(join(dir, "src"), { recursive: true });
+  git(dir, "init", "-q", "-b", "main");
+  const as = (name: string, email: string) => {
+    git(dir, "add", "-A");
+    git(dir, "-c", `user.email=${email}`, "-c", `user.name=${name}`, "commit", "-q", "-m", email);
+  };
+  writeFileSync(join(dir, "src/a.ts"), "1\n");
+  as("Ann", "ann@old.org");
+  writeFileSync(join(dir, "src/a.ts"), "2\n");
+  writeFileSync(join(dir, ".mailmap"), "# nobody yet\n");
+  as("Ann", "ann@new.org");
+  writeFileSync(join(dir, "src/a.ts"), "3\n");
+  as("Bob", "bob@x.org");
+  writeFileSync(join(dir, ".mailmap"), "Ann <ann@new.org> <ann@old.org>\n");
+  as("Bob", "bob@x.org");
+  return dir;
+}
+const lay = async (dir: string, ...flags: string[]) => {
+  const { io, files, lines } = memoryIo();
+  await runLay(command(dir, "--out=city.json", ...flags), io);
+  return { text: files["city.json"]!, lines: lines.map((l) => l.replace(/ ms=\d+$/, "")) };
+};
+
+describe("runLay's authors", () => {
+  it("lays the same city with and without a checkout, whatever the working tree's .mailmap and git's settings", async () => {
+    const source = mailmapped();
+    const bare = fixtureFolder();
+    git(source, "clone", "-q", "--no-checkout", source, bare);
+    const checkedOut = fixtureFolder();
+    git(source, "clone", "-q", source, checkedOut);
+    const without = await lay(bare);
+    expect(fileOf(without.text, "src/a.ts")).toMatchObject({ commits: 3, authors: 2 });
+    expect(without.lines).toContain("history/mailmap status=read entries=1");
+    expect(await lay(checkedOut)).toEqual(without);
+    // A working tree .mailmap and settings that would make everyone one person change nothing.
+    const everyone = "One <one@x> <ann@old.org>\nOne <one@x> <ann@new.org>\nOne <one@x> <bob@x.org>\n";
+    writeFileSync(join(checkedOut, ".mailmap"), everyone);
+    writeFileSync(join(checkedOut, "..", "everyone"), everyone);
+    git(checkedOut, "config", "mailmap.file", join(checkedOut, "..", "everyone"));
+    git(checkedOut, "config", "mailmap.blob", "HEAD:.mailmap");
+    expect(await lay(checkedOut)).toEqual(without);
+  });
+
+  it("maps authors by the .mailmap of the commit it lays, and resumes to the same city", async () => {
+    const dir = mailmapped();
+    const earlier = await lay(dir, "--to=HEAD~1");
+    expect(fileOf(earlier.text, "src/a.ts")).toMatchObject({ commits: 3, authors: 3 });
+    expect(earlier.lines).toContain("history/mailmap status=read entries=0");
+    const lockAt = memoryIo();
+    await runLay(command(dir, "--to=HEAD~1", "--lock"), lockAt.io);
+    const lock = lockAt.files[join(dir, LOCKFILE)]!;
+    const resumed = memoryIo({ [join(dir, LOCKFILE)]: lock });
+    await runLay(command(dir, "--out=city.json", "--lock"), resumed.io);
+    expect(resumed.lines).toContain("lock/resume commit=" + git(dir, "rev-parse", "HEAD~1") + " index=2");
+    expect(resumed.files["city.json"]).toBe((await lay(dir)).text);
+  });
+});

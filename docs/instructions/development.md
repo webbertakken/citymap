@@ -49,13 +49,16 @@ The Rust implementation of the CLI lives in `rust/`: see
    `bun scripts/parity-fixtures.ts` and commit `rust/fixtures/`. The golden towns are shared with the TypeScript tests.
 6. Prove parity with `bun run parity` under PM2. It runs both CLIs on the repositories under `~/.cache/citymap/repos`,
    each on its own shared clone (so no lock lands in the cache), and compares city, SVG, lockfile and log byte for byte.
-   The `resume` mode also resumes each fold from a lock saved part way, and must match the uninterrupted fold. `--long`
-   adds next.js (minutes on TypeScript); `--repos=a,b` and `--modes=state,fold,resume` narrow it; `--features=mimalloc`
-   builds the Rust CLI with mimalloc; `--toggles=a,b` lays both CLIs with those toggles. Prove a change to a toggle's
-   rules with the defaults, each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`).
+   The `resume` mode also resumes each fold from a lock saved part way, and must match the uninterrupted fold. The
+   `checkout` mode folds a clone with a checkout whose working tree `.mailmap` (and `mailmap.file`) merges its authors,
+   and must match the fold of the clone without one. `--long` adds next.js (minutes on TypeScript); `--repos=a,b` and
+   `--modes=state,fold,resume,checkout` narrow it; `--features=mimalloc` builds the Rust CLI with mimalloc;
+   `--toggles=a,b` lays both CLIs with those toggles. Prove a change to a toggle's rules with the defaults, each toggle
+   alone (`--toggles=corridor` and so on) and none (`--toggles=`).
 7. A `parity/differs` line is a bug in one of the two implementations. Both runs' outputs stay in
    `/tmp/citymap-parity-<repo>`: find the first differing byte, then the rule behind it. A `parity/resume-differs` line
-   is state a lockfile does not carry: find the first commit where the resumed plat leaves the uninterrupted one.
+   is state a lockfile does not carry: find the first commit where the resumed plat leaves the uninterrupted one. A
+   `parity/checkout-differs` line is something read from the working tree or git's settings instead of the history.
 
 ## Bundled cities
 
