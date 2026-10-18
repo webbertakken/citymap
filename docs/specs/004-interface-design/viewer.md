@@ -27,9 +27,10 @@ stays clear for the city.
 - **Top left, the title card**: the city's name, its status (towns, lots, how it was laid), and the breadcrumb when one
   town is shown. The status wraps to a second line rather than being cut; it is never truncated.
 - **Top centre, the search box**: finds folders and files of the city shown, and lays a GitHub repository when the text
-  is `owner/name` or a GitHub URL. `/` puts the cursor in it from anywhere.
+  is `owner/name` or a GitHub URL. `/` puts the cursor in it from anywhere. Right beside it, the button that opens a
+  local repository, where the browser can (see [local repositories](../007-local-repositories/local-repositories.md)).
 - **Top right, four controls**: the view switch (Plan, Buildings), the theme menu, the settings cog (the layout
-  toggles), and More (the bundled cities, opening a city file, opening a local repository).
+  toggles), and More (the bundled cities, opening a city file, opening the last local repository again).
 - **Right, the drawer**: what is selected, then the towns (seven, then "Show all"), each with "Show only this town". It
   can be closed to give the map the whole page. On a phone it becomes a sheet at the bottom, closed at first.
 - **Bottom right, zoom**: in, out, and fit.
