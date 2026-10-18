@@ -1,7 +1,16 @@
 "use client";
 import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } from "@citymap/ground-plan";
 import type { Measures } from "@citymap/measures";
-import { buildScene, folderHit, onlyTown, pick, pickIndex, type ColourBy, type Hit, type Scene } from "@citymap/scene";
+import {
+  buildScene,
+  folderHit,
+  onlyTown,
+  pick,
+  type ColourBy,
+  type Hit,
+  type PickIndex,
+  type Scene,
+} from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import type { Footprint, Walls } from "@citymap/world";
 import {
@@ -27,14 +36,15 @@ import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
 import { readRepository, type Fetcher } from "../github/read";
 import { parseRepository } from "../github/repository";
-import { layInWorker } from "../lay/browser";
-import type { Drawn, Lay } from "../lay/lay";
+import { layInWorker, readInWorker } from "../lay/browser";
+import type { Laid, Lay, Read } from "../lay/lay";
 import { afterPaint } from "../load/paint";
 import { loadingStatus, useLoading, type Job } from "../load/useLoading";
 import type { LocalPorts } from "../local/ports";
 import { log, reasonOf } from "../log";
 import type { LiveFacts } from "../measures/live";
-import { searchIndex, type SearchEntry } from "../search/search";
+import type { SearchEntry } from "../search/search";
+import { useSearchIndex } from "../search/useSearchIndex";
 import { buildingOf, cityBuildings, colourFor, tableFor } from "../view/buildings";
 import { FLY_MS, between, ease, flyTo } from "../view/fly";
 import { insetsFor } from "../view/insets";
@@ -67,6 +77,8 @@ export interface ViewerProps {
   readonly fetcher?: Fetcher;
   /** How a snapshot becomes a city: in a Web Worker in the browser, on the calling thread in tests. */
   readonly lay?: Lay;
+  /** How a city file's text becomes a city: in a Web Worker in the browser, on the calling thread in tests. */
+  readonly read?: Read;
   /** The site's path under its host, before every bundled file: "/citymap" on GitHub Pages. */
   readonly basePath?: string;
   /** The browser's folder access: its own by default, stand-ins in tests. */
@@ -115,15 +127,12 @@ type Origin =
     }
   | { readonly kind: "file" };
 
-/** How a laid city is shown: under its name, as the bundled file picked (or none), its prebuilt scene and tab title,
- * whether it is the city shown in another layout, and where it came from. */
+/** How a laid city is shown: under its name, as the bundled file picked (or none), its tab title, whether it is the
+ * city shown in another layout, and where it came from. */
 interface Shown {
   readonly name: string;
   readonly file: string;
   readonly origin: Origin;
-  /** The city's measures, beside its layout; null for a city file written without them. */
-  readonly measures: Measures | null;
-  readonly prebuilt?: Drawn | null;
   readonly title?: string;
   readonly relaid?: boolean;
 }
@@ -150,7 +159,6 @@ const sourceOf = (name: string, commit: string): GitHubSource => {
   return { owner: name.slice(0, slash), name: name.slice(slash + 1), commit };
 };
 
-/** The viewer: one city at a time, its theme, its view and its layout toggles. */
 /** A walk under way: the city (or town) it walks in, its walls, and where it began. */
 interface Walking {
   readonly city: City;
@@ -160,11 +168,13 @@ interface Walking {
   readonly landing: Landing;
 }
 
+/** The viewer: one city at a time, its theme, its view and its layout toggles. */
 export function Viewer({
   Canvas,
   explore,
   fetcher = browserFetch,
   lay = layInWorker,
+  read = readInWorker,
   basePath = "",
   folders,
 }: ViewerProps) {
@@ -204,7 +214,9 @@ export function Viewer({
       city ? (drawn?.city === city && drawn.theme === theme ? drawn.scene : buildScene(city, THEMES[theme])) : null,
     [city, theme, drawn],
   );
-  const wholeIndex = useMemo(() => (city ? pickIndex(city) : null), [city]);
+  // The pick index the opening built with the city, off the main thread.
+  const [wholePick, setWholePick] = useState<PickIndex | null>(null);
+  const wholeIndex = wholePick?.city === city ? wholePick : null;
   const town = useMemo(() => (city && focus !== null ? focusOn(city, focus) : null), [city, focus]);
   const townScene = useMemo(() => (town ? buildScene(town, THEMES[theme]) : null), [town, theme]);
   // A town shown alone picks from the whole city's index, restricted to that town: nothing is built on a drill.
@@ -249,13 +261,12 @@ export function Viewer({
     setPickedHit(hit);
     setMarker(null);
   };
-  // What a search needs: the whole city's folders and files, where they lie, and how to pick them.
+  // What a search needs: the whole city's folders and files (listed in slices once it shows), where they lie, and how
+  // to pick them.
+  const search = useSearchIndex(city);
   const finder = useMemo(
-    () =>
-      city && wholeScene && wholeIndex
-        ? { search: searchIndex(city), bounds: wholeScene.bounds, picking: wholeIndex }
-        : null,
-    [city, wholeScene, wholeIndex],
+    () => (search && wholeScene && wholeIndex ? { search, bounds: wholeScene.bounds, picking: wholeIndex } : null),
+    [search, wholeScene, wholeIndex],
   );
   // A flight in progress: its animation frame, cancelled by any other move.
   const flight = useRef(0);
@@ -319,19 +330,21 @@ export function Viewer({
   // The last phase of every load: the city is in hand; it is shown with where it came from, and the load is done once
   // the map has drawn.
   const draw = useCallback(
-    async (job: Job, next: City, how: Shown) => {
-      const { name, file, origin: from, prebuilt = null, title = name, relaid = false } = how;
+    async (job: Job, laid: Laid, how: Shown) => {
+      const { name, file, origin: from, title = name, relaid = false } = how;
+      const { city: next, scene: prebuilt, measures: opened } = laid;
       job.step({ phase: "draw" });
       await afterPaint();
       job.signal.throwIfAborted();
       setDrawn(prebuilt && { city: next, ...prebuilt });
-      setMeasures(how.measures);
-      if (how.measures)
+      setWholePick(laid.pick);
+      setMeasures(opened);
+      if (opened)
         log.info("viewer/measures", {
-          source: how.measures.source,
-          size: how.measures.size,
-          tested: how.measures.tested,
-          lots: Object.values(how.measures.lots).reduce((n, byKey) => n + Object.keys(byKey).length, 0),
+          source: opened.source,
+          size: opened.size,
+          tested: opened.tested,
+          lots: Object.values(opened.lots).reduce((n, byKey) => n + Object.keys(byKey).length, 0),
         });
       else log.info("viewer/measures-none", { name });
       show(next, name, title, relaid);
@@ -348,14 +361,9 @@ export function Viewer({
     async (entry: CityEntry, layout: readonly Toggle[], relaid = false) => {
       const job = begin("bundled", entry.name);
       try {
-        const next = await loadCity(fetcher, entry, layout, basePath, { signal: job.signal, onStep: job.step });
-        await draw(job, next.city, {
-          name: entry.name,
-          file: entry.name,
-          relaid,
-          origin: { kind: "bundled", entry },
-          measures: next.measures,
-        });
+        const text = await loadCity(fetcher, entry, layout, basePath, { signal: job.signal, onStep: job.step });
+        const laid = await read(text, { signal: job.signal, onProgress: job.step, theme });
+        await draw(job, laid, { name: entry.name, file: entry.name, relaid, origin: { kind: "bundled", entry } });
       } catch (failure) {
         if (isAbort(failure)) return;
         job.failed();
@@ -366,7 +374,7 @@ export function Viewer({
         setError(describeFailure(failure));
       }
     },
-    [basePath, begin, draw, fetcher],
+    [basePath, begin, draw, fetcher, read, theme],
   );
   // A public GitHub repository's single state, read and laid in the browser.
   const openRepository = useCallback(
@@ -390,7 +398,7 @@ export function Viewer({
         const facts = githubFacts(sizes);
         const laid = await lay(snapshot, { signal: load.signal, onProgress: load.step, theme, toggles, facts });
         const from: Origin = { kind: "live", via: "github", name, snapshot, facts, note: GITHUB_STATUS, title: name };
-        await draw(load, laid.city, { name, file: "", prebuilt: laid.scene, origin: from, measures: laid.measures });
+        await draw(load, laid, { name, file: "", origin: from });
         setStatus((done) => `${done} · ${GITHUB_STATUS}`);
         log.info("viewer/github-read", {
           repo: name,
@@ -428,14 +436,7 @@ export function Viewer({
         note: LOCAL_STATUS,
         title: LOCAL_TITLE,
       };
-      await draw(job, laid.city, {
-        name,
-        file: "",
-        prebuilt: laid.scene,
-        title: LOCAL_TITLE,
-        origin: from,
-        measures: laid.measures,
-      });
+      await draw(job, laid, { name, file: "", title: LOCAL_TITLE, origin: from });
       setStatus((done) => `${done} · ${LOCAL_STATUS}`);
     },
   });
@@ -446,15 +447,7 @@ export function Viewer({
     try {
       job.step({ phase: "lay", files: snapshot.files.length });
       const laid = await lay(snapshot, { signal: job.signal, onProgress: job.step, theme, toggles: layout, facts });
-      await draw(job, laid.city, {
-        name,
-        file: "",
-        prebuilt: laid.scene,
-        title,
-        relaid: true,
-        origin: live,
-        measures: laid.measures,
-      });
+      await draw(job, laid, { name, file: "", title, relaid: true, origin: live });
       setStatus((done) => `${done} · ${note}`);
     } catch (failure) {
       if (isAbort(failure)) return;
@@ -494,8 +487,9 @@ export function Viewer({
   const openFile = async (file: File) => {
     const job = begin("file", file.name);
     try {
-      const next = await readCityFile(file, { signal: job.signal, onStep: job.step });
-      await draw(job, next.city, { name: file.name, file: "", origin: { kind: "file" }, measures: next.measures });
+      const text = await readCityFile(file, { signal: job.signal, onStep: job.step });
+      const laid = await read(text, { signal: job.signal, onProgress: job.step, theme });
+      await draw(job, laid, { name: file.name, file: "", origin: { kind: "file" } });
     } catch (failure) {
       if (isAbort(failure)) return;
       job.failed();

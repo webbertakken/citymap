@@ -223,7 +223,9 @@ describe("Viewer search", () => {
       vi.advanceTimersByTime(600);
     });
     fireEvent.keyDown(searchField(), { key: "Enter" });
-    expect(info.mock.calls.map(([line]) => String(line)).filter((l) => l.startsWith("viewer/search"))).toEqual([
+    const lines = info.mock.calls.map(([line]) => String(line).replace(/ ms=\d+$/, ""));
+    expect(lines.filter((l) => l.startsWith("viewer/search"))).toEqual([
+      "viewer/search-index entries=3 slices=1",
       "viewer/search length=3 hits=1",
       "viewer/search-pick kind=folder path=lib",
     ]);

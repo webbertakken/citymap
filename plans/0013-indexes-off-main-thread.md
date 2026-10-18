@@ -31,12 +31,12 @@ live, Loading, Web experience).
 
 ## Phase 4: every opening through the worker
 
-- [ ] The worker reads a city file's text as well as laying a snapshot: validates, builds the scene and the pick grid,
+- [x] The worker reads a city file's text as well as laying a snapshot: validates, builds the scene and the pick grid,
       and answers with the city file's text (laid) and the grid's buffers, transferred; errors keep their code
-- [ ] The main thread parses the city file it is handed without validating it again, and attaches the pick grid
+- [x] The main thread parses the city file it is handed without validating it again, and attaches the pick grid
 - [ ] Bundled cities, variants and city files open through it; the loading phases stay as they are
-- [ ] The search index is built in slices that yield to input once the city shows; search waits for it
-- [ ] Logs for every new decision point and failure
+- [x] The search index is built in slices that yield to input once the city shows; search waits for it
+- [x] Logs for every new decision point and failure
 
 ## Phase 5: proof
 
