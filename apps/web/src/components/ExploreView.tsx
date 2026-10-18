@@ -465,6 +465,9 @@ export function ExploreView({
     controls.current.stick = null;
   };
   const title = flying ? "Flying" : riding ? VEHICLES[riding].riding : "On foot";
+  // The physics of what the person is on: a car drives on the garage's Rapier, or as an arcade car once without it; all
+  // else on the walls' engine.
+  const physics = riding === "car" ? (garage !== null && simply === null ? "Rapier car" : "arcade car") : engine;
   const pad: Pad = flying ? "flying" : (riding ?? "foot");
   const Icon = flying
     ? Video
@@ -509,7 +512,7 @@ export function ExploreView({
           <Icon size={18} aria-hidden="true" />
           <span>{title}</span>
         </h2>
-        <p className="explore-engine">Physics prototype: {engine}</p>
+        <p className="explore-engine">Physics prototype: {physics}</p>
         {simply && <output className="explore-note">{ARCADE_WORDS[simply]}</output>}
         <p className="explore-keys">
           {flying
