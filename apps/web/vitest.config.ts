@@ -6,7 +6,8 @@ export default defineProject({
   plugins: [react()],
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.{ts,tsx}"],
+    // The end-to-end helpers hold pure decisions too, tested beside them.
+    include: ["src/**/*.test.{ts,tsx}", "e2e/**/*.test.ts"],
     setupFiles: ["src/testing/setup.ts"],
   },
 });

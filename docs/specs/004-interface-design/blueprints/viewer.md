@@ -670,13 +670,18 @@ width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in `packages/scene`), `ELEVA
   never built twice; the whole city's scene and pick index stay built while one town is shown, so going back costs
   nothing. Measured on a Pixel 7 profile with the processor slowed to a phone four times slower than the reference
   workstation (`e2e/phone.ts`: a fixed piece of work is timed on the machine at hand, its median against `REFERENCE_MS`
-  45 ms sets the CDP `Emulation.setCPUThrottlingRate`, never below 1, and is reported with the test), so a CI runner and
+  43 ms sets the CDP `Emulation.setCPUThrottlingRate`, never below 1, and is reported with the test), so a CI runner and
   the workstation stand in for the same phone. Where Chromium draws in software on fewer than `SOFTWARE_DRAWING_CORES` 8
   cores (a CI runner: no GPU, 4 cores), drawing cannot stand for a phone's GPU, so `cannotTimeAPhone` skips this budget
-  there with its reason; it gates in the local run before every merge. Measured over taps, keys, a theme change, a
-  search and a drill. A theme change is a transition (`startTransition`): the menu closes in the next frame, and the
-  city's worker makes the scenes in the new colours meanwhile; a drill draws the town's scene made ahead, and the whole
-  city again its kept scene and table, so neither builds a scene or a table on the main thread.
+  there with its reason; it gates in the local run before every merge. A machine busier than the phone it stands for
+  cannot time it either: where the work takes more than `BUSY_SHARE` 1.3 times `REFERENCE_MS` (above 56 ms),
+  `tooBusyForAPhone(workMs)` (pure, unit-tested in `e2e/phone.test.ts`) names why, and `slowToPhone` skips the test with
+  that reason (`e2e/phone work rate busy`, then `e2e/phone-skipped reason`), so a run on a loaded workstation is
+  skipped, not failed, and a CI runner (about 100 ms of work) skips every slowed-phone budget. Each budget test
+  therefore either passes on a machine that stands for the phone or says why it was not timed. Measured over taps, keys,
+  a theme change, a search and a drill. A theme change is a transition (`startTransition`): the menu closes in the next
+  frame, and the city's worker makes the scenes in the new colours meanwhile; a drill draws the town's scene made ahead,
+  and the whole city again its kept scene and table, so neither builds a scene or a table on the main thread.
 - Every map frame in a headless Chromium reads the WebGL canvas back on the main thread while committing
   (`GLES2::ReadPixels`, 20 to 30 ms on the slowed phone at a device pixel ratio of 2), as it composites in software; a
   phone does not. It is part of every step that redraws the map (Details and Hide details refit it), so a step redraws
