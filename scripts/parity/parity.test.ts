@@ -240,5 +240,8 @@ describe("authorsOf", () => {
     expect(authorsOf(city(true, 1))).toBe(JSON.stringify({ authors: true, lots: [["t/a", 2, [2]]] }));
     expect(authorsOf(city(false, 1))).not.toBe(authorsOf(city(true, 1)));
     expect(authorsOf("{}")).toBe(JSON.stringify({ authors: false, lots: [] }));
+    expect(authorsOf(JSON.stringify({ measures: { lots: { t: { a: {} } } } }))).toBe(
+      JSON.stringify({ authors: false, lots: [["t/a", null, []]] }),
+    );
   });
 });
