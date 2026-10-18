@@ -13,7 +13,7 @@ import { bicycle, car, figure, helicopter, motorbike, paletteOf } from "../model
 import { poseStride } from "../models/stride";
 import { METRE, headingOf, onStreet, type Street } from "../street";
 
-export type Style = "procedural" | "gltf" | "mixed";
+export type Style = "procedural" | "gltf" | "mixed" | "gta-clean" | "gta-ps2";
 /** Down the street over a walker's shoulder, or across it at the parked vehicles, side on. */
 export type Shot = "street" | "lineup";
 
@@ -67,17 +67,21 @@ const walking = (model: Object3D) => {
   return model;
 };
 
+/** A clip by the end of its name: Quaternius names its walk "HumanArmature|Man_Walk", Kenney "walk". */
+const clipNamed = (loaded: Loaded, wanted: string) =>
+  loaded.clips.find((c) => c.name.toLowerCase().endsWith(wanted))?.name ?? wanted;
+
 /** The cast in one style: procedural models are built here, glTF ones copied from what was loaded. */
 function cast(style: Style, shot: Shot, theme: Theme, gltf: Record<GltfName, Loaded> | null): Placed[] {
   const p = paletteOf(theme);
   const fromFile = (name: GltfName, clip?: string, at = 0) => {
     const loaded = gltf![name];
     const model = loaded.make();
-    if (clip) pose(model, loaded.clips, clip, at);
+    if (clip) pose(model, loaded.clips, clipNamed(loaded, clip), at);
     return model;
   };
   const people = style === "procedural" ? null : gltf;
-  const vehicles = style === "gltf" ? gltf : null;
+  const vehicles = style === "procedural" || style === "mixed" ? null : gltf;
   const models = [
     people ? fromFile("figure", "walk", 0.25) : walking(figure(p)),
     people ? fromFile("walker", "idle", 0.3) : figure(p, p.paint(330)),

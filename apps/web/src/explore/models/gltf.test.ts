@@ -1,5 +1,10 @@
 import {
   AnimationClip,
+  Bone,
+  Float32BufferAttribute,
+  Skeleton,
+  SkinnedMesh,
+  Uint16BufferAttribute,
   BoxGeometry,
   Box3,
   Color,
@@ -16,7 +21,7 @@ import {
   type Object3D,
 } from "three";
 import { describe, expect, it } from "vitest";
-import { GLTF_MODELS, loadGltfModels, pose, readGltfWithThree, type GltfFile } from "./gltf";
+import { GLTF_MODELS, loadGltfModels, pose, readGltfWithThree, type GltfFile, type ModelFile } from "./gltf";
 
 /** A stand-in file: one box of the given size (x, y, z), textured, lit, with a clip that moves it. */
 function fileOf(size: readonly [number, number, number]): GltfFile {
@@ -93,6 +98,67 @@ describe("loadGltfModels", () => {
     if (!(box instanceof Mesh) || !(box.material instanceof MeshStandardMaterial)) throw new Error("no box");
     expect(box.material.map?.colorSpace).toBe(NoColorSpace);
     expect(box.material.color.r).toBeCloseTo(new Color().setRGB(0.2, 0.2, 0.2).convertLinearToSRGB().r, 6);
+  });
+});
+
+/** A model file moved to another folder. */
+const other = (file: ModelFile, name: string): ModelFile => ({ ...file, url: `other/${name}.glb` });
+
+/** A rigged box 1 m tall whose one bone doubles it after its bounds were kept: drawn, it stands 2 m. */
+function rigged(): GltfFile {
+  const geometry = new BoxGeometry(0.3, 1, 0.3).translate(0, 0.5, 0);
+  const count = geometry.getAttribute("position").count;
+  geometry.setAttribute("skinIndex", new Uint16BufferAttribute(new Uint16Array(count * 4), 4));
+  geometry.setAttribute(
+    "skinWeight",
+    new Float32BufferAttribute(
+      new Float32Array(count * 4).map((_v, i) => (i % 4 === 0 ? 1 : 0)),
+      4,
+    ),
+  );
+  const bone = new Bone();
+  const mesh = new SkinnedMesh(geometry, new MeshStandardMaterial());
+  mesh.add(bone);
+  mesh.bind(new Skeleton([bone]));
+  // Its bounds are worked out once and kept, as a loaded model's are; then the bone poses it.
+  mesh.computeBoundingBox();
+  bone.scale.setScalar(2);
+  const scene = new Group();
+  scene.add(mesh);
+  return { scene, animations: [] };
+}
+
+describe("a rigged model", () => {
+  it("is sized as its skeleton poses it, not as its raw mesh", async () => {
+    const models = await loadGltfModels("", async (url) =>
+      url.endsWith(GLTF_MODELS.figure.url) ? rigged() : read(url),
+    );
+    const height = new Box3().setFromObject(models.figure.make(), true).getSize(new Vector3()).y;
+    expect(height).toBeCloseTo(GLTF_MODELS.figure.metres, 6);
+  });
+});
+
+describe("loadGltfModels with another set", () => {
+  it("loads the files of the set given, by the same names", async () => {
+    const asked: string[] = [];
+    const m = GLTF_MODELS;
+    const set = {
+      figure: other(m.figure, "figure"),
+      walker: other(m.walker, "walker"),
+      bicycle: other(m.bicycle, "bicycle"),
+      motorbike: other(m.motorbike, "motorbike"),
+      car: other(m.car, "car"),
+      helicopter: other(m.helicopter, "helicopter"),
+    };
+    await loadGltfModels(
+      "",
+      async (url) => {
+        asked.push(url);
+        return read(url);
+      },
+      set,
+    );
+    expect(asked).toContain("/other/car.glb");
   });
 });
 

@@ -6,6 +6,7 @@ import {
   Box3,
   Group,
   Mesh,
+  SkinnedMesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   NoColorSpace,
@@ -49,7 +50,13 @@ function normalised(scene: Object3D, file: ModelFile): Object3D {
   const turned = new Group();
   scene.rotation.y = file.yaw;
   turned.add(scene);
-  const box = new Box3().setFromObject(turned);
+  // A rigged model is measured as posed by its skeleton: its raw mesh may be in other units (Quaternius rigs in
+  // centimetres under a 100x armature), so its stated bounds say nothing of how it is drawn.
+  turned.updateMatrixWorld(true);
+  turned.traverse((node) => {
+    if (node instanceof SkinnedMesh) node.skeleton.update();
+  });
+  const box = new Box3().setFromObject(turned, true);
   const size = box.getSize(new Vector3());
   const along = file.measure === "height" ? size.y : Math.max(size.x, size.z);
   const scale = file.metres / along;
@@ -113,9 +120,10 @@ export async function loadModel(base: string, file: ModelFile, read: ReadGltf = 
 export async function loadGltfModels(
   base: string,
   read: ReadGltf = readGltfWithThree,
+  files: Readonly<Record<GltfName, ModelFile>> = GLTF_MODELS,
 ): Promise<Record<GltfName, Loaded>> {
   const load = (file: ModelFile) => loadModel(base, file, read);
-  const m = GLTF_MODELS;
+  const m = files;
   const [figure, walker, bicycle, motorbike, car, helicopter] = await Promise.all(
     [m.figure, m.walker, m.bicycle, m.motorbike, m.car, m.helicopter].map(load),
   );

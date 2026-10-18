@@ -8,17 +8,44 @@ import { useEffect, useState } from "react";
 import { loadCity, loadIndex } from "../../cities";
 import { log, reasonOf } from "../../log";
 import { cityBuildings, tableFor } from "../../view/buildings";
-import { loadGltfModels, type GltfName, type Loaded } from "../models/gltf";
+import { GLTF_MODELS, loadGltfModels, type GltfName, type Loaded, type ModelFile } from "../models/gltf";
 import { longestStreet, type Street } from "../street";
 import ModelsLab, { type Shot, type Style } from "./ModelsLab";
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const fetcher = (url: string, init?: RequestInit) => fetch(url, init);
-const STYLES: readonly Style[] = ["procedural", "gltf", "mixed"];
+const STYLES: readonly Style[] = ["procedural", "gltf", "mixed", "gta-clean", "gta-ps2"];
 const LABELS: Readonly<Record<Style, string>> = {
   procedural: "A: procedural low-poly, theme colours",
   gltf: "B: glTF models (Kenney CC0, poly.pizza CC-BY and CC0)",
   mixed: "C: procedural vehicles, Kenney CC0 people",
+  "gta-clean":
+    "GTA, clean people: Quaternius (CC0); PSX bicycle, sedan, pickup (heyheythere), chopper (Duhgless), GGBot car",
+  "gta-ps2":
+    "GTA, PS2 people: Wobble Blocks (CC0); PSX bicycle, sedan, pickup (heyheythere), chopper (Duhgless), GGBot car",
+};
+
+/**
+ * The GTA candidates from docs/research/gta-style-models, by the lab's names: two people, the bicycle, the motorbike,
+ * a car, and the pickup in the helicopter's place. Fetched by hand into public/lab/models/gta (gitignored).
+ */
+const gtaModels = (style: Style): Readonly<Record<GltfName, ModelFile>> => {
+  const people: Pick<Record<GltfName, ModelFile>, "figure" | "walker"> = style === "gta-ps2"
+    ? {
+        figure: { url: "lab/models/gta/ps2-pair.glb", metres: 1.78, measure: "height", yaw: Math.PI / 2 },
+        walker: { url: "lab/models/gta/ps2-pair.glb", metres: 1.78, measure: "height", yaw: -Math.PI / 2 },
+      }
+    : {
+        figure: { url: "lab/models/gta/quaternius-man.glb", metres: 1.78, measure: "height", yaw: Math.PI / 2 },
+        walker: { url: "lab/models/gta/quaternius-woman.glb", metres: 1.68, measure: "height", yaw: -Math.PI / 2 },
+      };
+  return {
+    ...people,
+    bicycle: { url: "lab/models/gta/bicycle.glb", metres: 1.75, measure: "length", yaw: Math.PI / 2 },
+    motorbike: { url: "lab/models/gta/chopper.glb", metres: 2.4, measure: "length", yaw: 0 },
+    car: { url: "lab/models/gta/ggbot-car2.glb", metres: 4.8, measure: "length", yaw: Math.PI / 2 },
+    helicopter: { url: "lab/models/gta/pickup.glb", metres: 5.2, measure: "length", yaw: Math.PI / 2 },
+  };
 };
 
 interface Asked {
@@ -55,7 +82,10 @@ async function prepare(asked: Asked): Promise<Ready> {
   const { table } = tableFor(scene, cityBuildings(file.measures), "folder", theme);
   const street = longestStreet(file.city);
   if (!street) throw new Error("lab/no-street");
-  const gltf = asked.style === "procedural" ? null : await loadGltfModels(base);
+  const gltf =
+    asked.style === "procedural"
+      ? null
+      : await loadGltfModels(base, undefined, asked.style.startsWith("gta") ? gtaModels(asked.style) : GLTF_MODELS);
   log.info("lab/models-ready", { style: asked.style, city: entry.name, street: street.length.toFixed(1) });
   return { scene, table, street, gltf };
 }
