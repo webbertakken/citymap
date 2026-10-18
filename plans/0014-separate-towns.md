@@ -1,4 +1,4 @@
-# 0012 Separate towns
+# 0014 Separate towns
 
 Kinds of folder (workspace members, submodules, `apps/`, `packages/`, `libs/`, `crates/`, `services/`, `modules/`,
 `extensions/`, `**/plugins/`) laid as towns of their own, a switch each, replacing `split`; submodules read from their
@@ -99,12 +99,18 @@ rebased.
 - [x] The Rust city file keeps `declared` and `separable` beside the measures (both CLIs, tested)
 - [x] The history reader records a commit's own changes before its pins expand (both CLIs)
 - [x] Local and GitHub reads carry submodule files' sizes (their own indexes, their own trees)
-- [x] Plan renumbered `0012` (0011 is buildings)
+- [x] Plan renumbered `0014` (0011 is buildings, 0012 exploring the city, 0013 claimed by #49)
 - [x] CLI measures for submodule files: contents read from each submodule's git data at its pin (both CLIs)
 - [x] A lot whose files carry no history gives no author count (both CLIs)
 - [x] `scripts/bundle-cities.ts` lays each city's separation states at its pin; a full `bun run bundle` timed and
       measured (304 variants, 839 s locally, 462 MB raw, 67 MB gzipped; CI matches local per variant)
-- [ ] Webber's answer on the bundle's size and time, applied
+- [x] Merge `origin/main` again (#43 to #54: exploring the city, the end-to-end CI job), with a merge commit
+- [x] Bundle lays in parallel, bounded by the cores (`CITYMAP_BUNDLE_JOBS` lowers it), logged as `bundle/pool`
+- [ ] The parallel bundle proven byte-identical to a serial run, once, locally
+- [x] A submodule's files carry no history, and say why ("A submodule's own history is not read"); the measures section
+      names the submodule folders (both CLIs)
+- [ ] Spec: the combinatorial limit of precomputed variants, laying in the browser on demand as the long-term answer; a
+      submodule's files without history
 - [ ] `bun run check`; `bun run parity` in every mode (state, fold, resume, checkout, coverage) and with separations
       (each alone, none), plus a repository with submodules
 - [ ] End to end (`CITYMAP_E2E_PORT=5198`); screenshots of separated towns in plan and Buildings views, light and dark
