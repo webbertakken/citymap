@@ -249,3 +249,54 @@ describe("riding", () => {
     expect(followOf(parked())).toBe(ON_FOOT);
   });
 });
+
+/** Controls asking to fly, or land. */
+const flying = (controls = newControls()) => ({ ...controls, fly: true });
+
+describe("flying", () => {
+  it("lifts the camera off the walker from where it is, and flies it where it looks, the walker staying put", () => {
+    const start = startSession({ x: 0, y: 0, z: 0 }, 0);
+    const up = advanceSession(start, flying(), 0, open);
+    expect(up.flyer).not.toBeNull();
+    // From where the camera was: behind and above the walker.
+    expect(up.flyer!.at.x).toBeLessThan(0);
+    expect(up.flyer!.at.y).toBeGreaterThan(0);
+    expect(promptOf(up)).toBeNull();
+    const ahead = advanceSession(up, pressing("KeyW"), 0.5, open);
+    expect(ahead.flyer!.at.x).toBeGreaterThan(up.flyer!.at.x);
+    expect(ahead.body.feet).toEqual(start.body.feet);
+  });
+
+  it("rises with Space, sinks with C or Control, and changes gear by the wheel", () => {
+    const up = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0), flying(), 0, open);
+    const y = up.flyer!.at.y;
+    expect(advanceSession(up, pressing("Space"), 0.5, open).flyer!.at.y).toBeGreaterThan(y);
+    expect(advanceSession(up, pressing("KeyC"), 0.5, open).flyer!.at.y).toBeLessThan(y);
+    expect(advanceSession(up, pressing("ControlLeft"), 0.5, open).flyer!.at.y).toBeLessThan(y);
+    const geared = advanceSession(up, { ...newControls(), gears: 2 }, 0, open);
+    expect(geared.flyer!.speed).toBeCloseTo(up.flyer!.speed * 1.25 ** 2, 9);
+  });
+
+  it("lands back on the walker with F again", () => {
+    const up = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0), flying(), 0, open);
+    expect(advanceSession(up, flying(), 0, open).flyer).toBeNull();
+  });
+
+  it("leaves a ride coasting while the camera flies", () => {
+    const car: Vehicle = {
+      id: "car",
+      kind: "car",
+      feet: { x: 4, y: 0, z: 0 },
+      heading: 0,
+      speed: 0,
+      turn: 0,
+      steer: 0,
+    };
+    let session = advanceSession(startSession({ x: 1.5, y: 0, z: 0 }, 0, [car]), useKey(), 0, open);
+    session = advanceSession(session, flying(), 0, open);
+    const before = ridden(session)!.feet.x;
+    session = advanceSession(session, pressing("KeyW"), 0.5, open);
+    expect(ridden(session)!.feet.x).toBe(before);
+    expect(promptOf(session)).toBeNull();
+  });
+});

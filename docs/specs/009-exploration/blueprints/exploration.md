@@ -129,6 +129,25 @@ build).
   between the first floor's windows and the second's (1.05 floors up), or at 0.9 of a one-floor building. The walk's
   element carries `data-signs`, the number shown.
 
+## Cameras
+
+- `view/view.ts`: `Turn` `{ yaw, tilt }`; `turned(view, dyaw, dtilt)` clamps tilt to `TILT_MIN` 15° to `TILT_MAX` 85°;
+  `zoomAt(view, viewport, pointer, factor, mode)` keeps the ground under the pointer where it is; `onKey` turns by
+  `KEY_TURN` 15° on Q and E and tilts by `KEY_TILT` 10° on Page Up and Page Down, in the Buildings view only; `fit`
+  keeps the view's turn. `flyTo` keeps the fitted turn.
+- `view/gesture.ts`: two pointers' `ratio` (pinch zoom), `twist` (turn, radians), `lift` (tilt, from the mean vertical
+  move) and `middle` (where a pinch zooms). `MapView`: a right-drag or a Shift-drag turns by `DRAG_TURN` 0.005 rad a
+  pixel; plan view pans with any button; the context menu is held back over the map.
+- Roof names: `roofLabels(roofs, view, viewport, mode)` names none in plan view or below `ROOF_ZOOM` 60 px a street
+  width; else the roofs within the screen's diagonal of the centre, nearest first, each kept only when its box (11 px
+  letters) is on screen and clear of every one kept, at most `ROOF_MOST` 60. `Viewer` gives each built lot its
+  `signName`, its middle and its roof's height.
+- Free camera, `explore/flyer.ts`: `Flyer` `{ at, speed }`; `stepFlyer(flyer, flight, orbit, dt)` moves forward along
+  `lookAlong(orbit)`, right on the level and up straight; `geared(flyer, steps)` multiplies by `GEAR` 1.25 a wheel step
+  within `SLOWEST_FLIGHT` 2 to `FASTEST_FLIGHT` 300 m/s from `FLY_SPEED` 20; `flyingCamera` looks from `at` along the
+  look. `Session.flyer` is null on the walker; `Controls.fly` toggles it (lifting from the follow camera's eye), `gears`
+  and `sink` drive it, and while it flies the walker's and the ride's intents are idle and `promptOf` is null.
+
 ## Presentation and UX
 
 - Walk: an icon button "Walk", `aria-pressed` while walking; on a coarse pointer at the bottom centre, hidden while the

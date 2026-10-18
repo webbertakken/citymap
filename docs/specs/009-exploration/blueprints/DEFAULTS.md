@@ -30,3 +30,7 @@ One row per value the exploration spec leaves silent or qualitative.
 | Retarget sampling       | 30 fps                                   | the library's own rate                                                 | 24 to 60 fps          |
 | Walk clip speed         | 1 m/s                                    | measured from the planted foot by build-models.ts: 0.98                | measured              |
 | Texture filter          | NEAREST                                  | the PS1 look heyheythere's pack is made for                            | fixed                 |
+| Turn steps              | 15° a key, 10° a tilt key, 0.005 rad/px  | a few presses round a block; a drag across the screen is a half turn   | taste                 |
+| Tilt range              | 15° to 85°                               | never edge-on to the ground, never quite straight down (plan view)     | 5° to 89°             |
+| Roof names              | from 60 px a street width, at most 60    | a lot is then wide enough for a name; the screen stays readable        | 40 to 120 px, 20-100  |
+| Free camera speed       | 20 m/s, ×1.25 a wheel step, 2 to 300     | a quick drone; the whole city crossed in seconds at the top            | taste                 |

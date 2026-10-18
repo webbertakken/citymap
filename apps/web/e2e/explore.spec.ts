@@ -205,3 +205,17 @@ test("names the buildings round the walker on their walls, never more than the p
   const name = target.path.slice(target.path.lastIndexOf("/") + 1);
   await expect(page.getByRole("region", { name: "In sight" })).toContainText(name);
 });
+
+test("flies the camera freely with F, over the city, and lands it on the walker", async ({ page, isMobile }, info) => {
+  test.skip(isMobile, "the phone flies by its Fly button, in the unit tests");
+  await page.getByRole("button", { name: "Walk" }).click();
+  await drawn(page);
+  await page.keyboard.press("KeyF");
+  await expect(page.getByRole("region", { name: "Flying" })).toContainText("F lands");
+  await page.keyboard.down("Space");
+  await frames(page, 40);
+  await page.keyboard.up("Space");
+  await page.screenshot({ path: info.outputPath("flying.png") });
+  await page.keyboard.press("KeyF");
+  await expect(page.getByRole("region", { name: "On foot" })).toBeVisible();
+});
