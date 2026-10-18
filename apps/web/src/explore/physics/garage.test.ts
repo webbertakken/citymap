@@ -2,7 +2,7 @@ import { GROUND, type Footprint } from "@citymap/world";
 import { ColliderDesc } from "@dimforge/rapier3d-compat";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Step } from "../../load/step";
-import { standing, type Car, type Vehicle } from "../vehicles";
+import { standing, type Bicycle, type Car, type Vehicle } from "../vehicles";
 import { NO_INTENTS, type Intents } from "../walker";
 import {
   BRAKE,
@@ -17,6 +17,8 @@ import {
   openGarage,
   pedalsOf,
   steerReach,
+  tiltOf,
+  tiltedBy,
   upOf,
   type Garage,
 } from "./garage";
@@ -61,6 +63,19 @@ function drive(garage: Garage, start: readonly Vehicle[], seconds: number, drive
   return path;
 }
 const first = (vehicles: readonly Vehicle[]) => asCar(vehicles[0]);
+/** The vehicle as a bicycle, failing the test when it is not one. */
+const asBicycle = (vehicle: Vehicle | null | undefined): Bicycle => {
+  if (vehicle?.kind !== "bicycle") throw new Error(`expected a bicycle, got ${vehicle?.kind ?? "nothing"}`);
+  return vehicle;
+};
+/** Drives on full throttle until the car goes `speed` (m/s): the vehicles then. */
+function upTo(garage: Garage, speed: number) {
+  let vehicles: readonly Vehicle[] = [car()];
+  for (let i = 0; first(vehicles).speed < speed && i < 2400; i++)
+    vehicles = drive(garage, vehicles, DT, () => THROTTLE).at(-1)!;
+  expect(first(vehicles).speed).toBeGreaterThanOrEqual(speed);
+  return vehicles;
+}
 
 afterEach(() => {
   for (const garage of opened.splice(0)) garage.dispose();
@@ -176,6 +191,30 @@ describe("the car on Rapier", () => {
     expect(Math.min(...speeds)).toBeGreaterThan(-REVERSE_TOP - 1);
   });
 
+  it("takes a ten-metre street's corner from 50 km/h on full lock, upright, and runs straight once let go", async () => {
+    const garage = await garageOf([]);
+    const away = upTo(garage, 14);
+    const start = first(away);
+    const turning = drive(garage, away, 1.3, () => ({ ...NO_INTENTS, right: 1 }));
+    const quarter = turning.findIndex((v) => Math.abs(first(v).heading - start.heading) >= Math.PI / 2);
+    // A quarter turn within 1.3 s, its corner cut no wider than a street and a pavement each way.
+    expect(quarter).toBeGreaterThan(0);
+    const at = first(turning[quarter]!).feet;
+    expect(Math.hypot(at.x - start.feet.x, at.z - start.feet.z)).toBeLessThan(14);
+    expect(Math.min(...turning.map((v) => upOf(first(v).attitude)))).toBeGreaterThan(0.95);
+    const after = drive(garage, turning.at(-1)!, 0.6, () => NO_INTENTS);
+    expect(Math.abs(first(after.at(-1)!).turn)).toBeLessThan(0.05);
+  });
+
+  it("still turns briskly at 100 km/h: a quarter turn within two and a half seconds", async () => {
+    const garage = await garageOf([]);
+    const away = upTo(garage, 28);
+    const start = first(away);
+    const turning = drive(garage, away, 2.5, () => ({ ...NO_INTENTS, right: 1 }));
+    expect(Math.abs(first(turning.at(-1)!).heading - start.heading)).toBeGreaterThan(Math.PI / 2);
+    expect(Math.min(...turning.map((v) => upOf(first(v).attitude)))).toBeGreaterThan(0.9);
+  });
+
   it("slides its back out on the handbrake, turning hard", async () => {
     const garage = await garageOf([]);
     const away = drive(garage, [car()], 3, () => THROTTLE);
@@ -224,21 +263,90 @@ describe("the car on Rapier", () => {
     expect(end[2]).toBe(missed);
   });
 
-  it("is stopped by a parked bicycle or motorbike, which stays where it stands", async () => {
+  it("shoves a parked bicycle it hits and knocks it over, hardly slowed", async () => {
     const garage = await garageOf([]);
-    const bike = standing("bike", "motorbike", { x: 12, y: GROUND, z: 0 }, Math.PI / 2);
-    const path = drive(garage, [car(), bike], 4, () => ({ ...NO_INTENTS, forward: 0.3 }));
-    expect(Math.max(...path.map((v) => first(v).feet.x))).toBeLessThan(12);
-    expect(path.at(-1)![1]).toBe(bike);
+    const bike = standing("bike", "bicycle", { x: 12, y: GROUND, z: 0 }, Math.PI / 2);
+    const path = drive(garage, [car(), bike], 4, () => ({ ...NO_INTENTS, forward: 0.5 }));
+    const hit = asBicycle(path.at(-1)![1]);
+    expect(hit.feet.x).toBeGreaterThan(14);
+    expect(Math.abs(hit.cycle.lean) + Math.abs(hit.cycle.pitch)).toBeGreaterThan(0.5);
+    expect(Math.max(...path.map((v) => first(v).feet.x))).toBeGreaterThan(14);
   });
 
-  it("blocks a two-wheeler again when the player comes back to it", async () => {
+  it("shoves a parked motorbike less, it being heavier", async () => {
+    const garage = await garageOf([]);
+    const bike = standing("bike", "motorbike", { x: 12, y: GROUND, z: 0 }, Math.PI / 2);
+    const path = drive(garage, [car(), bike], 4, () => ({ ...NO_INTENTS, forward: 0.5 }));
+    const hit = path.at(-1)![1]!;
+    expect(hit.feet.x).toBeGreaterThan(12.5);
+    expect(hit.kind).toBe("motorbike");
+  });
+
+  it("leaves a two-wheeler it never touches standing where it was, asleep", async () => {
+    const garage = await garageOf([]);
+    const bike = standing("bike", "bicycle", { x: 12, y: GROUND, z: 30 }, 0);
+    const path = drive(garage, [car(), bike], 2, () => THROTTLE);
+    const still = asBicycle(path.at(-1)![1]);
+    // It settles onto the ground within a centimetre or two, then sleeps: the same vehicle, step after step.
+    expect(Math.hypot(still.feet.x - 12, still.feet.z - 30)).toBeLessThan(0.02);
+    expect(Math.abs(still.cycle.lean)).toBeLessThan(0.01);
+    expect(path.at(-2)![1]).toBe(still);
+  });
+
+  it("shoves a two-wheeler again when the player comes back to it", async () => {
     const garage = await garageOf([]);
     const bike = standing("bike", "motorbike", { x: 12, y: GROUND, z: 0 }, Math.PI / 2);
     garage.follow({ x: 0, y: GROUND, z: 0 }, { x: 0, z: 0 }, [car(), bike], 5);
     garage.follow({ x: 3000, y: GROUND, z: 0 }, { x: 0, z: 0 }, [car(3000, 0), bike], 5);
-    const path = drive(garage, [car(), bike], 4, () => ({ ...NO_INTENTS, forward: 0.3 }));
-    expect(Math.max(...path.map((v) => first(v).feet.x))).toBeLessThan(12);
+    const path = drive(garage, [car(), bike], 4, () => ({ ...NO_INTENTS, forward: 0.5 }));
+    expect(path.at(-1)![1]!.feet.x).toBeGreaterThan(12.5);
+  });
+
+  it("lets the walker push a parked bicycle over, but never a car", async () => {
+    const garage = await garageOf([]);
+    const bike = standing("bike", "bicycle", { x: 2, y: GROUND, z: 0 }, Math.PI / 2);
+    const parked = car(0, 3, 0, "parked");
+    let vehicles: readonly Vehicle[] = [parked, bike];
+    // Walking east at a run through where the bicycle stands, and on along the car's side.
+    for (let i = 0; i < 240; i++) {
+      const walker = { x: i * DT * 4, y: GROUND, z: 0.3 };
+      if (i % 4 === 0) garage.follow(walker, { x: 4, z: 0 }, vehicles, 50);
+      vehicles = garage.drive(vehicles, new Map(), DT, walker);
+    }
+    expect(vehicles[1]!.feet.x).toBeGreaterThan(2.5);
+    expect(vehicles[0]).toBe(parked);
+    // Without the walker, the bicycle settles where it was pushed.
+    const settled = drive(garage, vehicles, 3, () => NO_INTENTS).at(-1)![1]!;
+    expect(Math.abs(settled.feet.x - vehicles[1]!.feet.x)).toBeLessThan(1);
+  });
+
+  it("keeps the walker's body at its feet when the frame re-centres round it", async () => {
+    const garage = await garageOf([]);
+    // A bicycle 300 m on, past the first re-centring: the walker reaches it and still shoves it.
+    const bike = standing("bike", "bicycle", { x: 300, y: GROUND, z: 0 }, Math.PI / 2);
+    let vehicles: readonly Vehicle[] = [bike];
+    // From 200 m (inside the first frame) to past the bicycle: the frame re-centres at 256 m, mid-walk.
+    for (let x = 200; x < 302; x += DT * 20) {
+      const walker = { x, y: GROUND, z: 0.3 };
+      garage.follow(walker, { x: 4, z: 0 }, vehicles, 50);
+      vehicles = garage.drive(vehicles, new Map(), DT, walker);
+    }
+    expect(vehicles[0]!.feet.x).toBeGreaterThan(300.5);
+  });
+
+  it("moves a ridden two-wheeler where its own physics puts it, shoving a parked one, never shoved itself", async () => {
+    const garage = await garageOf([]);
+    const parked = standing("parked", "bicycle", { x: 3, y: GROUND, z: 0 }, Math.PI / 2);
+    let vehicles: readonly Vehicle[] = [standing("ridden", "bicycle", { x: 0, y: GROUND, z: 0 }, 0), parked];
+    for (let i = 0; i < 180; i++) {
+      const ridden = { ...vehicles[0]!, feet: { x: i * DT * 5, y: GROUND, z: 0 }, speed: 5 } as Vehicle;
+      vehicles = [ridden, vehicles[1]!];
+      if (i % 4 === 0) garage.follow(ridden.feet, { x: 5, z: 0 }, vehicles, 50);
+      const next = garage.drive(vehicles, new Map([["ridden", { ...NO_INTENTS, forward: 1 }]]), DT);
+      expect(next[0]).toBe(ridden);
+      vehicles = next;
+    }
+    expect(vehicles[1]!.feet.x).toBeGreaterThan(4);
   });
 
   it("lets far vehicles go and brings them back as they were, and places afresh a car changed outside it", async () => {
@@ -305,6 +413,35 @@ describe("the car's pedals", () => {
 
 /** A turn about the upright. */
 const yaw = (h: number) => ({ x: 0, y: Math.sin(h / 2), z: 0, w: Math.cos(h / 2) });
+
+describe("a two-wheeler's tilt", () => {
+  it("reads back the heading, lean and pitch it was turned by, lying on its side too", () => {
+    for (const [heading, lean, pitch] of [
+      [0.4, 0.3, -0.2],
+      [-2.5, Math.PI / 2, 0.1],
+      [3, -1.2, 0.6],
+    ] as const) {
+      const turn = tiltedBy(heading, lean, pitch);
+      const tilt = tiltOf(turn);
+      // On its side, heading and pitch turn the same way: the turn read back is the one made, however it is named.
+      const back = tiltedBy(tilt.heading, tilt.lean, tilt.pitch);
+      const dot = back.x * turn.x + back.y * turn.y + back.z * turn.z + back.w * turn.w;
+      expect(Math.abs(dot)).toBeCloseTo(1, 9);
+      expect(tilt.lean).toBeCloseTo(lean, 9);
+    }
+  });
+
+  it("reads back each angle by its name, short of lying on its side", () => {
+    const tilt = tiltOf(tiltedBy(3, -1.2, 0.6));
+    expect(tilt.heading).toBeCloseTo(3, 9);
+    expect(tilt.pitch).toBeCloseTo(0.6, 9);
+  });
+
+  it("names a heading even pointing straight up", () => {
+    const up = tiltedBy(0.7, 0, Math.PI / 2);
+    expect(Number.isFinite(tiltOf(up).heading)).toBe(true);
+  });
+});
 
 describe("a car's turn", () => {
   it("faces where its nose points, keeping the last heading pointing straight up", () => {

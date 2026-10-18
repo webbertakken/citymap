@@ -2,12 +2,13 @@
 // within a frame's budget and lowered behind), a ground under it, and every car near the player as a body on four
 // wheels by Rapier's ray-cast vehicle controller, with an engine, an automatic gearbox, brakes and a handbrake. The world
 // is placed round the player and re-centred as it goes, each building from its own middle in 64-bit numbers, so nothing
-// drifts however far the walk goes. The walker and the two-wheelers move on the walls; here they are only in the way.
+// drifts however far the walk goes. The walker and a ridden two-wheeler move on the walls; here each is a body moved
+// where they are, which shoves the parked bicycles and motorbikes (loose bodies, as the cars are) but never a car.
 // Metres, seconds, newtons; headings as the walk's.
-import { GROUND, solid, type Footprint, type Vec3 } from "@citymap/world";
+import { GROUND, PERSON_RADIUS, solid, type Footprint, type Vec3 } from "@citymap/world";
 import { log } from "../../log";
 import { automatic, driveOf, rpmOf, type Engine, type Gearbox } from "../engine";
-import { VEHICLES, type Car, type Quat, type Vehicle } from "../vehicles";
+import { VEHICLES, type Bicycle, type Car, type Motorbike, type Quat, type Vehicle } from "../vehicles";
 import { GRAVITY, type Intents } from "../walker";
 import { breathe, type WallOptions } from "./raise";
 import { loadRapier, type Rapier } from "./rapier";
@@ -45,7 +46,7 @@ export const SPRING_MOST = 40_000;
 /** How far the springs sag under the car's own weight: the hard points sit so the car's feet rest on the ground. */
 export const SAG = GRAVITY / (4 * SPRING_STIFFNESS);
 /** The tyres' grip, and the back tyres' sideways stiffness with the handbrake on (of their own). */
-export const TYRE_GRIP = 1.2;
+export const TYRE_GRIP = 2;
 export const HANDBRAKE_SIDE = 0.4;
 /** Brakes, as Rapier's impulse a step at 120 Hz: the footbrake on every wheel, the handbrake on the back two. */
 export const BRAKE = 30;
@@ -58,8 +59,8 @@ export const CAR_ROLLING = 0.015;
 const AIR_DENSITY = 1.2;
 /** The front wheels turn this far at a standstill, less the faster it goes (half by `STEER_FALL`), at this rate. */
 export const CAR_STEER = 0.6;
-export const STEER_FALL = 14;
-export const STEER_RATE = 3;
+export const STEER_FALL = 22;
+export const STEER_RATE = 4;
 /** Below this speed a held S backs up and a held W pulls away; above it, each brakes the other way's motion. */
 export const CREEP = 0.5;
 /** Reversing, it goes no faster than this. */
@@ -74,6 +75,15 @@ export const GROUND_HALF = 1000;
 /** Rapier keeping up: its steps may take this share of the time they cover, over this many seconds of driving. */
 export const SLOW_SHARE = 0.5;
 export const SLOW_WINDOW = 2;
+/** A parked two-wheeler: its weight, how tall its block stands, and how soon it stops sliding and rolling. */
+export const TWO_WHEELER_MASS: Readonly<Record<"bicycle" | "motorbike", number>> = { bicycle: 15, motorbike: 200 };
+export const TWO_WHEELER_HEIGHT = 1.1;
+export const TWO_WHEELER_DAMPING = 0.5;
+/** It stands on its tyres, not its bars: its block is this share of its width, so a push tips it as it would a bike. */
+export const TWO_WHEELER_BASE = 0.4;
+/** The walker's body among the two-wheelers: a capsule half this tall between its caps, its middle this high. */
+export const WALKER_HALF = 0.6;
+export const WALKER_MIDDLE = 0.9;
 /** The streets raised behind the loading card are counted in steps of this many buildings. */
 export const STREETS_SLICE = 200;
 
@@ -155,6 +165,45 @@ export function headingOf(q: Quat, fallback: number): number {
   return Math.hypot(x, z) < 1e-6 ? fallback : Math.atan2(-z, x);
 }
 
+/** How a two-wheeler stands: its heading, its lean (positive to the left) and its pitch, as its model is posed. */
+export interface Tilt {
+  readonly heading: number;
+  readonly lean: number;
+  readonly pitch: number;
+}
+
+/** The product of two turns: `a` after `b`. */
+const times = (a: Quat, b: Quat): Quat => ({
+  x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+  y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+  z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+  w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+});
+
+/** The turn of a two-wheeler standing so: about the upright by its heading, then its lean, then its pitch. */
+export const tiltedBy = (heading: number, lean: number, pitch: number): Quat =>
+  times(
+    times(
+      { x: 0, y: Math.sin(heading / 2), z: 0, w: Math.cos(heading / 2) },
+      { x: Math.sin(-lean / 2), y: 0, z: 0, w: Math.cos(-lean / 2) },
+    ),
+    { x: 0, y: 0, z: Math.sin(-pitch / 2), w: Math.cos(-pitch / 2) },
+  );
+
+/** How a turn stands as a two-wheeler: its heading, lean and pitch (`tiltedBy` undone; pointing straight up, no lean). */
+export function tiltOf(q: Quat): Tilt {
+  const m13 = 2 * (q.x * q.z + q.w * q.y);
+  const m21 = 2 * (q.x * q.y + q.w * q.z);
+  const m22 = 1 - 2 * (q.x * q.x + q.z * q.z);
+  const m23 = 2 * (q.y * q.z - q.w * q.x);
+  const m31 = 2 * (q.x * q.z - q.w * q.y);
+  const m11 = 1 - 2 * (q.y * q.y + q.z * q.z);
+  const m33 = 1 - 2 * (q.x * q.x + q.y * q.y);
+  const a = Math.asin(Math.max(-1, Math.min(1, -m23)));
+  if (Math.abs(m23) < 0.9999999) return { heading: Math.atan2(m13, m33), lean: -a, pitch: -Math.atan2(m21, m22) };
+  return { heading: Math.atan2(-m31, m11), lean: -a, pitch: 0 };
+}
+
 /** How far up a turn's roof points: 1 upright, 0 on its side, −1 on its roof. */
 export const upOf = (q: Quat) => 1 - 2 * (q.x * q.x + q.z * q.z);
 
@@ -165,10 +214,23 @@ interface Wheeled {
   tipped: number;
 }
 
-/** A two-wheeler in Rapier: a block in the cars' way. */
+/** A two-wheeler in Rapier: a loose block when parked; moved where its own physics puts it when ridden. */
 interface Block {
   readonly body: Body;
+  readonly ridden: boolean;
 }
+
+/** Who meets whom: a collider's own group in the high half, the groups it meets in the low half. */
+const CARS = 0b0010;
+const TWO_WHEELERS = 0b0100;
+const WALKER = 0b1000;
+const EVERYONE = 0xffff;
+const groups = (own: number, meets: number) => (own << 16) | meets;
+
+/** A bicycle or a motorbike. */
+type TwoWheeler = Bicycle | Motorbike;
+/** A two-wheeler's own state: its lean and pitch among it. */
+const singleOf = (vehicle: TwoWheeler) => (vehicle.kind === "bicycle" ? vehicle.cycle : vehicle.moto);
 
 /** What the garage does with a car this step: drive it by intents, or hold it parked. */
 export type Drivers = ReadonlyMap<string, Intents>;
@@ -187,8 +249,17 @@ export interface Garage {
     vehicles: readonly Vehicle[],
     budget: number,
   ) => { readonly standing: number; readonly waiting: number; readonly nearest: number };
-  /** One step of the cars near the player, each driven car by its intents; the vehicles after it, in their order. */
-  readonly drive: (vehicles: readonly Vehicle[], drivers: Drivers, dt: number) => readonly Vehicle[];
+  /**
+   * One step of the vehicles near the player: each driven car by its intents, a ridden two-wheeler (a driver too) moved
+   * where it stands, the walker's body (null in a car or flying) moved to its feet; the parked two-wheelers as they are
+   * shoved. The vehicles after it, in their order.
+   */
+  readonly drive: (
+    vehicles: readonly Vehicle[],
+    drivers: Drivers,
+    dt: number,
+    walker?: Vec3 | null,
+  ) => readonly Vehicle[];
   /** Whether Rapier keeps up: its steps take no more than `SLOW_SHARE` of the time they cover, over `SLOW_WINDOW`. */
   readonly keepingUp: () => boolean;
   /** The share of the time its steps cover that they take, over the last window. */
@@ -314,7 +385,11 @@ function garageIn(
     const dz = origin.z - to.z;
     origin = to;
     for (const [lot, collider] of raised) if (collider) placeBuilding(lot, collider);
-    for (const { body } of [...cars.values(), ...blocks.values()]) {
+    for (const { body } of [
+      ...cars.values(),
+      ...blocks.values(),
+      ...(walking.isEnabled() ? [{ body: walking }] : []),
+    ]) {
       const t = body.translation();
       body.setTranslation({ x: t.x + dx, y: t.y, z: t.z + dz }, false);
     }
@@ -333,6 +408,7 @@ function garageIn(
       rapier.ColliderDesc.cuboid(length / 2, 0.32, width / 2 - 0.02)
         .setTranslation(0, 0.72, 0)
         .setFriction(0.3)
+        .setCollisionGroups(groups(CARS, EVERYONE))
         .setMassProperties(
           CAR_MASS,
           { x: 0, y: CAR_MIDDLE_UP, z: 0 },
@@ -346,6 +422,7 @@ function garageIn(
       rapier.ColliderDesc.cuboid(1.1, 0.28, width / 2 - 0.12)
         .setTranslation(-0.2, 1.3, 0)
         .setFriction(0.3)
+        .setCollisionGroups(groups(CARS, EVERYONE))
         .setDensity(0),
       body,
     );
@@ -370,16 +447,75 @@ function garageIn(
     });
     return { body, controller, tipped: 0 };
   };
-  /** A two-wheeler's block, fixed where it stands. */
-  const block = (vehicle: Vehicle): Block => {
+  /** A two-wheeler's block as it stands: loose (asleep until something touches it) when parked, moved when ridden. */
+  const block = (vehicle: TwoWheeler, ridden: boolean): Block => {
     const { length, width } = VEHICLES[vehicle.kind];
+    const single = singleOf(vehicle);
+    const desc = ridden
+      ? rapier.RigidBodyDesc.kinematicPositionBased()
+      : rapier.RigidBodyDesc.dynamic()
+          .setSleeping(true)
+          .setLinearDamping(TWO_WHEELER_DAMPING)
+          .setAngularDamping(TWO_WHEELER_DAMPING);
     const body = world.createRigidBody(
-      rapier.RigidBodyDesc.fixed()
+      desc
         .setTranslation(vehicle.feet.x - origin.x, vehicle.feet.y, vehicle.feet.z - origin.z)
-        .setRotation({ x: 0, y: Math.sin(vehicle.heading / 2), z: 0, w: Math.cos(vehicle.heading / 2) }),
+        .setRotation(tiltedBy(vehicle.heading, single.lean, single.pitch)),
     );
-    world.createCollider(rapier.ColliderDesc.cuboid(length / 2, 0.55, width / 2).setTranslation(0, 0.55, 0), body);
-    return { body };
+    const half = TWO_WHEELER_HEIGHT / 2;
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(length / 2, half, (width * TWO_WHEELER_BASE) / 2)
+        .setTranslation(0, half, 0)
+        .setMass(TWO_WHEELER_MASS[vehicle.kind])
+        .setFriction(0.6)
+        .setCollisionGroups(groups(TWO_WHEELERS, EVERYONE)),
+      body,
+    );
+    return { body, ridden };
+  };
+  // The walker's body: only the two-wheelers meet it; it rests out of the world while nobody walks.
+  const walking = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased().setEnabled(false));
+  world.createCollider(
+    rapier.ColliderDesc.capsule(WALKER_HALF, PERSON_RADIUS)
+      .setTranslation(0, WALKER_MIDDLE, 0)
+      .setCollisionGroups(groups(WALKER, TWO_WHEELERS)),
+    walking,
+  );
+  /** The walker's body moved to its feet, or out of the world. */
+  const walk = (walker: Vec3 | null) => {
+    if (!walker) walking.setEnabled(false);
+    else if (walking.isEnabled()) walking.setNextKinematicTranslation(local(walker));
+    else {
+      walking.setTranslation(local(walker), true);
+      walking.setEnabled(true);
+    }
+  };
+  /** Each two-wheeler's block as its rider has it: moved where it stands when ridden; made loose again once left. */
+  const ride = (vehicles: readonly Vehicle[], drivers: Drivers) => {
+    for (const vehicle of vehicles) {
+      const blocked = vehicle.kind === "car" ? undefined : blocks.get(vehicle.id);
+      if (!blocked || vehicle.kind === "car") continue;
+      const ridden = drivers.has(vehicle.id);
+      if (ridden !== blocked.ridden) {
+        dropBlock(vehicle.id);
+        blocks.set(vehicle.id, block(vehicle, ridden));
+      } else if (ridden) {
+        const single = singleOf(vehicle);
+        blocked.body.setNextKinematicTranslation(local(vehicle.feet));
+        blocked.body.setNextKinematicRotation(tiltedBy(vehicle.heading, single.lean, single.pitch));
+      }
+      if (ridden) last.set(vehicle.id, vehicle);
+    }
+  };
+  /** A parked two-wheeler as its block now lies, shoved or fallen. */
+  const lying = (vehicle: TwoWheeler, { body }: Block): Vehicle => {
+    const t = body.translation();
+    const tilt = tiltOf(body.rotation());
+    const feet = { x: t.x + origin.x, y: t.y, z: t.z + origin.z };
+    const placed = { ...vehicle, feet, heading: tilt.heading, speed: 0, turn: 0 };
+    return placed.kind === "bicycle"
+      ? { ...placed, cycle: { ...placed.cycle, lean: tilt.lean, leanRate: 0, pitch: tilt.pitch, pitchRate: 0 } }
+      : { ...placed, moto: { ...placed.moto, lean: tilt.lean, leanRate: 0, pitch: tilt.pitch, pitchRate: 0 } };
   };
   const dropCar = (id: string) => {
     const car = cars.get(id)!;
@@ -420,11 +556,11 @@ function garageIn(
         else if (wheeled && last.get(vehicle.id) !== vehicle) replace(wheeled, vehicle);
       } else {
         const blocked = blocks.get(vehicle.id);
-        if (near && !blocked) blocks.set(vehicle.id, block(vehicle));
+        if (near && !blocked) blocks.set(vehicle.id, block(vehicle, false));
         else if (blocked && !near) dropBlock(vehicle.id);
-        else if (blocked && last.get(vehicle.id) !== vehicle) {
+        else if (blocked && !blocked.ridden && last.get(vehicle.id) !== vehicle) {
           dropBlock(vehicle.id);
-          blocks.set(vehicle.id, block(vehicle));
+          blocks.set(vehicle.id, block(vehicle, false));
         }
       }
       last.set(vehicle.id, vehicle);
@@ -525,8 +661,10 @@ function garageIn(
       const nearest = Math.min(Infinity, ...left.map((lot) => gapTo(grid.standing.get(lot)!, at)));
       return { standing: raised.size, waiting: left.length, nearest };
     },
-    drive: (vehicles, drivers, dt) => {
+    drive: (vehicles, drivers, dt, walker = null) => {
       const started = now();
+      walk(walker);
+      ride(vehicles, drivers);
       const driven = new Map<string, Pedals>();
       for (const vehicle of vehicles) {
         const wheeled = vehicle.kind === "car" ? cars.get(vehicle.id) : undefined;
@@ -542,9 +680,15 @@ function garageIn(
       }
       world.step();
       const next = vehicles.map((vehicle) => {
-        const wheeled = vehicle.kind === "car" ? cars.get(vehicle.id) : undefined;
-        if (!wheeled || vehicle.kind !== "car" || (wheeled.body.isSleeping() && !driven.has(vehicle.id)))
-          return vehicle;
+        if (vehicle.kind !== "car") {
+          const blocked = blocks.get(vehicle.id);
+          if (!blocked || blocked.ridden || blocked.body.isSleeping()) return vehicle;
+          const shoved = lying(vehicle, blocked);
+          last.set(vehicle.id, shoved);
+          return shoved;
+        }
+        const wheeled = cars.get(vehicle.id);
+        if (!wheeled || (wheeled.body.isSleeping() && !driven.has(vehicle.id))) return vehicle;
         const pedals = driven.get(vehicle.id);
         const car = read(vehicle, wheeled, pedals?.gear ?? vehicle.gear, pedals?.rpm ?? 0);
         right(vehicle.id, wheeled, car.heading, dt);
