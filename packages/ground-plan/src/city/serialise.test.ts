@@ -42,7 +42,7 @@ describe("serialiseCity and parseCity", () => {
   });
 
   it("round-trips the separations a city records and its declaration", () => {
-    const recorded: City = { ...city, separable: ["workspaces", "plugins"], declared: true };
+    const recorded: City = { ...city, separable: ["workspaces", "plugins"], declared: true, manifests: "unfetchable" };
     expect(parseCity(serialiseCity(recorded))).toEqual(recorded);
   });
 
@@ -50,5 +50,6 @@ describe("serialiseCity and parseCity", () => {
     for (const separable of [["split"], ["apps", "apps"], ["plugins", "apps"], []])
       expect(() => parseCity(canonicalJson({ ...city, separable }))).toThrow("city/bad-shape: /separable");
     expect(() => parseCity(canonicalJson({ ...city, declared: false }))).toThrow("city/bad-shape: /declared");
+    expect(() => parseCity(canonicalJson({ ...city, manifests: "held" }))).toThrow("city/bad-shape: /manifests");
   });
 });

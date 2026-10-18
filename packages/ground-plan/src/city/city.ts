@@ -78,4 +78,6 @@ export interface City {
   readonly separable?: readonly Separation[];
   /** Present when the root manifests declare workspaces, which then decide apps and packages. */
   readonly declared?: true;
+  /** Present when a partial clone could not fetch its root manifests: its workspaces are not known. */
+  readonly manifests?: "unfetchable";
 }

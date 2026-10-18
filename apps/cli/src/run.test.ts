@@ -297,7 +297,7 @@ describe("runLay's measures", () => {
     ).rejects.toThrow("coverage/unreadable: r is larger than");
   });
 
-  it("measures a partial clone without fetching: what it does not hold is unknown", async () => {
+  it("measures a partial clone fetching its root manifests alone: what else it does not hold is unknown", async () => {
     const source = measured();
     git(source, "config", "uploadpack.allowFilter", "true");
     const clone = mkdtempSync(join(tmpdir(), "citymap-cli-partial-"));
@@ -307,7 +307,9 @@ describe("runLay's measures", () => {
     });
     const { io, files, lines } = memoryIo();
     await runLay(command(clone, "--out=city.json"), io);
-    expect(lines.at(-2)).toBe("measures/done source=cli size=lines tested=name lots=5 files=5 read=0 unread=6");
+    expect(lines).toContain("history/manifests status=fetched blobs=1 fetched=1");
+    expect(lines.at(-2)).toBe("measures/done source=cli size=lines tested=name lots=5 files=5 read=1 unread=5");
+    expect(fileOf(files["city.json"]!, "package.json")).toMatchObject({ bytes: 3, lines: 1 });
     expect(fileOf(files["city.json"]!, "src/a.ts")).toEqual({
       path: "src/a.ts",
       named: true,

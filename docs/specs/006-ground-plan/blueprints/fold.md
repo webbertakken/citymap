@@ -91,8 +91,8 @@ function foldHistory(snapshots: Iterable<Snapshot>, options: Options, start?: Pl
      `MANIFESTS_FETCH_TIMEOUT` 30 s; each promisor remote in turn for what is still missing. Then the held blobs are
      listed again.
   4. One event, `history/manifests status=<held|fetched|unfetchable> blobs=<n> fetched=<n>` (and for `unfetchable`
-     `reason=<timeout|exit-<code>|no-remote>` and `error=<git's first line>`), after `history/schedule`; a full clone
-     logs nothing. `unfetchable` when a wanted blob is still not held: every snapshot of that read carries
+     `reason=<timeout|exit-<code>>` and `error=<git's first line>`), after `history/schedule`; a full clone logs
+     nothing. `unfetchable` when a wanted blob is still not held: every snapshot of that read carries
      `manifests: "unfetchable"`, and the fold goes on as before (`history/manifest-unavailable`, the fallbacks). The
      `BlobReader` is made after it, so its list of held blobs includes what was fetched.
 - Every git call clears the variables a git hook sets (`GIT_DIR`, `GIT_INDEX_FILE` and the like), so a fold run from a

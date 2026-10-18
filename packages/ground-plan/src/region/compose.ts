@@ -226,12 +226,16 @@ function membersOf(snapshot: Snapshot, separate: readonly Separation[] | undefin
   return members;
 }
 
-/** What a city records of its separations: those that would change it, and whether it declares workspaces. */
-function recordOf(snapshot: Snapshot): { separable?: Separation[]; declared?: true } {
+/**
+ * What a city records of its input: the separations that would change it, whether it declares workspaces, and whether
+ * its manifests could not be fetched.
+ */
+function recordOf(snapshot: Snapshot): { separable?: Separation[]; declared?: true; manifests?: "unfetchable" } {
   const offered = separable(snapshot);
   return {
     ...(offered.length > 0 ? { separable: offered } : {}),
     ...(declaresWorkspaces(snapshot) ? { declared: true as const } : {}),
+    ...(snapshot.manifests === undefined ? {} : { manifests: snapshot.manifests }),
   };
 }
 

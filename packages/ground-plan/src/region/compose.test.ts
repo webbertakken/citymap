@@ -321,6 +321,12 @@ describe("separate towns", () => {
     expect(city.declared).toBe(true);
   });
 
+  it("records on the city that its manifests could not be fetched", () => {
+    const unfetched = { ...at(0, monorepo()), manifests: "unfetchable" as const };
+    expect(layCity(unfetched, initialState(OPTIONS), OPTIONS).city.manifests).toBe("unfetchable");
+    expect(layCity(at(0, monorepo()), initialState(OPTIONS), OPTIONS).city).not.toHaveProperty("manifests");
+  });
+
   it("keeps declared members in groups as before with the workspaces separation off", () => {
     const declared = { ...at(0, monorepo()), workspaces: ["apps/web", "packages/a", "packages/b"] };
     const off: Options = { ...OPTIONS, separate: [] };

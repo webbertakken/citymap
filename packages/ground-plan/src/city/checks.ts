@@ -76,4 +76,5 @@ export const citySchema = v.strictObject({
     ),
   ),
   declared: v.exactOptional(v.literal(true)),
+  manifests: v.exactOptional(v.literal("unfetchable")),
 });
