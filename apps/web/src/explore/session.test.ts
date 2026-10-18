@@ -1,8 +1,8 @@
 import type { Walls } from "@citymap/world";
 import { describe, expect, it } from "vitest";
 import { LOOK_SPEED, START_PITCH } from "./camera";
-import { LONGEST_FRAME, STEP, advanceSession, newControls, placeOf, startSession } from "./session";
-import { WALK_SPEED } from "./walker";
+import { LONGEST_FRAME, STEP, advanceSession, newControls, placeOf, shownOf, startSession } from "./session";
+import { RUN_SPEED, WALK_SPEED } from "./walker";
 
 const open: Walls = {
   move: (feet, delta) => ({
@@ -55,6 +55,52 @@ describe("advanceSession", () => {
     const session = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0), controls, STEP, open);
     expect(session.body.feet.z).toBeGreaterThan(0);
     expect(session.body.grounded).toBe(false);
+  });
+});
+
+describe("shownOf", () => {
+  /** Frames as a screen gives them: about 60 a second, never quite even. */
+  const UNEVEN = [0.0155, 0.0178, 0.0162, 0.0171, 0.0149, 0.0167, 0.0183, 0.0151];
+
+  it("moves the walker as far each frame as its pace covers in that frame, however uneven the frames", () => {
+    const controls = newControls();
+    controls.keys.add("KeyW");
+    controls.keys.add("ShiftLeft");
+    let session = startSession({ x: 0, y: 0, z: 0 }, 0);
+    // Up to pace first.
+    for (let i = 0; i < 30; i++) session = advanceSession(session, controls, UNEVEN[i % UNEVEN.length]!, open);
+    for (let i = 0; i < 40; i++) {
+      const seconds = UNEVEN[i % UNEVEN.length]!;
+      const before = shownOf(session).feet.x;
+      session = advanceSession(session, controls, seconds, open);
+      expect((shownOf(session).feet.x - before) / seconds).toBeCloseTo(RUN_SPEED, 6);
+    }
+  });
+
+  it("shows the walker between its last two steps, as far as the time not yet stepped", () => {
+    const controls = newControls();
+    controls.keys.add("KeyW");
+    const session = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0), controls, 1.5 * STEP, open);
+    expect(session.previous.feet.x).toBe(0);
+    expect(shownOf(session).feet.x).toBeCloseTo(0.5 * STEP * WALK_SPEED, 9);
+  });
+
+  it("turns the walker the short way round between its steps", () => {
+    const session = { ...startSession({ x: 0, y: 0, z: 0 }, 3), spare: STEP / 2 };
+    const turning = { ...session, previous: { ...session.body, heading: -3 } };
+    expect(Math.cos(shownOf(turning).heading)).toBeCloseTo(-1, 3);
+  });
+});
+
+describe("speed", () => {
+  it("is the pace of the last step: steady at a run, nothing standing still", () => {
+    const controls = newControls();
+    expect(advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0), controls, 0.05, open).speed).toBe(0);
+    controls.keys.add("KeyW");
+    controls.keys.add("ShiftLeft");
+    let session = startSession({ x: 0, y: 0, z: 0 }, 0);
+    for (let i = 0; i < 10; i++) session = advanceSession(session, controls, 0.0167, open);
+    expect(session.speed).toBeCloseTo(RUN_SPEED, 9);
   });
 });
 

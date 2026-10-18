@@ -9,12 +9,13 @@ import { useEffect, useEffectEvent, useRef, useState, type ComponentType, type P
 import { cameraOf } from "../explore/camera";
 import { WALK_KEYS, stickAt } from "../explore/input";
 import type { Landing } from "../explore/landing";
-import { advanceSession, newControls, startSession, type Session } from "../explore/session";
+import { advanceSession, newControls, shownOf, startSession, type Session } from "../explore/session";
 import { METRE } from "../explore/street";
 
-/** One frame of the walk: the session after it, and where the camera is and looks. */
+/** One frame of the walk: the session after it, where to draw the walker, and where the camera is and looks. */
 export interface ExploreFrame {
   readonly session: Session;
+  readonly shown: { readonly feet: Vec3; readonly heading: number };
   readonly camera: { readonly eye: Vec3; readonly target: Vec3 };
 }
 
@@ -60,7 +61,8 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
     const next = advanceSession(session.current, controls.current, seconds, walls);
     controls.current.look = { dx: 0, dy: 0 };
     session.current = next;
-    return { session: next, camera: cameraOf(next.body.feet, next.orbit, walls) };
+    const shown = shownOf(next);
+    return { session: next, shown, camera: cameraOf(shown.feet, next.orbit, walls) };
   };
   const back = () => {
     const { feet } = session.current.body;

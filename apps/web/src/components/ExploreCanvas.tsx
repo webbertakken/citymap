@@ -14,7 +14,7 @@ import { poseStride, swingOf } from "../explore/models/stride";
 import { METRE } from "../explore/street";
 import { log, reasonOf } from "../log";
 import { Buildings, Mesh } from "./CityMeshes";
-import type { ExploreCanvasProps, ExploreFrame } from "./ExploreView";
+import type { ExploreCanvasProps } from "./ExploreView";
 
 /** The camera sees this far, in street widths (four kilometres), and no nearer than a few centimetres. */
 const FAR = 400;
@@ -34,16 +34,15 @@ function Walker({ theme, frame }: { readonly theme: Theme; readonly frame: Explo
   const model = useMemo(() => loaded?.make() ?? figure(paletteOf(theme)), [loaded, theme]);
   const animator = useMemo(() => (loaded ? new Animator(model, loaded.clips) : null), [loaded, model]);
   const placed = useRef<Object3D>(null);
-  const last = useRef<ExploreFrame | null>(null);
   useFrame((state, seconds) => {
     const walker = placed.current;
     if (!walker) return;
     const now = frame(seconds);
-    const { body, walked } = now.session;
-    const speed = last.current && seconds > 0 ? (walked - last.current.session.walked) / seconds : 0;
-    last.current = now;
-    walker.position.set(body.feet.x * METRE, body.feet.y * METRE, body.feet.z * METRE);
-    walker.rotation.y = body.heading;
+    const { body, walked, speed } = now.session;
+    // Drawn between its last two steps, so it moves as smoothly as the frames come.
+    const { feet, heading } = now.shown;
+    walker.position.set(feet.x * METRE, feet.y * METRE, feet.z * METRE);
+    walker.rotation.y = heading;
     if (animator) {
       const motion = motionOf(speed, body.grounded, body.rise);
       animator.play(motion, paceOf(motion, speed), seconds);

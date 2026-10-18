@@ -84,6 +84,15 @@ describe("ExploreView", () => {
     expect(walk().session.body.feet.x).toBe(x);
   });
 
+  it("draws the walker between its last two steps, and aims the camera from there", () => {
+    show();
+    fireEvent.keyDown(window, { code: "KeyW" });
+    const now = walk(1.5 / 120);
+    expect(now.shown.feet.x).toBeGreaterThan(now.session.previous.feet.x);
+    expect(now.shown.feet.x).toBeLessThan(now.session.body.feet.x);
+    expect(now.camera.target.x).toBe(now.shown.feet.x);
+  });
+
   it("leaves other keys to the page", () => {
     show();
     const keyQ = new KeyboardEvent("keydown", { code: "KeyQ", key: "q", cancelable: true });
