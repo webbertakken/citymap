@@ -6,6 +6,9 @@ import { GROUND, PERSON_RADIUS, SNAP_DOWN, STEP_UP, solid, type Footprint, type 
 
 /** A building ready for queries: its corners anticlockwise from above, each edge's outward normal, its box and roof. */
 interface Prism {
+  readonly lot: number;
+  /** The footprint's corners as given, for naming its walls as the building's mesh does. */
+  readonly corners: Footprint["corners"];
   readonly xs: Float64Array;
   readonly zs: Float64Array;
   /** Outward normals, one per edge from corner i to corner i + 1. */
@@ -48,6 +51,8 @@ function prismOf(footprint: Footprint): Prism {
     nz[i] = dx / length;
   }
   return {
+    lot: footprint.lot,
+    corners: footprint.corners,
     xs,
     zs,
     nx,
@@ -102,6 +107,14 @@ function pushOut(p: Prism, x: number, z: number, r: number): { x: number; z: num
 
 /** Where a segment from `a` to `b` first meets a prism, as a share of its length (0 to 1), or null if it never does. */
 function hitPrism(p: Prism, a: Vec3, b: Vec3): number | null {
+  return entry(p, a, b)?.t ?? null;
+}
+
+/**
+ * Where a segment first meets a prism, and whether it comes in through the roof (its height limits it last) rather than a
+ * wall; null if it never meets it.
+ */
+function entry(p: Prism, a: Vec3, b: Vec3): { readonly t: number; readonly roof: boolean } | null {
   const dx = b.x - a.x;
   const dz = b.z - a.z;
   let enter = 0;
@@ -121,12 +134,13 @@ function hitPrism(p: Prism, a: Vec3, b: Vec3): number | null {
   }
   // In height: the part between the ground and the roof.
   const dy = b.y - a.y;
-  if (dy === 0) return a.y >= 0 && a.y <= p.top ? enter : null;
+  if (dy === 0) return a.y >= 0 && a.y <= p.top ? { t: enter, roof: false } : null;
   const atRoof = (p.top - a.y) / dy;
   const atFoot = -a.y / dy;
+  const roof = dy < 0 && atRoof > enter;
   enter = Math.max(enter, Math.min(atRoof, atFoot));
   leave = Math.min(leave, Math.max(atRoof, atFoot));
-  return enter <= leave ? enter : null;
+  return enter <= leave ? { t: enter, roof } : null;
 }
 
 /** The prisms in a uniform grid: each cell lists the prisms whose box touches it. */
@@ -232,5 +246,60 @@ export function cityWalls(footprints: readonly Footprint[]): Walls {
       return first * length;
     },
     dispose: () => undefined,
+  };
+}
+
+/** What a line meets first in the city: a building's roof, or one of its walls, where along it and how high. */
+export interface BuildingHit {
+  readonly lot: number;
+  readonly at: Vec3;
+  readonly face:
+    | { readonly kind: "roof" }
+    /** The footprint's edge from corner `edge` to the next, its length, and how far along it from that corner. */
+    | { readonly kind: "wall"; readonly edge: number; readonly along: number; readonly length: number };
+}
+
+/** The wall of a footprint nearest a point on its outline: its edge, how far along it, and its length. */
+function wallAt(corners: Footprint["corners"], x: number, z: number) {
+  let best = { edge: 0, along: 0, length: 0, distance: Infinity };
+  corners.forEach((a, edge) => {
+    const b = corners[(edge + 1) % corners.length]!;
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const length = Math.hypot(dx, dz);
+    const along = Math.max(0, Math.min(length, ((x - a.x) * dx + (z - a.z) * dz) / length));
+    const distance = Math.hypot(a.x + (dx / length) * along - x, a.z + (dz / length) * along - z);
+    if (distance < best.distance) best = { edge, along, length, distance };
+  });
+  return { edge: best.edge, along: best.along, length: best.length };
+}
+
+/** The buildings as things a line can meet: the first, its face, and where. */
+export function cityHits(footprints: readonly Footprint[]) {
+  const grid = new Grid(footprints.filter(solid).map(prismOf));
+  return {
+    hit: (from: Vec3, to: Vec3): BuildingHit | null => {
+      let first: { prism: Prism; t: number; roof: boolean } | null = null;
+      const boxed = grid.near(
+        Math.min(from.x, to.x),
+        Math.min(from.z, to.z),
+        Math.max(from.x, to.x),
+        Math.max(from.z, to.z),
+      );
+      for (const prism of boxed) {
+        const met = entry(prism, from, to);
+        if (met && (!first || met.t < first.t)) first = { prism, ...met };
+      }
+      if (!first) return null;
+      const at = {
+        x: from.x + (to.x - from.x) * first.t,
+        y: from.y + (to.y - from.y) * first.t,
+        z: from.z + (to.z - from.z) * first.t,
+      };
+      const face = first.roof
+        ? ({ kind: "roof" } as const)
+        : { kind: "wall" as const, ...wallAt(first.prism.corners, at.x, at.z) };
+      return { lot: first.prism.lot, at, face };
+    },
   };
 }

@@ -10,4 +10,4 @@ export {
   type Vec3,
   type Walls,
 } from "./world";
-export { CELL, MAX_STEPS, PUSHES, cityWalls } from "./walls";
+export { CELL, MAX_STEPS, PUSHES, cityHits, cityWalls, type BuildingHit } from "./walls";

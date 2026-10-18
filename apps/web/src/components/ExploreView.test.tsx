@@ -1,9 +1,11 @@
 import { buildScene } from "@citymap/scene";
+import type { Hit } from "@citymap/scene";
 import { THEMES } from "@citymap/themes";
-import { GROUND, type Walls } from "@citymap/world";
+import { GROUND, type Footprint, type Walls } from "@citymap/world";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Inspect } from "../explore/inspect";
 import type { Landing } from "../explore/landing";
 import { METRE } from "../explore/street";
 import {
@@ -50,14 +52,51 @@ function StubCanvas(props: ExploreCanvasProps) {
   return <p data-testid="explore-canvas" />;
 }
 
-const show = (onLeave = vi.fn<ExploreViewProps["onLeave"]>()) => {
+/**
+ * A building straight ahead of the landing (10 m east, 20 m south), where the crosshair looks past the right shoulder
+ * (0.6 m further south): 13 m to 23 m east, 16.6 m to 26.6 m south.
+ */
+const facing: Footprint = {
+  lot: 0,
+  corners: [
+    { x: 13, z: 16.6 },
+    { x: 23, z: 16.6 },
+    { x: 23, z: 26.6 },
+    { x: 13, z: 26.6 },
+  ],
+  top: 10.3,
+};
+const lotHit: Hit = {
+  kind: "lot",
+  town: "alpha",
+  townKey: "alpha",
+  root: "",
+  key: "a",
+  path: "src/a.ts",
+  use: "source",
+  address: "#lots:0.0.0.0",
+  vacant: false,
+  folder: "src",
+  folderLots: 1,
+};
+/** Four floors, every window lit. */
+const lookTable = Float32Array.from([4, 1, 0, 0]);
+const inspectAhead: Inspect = (lot) =>
+  lot === 0 ? { hit: lotHit, files: ["src/a.ts", "src/b.ts"] } : { hit: null, files: [] };
+
+const show = (
+  onLeave = vi.fn<ExploreViewProps["onLeave"]>(),
+  sights: { footprints?: readonly Footprint[]; inspect?: Inspect } = {},
+) => {
   render(
     <ExploreView
       name="alpha"
       scene={scene}
-      table={new Float32Array(4)}
+      table={lookTable}
       theme={theme}
       walls={open}
+      footprints={sights.footprints ?? []}
+      inspect={sights.inspect ?? (() => ({ hit: null, files: [] }))}
       landing={landing}
       engine="Rapier"
       Canvas={StubCanvas}
@@ -67,6 +106,7 @@ const show = (onLeave = vi.fn<ExploreViewProps["onLeave"]>()) => {
   return onLeave;
 };
 const view = () => screen.getByRole("application");
+const sight = () => screen.getByRole("region", { name: "In sight" });
 /** Holds a key for so many tenths of a second, then lets it go. */
 const hold = (code: string, tenths: number) => {
   fireEvent.keyDown(window, { code });
@@ -258,6 +298,33 @@ describe("ExploreView", () => {
     expect(lines).toEqual(
       expect.arrayContaining(["explore/pointer-locked", "explore/pointer-released", "explore/pointer-refused"]),
     );
+  });
+
+  it("reads the building in the crosshair, and a window as its file, lit or dark", () => {
+    show(undefined, { footprints: [facing], inspect: inspectAhead });
+    expect(screen.getByText("", { selector: ".explore-crosshair" })).toBeTruthy();
+    // Looking a little down along the street, the line meets the building's wall below its first windows.
+    walk(0);
+    expect(sight().dataset.kind).toBe("building");
+    expect(sight().textContent).toContain("a.ts");
+    // Looking level, it meets a window on the ground floor: the first of the building's two files, lit.
+    fireEvent.pointerDown(view(), { pointerId: 1, clientX: 0, clientY: 100 });
+    fireEvent.pointerMove(view(), { pointerId: 1, clientX: 0, clientY: 50 });
+    walk(0);
+    expect(sight().dataset.kind).toBe("window");
+    expect(sight().textContent).toContain("Floor 1 of 4");
+    expect(sight().textContent).toContain("File 1 of 2");
+    expect(sight().textContent).toContain("Lit");
+  });
+
+  it("shows nothing in sight with nothing in line, or a building it cannot name", () => {
+    show(undefined, { footprints: [facing], inspect: () => ({ hit: null, files: [] }) });
+    walk(0);
+    expect(screen.queryByRole("region", { name: "In sight" })).toBeNull();
+    cleanup();
+    show();
+    walk(0);
+    expect(screen.queryByRole("region", { name: "In sight" })).toBeNull();
   });
 
   it("keeps a press on its card from turning the camera", () => {

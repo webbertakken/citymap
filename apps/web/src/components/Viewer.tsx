@@ -3,7 +3,7 @@ import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } fr
 import type { Measures } from "@citymap/measures";
 import { buildScene, folderHit, pick, pickIndex, type ColourBy, type Hit, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
-import type { Walls } from "@citymap/world";
+import type { Footprint, Walls } from "@citymap/world";
 import {
   startTransition,
   useCallback,
@@ -19,6 +19,7 @@ import type { GitHubSource } from "../card/github";
 import { measureRows } from "../card/measures";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
 import { footprintsOf } from "../explore/footprints";
+import { inspector } from "../explore/inspect";
 import { landingOf, type Landing } from "../explore/landing";
 import type { RaiseWalls } from "../explore/physics/raise";
 import { meter, type Allowance } from "../github/allowance";
@@ -152,6 +153,7 @@ const sourceOf = (name: string, commit: string): GitHubSource => {
 interface Walking {
   readonly city: City;
   readonly walls: Walls;
+  readonly footprints: readonly Footprint[];
   readonly landing: Landing;
 }
 
@@ -557,7 +559,7 @@ export function Viewer({
         x: landing.at.x.toFixed(3),
         z: landing.at.z.toFixed(3),
       });
-      setWalk({ city: into.city, walls, landing });
+      setWalk({ city: into.city, walls, footprints, landing });
       job.done();
     } catch (failure) {
       if (isAbort(failure)) return;
@@ -587,13 +589,15 @@ export function Viewer({
       data-walking={walking !== null}
     >
       <MeasureRows value={rowsOf}>
-        {walking && explore && city && scene && drawnTable ? (
+        {walking && explore && city && scene && index && drawnTable ? (
           <ExploreView
             name={city.repository}
             scene={scene}
             table={drawnTable.table}
             theme={colours}
             walls={walking.walls}
+            footprints={walking.footprints}
+            inspect={inspector(scene, walking.footprints, index, buildings)}
             landing={walking.landing}
             engine={explore.engine}
             Canvas={explore.Canvas}

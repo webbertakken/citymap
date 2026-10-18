@@ -7,6 +7,7 @@ import {
   PITCH_MAX,
   PITCH_MIN,
   SHOULDER,
+  SHOULDER_SIDE,
   START_PITCH,
   REACH_EASE,
   WALL_GAP,
@@ -25,13 +26,19 @@ const clearFor = (distance: number): Walls => ({
 const feet = { x: 10, y: 0, z: 5 };
 
 describe("cameraOf", () => {
-  it("looks at the shoulder from behind it, as far back as the orbit asks", () => {
+  it("looks past the right shoulder from behind it, as far back as the orbit asks", () => {
     const { eye, target } = cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(Infinity));
-    expect(target).toEqual({ x: 10, y: SHOULDER, z: 5 });
-    // Looking east, level: the camera stands to the west of the shoulder.
+    // Looking east, the right is south: +z.
+    expect(target).toEqual({ x: 10, y: SHOULDER, z: 5 + SHOULDER_SIDE });
+    // Looking east, level: the camera stands to the west of it.
     expect(eye.x).toBeCloseTo(10 - ORBIT_DISTANCE, 9);
     expect(eye.y).toBeCloseTo(SHOULDER, 9);
-    expect(eye.z).toBeCloseTo(5, 9);
+    expect(eye.z).toBeCloseTo(5 + SHOULDER_SIDE, 9);
+  });
+
+  it("keeps the shoulder's side short of a wall beside it, and off it altogether when it is close", () => {
+    expect(cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(0.5)).target.z).toBeCloseTo(5 + 0.5 - WALL_GAP, 9);
+    expect(cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(0.1)).target.z).toBe(5);
   });
 
   it("rises behind as it looks down", () => {
@@ -47,8 +54,9 @@ describe("cameraOf", () => {
   });
 
   it("pulls in short of a wall, but never into the shoulder", () => {
-    expect(cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(2)).eye.x).toBeCloseTo(10 - (2 - WALL_GAP), 9);
-    expect(cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(0.1)).eye.x).toBeCloseTo(10 - NEAREST, 9);
+    const straight = { distance: ORBIT_DISTANCE, height: SHOULDER };
+    expect(cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(2), straight).eye.x).toBeCloseTo(10 - (2 - WALL_GAP), 9);
+    expect(cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(0.1), straight).eye.x).toBeCloseTo(10 - NEAREST, 9);
   });
 
   it("follows from as far back and as high as asked", () => {

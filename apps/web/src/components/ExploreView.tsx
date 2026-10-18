@@ -4,11 +4,13 @@
 // back to the map.
 import type { Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
-import { GROUND, type Vec3, type Walls } from "@citymap/world";
+import { GROUND, cityHits, type Footprint, type Vec3, type Walls } from "@citymap/world";
 import { Bike, Car, Footprints, X } from "lucide-react";
-import { useEffect, useEffectEvent, useRef, useState, type ComponentType, type PointerEvent } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type ComponentType, type PointerEvent } from "react";
+import { describeHit } from "../card/describe";
 import { cameraOf, easeReach, reachOf } from "../explore/camera";
 import { WALK_KEYS, stickAt } from "../explore/input";
+import type { Inspect } from "../explore/inspect";
 import type { Landing } from "../explore/landing";
 import {
   advanceSession,
@@ -23,9 +25,12 @@ import {
   type Prompt,
   type Session,
 } from "../explore/session";
+import { sightOf, windowRows, type Sight } from "../explore/sight";
 import { METRE } from "../explore/street";
 import { VEHICLES, parkedBy, type Vehicle, type VehicleKind } from "../explore/vehicles";
 import { log } from "../log";
+import { CardBody } from "./CardBody";
+import { useMeasureRows } from "./MeasureRows";
 
 /**
  * One frame of the walk: the session after it, where to draw the walker and the vehicles, what the walker rides (if
@@ -50,7 +55,13 @@ export interface ExploreCanvasProps {
   readonly vehicles: readonly { readonly id: string; readonly kind: VehicleKind }[];
 }
 
+/** The crosshair reads this far, in metres. */
+export const SIGHT_REACH = 150;
+
 export interface ExploreViewProps {
+  /** Every building's footprint, for the crosshair's line of sight. */
+  readonly footprints: readonly Footprint[];
+  readonly inspect: Inspect;
   readonly name: string;
   readonly scene: Scene;
   readonly table: Float32Array;
@@ -64,11 +75,42 @@ export interface ExploreViewProps {
   readonly onLeave: (at: { readonly x: number; readonly z: number }) => void;
 }
 
+/** What the crosshair is on, under it: the building's card, with a window's file and light. */
+function SightCard({ sight, inspect }: { readonly sight: Sight; readonly inspect: Inspect }) {
+  const rowsOf = useMeasureRows();
+  const { hit, files } = inspect(sight.lot);
+  if (!hit) return null;
+  const file = sight.kind === "window" ? files[sight.file] : undefined;
+  const card = describeHit(hit, [...(sight.kind === "window" ? windowRows(sight, files.length) : []), ...rowsOf(hit)]);
+  const title = file ? file.slice(file.lastIndexOf("/") + 1) : card.title;
+  return (
+    <section className="glass explore-sight" aria-label="In sight" data-kind={sight.kind}>
+      <CardBody card={{ ...card, title }} />
+    </section>
+  );
+}
+
 /** A touch stick reaches this many pixels from where the finger lands. */
 export const STICK_REACH = 48;
 
 /** Walking: the canvas fills the map; keys, drags, the stick and the jump button move the walker. */
-export function ExploreView({ name, scene, table, theme, walls, landing, engine, Canvas, onLeave }: ExploreViewProps) {
+export function ExploreView({
+  name,
+  scene,
+  table,
+  theme,
+  walls,
+  footprints,
+  inspect,
+  landing,
+  engine,
+  Canvas,
+  onLeave,
+}: ExploreViewProps) {
+  const hits = useMemo(() => cityHits(footprints), [footprints]);
+  // What the crosshair is on, changed only when it changes.
+  const [sight, setSight] = useState<Sight | null>(null);
+  const seen = useRef("");
   const [start] = useState(() =>
     startSession(
       { x: landing.at.x / METRE, y: GROUND, z: landing.at.z / METRE },
@@ -106,13 +148,30 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
     const follow = followOf(next);
     const wanted = reachOf(shown.feet, next.orbit, walls, follow);
     reach.current = reach.current === null ? wanted : easeReach(reach.current, wanted, seconds);
-    return {
-      session: next,
-      shown,
-      vehicles: shownVehicles(next),
-      riding: kind,
-      camera: cameraOf(shown.feet, next.orbit, walls, follow, reach.current),
+    const camera = cameraOf(shown.feet, next.orbit, walls, follow, reach.current);
+    readSight(camera);
+    return { session: next, shown, vehicles: shownVehicles(next), riding: kind, camera };
+  };
+  // The crosshair, in the middle of the view, looks along the camera's line through its target.
+  const readSight = (camera: { readonly eye: Vec3; readonly target: Vec3 }) => {
+    const dx = camera.target.x - camera.eye.x;
+    const dy = camera.target.y - camera.eye.y;
+    const dz = camera.target.z - camera.eye.z;
+    // The camera sits at least NEAREST from its target, so the line has a length.
+    const length = Math.hypot(dx, dy, dz);
+    const far = {
+      x: camera.eye.x + (dx / length) * SIGHT_REACH,
+      y: camera.eye.y + (dy / length) * SIGHT_REACH,
+      z: camera.eye.z + (dz / length) * SIGHT_REACH,
     };
+    const hit = hits.hit(camera.eye, far);
+    const now = hit
+      ? sightOf(hit, { floors: table[hit.lot * 4]!, lit: table[hit.lot * 4 + 1]! }, inspect(hit.lot).files.length)
+      : null;
+    const key = JSON.stringify(now);
+    if (key === seen.current) return;
+    seen.current = key;
+    setSight(now);
   };
   const use = () => {
     controls.current.use = true;
@@ -226,6 +285,8 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
       onPointerUp={release}
       onPointerCancel={release}
     >
+      <span className="explore-crosshair" aria-hidden="true" />
+      {sight && <SightCard sight={sight} inspect={inspect} />}
       <Canvas scene={scene} table={table} theme={theme} frame={frame} vehicles={start.vehicles} />
       <section className="glass explore-card" aria-label={title}>
         <h2>

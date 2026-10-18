@@ -1,6 +1,6 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { CELL, MAX_STEPS, cityWalls } from "./walls";
+import { CELL, MAX_STEPS, cityHits, cityWalls } from "./walls";
 import { GROUND, PERSON_RADIUS, SNAP_DOWN, STEP_UP, type Footprint, type Vec3 } from "./world";
 
 /** A box building from (x, z) to (x + w, z + d), its corners either way round. */
@@ -174,5 +174,44 @@ describe("cityWalls: clearance", () => {
 describe("cityWalls: dispose", () => {
   it("has nothing to free", () => {
     expect(() => cityWalls([]).dispose()).not.toThrow();
+  });
+});
+
+describe("cityHits", () => {
+  // A building 10 m to 20 m east, 5 m either side of z = 0, 12 m tall; its corners run west to east first.
+  const hits = cityHits([box(7, 10, -5, 10, 10, 12)]);
+
+  it("finds the wall a line meets, which of the footprint's walls it is, and where along and up it", () => {
+    // From the west at 4 m up: the west wall, the footprint's fourth edge (corner 3 back to corner 0).
+    const hit = hits.hit(at(0, 2, 4), at(30, 2, 4));
+    expect(hit).toMatchObject({ lot: 7, face: { kind: "wall", edge: 3, length: 10 } });
+    expect(hit?.at.x).toBeCloseTo(10, 9);
+    expect(hit?.at.y).toBeCloseTo(4, 9);
+    // The fourth edge runs from z = 5 back to z = −5: 3 m along at z = 2.
+    expect(hit?.face.kind === "wall" && hit.face.along).toBeCloseTo(3, 9);
+  });
+
+  it("finds the roof a line comes down on", () => {
+    const hit = hits.hit(at(15, 0, 30), at(15, 0, 0));
+    expect(hit).toMatchObject({ lot: 7, face: { kind: "roof" } });
+    expect(hit?.at.y).toBeCloseTo(12, 9);
+  });
+
+  it("finds nothing for a line that misses, or passes over", () => {
+    expect(hits.hit(at(0, 20, 4), at(30, 20, 4))).toBeNull();
+    expect(hits.hit(at(0, 0, 13), at(30, 0, 13))).toBeNull();
+  });
+
+  it("finds the nearer of two buildings in line", () => {
+    const two = cityHits([box(1, 30, -5, 5, 10, 10), box(2, 10, -5, 5, 10, 10)]);
+    expect(two.hit(at(0, 0, 3), at(50, 0, 3))?.lot).toBe(2);
+  });
+
+  it("measures along a wall from the footprint's first corner of it, whichever way the corners run", () => {
+    const clockwise = cityHits([box(7, 10, -5, 10, 10, 12, true)]);
+    const hit = clockwise.hit(at(0, 2, 4), at(30, 2, 4));
+    // Reversed, the west wall is still the fourth edge, now from z = −5 to z = 5: 7 m along at z = 2.
+    expect(hit?.face).toMatchObject({ kind: "wall", edge: 3 });
+    expect(hit?.face.kind === "wall" && hit.face.along).toBeCloseTo(7, 9);
   });
 });

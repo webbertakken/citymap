@@ -30,22 +30,38 @@ export const turned = (orbit: Orbit, dx: number, dy: number): Orbit => ({
   pitch: Math.max(PITCH_MIN, Math.min(PITCH_MAX, orbit.pitch + dy * LOOK_SPEED)),
 });
 
-/** How the camera follows: how far back it sits and how high above the feet it looks from. */
+/**
+ * How the camera follows: how far back it sits, how high above the feet it looks from, and how far to the right of
+ * them, so the crosshair in the middle of the view is clear of the walker (over the right shoulder).
+ */
 export interface Follow {
   readonly distance: number;
   readonly height: number;
+  readonly side?: number;
 }
 
-export const ON_FOOT: Follow = { distance: ORBIT_DISTANCE, height: SHOULDER };
+/** Over the right shoulder: the crosshair passes beside the walker's head, not through it. */
+export const SHOULDER_SIDE = 0.6;
+export const ON_FOOT: Follow = { distance: ORBIT_DISTANCE, height: SHOULDER, side: SHOULDER_SIDE };
 
 /** A wall nearer than the full distance by less than this is rounding in the measure, not a wall. */
 export const ROUNDING = 1e-6;
 /** Coming back out from a wall, the camera eases most of the way in this many seconds; going in, it goes at once. */
 export const REACH_EASE = 0.3;
 
-/** Where the camera looks at, and the way it looks. */
-function aimOf(feet: Vec3, orbit: Orbit, follow: Follow) {
-  const target = { x: feet.x, y: feet.y + follow.height, z: feet.z };
+/**
+ * Where the camera looks at, and the way it looks: above the feet and to their right, as far as a wall on that side
+ * allows.
+ */
+function aimOf(feet: Vec3, orbit: Orbit, walls: Walls, follow: Follow) {
+  const head = { x: feet.x, y: feet.y + follow.height, z: feet.z };
+  // To the right of where the camera looks, seen from above.
+  const right = { x: Math.sin(orbit.yaw), z: Math.cos(orbit.yaw) };
+  const wanted = follow.side ?? 0;
+  const aside = { x: head.x + right.x * wanted, y: head.y, z: head.z + right.z * wanted };
+  const room = wanted > 0 ? walls.clearance(head, aside) : 0;
+  const side = room < wanted - ROUNDING ? Math.max(0, room - WALL_GAP) : wanted;
+  const target = { x: head.x + right.x * side, y: head.y, z: head.z + right.z * side };
   const look = {
     x: Math.cos(orbit.pitch) * Math.cos(orbit.yaw),
     y: -Math.sin(orbit.pitch),
@@ -61,7 +77,7 @@ function aimOf(feet: Vec3, orbit: Orbit, follow: Follow) {
 
 /** How far back the camera can sit for feet at a point: its full distance, or short of a wall in the way. */
 export function reachOf(feet: Vec3, orbit: Orbit, walls: Walls, follow: Follow = ON_FOOT): number {
-  const { target, at } = aimOf(feet, orbit, follow);
+  const { target, at } = aimOf(feet, orbit, walls, follow);
   const clear = walls.clearance(target, at(follow.distance));
   return clear < follow.distance - ROUNDING ? Math.max(NEAREST, clear - WALL_GAP) : follow.distance;
 }
@@ -79,6 +95,6 @@ export function cameraOf(
   follow: Follow = ON_FOOT,
   distance = reachOf(feet, orbit, walls, follow),
 ): { readonly eye: Vec3; readonly target: Vec3 } {
-  const { target, at } = aimOf(feet, orbit, follow);
+  const { target, at } = aimOf(feet, orbit, walls, follow);
   return { eye: at(distance), target };
 }
