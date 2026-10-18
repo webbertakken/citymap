@@ -51,12 +51,23 @@ async function openingSince(page: Page, name: string, from: number): Promise<Ope
   return opening;
 }
 
-/** Waits until the city named is shown and nothing more is on its way, then a moment for the map to draw. */
-async function opened(page: Page, name: string, timeout = 30_000) {
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name, { timeout });
-  await expect(page.getByRole("region", { name: "Loading" })).toHaveCount(0, { timeout });
-  await expect(page.locator(".status")).toContainText("lots", { timeout });
-  await page.waitForTimeout(1000);
+/** Counts the loads the page has finished, from its log: one more once an opening is done. */
+function finishedLoads(page: Page) {
+  let finished = 0;
+  page.on("console", (message) => {
+    if (message.text().startsWith("viewer/load-done")) finished++;
+  });
+  return () => finished;
+}
+
+/** Notes the loads finished so far; the function returned waits for one more, the city named, and a moment to draw. */
+function nextOpening(page: Page, name: string, loads: () => number, timeout = 30_000) {
+  const before = loads();
+  return async () => {
+    await expect.poll(loads, { timeout }).toBeGreaterThan(before);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+    await page.waitForTimeout(1000);
+  };
 }
 
 async function slowed(page: Page) {
@@ -67,23 +78,27 @@ async function slowed(page: Page) {
 test("opens a bundled city and another layout of it in short main-thread tasks", async ({ page, isMobile }, info) => {
   test.skip(!isMobile, "the phone budget");
   await record(page);
+  const loads = finishedLoads(page);
   await page.goto("/");
   test.skip((await cannotTimeAPhone(page)) !== null, "software drawing cannot stand for a phone");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
   await slowed(page);
   await page.getByRole("button", { name: "More" }).tap();
   const city = await now(page);
+  const livediagram = nextOpening(page, "livediagram", loads);
   await page.getByRole("button", { name: /^livediagram/ }).tap();
-  await opened(page, "livediagram");
+  await livediagram();
   const bundled = await openingSince(page, "livediagram", city);
   await page.getByRole("button", { name: "Layout" }).tap();
   const variant = await now(page);
+  const quarters = nextOpening(page, "livediagram", loads);
   await page.getByRole("switch", { name: "Quarters" }).tap();
-  await expect(page.getByRole("switch", { name: "Quarters" })).toBeChecked();
-  await expect(page.locator(".status")).not.toContainText("…");
-  await opened(page, "livediagram");
+  await quarters();
   const switched = await openingSince(page, "livediagram quarters", variant);
   writeFileSync(info.outputPath("opening.json"), JSON.stringify([bundled, switched], null, 2));
+  // A tap or a key press while a bundled city or another layout of it opens waits for no task as long as the budget.
+  expect(bundled.longestMs).toBeLessThan(200);
+  expect(switched.longestMs).toBeLessThan(200);
 });
 
 /** linux's city, laid by the CLI: too large to bundle, so named by CITYMAP_LINUX_CITY. */
@@ -93,20 +108,22 @@ test("opens linux from a city file in short main-thread tasks", async ({ page, i
   test.skip(!isMobile || !linux, "the phone budget, with linux's city at hand");
   test.setTimeout(300_000);
   await record(page);
+  const loads = finishedLoads(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
   await slowed(page);
   await page.getByRole("button", { name: "More" }).tap();
   const from = await now(page);
+  const done = nextOpening(page, "linux", loads, 240_000);
   await page.getByLabel("City file").setInputFiles(linux!);
-  await opened(page, "linux", 240_000);
+  await done();
   const file = await openingSince(page, "linux file", from);
   writeFileSync(info.outputPath("opening.json"), JSON.stringify([file], null, 2));
 });
 
 test("lays linux from GitHub in short main-thread tasks", async ({ page, isMobile }, info) => {
   test.skip(!isMobile || !linux, "the phone budget, with linux's city at hand");
-  test.setTimeout(1_500_000);
+  test.setTimeout(300_000);
   // linux's tree, as GitHub would answer it: every file the city file holds a lot for.
   const { city } = parseCityFile(readFileSync(linux!, "utf8"));
   const tree = city.towns.flatMap((t) =>
@@ -122,13 +139,15 @@ test("lays linux from GitHub in short main-thread tasks", async ({ page, isMobil
   });
   await page.route("https://raw.githubusercontent.com/**", (route) => route.fulfill({ status: 404, headers }));
   await record(page);
+  const loads = finishedLoads(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
   await slowed(page);
   const from = await now(page);
+  const done = nextOpening(page, "linux", loads, 240_000);
   await page.getByRole("searchbox").fill("torvalds/linux");
   await page.keyboard.press("Enter");
-  await opened(page, "linux", 1_400_000);
+  await done();
   const live = await openingSince(page, "linux live", from);
   writeFileSync(info.outputPath("opening.json"), JSON.stringify([live], null, 2));
 });
