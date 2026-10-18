@@ -61,13 +61,14 @@ describe("variantOf", () => {
 });
 
 describe("loadCity and readCityFile", () => {
-  it("parse a city, the bundled one in the variant the toggles name", async () => {
-    const files = { "/cities/demo/quarters.json": serialiseCity(city) };
-    expect(await loadCity(fetcher(files), entryOf("demo", 0), ["quarters"])).toEqual({ city, measures: null });
-    expect(await readCityFile(new Blob([serialiseCity(city)]))).toEqual({ city, measures: null });
+  it("read a city file's text, the bundled one in the variant the toggles name", async () => {
+    const text = serialiseCity(city);
+    const files = { "/cities/demo/quarters.json": text };
+    expect(await loadCity(fetcher(files), entryOf("demo", 0), ["quarters"])).toBe(text);
+    expect(await readCityFile(new Blob([text]))).toBe(text);
   });
 
-  it("count the bytes as they arrive, of the length when it is known, then say they read the city", async () => {
+  it("count the bytes as they arrive, of the length when it is known", async () => {
     const body = serialiseCity(city);
     const length = String(new TextEncoder().encode(body).length);
     const steps: Step[] = [];
@@ -75,21 +76,20 @@ describe("loadCity and readCityFile", () => {
       await loadCity(chunked(body, { "content-length": length }), entry, DEFAULT_TOGGLES, "", {
         onStep: (s) => steps.push(s),
       }),
-    ).toEqual({ city, measures: null });
+    ).toBe(body);
     const size = Number(length);
     const half = Math.floor(size / 2);
     expect(steps).toEqual([
       { phase: "download", done: 0, of: size },
       { phase: "download", done: half, of: size },
       { phase: "download", done: size, of: size },
-      { phase: "parse" },
     ]);
     // An encoded body's length counts compressed bytes, so no total is claimed; nor without a length.
     const unknown = await Promise.all(
       [{ "content-length": "9", "content-encoding": "gzip" }, {}].map(async (headers) => {
         const heard: Step[] = [];
         await loadCity(chunked(body, headers), entry, DEFAULT_TOGGLES, "", { onStep: (s) => heard.push(s) });
-        return heard.at(-2);
+        return heard.at(-1);
       }),
     );
     expect(unknown).toEqual([
@@ -98,38 +98,23 @@ describe("loadCity and readCityFile", () => {
     ]);
     const fromFile: Step[] = [];
     await readCityFile(new Blob([body]), { onStep: (s) => fromFile.push(s) });
-    expect(fromFile.at(-2)).toEqual({ phase: "download", done: size, of: size });
+    expect(fromFile.at(-1)).toEqual({ phase: "download", done: size, of: size });
   });
 
   it("read a body without a stream whole", async () => {
     const plain = async () => Object.assign(new Response(null), { text: async () => serialiseCity(city) });
-    expect(await loadCity(plain, entry, DEFAULT_TOGGLES)).toEqual({ city, measures: null });
+    expect(await loadCity(plain, entry, DEFAULT_TOGGLES)).toBe(serialiseCity(city));
   });
 
-  it("stop when their signal aborts, while downloading or before reading", async () => {
+  it("stop when their signal aborts while downloading", async () => {
     const controller = new AbortController();
-    const steps: Step[] = [];
     const reading = loadCity(chunked(serialiseCity(city), {}), entry, DEFAULT_TOGGLES, "", {
       signal: controller.signal,
       onStep: (s) => {
-        steps.push(s);
         if (s.phase === "download" && s.done! > 0) controller.abort();
       },
     });
     await expect(reading).rejects.toMatchObject({ name: "AbortError" });
-    expect(steps.some((s) => s.phase === "parse")).toBe(false);
-    const late = new AbortController();
-    const parsing = readCityFile(new Blob([serialiseCity(city)]), {
-      signal: late.signal,
-      onStep: (s) => {
-        if (s.phase === "parse") late.abort();
-      },
-    });
-    await expect(parsing).rejects.toMatchObject({ name: "AbortError" });
-  });
-
-  it("reject what is not a city", async () => {
-    await expect(readCityFile(new Blob(["{}"]))).rejects.toThrow("city/bad-shape");
   });
 });
 

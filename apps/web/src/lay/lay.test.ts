@@ -1,10 +1,11 @@
-import { stateSnapshot } from "@citymap/ground-plan";
-import { buildScene } from "@citymap/scene";
+import { CitymapError, stateSnapshot } from "@citymap/ground-plan";
+import { parseCityFile, serialiseCityFile } from "@citymap/measures";
+import { buildScene, pick, pickIndex } from "@citymap/scene";
 import { THEMES } from "@citymap/themes";
 import { describe, expect, it } from "vitest";
 import { city as cityNamed } from "../components/testing/fixtures";
 import type { Step } from "../load/step";
-import { buffersOf, layHere, layStep, throttled } from "./lay";
+import { buffersOf, errorOf, failureOf, layHere, layStep, readHere, throttled, trustedCityFile, wireText } from "./lay";
 
 const snapshot = stateSnapshot(
   "demo",
@@ -69,6 +70,10 @@ describe("layHere", () => {
     const { city, scene } = await layHere(snapshot, { theme: "dracula", onProgress: (s) => steps.push(s) });
     expect(steps.at(-1)).toEqual({ phase: "draw" });
     expect(scene).toEqual({ theme: "dracula", scene: buildScene(city, THEMES.dracula) });
+    // The pick index is built beside them, for the city laid.
+    const laid = await layHere(snapshot);
+    expect(laid.pick.city).toBe(laid.city);
+    expect(pick(laid.pick, 0, 0)).toEqual(pick(pickIndex(laid.city), 0, 0));
   });
 
   it("lists the scene's buffers, to hand over without a copy", () => {
@@ -82,5 +87,56 @@ describe("layHere", () => {
     const controller = new AbortController();
     controller.abort();
     await expect(layHere(snapshot, { signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+  });
+});
+
+describe("readHere", () => {
+  const file = { city: cityNamed("x"), measures: null };
+  const text = serialiseCityFile(file);
+
+  it("reads a city file, saying so, and builds its scene and pick index", async () => {
+    const steps: Step[] = [];
+    const laid = await readHere(text, { theme: "dracula", onProgress: (s) => steps.push(s) });
+    expect(steps).toEqual([{ phase: "parse" }, { phase: "draw" }]);
+    expect(laid).toMatchObject({ city: file.city, measures: null });
+    expect(laid.scene).toEqual({ theme: "dracula", scene: buildScene(file.city, THEMES.dracula) });
+    expect(pick(laid.pick, 0.5, -0.5)).toEqual(pick(pickIndex(file.city), 0.5, -0.5));
+    expect((await readHere(text)).scene).toBeNull();
+  });
+
+  it("rejects what is not a city with the file's code, and reads nothing once aborted", async () => {
+    await expect(readHere("{}")).rejects.toMatchObject({ code: "city/bad-shape" });
+    const controller = new AbortController();
+    controller.abort();
+    await expect(readHere(text, { signal: controller.signal })).rejects.toMatchObject({ name: "AbortError" });
+  });
+});
+
+describe("wireText and trustedCityFile", () => {
+  it("carry a laid city file across as text, equal to the validated one, with or without measures", async () => {
+    const facts = { source: "github", size: "bytes", comments: false, files: new Map(), coverage: new Map() } as const;
+    const { city, measures } = await layHere(snapshot, { facts });
+    for (const file of [
+      { city, measures },
+      { city, measures: null },
+    ]) {
+      const text = wireText(file);
+      expect(trustedCityFile(text)).toEqual(file);
+      expect(trustedCityFile(text)).toEqual(parseCityFile(text));
+    }
+  });
+});
+
+describe("failureOf and errorOf", () => {
+  it("keep an engine's code and detail across the worker, so a bad file is named as before", () => {
+    const original = new CitymapError("city/bad-shape", "/towns: Invalid type", { pointer: "/towns" });
+    const crossed = errorOf(structuredClone(failureOf(original)));
+    expect(crossed).toBeInstanceOf(CitymapError);
+    expect(crossed).toMatchObject({ code: "city/bad-shape", message: original.message, detail: { pointer: "/towns" } });
+  });
+
+  it("keep any other failure's message", () => {
+    expect(errorOf(failureOf(new RangeError("too deep")))).toEqual(new Error("too deep"));
+    expect(errorOf(failureOf("plain words")).message).toBe("plain words");
   });
 });

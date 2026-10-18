@@ -33,6 +33,37 @@ in `BufferGeometry`.
   districts and towns whose bounding boxes touch it; `pick(index, x, z)` (scene units) returns the topmost hit: a lot
   (point in polygon), else a block, else a road (distance to a segment within half its width), else a district (smallest
   containing), else a town.
+- The index is built in two halves, so the layout worker builds it and the main thread only attaches it:
+  `pickIndex(city)` is `pickFrom(city, pickGrid(city))`.
+- `pickGrid(city)` → `PickGrid`, plain data of typed arrays (structured-cloneable; `pickBuffers(grid)` lists its
+  buffers, handed over without a copy). Its entries are numbered in this order: per town its lots, blocks, roads,
+  labelled districts (wards left out) and outline; then the highways. Per entry, one slot (or four, or two) of each
+  column:
+  - `layer` (`Uint8Array`): 0 lot, 1 block, 2 road, 3 district, 4 town;
+  - `town` (`Int32Array`): the town's index in `city.towns`, −1 for a highway;
+  - `item` (`Uint32Array`): the index in the town's `lots`, `blocks`, `roads` or `districts` (counting wards), or in
+    `city.highways`; 0 for a town;
+  - `box` (`Float64Array`, four per entry): x0, y0, x1, y1 in fixed units, a road's grown by half its width;
+  - `area` (`Float64Array`): the bounding box's area (the smallest district wins);
+  - `lots` (`Uint32Array`): a lot's `folderLots`, a district's `lots`;
+  - `folders` (`Uint32Array`): a district's `folders`, a town's `districts`;
+  - `ends` (`Int32Array`, two per entry): a highway's towns nearest its two ends (indices in `city.towns`, −1 for none).
+- The grid is dense over the cells the entries' boxes touch: `column0` and `row0` (the first cell's column and row,
+  `floor(coordinate / CELL)`), `columns`, `rows`; `starts` (`Uint32Array`, `columns × rows + 1`) and `members`
+  (`Uint32Array`): cell c lists the entries `members[starts[c]]` to `members[starts[c + 1] − 1]`, in entry order, where
+  c = (row − row0) × columns + (column − column0). A point outside the grid lies in no cell.
+- `pickFrom(city, grid)` → `PickIndex` (`{ city, grid, only, folders, hits }`): it walks only the `layer` column, for
+  the districts. `folders` maps `{townKey}\n{path}` of every labelled district to its entry (the last of a key wins, as
+  before); `only` is null (every town answers); `hits` keeps each entry's hit once made, so a lot, road, district or
+  town answers with the same object every time (a block's hit depends on the point, so it is made each time). The city
+  must be the one the grid was built from (the same towns and items in the same order).
+- A hit is made from the city on demand, the same as the whole index would have made it: the lot, block, road, district
+  or town at `town` and `item`, `townRoot` for its root, and the counts from the columns.
+- `onlyTown(index, townKey)` → the same grid answering for one town only (`only` its index, so no highway answers; a key
+  the city does not hold answers nothing): what `pickIndex(focusOn(city, townKey))` would answer, built in no time, so a
+  drill builds no index. `folderHit` keeps answering for the whole city.
+- Sizes: a dense grid holds `columns × rows` cells: linux 88 × 85 = 7,480, livediagram 31 × 43 = 1,333; entries are one
+  per lot, block, road, labelled district, town and highway (linux 85,869).
 - A city's districts are only its labelled folders (top level, or at least 15 ‰ of the town's mass), so the deepest
   folder the model knows for a block is the smallest labelled district holding the point; a park's own folder (a
   flattened subfolder's) is not in the model, nor is any folder's count of documents.
@@ -55,7 +86,7 @@ in `BufferGeometry`.
   folders below each labelled district from the set of folders on the way from each lot's folder up to it. A highway's
   towns are those whose outline lies nearest each end (distance to the outline's edges, 0 inside).
 - Budget: next.js (about 8,000 lots) indexes in under 50 ms, linux (about 75,000 lots) in under 500 ms; a query answers
-  in under 1 ms.
+  in under 1 ms; `pickFrom` and `onlyTown` in under 1 ms for linux.
 
 ## App (`apps/web`)
 
@@ -112,15 +143,46 @@ in `BufferGeometry`.
      limit), parsed with `patternsOf` and resolved with `resolveWorkspaces`; one that cannot be read is left out.
   5. The snapshot is `stateSnapshot(name, sha, paths, workspaces)` from `@citymap/ground-plan`, the same builder the
      CLI's `--no-history` and the bench use, so the browser lays exactly what `citymap --no-history` lays.
-- Laying (`lay/`): `Lay = (snapshot, { signal, onProgress, theme, toggles }) => Promise<Laid>`,
-  `Laid = { city, scene }`. `layHere` lays on the calling thread,
-  `layCity(snapshot, initialState(options), options, onProgress)` with the CLI's default options and the chosen toggles
-  (`liveOptions(toggles)`, the engine's defaults when none are given), and, given a `theme`, posts a `draw` step and
-  builds the scene there too (`scene: { theme, scene }`, else null). `layInWorker` (the default; `layHere` in tests)
-  runs it in a module Web Worker (`lay/worker.ts`) sent `{ snapshot, theme, toggles }`; the scene's buffers come back
-  transferred (`buffersOf`), not copied. See Loading for the progress it posts and how it ends.
+- Laying and reading (`lay/`): every opening becomes a city in the layout worker.
+  `Laid = { city, measures, scene, pick }`: the city, its measures (or null), its scene in the theme asked for
+  (`scene: { theme, scene }`, or null without a theme), and its pick index.
+  - `Lay = (snapshot, { signal, onProgress, theme, toggles, facts }) => Promise<Laid>`: `layMade` lays,
+    `layCity(snapshot, initialState(options), options, onProgress)` with the CLI's default options and the chosen
+    toggles (`liveOptions(toggles)`, the engine's defaults when none are given), and builds the measures from the facts.
+  - `Read = (text, { signal, onProgress, theme }) => Promise<Laid>`: `readMade` posts a `parse` step and reads the text
+    with `parseCityFile` (its rejections are the file's).
+  - Both then (`finish`), given a `theme`, post a `draw` step and build the scene, and always build the pick grid
+    (`pickGrid`): a `Made`, `{ file, scene, grid }`. `laidOf(made)` attaches the grid to the city (`pickFrom`) as a
+    `Laid`. `layHere` and `readHere` do it all on the calling thread (jsdom, tests). `layInWorker` and `readInWorker`
+    (`lay/browser.ts`; the Viewer's defaults, `layHere` and `readHere` where no `Worker` exists) run `layMade` and
+    `readMade` in a module Web Worker (`lay/worker.ts`), one per opening, sent a `Request`:
+    `{ job: "lay", snapshot, theme, toggles, facts }` or `{ job: "read", text, theme }`.
+  - The worker answers `{ step }` as it goes (see Loading), then `{ text, scene, grid }`: the scene and the grid with
+    their buffers transferred (`buffersOf`, `pickBuffers`), not copied; for a lay, `text` is the laid city file as plain
+    JSON (`wireText`: the city file's keys in the engine's order, not canonical, as `serialiseCityFile` would take ten
+    times as long), for a read it is null, the main thread keeping the text it sent. A failure answers
+    `{ error: Failure }` (`failureOf`: `{ code, message, detail }`, `code` null for an error that is not a
+    `CitymapError`), rejected on the main thread by `errorOf` as the same `CitymapError` (or an `Error` of that
+    message), so a bad file is named as before. The worker logs nothing itself; `viewer/worker job ms` is logged when it
+    answers, and every failure by the opening that asked.
+  - The main thread takes the city in with `trustedCityFile(text)` (`lay/lay.ts`): `JSON.parse`, the `measures` key
+    split off, without validating again, as the worker has validated it or laid it; JSON is the cheapest way for a large
+    city to reach the main thread (linux in Chromium: 86 ms to parse against 245 ms to receive it by structured clone),
+    and the schemas are strict and transform nothing, so the parsed city equals the validated one. It then attaches the
+    grid (`pickFrom(city, grid)`).
 - `Viewer` keeps the worker's scene (`drawn`: the city, the theme, the scene) and uses it while that city is shown in
-  that theme; any other city or theme builds its scene on the main thread as before.
+  that theme; another theme builds its scene on the main thread, as does a town shown alone. It keeps the opening's pick
+  index with the city (`wholePick`, used while its city is the one shown), and a town shown alone picks from
+  `onlyTown(wholePick, focus)`.
+- The search index (`searchIndexInSlices(city, { signal, pause, now })`, `search/slices.ts`, the entries of
+  `entriesOf(city)` in order) is built on the main thread in `draw`, before the city shows, in slices of at most
+  `SLICE_MS` 5 ms that yield to input between them (`scheduler.yield()` where the browser has it, else a zero timeout):
+  its entries are objects the main thread owns, and receiving 75,000 of them by structured clone takes longer than
+  building them (linux in Chromium: 62 ms against 30 to 39 ms). It equals `searchIndex(city)`. It is part of the
+  opening: the job's signal stops it (a cancel or a newer opening), and a failure fails the opening. `Viewer` keeps it
+  with its city (`listed`), so the search box has an index whenever a city shows, and text typed the moment a city
+  appears finds it (and is never offered to GitHub as a repository for want of a list);
+  `viewer/search-index entries slices ms` is logged once it is built.
 - A repository is laid from the search box (below). While it loads, the status line names the phase ("{name}: {phase}…";
   see Loading); then "{towns} towns · {lots} lots · single state, not folded". On success the address becomes
   `?repo=owner/name` (`history.replaceState`); on load, a `repo` parameter is laid instead of the first bundled city.
@@ -171,13 +233,15 @@ in `BufferGeometry`.
   ticking every `TICK_MS` 250 ms while it is mounted, so a tick re-renders the card alone, never the viewer. A job's
   reports after it ended change nothing; leaving the page aborts the load in flight.
 - The viewer's loads report through it: the index's first city and More
-  (`loadCity(fetcher, entry, base, { signal, onStep })`: the body read as a stream, `content-length` the total unless
-  `content-encoding` is set, then `parseCity`), a city file (`readCityFile(file, { signal, onStep })`, read in
-  `FILE_CHUNK` 1 MB slices, `file.size` the total), and a GitHub repository (`readRepository`, then the worker). Before
-  parsing and before showing the city, `afterPaint()` (`load/paint.ts`) waits for a frame, or `FRAME_WAIT_MS` 100 ms in
-  a hidden tab, so the phase is seen before the main thread is busy.
-- `draw` (`Viewer`'s `draw(job, city, name, file, scene)`): the phase is said, a frame passes, the city is shown (and
-  More's current city set), a frame passes, and the job is done.
+  (`loadCity(fetcher, entry, toggles, base, { signal, onStep })`: the body read as a stream, `content-length` the total
+  unless `content-encoding` is set, into text), a city file (`readCityFile(file, { signal, onStep })`, read in
+  `FILE_CHUNK` 1 MB slices, `file.size` the total, into text), each text then read by the worker (`read`, which says
+  `parse`, then `draw`), and a GitHub repository (`readRepository`, then the worker's `lay`). Before showing the city,
+  `afterPaint()` (`load/paint.ts`) waits for a frame, or `FRAME_WAIT_MS` 100 ms in a hidden tab, so the phase is seen
+  before the main thread is busy.
+- `draw` (`Viewer`'s `draw(job, laid, how)`): the phase is said, a frame passes, the search index is built in slices,
+  the city is shown with its scene, pick index and search index (and More's current city set), a frame passes, and the
+  job is done.
 - `ReadStep`s from `readRepository`: `commit` before the first request; `tree` on entering the phase and after each tree
   answer, with `done` the folders whose entries are in hand and `of` the folders known (the root, and every `tree` entry
   seen in any answer, the truncated first answer included); `manifests` with `done` of `of` root manifests read.
@@ -189,8 +253,8 @@ in `BufferGeometry`.
   is byte-identical with or without a listener; the Rust engine has no callback (parity compares bytes).
 - `layStep` makes it a `lay` step, `done` = `placed + shaped` of `of` = `2 × lots`, `count` lots placed of lots. The
   worker posts `{ step }` at once on a phase change and at most every `POST_MS` 100 ms within a phase (`throttled`,
-  flushed before the city), then `{ city, scene }` or `{ error }`. Aborting the signal terminates the worker and rejects
-  with the signal's reason.
+  flushed before the answer), then `{ text, scene, grid }` or `{ error }`. Aborting the signal terminates the worker and
+  rejects with the signal's reason.
 - Cancel: "Cancel" on the card, or Escape anywhere but in the search box or an open menu (a capturing `keydown` listener
   on `window` while the card shows, which stops the key there), calls `cancel()`: requests abort (the fetcher gets the
   signal), the worker ends, and the last city, the address and the selection stay. An `AbortError` is never shown as a
@@ -479,11 +543,12 @@ One description of a hit feeds the hover card and the drawer's selection, so bot
 
 - `src/log.ts` writes one line per decision point or failure, fingerprinted by its first token: `viewer/index cities`,
   `viewer/open name towns lots`, `viewer/town key`, `viewer/city`, `viewer/search length hits` (when a query settles),
-  `viewer/search-pick kind path`, `viewer/drawer open`, `viewer/copy-path kind`, `viewer/github-open kind`, the loading
-  and suggestion events above (to `console.info`); `viewer/index-failed reason`, `viewer/open-failed name reason`,
-  `viewer/file-rejected file reason`, `viewer/suggest-failed owner reason`, `viewer/copy-failed reason` (to
-  `console.error`). A reason is the engine's code (`city/bad-json`) or the error's text. Every failure also reaches the
-  person as `role="alert"` text.
+  `viewer/search-pick kind path`, `viewer/search-index entries slices ms` (when the search index is built),
+  `viewer/worker job ms` (when the layout worker answers: `lay` or `read`, ms since it was asked), `viewer/drawer open`,
+  `viewer/copy-path kind`, `viewer/github-open kind`, the loading and suggestion events above (to `console.info`);
+  `viewer/index-failed reason`, `viewer/open-failed name reason`, `viewer/file-rejected file reason`,
+  `viewer/suggest-failed owner reason`, `viewer/copy-failed reason` (to `console.error`). A reason is the engine's code
+  (`city/bad-json`) or the error's text. Every failure also reaches the person as `role="alert"` text.
 
 ## Constants
 
@@ -495,8 +560,9 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
 `github/useSuggestions.ts`), `IN_FLIGHT` (in `github/read.ts`), `FILE_CHUNK` (in `cities.ts`), `FRAME_WAIT_MS` (in
 `load/paint.ts`), `TOWNS_SHOWN` (in `Drawer.tsx`), `PHASE_WEIGHTS`, `ESTIMATE_FROM` and `STEADY_MS` (in
 `load/progress.ts`), `SHOW_AFTER_MS`, `HOLD_MS` and `TICK_MS` (in `load/useLoading.ts`), `POST_MS` (in `lay/worker.ts`),
-`OWNER_TTL_MS` (in `github/owners.ts`), the tooltip's width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in
-`packages/scene`), `ELEVATION` and `YAW` (in `view/view.ts`), `RAY_STEP` (in `view/hover.ts`).
+`SLICE_MS` (in `search/slices.ts`), `CELL` (in `packages/scene/src/pick.ts`), `OWNER_TTL_MS` (in `github/owners.ts`),
+the tooltip's width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in `packages/scene`), `ELEVATION` and `YAW` (in
+`view/view.ts`), `RAY_STEP` (in `view/hover.ts`).
 
 ## Web experience
 
@@ -511,8 +577,8 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
   re-renders what the view feeds and not the other cards. Against the bar-and-panel viewer, under the same machine load
   at a fourfold slowdown, a key press on livediagram answers in a median 48 ms (was 40 ms), p90 64 ms (was 64 ms). Unit
   tests render uncompiled; the end-to-end suite proves the compiled build. Nothing the compiler memoises reads a
-  property of a value that may be null during render: the search's context (`finder`) carries the scene's bounds and the
-  pick index, built only once the city is.
+  property of a value that may be null during render: the search's context (`finder`) carries the scene's bounds, the
+  pick index and the search index, present only once all three are.
 - INP under 200 ms on a phone: the view while fitted is derived from the scene (`fit(scene.bounds, viewport, insets)`),
   never built twice; the whole city's scene and pick index stay built while one town is shown, so going back costs
   nothing. Measured on a Pixel 7 profile with the processor slowed to a phone four times slower than the reference
@@ -523,11 +589,19 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
   there with its reason; it gates in the local run before every merge. Measured over taps, keys, a theme change, a
   search and a drill. A theme change is a transition (`startTransition`): the menu closes in the next frame and the
   scene is rebuilt in its new colours after it, so the tap answers within the budget.
-- Laying a large repository: the worker lays and builds the scene, so on that phone profile linux's longest main-thread
-  task fell from 2.25 s to 0.83 s, most of it the pick index (which appends to its cells rather than copying them: about
-  100 ms for linux on a desktop) and the search index 0.09 s (both still on the main thread, after the card says
-  "Drawing the map"; the card's sweep runs on the compositor meanwhile). The loading card shifts nothing and its Cancel
-  answers within the budget (`vitals.spec.ts`).
+- Opening anything: the worker reads or lays the city, builds its scene and its pick grid, and hands their buffers over;
+  the main thread parses the city file's text once, attaches the grid, draws, and builds the search index in slices. The
+  card's sweep runs on the compositor meanwhile. The loading card shifts nothing and its Cancel answers within the
+  budget (`vitals.spec.ts`). On the slowed phone (medians of three runs, against the main thread building both indexes,
+  the scene and the city's validation itself): livediagram's longest task 79 ms (was 209 ms), its Quarters layout 57 ms
+  (was 148 ms), linux from a city file 836 ms (was 1,955 ms), linux from GitHub 484 ms (was 1,210 ms). What remains for
+  linux is parsing its 43 MB city file on the main thread (about 290 ms there) and the buildings' lot table built from
+  its measures (`cityBuildings`, `tableFor`: about 450 ms over the opening), neither of them an index.
+- `e2e/vitals-opening.spec.ts` (the vitals projects; phone only, and only where a phone can be timed) records `longtask`
+  entries before the page's scripts run and reports, per opening, the longest main-thread task and the blocking time
+  (the time beyond 50 ms of every task) on the slowed phone: livediagram from More, then its Quarters layout, asserted
+  under 200 ms each; linux from a city file and from GitHub (a tree answered from the city file's paths), reported, when
+  `CITYMAP_LINUX_CITY` names linux's city.
 - `e2e/vitals.spec.ts` runs in its own projects (`vitals-desktop`, `vitals-phone`) once the journeys are done, so no
   other test draws at the same time; it reports the slowest interaction as an annotation. It records
   `largest-contentful-paint`, `layout-shift` and `event` entries (from 16 ms) through `PerformanceObserver` before the
@@ -542,7 +616,13 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
 ## Tests
 
 - `packages/scene`: unit tests for triangulation, ribbons, buildings, the lot table, colour by, layers and labels
-  (Vitest, Node).
+  (Vitest, Node). Picking: the hit rules through `pickIndex`; the flat form (`pickGrid` after a structured clone,
+  attached with `pickFrom`, answers as `pickIndex` does at every point of a fine raster over a city of several towns and
+  highways; its buffers are listed once each); `onlyTown` answers as `pickIndex(focusOn(city, key))` at every point.
+- `lay/`: `readHere` reads a city file, builds its scene and pick index, and rejects a bad file with the file's code;
+  `trustedCityFile` equals `parseCityFile` on a valid file; a worker's failure is rebuilt with its code and detail.
+- `search/`: `searchIndexInSlices` equals `searchIndex`, yields between slices of at most `SLICE_MS`, and stops when
+  aborted.
 - `apps/web`: component tests in jsdom for every card, search, flight, file errors and keyboard handling (the canvas is
   replaced by a stub there; fixtures in `components/testing/`); Playwright end-to-end on a desktop and a phone, in dark
   mode with one light run: loads, switches city and theme, searches and flies, opens a file, shows an error for a bad

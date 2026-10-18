@@ -1,7 +1,8 @@
 "use client";
+import { DEFAULT_TOGGLES } from "@citymap/ground-plan";
 // The model lab: /lab/models?style=procedural|gltf|mixed&shot=street|lineup&city=<name>&theme=<theme>.
 // A research page, not linked: one bundled city's longest street, with the cast in the style asked for.
-import { DEFAULT_TOGGLES } from "@citymap/ground-plan";
+import { parseCityFile } from "@citymap/measures";
 import { buildScene, type Scene } from "@citymap/scene";
 import { THEMES, THEME_NAMES, type ThemeName } from "@citymap/themes";
 import { useEffect, useState } from "react";
@@ -77,7 +78,7 @@ interface Ready {
 async function prepare(asked: Asked): Promise<Ready> {
   const index = await loadIndex(fetcher, base);
   const entry = index.find((e) => e.name === asked.city) ?? index[0]!;
-  const file = await loadCity(fetcher, entry, DEFAULT_TOGGLES, base);
+  const file = parseCityFile(await loadCity(fetcher, entry, DEFAULT_TOGGLES, base));
   const theme = THEMES[asked.theme];
   const scene = buildScene(file.city, theme);
   const { table } = tableFor(scene, cityBuildings(file.measures), "folder", theme);

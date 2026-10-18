@@ -424,8 +424,10 @@ describe("Viewer log", () => {
     fireEvent.click(townButton("alpha"));
     fireEvent.click(screen.getByRole("navigation", { name: "Breadcrumb" }).querySelector("button")!);
     const lines = info.mock.calls.map(([line]) => String(line));
-    expect(lines.filter((l) => !l.startsWith("viewer/load-"))).toEqual([
+    expect(lines.filter((l) => !l.startsWith("viewer/load-")).map((l) => l.replace(/ ms=\d+$/, ""))).toEqual([
       "viewer/index cities=2",
+      // Before the city shows, its folders and files are listed for search, in slices.
+      "viewer/search-index entries=3 slices=1",
       "viewer/measures-none name=alpha",
       "viewer/open name=alpha towns=1 lots=1",
       "viewer/town key=alpha",
