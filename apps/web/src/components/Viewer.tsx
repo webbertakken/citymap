@@ -308,9 +308,11 @@ export function Viewer({
     [measures],
   );
   // Every building's name over its roof, made by the city's worker: the map reads those near its centre.
+  // Kept while the city and the place shown stay, so an answer of the city's worker does not redraw the map's names.
+  const cityRoofs = held?.roofs ?? null;
   const roofs = useMemo<RoofsNear | null>(
-    () => held && ((centre, reach) => roofsNear(held.roofs, held.floors, Atlas.span(held, focus), centre, reach)),
-    [held, focus],
+    () => cityRoofs && floors && span && ((centre, reach) => roofsNear(cityRoofs, floors, span, centre, reach)),
+    [cityRoofs, floors, span],
   );
   const uses = useMemo(() => [...new Set(scene?.buildings.order.map((ref) => ref.use))], [scene]);
   const [picked, setPickedHit] = useState<Hit | null>(null);

@@ -116,9 +116,10 @@ The settings cog opens a popover, "City layout", of four switches: the ground pl
   of folders known, lots placed of lots, bytes of bytes) and shows the count beside it ("1,204 of 2,610 folders · 27
   requests", "31,200 of 75,663 lots"); where nothing can be counted, a gentle sweep over it, still under reduced motion.
   Once the pace is steady it estimates the time left ("about 12 s left"), and it always shows the time spent.
-- "Cancel" (and Escape, anywhere but in the search box or an open menu) stops the work: requests are aborted, the layout
-  worker ends, and the last city stays as it was. Opening something else while one load runs replaces it. The last city
-  stays visible, dimmed, under the card while the next one loads; search, the menus and the drawer stay usable.
+- "Cancel" (and Escape, anywhere but in the search box or an open menu) stops the work: requests are aborted, the
+  opening's worker ends, and the last city stays as it was, with its own. Opening something else while one load runs
+  replaces it. The last city stays visible, dimmed, under the card while the next one loads; search, the menus and the
+  drawer stay usable.
 - Once the load is done the card holds a moment with its bar full and Cancel gone from view (keeping its place); nothing
   is left to cancel, so Escape is the map's again.
 - A failure removes the card and says why in the notice, as elsewhere.

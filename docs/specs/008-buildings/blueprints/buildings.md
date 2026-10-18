@@ -353,9 +353,10 @@ interface Report {
   `tableFor(refs, buildings, colourBy, theme)` the whole city's lot table (`lotTable` over `lookOf`), per colour and
   theme; `cityFloors(refs, buildings)` each building's floors (`Uint8Array`, the same in every colour and theme), once
   per city; `placeTable(table, span)` a town's rows of the whole city's table, which equal its own, as a building's look
-  depends only on its lot, its building and the city's scales. The main thread keeps the measures and the scales
-  (`CityScales`, `{ measures, scales }`, what the legend reads) and builds no `Building` but the one a card asks for.
-- The shader (`ShaderMaterial`, GLSL 3, one material per canvas, kept for its life: the table, the view, the theme's
+  depends only on its lot, its building and the city's scales; `cityRoofs(city, buildings)` every roof's name, from its
+  files (`view/roofs.ts`). The main thread keeps the measures and the scales (`CityScales`, `{ measures, scales }`, what
+  the legend reads) and builds no `Building` but the one a card asks for.
+- The shader (`ShaderMaterial`, GLSL 3, one material per mesh, kept for its life: the table, the view, the theme's
   unknown windows and the fog are uniforms, so its program is linked once): a vertex reads its lot's texel
   (`texelFetch`), its height is `LOT_HEIGHT` in plan view and `floors · FLOOR_HEIGHT` in the Buildings view
   (`uniform uBuildings`), on top of the lots' base height. A roof is the lot's colour; in the Buildings view a roof of
@@ -510,7 +511,8 @@ interface Report {
   colour and theme asked for, and a town shown alone draws its rows of it; the map keeps the table it draws until the
   one asked for arrives. The floors depend on the measures only. The mesh depends on the scene only.
 - A card's measure rows aggregate its own lot when asked (`lotBuilding(measures, townKey, key)`, own keys only), and a
-  roof's name reads its lot's files (`filesOn(measures, townKey, key)`); the legend's scales come from the worker.
+  walk's building reads its lot's files (`filesOn(measures, townKey, key)`); the roofs' names and the legend's scales
+  come from the worker.
 
 ## Security and trust
 
