@@ -118,11 +118,12 @@ bun apps/cli/src/bin.ts ~/path/to/repo --svg=city.svg
 Explore cities in the browser:
 
 ```bash
+bun run bundle   # once: lays the example cities (needs Rust; about four minutes)
 bun run --cwd apps/web dev
 ```
 
-The viewer opens with a few bundled cities. Drop any city file the CLI wrote (`--out=city.json`) onto the page to see
-your own.
+The viewer opens with a few bundled cities, laid from public repositories at pinned commits. Drop any city file the CLI
+wrote (`--out=city.json`) onto the page to see your own.
 
 ## The CLI
 

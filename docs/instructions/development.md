@@ -59,10 +59,15 @@ The Rust implementation of the CLI lives in `rust/`: see
 
 ## Bundled cities
 
-1. `bun scripts/bundle-cities.ts` under PM2 builds the Rust CLI and folds every public city in `PUBLIC` once per
-   combination of the toggles (16 each), from shared clones of `~/.cache/citymap/repos`, into
-   `apps/web/public/cities/<name>/<variant>.json` with `index.json`.
-2. It logs `bundle/laid` per variant and `bundle/done` with the total bytes, raw and gzipped; commit the folder.
+1. The bundled cities are built, never committed: the Pages workflow builds them before the site, and
+   `apps/web/public/cities/` is ignored. Run `bun run bundle` under PM2 once before `next dev`, a local build or the
+   end-to-end suite (which refuses to start without them).
+2. It builds the Rust CLI, clones every city in `BUNDLED` (`scripts/bundle/bundle.ts`) from GitHub without contents,
+   checks out its pinned commit, and folds it once per combination of the toggles (16 each) into
+   `apps/web/public/cities/<name>/<variant>.json` with `index.json`; about four minutes.
+3. It logs `bundle/cloned` per city, `bundle/laid` per variant and `bundle/done` with the total bytes, raw and gzipped.
+4. To show a newer state of a city, move its pin in `BUNDLED` and update the end-to-end expectations that name its
+   numbers, in one PR.
 
 ## Adding a workspace
 

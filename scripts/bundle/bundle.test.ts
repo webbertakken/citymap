@@ -1,6 +1,37 @@
 import { TOGGLES } from "@citymap/ground-plan";
 import { describe, expect, it } from "vitest";
-import { combinations, indexEntry, layArgs, summary, variantFile, variantName } from "./bundle.ts";
+import { BUNDLED, cloneArgs, combinations, indexEntry, layArgs, summary, variantFile, variantName } from "./bundle.ts";
+
+describe("BUNDLED", () => {
+  it("pins each public city to a GitHub repository and a full commit, names unique", () => {
+    expect(BUNDLED.map((c) => c.name)).toEqual([
+      "takken.io",
+      "redux",
+      "game-ci-cli",
+      "studio-worker",
+      "livediagram",
+      "react",
+    ]);
+    for (const city of BUNDLED) {
+      expect(city.url).toMatch(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\.git$/);
+      expect(city.commit).toMatch(/^[0-9a-f]{40}$/);
+    }
+  });
+});
+
+describe("cloneArgs", () => {
+  it("clones without blobs and without a checkout, so only the pinned commit's files are fetched", () => {
+    expect(cloneArgs("https://github.com/reduxjs/redux.git", "/s/redux")).toEqual([
+      "git",
+      "clone",
+      "--filter=blob:none",
+      "--no-checkout",
+      "--quiet",
+      "https://github.com/reduxjs/redux.git",
+      "/s/redux",
+    ]);
+  });
+});
 
 describe("combinations", () => {
   it("lists all sixteen subsets of the toggles, none first, each in the toggles' own order", () => {
@@ -24,13 +55,14 @@ describe("variant names", () => {
 
 describe("layArgs", () => {
   it("folds the repository with the variant's toggles into its file", () => {
-    expect(layArgs("/r/citymap", "/c/redux", "/o/redux/none.json", [])).toEqual([
+    expect(layArgs("/r/citymap", "/c/redux", "/o/redux/none.json", [], "abc")).toEqual([
       "/r/citymap",
       "/c/redux",
       "--out=/o/redux/none.json",
+      "--to=abc",
       "--toggles=",
     ]);
-    expect(layArgs("/r/citymap", "/c/redux", "/o/x.json", ["corridor", "tiers"]).at(-1)).toBe(
+    expect(layArgs("/r/citymap", "/c/redux", "/o/x.json", ["corridor", "tiers"], "abc").at(-1)).toBe(
       "--toggles=corridor,tiers",
     );
   });

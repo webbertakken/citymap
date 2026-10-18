@@ -354,12 +354,14 @@ phone), so nothing the cards do moves the map or each other.
 - Logs: `viewer/toggles on` (the list, `none` when empty) on every change; `viewer/variant-failed name reason` when a
   variant cannot load (also a notice; the last city stays).
 - `scripts/bundle-cities.ts` lays every combination (`combinations()` in `scripts/bundle/bundle.ts`, the sixteen subsets
-  of `TOGGLES` in binary order) of each public city from `~/.cache/citymap/repos/<name>` with the Rust CLI
-  (`rust/target/release/citymap <repo> --toggles=<list> --out=…`, a full fold, no lock), into
+  of `TOGGLES` in binary order) of each public city in `BUNDLED` (a GitHub URL and a pinned commit), from a fresh clone
+  without contents checked out at that commit (`cloneArgs`), with the Rust CLI
+  (`rust/target/release/citymap <repo> --to=<commit> --toggles=<list> --out=…`, a full fold, no lock), into
   `public/cities/<name>/<variant>.json`, where `variantName(toggles)` joins the toggles with `-`, or is `none`; then
   writes the index. One line per lay: `bundle/laid name variant lots bytes gzip ms`; at the end
-  `bundle/done cities variants bytes gzip`. The six cities' 96 variants take 62.2 MB (10.0 MB gzipped, 1.7 MB in a git
-  pack); a visitor loads one at a time, 35 to 320 kB gzipped.
+  `bundle/done cities variants bytes gzip`. The six cities' 96 variants take 93 MB (13.6 MB gzipped); a visitor loads
+  one at a time. They are not committed: `.github/workflows/pages.yml` runs `bun run bundle` before `next build`, and
+  `public/cities/` is ignored.
 
 ## Labels
 

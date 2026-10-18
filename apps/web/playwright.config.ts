@@ -1,4 +1,10 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+
+// The bundled cities are built, not committed; without them every journey would fail for the same, unclear reason.
+if (!existsSync(join(import.meta.dirname, "public/cities/index.json")))
+  throw new Error("e2e/no-cities: run `bun run bundle` first; the bundled cities are built, not committed");
 
 // The static export served over HTTPS on loopback; dark mode throughout.
 // The port the export is served on: 5193, or CITYMAP_E2E_PORT when another checkout runs its suite at once.

@@ -11,3 +11,5 @@ playwright-report/
 .view-*
 next-env.d.ts
 rust/target/
+# The bundled cities: built by `bun run bundle` and by the Pages workflow, never committed.
+apps/web/public/cities/
