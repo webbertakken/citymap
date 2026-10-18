@@ -65,6 +65,21 @@ pub struct Measures {
     pub version: u32,
 }
 
+impl Measures {
+    /// The lots the section holds and the files on them, for the log.
+    #[must_use]
+    pub fn counts(&self) -> (usize, usize) {
+        let lots = self.lots.values().map(BTreeMap::len).sum();
+        let files = self
+            .lots
+            .values()
+            .flat_map(BTreeMap::values)
+            .map(|lot| lot.files.len())
+            .sum();
+        (lots, files)
+    }
+}
+
 /// What a source can give, in `MEASURES` order.
 #[must_use]
 pub fn available_for(source: &str, history: bool, comments: bool) -> Vec<&'static str> {

@@ -271,4 +271,32 @@ mod tests {
         assert_eq!(measures.lots["demo old town"]["c@0"].authors, None);
         assert_eq!(measures.available.len(), 7);
     }
+
+    #[test]
+    fn counts_the_lots_and_files_the_section_holds_once_a_repeated_lot_key_collapses() {
+        let strings = |v: &[&str]| v.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        // An old town can hold one lot key twice; the section keeps the last, as the reference's map does.
+        let lots: LotFiles = vec![(
+            "demo old town".to_owned(),
+            vec![
+                ("a@0".to_owned(), strings(&["a", "b"])),
+                ("a@0".to_owned(), strings(&["c"])),
+                ("d@0".to_owned(), strings(&["d"])),
+            ],
+        )];
+        let facts = |_: &str| FileMeasures::default();
+        let measures = build_measures(&MeasuresInput {
+            source: "cli",
+            size: "lines",
+            history: false,
+            comments: true,
+            tested: "name",
+            lots: &lots,
+            facts_of: &facts,
+            authors_across: None,
+            submodules: &[],
+        });
+        assert_eq!(measures.lots["demo old town"]["a@0"].files.len(), 1);
+        assert_eq!(measures.counts(), (2, 2));
+    }
 }

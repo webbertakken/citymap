@@ -289,8 +289,8 @@ interface Report {
   report is `coverage/unreadable` (exit 1). A report at a usual path that cannot be read is skipped and logged.
 - Logs (both CLIs, same lines): `measures/report path=<as found> format=<f> files=<n> matched=<m>` per report read;
   `measures/report-skipped path=<p> reason=<unreadable|too-large>`; then
-  `measures/done source=cli size=lines tested=<coverage|name> lots=<n> files=<n> read=<n> unread=<n>` (files on lots;
-  tree files read and not held) before `fold/done`.
+  `measures/done source=cli size=lines tested=<coverage|name> lots=<n> files=<n> read=<n> unread=<n>` (the lots and
+  files the section holds, an old town's repeated lot key once; tree files read and not held) before `fold/done`.
 
 ## Lots (`packages/measures/src/lots.ts`)
 

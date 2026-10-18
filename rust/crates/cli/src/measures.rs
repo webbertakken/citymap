@@ -199,11 +199,8 @@ pub fn measure_city(input: MeasureInput, io: &mut dyn Io) -> Result<Measures> {
             .then_some(&across as &dyn Fn(&[String]) -> Option<i64>),
         submodules: snapshot.submodules.as_deref().map_or(&[], Vec::as_slice),
     });
-    let files: usize = lots
-        .iter()
-        .map(|(_, town)| town.iter().map(|(_, f)| f.len()).sum::<usize>())
-        .sum();
-    let lot_count: usize = lots.iter().map(|(_, town)| town.len()).sum();
+    // What the section holds: an old town's repeated lot key counts once, as it is written once.
+    let (lot_count, files) = measures.counts();
     io.log(&format!(
         "measures/done source=cli size=lines tested={tested} lots={lot_count} files={files} read={} unread={}",
         text.len(),
