@@ -61,7 +61,7 @@ export function ViewControls(props: ViewControlsProps) {
       {props.walk && (
         <button
           type="button"
-          className="glass icon-button"
+          className="glass icon-button walk"
           aria-label="Walk"
           title="Walk: go down into the city on foot"
           aria-pressed={props.walk.walking}

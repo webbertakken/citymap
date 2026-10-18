@@ -1116,9 +1116,9 @@ mark {
   :root {
     --gap: 8px;
   }
-  /* The title takes the row's width left of the controls: five 48 px buttons with gaps, 256 px on a touch screen. */
+  /* The title takes the row's width left of the controls: four 48 px buttons with gaps, 204 px on a touch screen. */
   .card-title {
-    right: calc(2 * var(--gap) + 256px);
+    right: calc(2 * var(--gap) + 204px);
     width: auto;
     padding: 8px 12px;
   }
@@ -1187,6 +1187,17 @@ mark {
   }
   .viewer:has(.drawer[data-open="true"]) .legend-button,
   .viewer:has(.drawer[data-open="true"]) .legend {
+    display: none;
+  }
+  /* On a phone, Walk waits at the bottom in the middle, under the thumb; not over the open sheet, nor while walking. */
+  .walk {
+    position: fixed;
+    bottom: var(--gap);
+    left: 50%;
+    translate: -50% 0;
+  }
+  .viewer:has(.drawer[data-open="true"]) .walk,
+  .viewer[data-walking="true"] .walk {
     display: none;
   }
   /* On a phone the Buildings button alone switches between the views. */
