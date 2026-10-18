@@ -151,7 +151,7 @@ The showpiece: a bicycle that rides like one.
 - [x] Collision with buildings at any height; altitude and vertical speed in the HUD
 - [x] Controls on keyboard, touch (nothing overlapping at 412 × 915 and on its side) and gamepad; a camera for flying
 - [x] E2E: board, spin up, lift, fly, land on a roof, get out; gate, commit, local build
-- [ ] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
+- [x] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
 - [ ] Webber tests on desktop and phone; feedback folded in
 
 ## Phase 8: phones, gamepads and the hosted site
