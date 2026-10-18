@@ -6,7 +6,15 @@ import type { Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
 import { GROUND, cityHits, type Footprint, type Vec3, type Walls } from "@citymap/world";
 import { Bike, Car, Footprints, Video, X } from "lucide-react";
-import { useEffect, useEffectEvent, useMemo, useRef, useState, type ComponentType, type PointerEvent } from "react";
+import {
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type PointerEvent,
+} from "react";
 import { describeHit } from "../card/describe";
 import { audioSpeaker, bellRinger } from "../explore/bell";
 import { hudOf, type Hud } from "../explore/bicycle";
@@ -354,7 +362,9 @@ export function ExploreView({
     else controls.current.keys.delete(event.code);
   });
 
-  useEffect(() => {
+  // Before the walk is painted, so a key pressed the moment it shows (Escape above all) is never lost to a listener
+  // still waiting for the passive effects to run.
+  useLayoutEffect(() => {
     const down = (event: KeyboardEvent) => key(event, true);
     const up = (event: KeyboardEvent) => key(event, false);
     // A key released while the page is in the background never arrives: let go of everything.

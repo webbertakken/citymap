@@ -2,6 +2,7 @@ import { UNIT, parseCity, serialiseCity } from "@citymap/ground-plan";
 import type { Footprint, Walls } from "@citymap/world";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
+import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RaiseWalls } from "../explore/physics/raise";
 import type { Fetcher } from "../github/read";
@@ -88,6 +89,41 @@ describe("Viewer walking", () => {
     // The road nearest the middle of the map runs along z = 0.
     expect(currentView().centre.z).toBeCloseTo(0, 6);
     expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it("leaves by Escape pressed the moment the walk shows, before the effects of its commit have run", async () => {
+    // Outside act, as in the browser: the walk commits when its walls resolve, and its effects run in a later task. A
+    // press then must reach the walk, not the finished load's Escape, nor fall before the walk listens.
+    const acting = Reflect.get(globalThis, "IS_REACT_ACT_ENVIRONMENT");
+    Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", false);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const { walls, dispose } = openWalls();
+    root.render(
+      <Viewer
+        Canvas={StubCanvas}
+        explore={{ Canvas: ExploreStub, engine: "Stand-in", raise: async () => walls }}
+        fetcher={fetcher}
+      />,
+    );
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "alpha" })).toBeTruthy());
+    const shown = new Promise<void>((resolve) => {
+      const watch = new MutationObserver(() => {
+        if (!host.querySelector("[data-testid=explore-canvas]")) return;
+        watch.disconnect();
+        resolve();
+      });
+      watch.observe(host, { childList: true, subtree: true });
+    });
+    fireEvent.click(walkButton());
+    await shown;
+    fireEvent.keyDown(window, { key: "Escape", code: "Escape" });
+    await waitFor(() => expect(host.querySelector("[data-testid=explore-canvas]")).toBeNull());
+    expect(dispose).toHaveBeenCalledOnce();
+    root.unmount();
+    host.remove();
+    Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", acting);
   });
 
   it("leaves by the Walk button or a change of view, keeping the map where it was", async () => {
