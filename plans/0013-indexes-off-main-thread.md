@@ -18,8 +18,8 @@ live, Loading, Web experience).
 
 ## Phase 2: spec and blueprint
 
-- [ ] Spec: every opening is read or laid in the worker; the indexes are built there or in slices; the budgets
-- [ ] Blueprint: the pick index's flat form (columns, grid, attach, a town's view), the worker's requests and answers,
+- [x] Spec: every opening is read or laid in the worker; the indexes are built there or in slices; the budgets
+- [x] Blueprint: the pick index's flat form (columns, grid, attach, a town's view), the worker's requests and answers,
       the city crossing as text, the search index in slices, logs, constants, tests; DEFAULTS and COMPLETENESS
 
 ## Phase 3: the pick index as flat arrays
