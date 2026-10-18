@@ -13,3 +13,5 @@ next-env.d.ts
 rust/target/
 # The bundled cities: built by `bun run bundle` and by the Pages workflow, never committed.
 apps/web/public/cities/
+# The model lab's glTF models: fetched by `bun apps/web/scripts/fetch-lab-models.ts`, never committed.
+apps/web/public/lab/

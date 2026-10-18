@@ -64,9 +64,10 @@ function listed(dir: string): { mode: string; stage: number; path: string }[] {
 function save(name: string, dir: string, note: string, refused?: string): void {
   writeFileSync(join(out, `${name}.index`), readFileSync(join(dir, ".git/index")));
   const version = Number(git(dir, "update-index", "--show-index-version").trim());
-  const expected = { note, version, ...(refused ? { refused } : { entries: listed(dir) }) };
+  const entries = refused ? null : listed(dir);
+  const expected = { note, version, ...(refused ? { refused } : { entries }) };
   writeFileSync(join(out, `${name}.json`), `${JSON.stringify(expected, null, 2)}\n`);
-  console.log(`[index-fixtures] ${name} v${version} ${refused ?? `${expected.entries?.length} entries`}`);
+  console.log(`[index-fixtures] ${name} v${version} ${refused ?? `${entries?.length} entries`}`);
 }
 
 const BASE = {

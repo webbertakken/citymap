@@ -1,7 +1,15 @@
 "use client";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useId, useState } from "react";
-import { countWords, determinate, estimateWords, phaseWords, spentWords, type Progress } from "../load/progress";
+import {
+  countWords,
+  determinate,
+  estimateWords,
+  phaseWords,
+  spentWords,
+  titleWords,
+  type Progress,
+} from "../load/progress";
 import { TICK_MS } from "../load/useLoading";
 
 export interface LoadingCardProps {
@@ -34,7 +42,7 @@ export function LoadingCard({ progress, cancellable, onCancel }: LoadingCardProp
       <section className="glass loading" aria-label="Loading">
         <h2>
           <LoaderCircle size={20} aria-hidden="true" />
-          <span>Opening {progress.name}</span>
+          <span>{titleWords(progress)}</span>
         </h2>
         <p id={phase} className="phase">
           {words}

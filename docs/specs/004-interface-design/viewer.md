@@ -29,8 +29,10 @@ stays clear for the city.
 - **Top centre, the search box**: finds folders and files of the city shown, and lays a GitHub repository when the text
   is `owner/name` or a GitHub URL. `/` puts the cursor in it from anywhere. Right beside it, the button that opens a
   local repository, where the browser can (see [local repositories](../007-local-repositories/local-repositories.md)).
-- **Top right, four controls**: the view switch (Plan, Buildings), the theme menu, the settings cog (the layout
-  toggles), and More (the bundled cities, opening a city file, opening the last local repository again).
+- **Top right, five controls**: the view switch (Plan, Buildings), Walk (going down into the city, see
+  [exploration](../009-exploration/exploration.md); on a phone at the bottom in the middle), the theme menu, the
+  settings cog (the layout toggles), and More (the bundled cities, opening a city file, opening the last local
+  repository again).
 - **Right, the drawer**: what is selected, then the towns (seven, then "Show all"), each with "Show only this town". It
   can be closed to give the map the whole page. On a phone it becomes a sheet at the bottom, closed at first.
 - **Bottom right, zoom**: in, out, and fit.

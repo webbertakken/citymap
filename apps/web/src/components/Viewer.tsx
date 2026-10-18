@@ -3,6 +3,7 @@ import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } fr
 import type { Measures } from "@citymap/measures";
 import { buildScene, folderHit, pick, pickIndex, type ColourBy, type Hit, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
+import type { Footprint, Walls } from "@citymap/world";
 import {
   startTransition,
   useCallback,
@@ -17,6 +18,10 @@ import {
 import type { GitHubSource } from "../card/github";
 import { measureRows } from "../card/measures";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
+import { footprintsOf } from "../explore/footprints";
+import { inspector } from "../explore/inspect";
+import { landingOf, type Landing } from "../explore/landing";
+import type { RaiseWalls } from "../explore/physics/raise";
 import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
 import { readRepository, type Fetcher } from "../github/read";
@@ -34,6 +39,7 @@ import { FLY_MS, between, ease, flyTo } from "../view/fly";
 import { insetsFor } from "../view/insets";
 import { fit, onKey, type Mode, type View, type Viewport } from "../view/view";
 import { Drawer } from "./Drawer";
+import { ExploreView, type ExploreCanvasProps } from "./ExploreView";
 import { Legend } from "./Legend";
 import { LoadingCard } from "./LoadingCard";
 import { LocalButton } from "./LocalButton";
@@ -46,8 +52,17 @@ import { LOCAL_STATUS, LOCAL_TITLE, useLocalRepository } from "./useLocalReposit
 import { ViewControls } from "./ViewControls";
 import { ZoomControls } from "./ZoomControls";
 
+/** Going down into the city: the ground-level canvas, the physics engine by name, and how it raises the walls. */
+export interface Explore {
+  readonly Canvas: ComponentType<ExploreCanvasProps>;
+  readonly engine: string;
+  readonly raise: RaiseWalls;
+}
+
 export interface ViewerProps {
   readonly Canvas: ComponentType<CanvasProps>;
+  /** Walking in the city; without it, the map has no Walk button. */
+  readonly explore?: Explore;
   readonly fetcher?: Fetcher;
   /** How a snapshot becomes a city: in a Web Worker in the browser, on the calling thread in tests. */
   readonly lay?: Lay;
@@ -135,7 +150,22 @@ const sourceOf = (name: string, commit: string): GitHubSource => {
 };
 
 /** The viewer: one city at a time, its theme, its view and its layout toggles. */
-export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "", folders }: ViewerProps) {
+/** A walk under way: the city (or town) it walks in, its walls, and where it began. */
+interface Walking {
+  readonly city: City;
+  readonly walls: Walls;
+  readonly footprints: readonly Footprint[];
+  readonly landing: Landing;
+}
+
+export function Viewer({
+  Canvas,
+  explore,
+  fetcher = browserFetch,
+  lay = layInWorker,
+  basePath = "",
+  folders,
+}: ViewerProps) {
   const loading = useLoading();
   // GitHub's hourly allowance, heard from every API answer, shared by laying and the suggestions.
   const [allowance, setAllowance] = useState<Allowance | null>(null);
@@ -201,6 +231,12 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   );
   const uses = useMemo(() => [...new Set(scene?.buildings.order.map((ref) => ref.use))], [scene]);
   const [picked, setPickedHit] = useState<Hit | null>(null);
+  // A walk in the city or town shown: showing another ends it (a new theme draws the same city, and keeps it).
+  const [walk, setWalk] = useState<Walking | null>(null);
+  if (walk && walk.city !== shown) setWalk(null);
+  const walking = walk?.city === shown ? walk : null;
+  // A walk's walls are freed once it is over: ended, replaced, or the viewer gone.
+  useEffect(() => () => walk?.walls.dispose(), [walk]);
   // Where a search took the person: a marker over the map, until the selection changes.
   const [marker, setMarker] = useState<{ x: number; z: number } | null>(null);
   const setPicked = (hit: Hit | null) => {
@@ -498,7 +534,46 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const changeMode = (next: Mode) => {
     log.info("viewer/mode", { mode: next });
     cancelAnimationFrame(flight.current);
+    if (walking) leaveWalk(null);
     setMode(next);
+  };
+  // Going down into the city: before the selected building, else on the road nearest the map's middle; the walls rise
+  // under the loading card.
+  const startWalk = async (
+    raise: RaiseWalls,
+    into: { readonly city: City; readonly scene: Scene; table: Float32Array },
+  ) => {
+    const landing = landingOf(into.city, picked, view.centre);
+    if (!landing) {
+      log.info("explore/no-roads", { name: into.city.repository });
+      setError("This city has no roads to walk on.");
+      return;
+    }
+    const job = begin("explore", into.city.repository);
+    try {
+      const footprints = footprintsOf(into.scene.buildings, into.table);
+      const walls = await raise(footprints, { onStep: job.step, signal: job.signal });
+      log.info("explore/enter", {
+        landing: landing.kind,
+        buildings: footprints.length,
+        x: landing.at.x.toFixed(3),
+        z: landing.at.z.toFixed(3),
+      });
+      setWalk({ city: into.city, walls, footprints, landing });
+      job.done();
+    } catch (failure) {
+      if (isAbort(failure)) return;
+      job.failed();
+      log.error("explore/failed", { reason: reasonOf(failure) });
+      setError("Walking could not start: the physics engine did not load.");
+    }
+  };
+  // Back to the map: centred where the walk ended, when it ended on foot.
+  const leaveWalk = (at: { readonly x: number; readonly z: number } | null) => {
+    // To the centimetre (a thousandth of a street width): where the walk ended, to check it never ended in a wall.
+    log.info("explore/leave", at ? { x: at.x.toFixed(3), z: at.z.toFixed(3) } : {});
+    setWalk(null);
+    if (at) settle({ ...view, centre: at });
   };
   const changeColour = (next: ColourBy) => {
     log.info("viewer/colour-by", { by: next });
@@ -511,9 +586,24 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
       data-theme={theme}
       data-loading={loading.shown}
       data-mode={mode}
+      data-walking={walking !== null}
     >
       <MeasureRows value={rowsOf}>
-        {scene && city && index && drawnTable ? (
+        {walking && explore && city && scene && index && drawnTable ? (
+          <ExploreView
+            name={city.repository}
+            scene={scene}
+            table={drawnTable.table}
+            theme={colours}
+            walls={walking.walls}
+            footprints={walking.footprints}
+            inspect={inspector(scene, walking.footprints, index, buildings)}
+            landing={walking.landing}
+            engine={explore.engine}
+            Canvas={explore.Canvas}
+            onLeave={leaveWalk}
+          />
+        ) : scene && city && index && drawnTable ? (
           <MapView
             name={city.repository}
             scene={scene}
@@ -546,17 +636,19 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
           town={town?.towns[0]!.name ?? null}
           onWhole={() => drill(null)}
         />
-        <div className="finder">
-          <SearchBox
-            index={finder?.search ?? null}
-            // Matches come only from `finder`'s index, so `finder` is there whenever one is picked.
-            onPick={(entry) => goTo(entry, finder!)}
-            onRepository={(name) => void openRepository(name)}
-            suggester={suggester}
-            allowance={allowance}
-          />
-          <LocalButton local={local} />
-        </div>
+        {!walking && (
+          <div className="finder">
+            <SearchBox
+              index={finder?.search ?? null}
+              // Matches come only from `finder`'s index, so `finder` is there whenever one is picked.
+              onPick={(entry) => goTo(entry, finder!)}
+              onRepository={(name) => void openRepository(name)}
+              suggester={suggester}
+              allowance={allowance}
+            />
+            <LocalButton local={local} />
+          </div>
+        )}
         {loading.shown && loading.progress && (
           <LoadingCard progress={loading.progress} cancellable={loading.cancellable} onCancel={loading.cancel} />
         )}
@@ -574,23 +666,39 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
           toggles={toggles}
           fixed={origin?.kind === "file"}
           onToggle={toggle}
+          {...(explore
+            ? {
+                walk: {
+                  walking: walking !== null,
+                  onWalk:
+                    shown && scene && drawnTable
+                      ? () =>
+                          walking
+                            ? leaveWalk(null)
+                            : void startWalk(explore.raise, { city: shown, scene, table: drawnTable.table })
+                      : null,
+                },
+              }
+            : {})}
         />
         {local.input}
-        <Drawer
-          city={shown}
-          settled={statusLine === ""}
-          selected={picked}
-          focused={focus !== null}
-          open={drawer}
-          onOpen={(next) => {
-            log.info("viewer/drawer", { open: next ? "open" : "closed" });
-            setDrawer(next);
-          }}
-          onDrill={drill}
-          github={source}
-          onFailure={setError}
-        />
-        {scene && (
+        {!walking && (
+          <Drawer
+            city={shown}
+            settled={statusLine === ""}
+            selected={picked}
+            focused={focus !== null}
+            open={drawer}
+            onOpen={(next) => {
+              log.info("viewer/drawer", { open: next ? "open" : "closed" });
+              setDrawer(next);
+            }}
+            onDrill={drill}
+            github={source}
+            onFailure={setError}
+          />
+        )}
+        {scene && !walking && (
           <ZoomControls
             onKey={(key) => {
               if (key === "0") {
@@ -602,14 +710,16 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
             }}
           />
         )}
-        <Legend
-          theme={colours}
-          mode={mode}
-          colourBy={colourBy}
-          onColourBy={changeColour}
-          city={buildings}
-          uses={uses}
-        />
+        {!walking && (
+          <Legend
+            theme={colours}
+            mode={mode}
+            colourBy={colourBy}
+            onColourBy={changeColour}
+            city={buildings}
+            uses={uses}
+          />
+        )}
         {error && <Notice message={error} onDismiss={() => setError("")} />}
       </MeasureRows>
     </main>

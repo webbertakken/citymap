@@ -76,8 +76,12 @@ describe("Viewer while loading", () => {
     await github.release();
     await wait(200);
     expect(screen.getByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
-    // Shown, the card holds 400 ms; the bar is full meanwhile.
+    // Shown, the card holds 400 ms; the bar is full meanwhile, and Escape is the map's again: nothing is cancelled.
     expect(within(card()!).getByRole("progressbar").getAttribute("value")).toBe("100");
+    fireEvent.keyDown(screen.getByRole("application"), { key: "Escape" });
+    expect(card()).not.toBeNull();
+    const lines = vi.mocked(console.info).mock.calls.map(([line]) => String(line));
+    expect(lines.some((l) => l.startsWith("viewer/load-cancelled"))).toBe(false);
     await wait(HOLD_MS - 200);
     expect(card()).toBeNull();
     expect(document.querySelector("main")?.getAttribute("data-loading")).toBe("false");

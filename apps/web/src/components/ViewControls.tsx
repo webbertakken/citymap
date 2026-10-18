@@ -1,7 +1,7 @@
 "use client";
 import type { Toggle } from "@citymap/ground-plan";
 import { THEMES, THEME_NAMES, type ThemeName } from "@citymap/themes";
-import { Building2, Ellipsis, FolderOpen, Map as MapIcon, Palette, Settings } from "lucide-react";
+import { Building2, Ellipsis, FolderOpen, Footprints, Map as MapIcon, Palette, Settings } from "lucide-react";
 import { useRef, type ChangeEvent } from "react";
 import { variantOf, type CityEntry } from "../cities";
 import type { Mode } from "../view/view";
@@ -27,9 +27,14 @@ export interface ViewControlsProps {
   readonly toggles: readonly Toggle[];
   readonly fixed: boolean;
   readonly onToggle: (toggle: Toggle, on: boolean) => void;
+  /**
+   * Walking in the city: whether a walk is under way, and going down into the city or back to the map; null while no
+   * city is drawn to walk in (the button stays, disabled, so the row never shifts).
+   */
+  readonly walk?: { readonly walking: boolean; readonly onWalk: (() => void) | null };
 }
 
-/** Top right: the view switch, the map's theme, the layout toggles, and More (the bundled cities, a city file, a local
+/** Top right: the view switch, walking, the map's theme, the layout toggles, and More (the bundled cities, a city file, a local
  * repository). */
 export function ViewControls(props: ViewControlsProps) {
   const input = useRef<HTMLInputElement>(null);
@@ -56,6 +61,19 @@ export function ViewControls(props: ViewControlsProps) {
           <span>Buildings</span>
         </button>
       </fieldset>
+      {props.walk && (
+        <button
+          type="button"
+          className="glass icon-button walk"
+          aria-label="Walk"
+          title="Walk: go down into the city on foot"
+          aria-pressed={props.walk.walking}
+          disabled={props.walk.onWalk === null}
+          onClick={props.walk.onWalk ?? undefined}
+        >
+          <Footprints size={20} aria-hidden="true" />
+        </button>
+      )}
       <Popover label="Theme" face={<Palette size={20} aria-hidden="true" />}>
         {(close) => (
           <fieldset className="choices">
