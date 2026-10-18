@@ -126,6 +126,7 @@ name = "citymap-history"
 version = "0.0.0"
 dependencies = [
  "citymap-ground-plan",
+ "indexmap",
  "regress",
  "serde_json",
 ]

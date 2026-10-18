@@ -56,10 +56,15 @@ export class FileHistory {
     return { changed: file.changed, commits: file.commits, ...(this.known ? { authors: file.authors.size } : {}) };
   }
 
-  /** The people who changed any of these files. */
-  authorsAcross(identities: readonly string[]): number {
+  /** The people who changed any of these files; undefined when no commit read changed any (a submodule's files). */
+  authorsAcross(identities: readonly string[]): number | undefined {
     const people = new Set<number>();
-    for (const identity of identities) for (const person of this.files.get(identity)?.authors ?? []) people.add(person);
-    return people.size;
+    let known = false;
+    for (const identity of identities) {
+      const file = this.files.get(identity);
+      known ||= file !== undefined;
+      for (const person of file?.authors ?? []) people.add(person);
+    }
+    return known ? people.size : undefined;
   }
 }

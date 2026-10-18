@@ -1,5 +1,5 @@
 "use client";
-import type { Toggle } from "@citymap/ground-plan";
+import type { Separation, Toggle } from "@citymap/ground-plan";
 import { THEMES, THEME_NAMES, type ThemeName } from "@citymap/themes";
 import { Building2, Ellipsis, FolderOpen, Footprints, Map as MapIcon, Palette, Settings } from "lucide-react";
 import { useRef, type ChangeEvent } from "react";
@@ -27,6 +27,11 @@ export interface ViewControlsProps {
   readonly toggles: readonly Toggle[];
   readonly fixed: boolean;
   readonly onToggle: (toggle: Toggle, on: boolean) => void;
+  /** The separations on, those the city shown records, whether it declares workspaces, and a change. */
+  readonly separate: readonly Separation[];
+  readonly separable: readonly Separation[];
+  readonly declared: boolean;
+  readonly onSeparate: (separation: Separation, on: boolean) => void;
   /**
    * Walking in the city: whether a walk is under way, and going down into the city or back to the map; null while no
    * city is drawn to walk in (the button stays, disabled, so the row never shifts).
@@ -97,7 +102,17 @@ export function ViewControls(props: ViewControlsProps) {
         )}
       </Popover>
       <Popover label="Layout" face={<Settings size={20} aria-hidden="true" />}>
-        {() => <Toggles toggles={props.toggles} fixed={props.fixed} onToggle={props.onToggle} />}
+        {() => (
+          <Toggles
+            toggles={props.toggles}
+            fixed={props.fixed}
+            onToggle={props.onToggle}
+            separate={props.separate}
+            separable={props.separable}
+            declared={props.declared}
+            onSeparate={props.onSeparate}
+          />
+        )}
       </Popover>
       <Popover label="More" face={<Ellipsis size={20} aria-hidden="true" />}>
         {(close) => (
@@ -115,7 +130,10 @@ export function ViewControls(props: ViewControlsProps) {
                     }}
                   >
                     <span>{c.name}</span>{" "}
-                    <span className="count">{variantOf(c, props.toggles).lots.toLocaleString("en-GB")} lots</span>
+                    <span className="count">
+                      {variantOf(c, { toggles: props.toggles, separate: props.separate }).lots.toLocaleString("en-GB")}{" "}
+                      lots
+                    </span>
                   </button>
                 </li>
               ))}

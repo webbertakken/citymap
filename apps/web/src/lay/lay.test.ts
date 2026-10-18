@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { city as cityNamed } from "../components/testing/fixtures";
 import type { Step } from "../load/step";
 import { cityBuildings, cityFloors, tableFor } from "../view/buildings";
-import { errorOf, failureOf, layHere, layStep, readHere, throttled } from "./lay";
+import { errorOf, failureOf, layHere, layStep, liveOptions, readHere, throttled } from "./lay";
 import { cityOfPieces, cityPieces } from "./pieces";
 import type { Answer } from "./work";
 
@@ -15,6 +15,14 @@ const snapshot = stateSnapshot(
   "c1",
   Array.from({ length: 30 }, (_, i) => `src/f${i}.ts`),
 );
+
+describe("liveOptions", () => {
+  it("lays with the CLI's defaults, and the toggles and separations chosen when any are", () => {
+    expect(liveOptions()).not.toHaveProperty("toggles");
+    expect(liveOptions()).not.toHaveProperty("separate");
+    expect(liveOptions(["tiers"], ["plugins"])).toMatchObject({ toggles: ["tiers"], separate: ["plugins"] });
+  });
+});
 
 describe("layStep", () => {
   it("counts placing and shaping on the bar, and lots placed in words", () => {

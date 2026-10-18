@@ -1,17 +1,17 @@
-// Every opening becomes a city here: a snapshot laid with the CLI's default options and the chosen toggles (so the
-// browser lays what `citymap --no-history --toggles=…` does), or a city file's text read; then the city's work is made
+// Every opening becomes a city here: a snapshot laid with the CLI's default options and the chosen toggles and
+// separations (so the browser lays what `citymap --no-history --toggles=… --separate=…` does), or a city file's text read; then the city's work is made
 // beside it (its first look: a lot table and the whole city's scene) with its pick index. The city's worker runs this
 // off the main thread, and stays with the city to make the rest; tests run it in place.
 import {
   CitymapError,
   DEFAULT_LAND_USES,
-  DEFAULT_SPLIT,
   initialState,
   layCity,
   type City,
   type ErrorCode,
   type LayProgress,
   type Options,
+  type Separation,
   type Snapshot,
   type Toggle,
 } from "@citymap/ground-plan";
@@ -41,6 +41,8 @@ export interface OpenOptions {
 export interface LayOptions extends OpenOptions {
   /** The layout toggles to lay with; the engine's defaults when absent. */
   readonly toggles?: readonly Toggle[];
+  /** The separations to lay with; the engine's defaults when absent. */
+  readonly separate?: readonly Separation[];
   /** What the source knows of its files: the city's measures are built from it beside the layout. */
   readonly facts?: LiveFacts;
 }
@@ -75,16 +77,16 @@ export interface Made {
   readonly tasks: Tasks;
 }
 
-/** The CLI's defaults, with the toggles chosen (the engine's defaults when none are). */
-export const liveOptions = (toggles?: readonly Toggle[]): Options => ({
+/** The CLI's defaults, with the toggles and separations chosen (the engine's defaults when none are). */
+export const liveOptions = (toggles?: readonly Toggle[], separate?: readonly Separation[]): Options => ({
   densityPct: 50,
   landUses: DEFAULT_LAND_USES,
   order: "centre-out",
   jog: "top-level",
   warp: true,
   loops: true,
-  split: DEFAULT_SPLIT,
   ...(toggles ? { toggles } : {}),
+  ...(separate ? { separate } : {}),
 });
 
 /** The engine's progress as a step: placing and shaping each fill half the bar; the words count lots placed. */
@@ -123,10 +125,10 @@ function finish(file: CityFile, { onProgress, theme, colourBy = "folder", town =
 
 /** Lays a snapshot, with its measures when given what the source knows, and builds what goes with it. */
 export function layMade(snapshot: Snapshot, options: LayOptions): Made {
-  const { signal, onProgress, toggles, facts } = options;
+  const { signal, onProgress, toggles, separate, facts } = options;
   signal?.throwIfAborted();
   const tell = onProgress && ((progress: LayProgress) => onProgress(layStep(progress)));
-  const settings = liveOptions(toggles);
+  const settings = liveOptions(toggles, separate);
   const { city, state } = layCity(snapshot, initialState(settings), settings, tell);
   const measures = facts ? liveMeasures(city, state.plat, snapshot, facts) : null;
   return finish({ city, measures }, options);

@@ -191,6 +191,45 @@ fn writes_the_city_as_json_and_svg_and_logs_a_summary() {
 }
 
 #[test]
+fn logs_how_many_towns_each_separation_laid_apart_and_nothing_when_none_did() {
+    let repo = repo(1);
+    for path in ["apps/web/a.ts", "apps/api/b.ts", "lib/plugins/p/c.ts"] {
+        let file = repo.0.join(path);
+        std::fs::create_dir_all(file.parent().expect("a folder")).expect("folders");
+        std::fs::write(&file, path).expect("a file");
+    }
+    git(&repo.0, &["add", "-A"]);
+    git(
+        &repo.0,
+        &[
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "-m",
+            "apart",
+        ],
+    );
+    let mut io = Memory::default();
+    run_lay(
+        &command(&repo.0, &["--separate=apps,plugins"]),
+        &mut io,
+        1000,
+        FOLD_STRIDES,
+    )
+    .expect("a city");
+    assert!(
+        io.lines
+            .contains(&"fold/separate towns=3 by=apps:2,plugins:1".to_owned())
+    );
+    let mut none = Memory::default();
+    run_lay(&command(&repo.0, &["--separate="]), &mut none, 1000, FOLD_STRIDES).expect("a city");
+    assert!(!none.lines.iter().any(|l| l.starts_with("fold/separate")));
+}
+
+#[test]
 fn writes_a_lockfile_and_resumes_from_it_laying_the_same_city() {
     let repo = repo(3);
     let mut first = Memory::default();
@@ -548,6 +587,90 @@ fn measures_a_partial_clone_without_fetching() {
         (a["bytes"].clone(), a["named"].clone(), a["commits"].clone()),
         (serde_json::Value::Null, true.into(), 2.into())
     );
+}
+
+#[test]
+fn measures_a_submodules_files_from_its_own_git_data_with_no_history_of_their_own() {
+    let n = NEXT.fetch_add(1, Ordering::SeqCst);
+    let lib = Repo(std::env::temp_dir().join(format!("citymap-cli-lib-{}-{n}", std::process::id())));
+    let _ = std::fs::remove_dir_all(&lib.0);
+    std::fs::create_dir_all(&lib.0).expect("a folder");
+    git(&lib.0, &["init", "-q", "-b", "main"]);
+    std::fs::write(lib.0.join("l.ts"), "// TODO: l\nexport const l = 1;\n").expect("a file");
+    git(&lib.0, &["add", "-A"]);
+    git(
+        &lib.0,
+        &[
+            "-c",
+            "user.email=lib@x.org",
+            "-c",
+            "user.name=x",
+            "commit",
+            "-q",
+            "-m",
+            "lib",
+        ],
+    );
+    let dir = measured();
+    let url = lib.0.to_str().expect("a path");
+    git(
+        &dir.0,
+        &[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            "-q",
+            url,
+            "vendor/lib",
+        ],
+    );
+    git(
+        &dir.0,
+        &[
+            "-c",
+            "user.email=ann@x.org",
+            "-c",
+            "user.name=x",
+            "commit",
+            "-q",
+            "-m",
+            "lib",
+        ],
+    );
+    for history in [&[][..], &["--no-history"][..]] {
+        let mut io = Memory::default();
+        let args: Vec<&str> = ["--out=city.json"].iter().chain(history).copied().collect();
+        run_lay(&command(&dir.0, &args), &mut io, 1000, FOLD_STRIDES).expect("a city");
+        let text = &io.files[Path::new("city.json")];
+        assert_eq!(
+            file_of(text, "vendor/lib/l.ts"),
+            serde_json::json!({ "path": "vendor/lib/l.ts", "bytes": 31, "lines": 2, "comments": 1, "todos": 1 })
+        );
+        // The superproject's commits never changed it: no people across its lot, rather than none.
+        let value: serde_json::Value = serde_json::from_str(text).expect("JSON");
+        let lot = value["measures"]["lots"]
+            .as_object()
+            .expect("towns")
+            .values()
+            .flat_map(|town| town.as_object().expect("lots").values())
+            .find(|lot| {
+                lot["files"]
+                    .as_array()
+                    .expect("files")
+                    .iter()
+                    .any(|f| f["path"] == "vendor/lib/l.ts")
+            })
+            .expect("its lot");
+        assert!(lot.get("authors").is_none(), "{lot}");
+        assert_eq!(value["measures"]["submodules"], serde_json::json!(["vendor/lib"]));
+        let done = io
+            .lines
+            .iter()
+            .find(|l| l.starts_with("measures/done"))
+            .expect("the measures' line");
+        assert!(done.ends_with(" read=8 unread=0"), "{done}");
+    }
 }
 
 /// A fresh folder named `fixture`, so every copy lays under the same repository name.

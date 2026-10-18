@@ -48,3 +48,5 @@ One row per value the buildings spec leaves silent or qualitative.
 | Faces                       | front faces only, every triangle wound outwards                                         | a wall facing away is never drawn                                            | fixed             |
 | Budget's graphics           | the machine's own (`--use-angle=gl-egl`); software where none answers                   | a phone draws on its GPU; software drawing times the processor instead       | fixed             |
 | Linux's budget sizes        | log-uniform from e² to e⁹ lines, 30 % named, from a fixed seed                          | linux's clone holds no contents; the budget needs buildings of every height  | fixed             |
+| Submodule note              | "A submodule's own history is not read", for a lot whose files all lie in a submodule   | spec: unknown says why; a mixed lot keeps the general note                   | fixed             |
+| Submodule store             | the deepest submodule folder holding the path                                           | nested submodules keep their own git data                                    | fixed             |

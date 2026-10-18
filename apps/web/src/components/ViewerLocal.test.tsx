@@ -69,7 +69,7 @@ describe("Viewer, a local repository", () => {
     window.history.replaceState(null, "", "/?repo=acme/widgets");
     const asked = counted.mock.calls.length;
     pick();
-    expect(await screen.findByText("widgets: laying out 10 files…")).toBeTruthy();
+    expect(await screen.findByText("widgets: laying out 11 files…")).toBeTruthy();
     // While it lays, the button waits.
     expect(pickButton()).toHaveProperty("disabled", true);
     await release();
@@ -82,13 +82,35 @@ describe("Viewer, a local repository", () => {
     const logged = lines(info);
     expect(logged).toContain("viewer/local-pick how=handle");
     expect(logged).toContain("viewer/local-index version=2 entries=10 submodules=1");
+    // Its submodule is not checked out: one .gitlink file, and the log says why.
+    expect(logged).toContain("viewer/local-submodule-unread path=vendor/sub reason=not-checked-out");
     expect(logged).toContain("viewer/local-commit how=ref");
     expect(logged.find((l) => l.startsWith("viewer/local-read"))).toMatch(
-      /^viewer\/local-read source=index files=10 ms=\d+$/,
+      /^viewer\/local-read source=index files=11 ms=\d+$/,
     );
     // Remembered, it is offered again.
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByRole("button", { name: "Open widgets again" })).toBeTruthy();
+  });
+
+  it("lays a checked-out submodule's files, and logs how many it holds", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const checkedOut: Tree = {
+      ...repo(),
+      ".git": {
+        HEAD: "ref: refs/heads/main\n",
+        refs: { heads: { main: `${COMMIT}\n` } },
+        index: index("v2"),
+        modules: { vendor: { sub: { index: index("v3") } } },
+      },
+      vendor: { sub: { ".git": "gitdir: ../../.git/modules/vendor/sub\n" } },
+    };
+    await opened(ports({ pickFolder: async () => fakeHandle("widgets", checkedOut) }));
+    pick();
+    expect(await screen.findByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
+    expect(lines(info).find((l) => l.startsWith("viewer/local-submodule "))).toMatch(
+      /^viewer\/local-submodule path=vendor\/sub files=\d+$/,
+    );
   });
 
   it("lays the folder again with other layout toggles, keeping it private", async () => {
@@ -119,8 +141,8 @@ describe("Viewer, a local repository", () => {
     pick();
     const card = await screen.findByRole("region", { name: "Loading" });
     expect(card.querySelector("h2")?.textContent).toBe("Opening widgets");
-    expect(screen.getByRole("progressbar", { name: "Laying out 10 files" })).toBeTruthy();
-    expect(screen.getByText("widgets: laying out 10 files…")).toBeTruthy();
+    expect(screen.getByRole("progressbar", { name: "Laying out 11 files" })).toBeTruthy();
+    expect(screen.getByText("widgets: laying out 11 files…")).toBeTruthy();
     expect(lines(info)).toContain("viewer/load-phase source=local name=widgets phase=index ms=0");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("region", { name: "Loading" })).toBeNull();

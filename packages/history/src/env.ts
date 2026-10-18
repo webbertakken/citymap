@@ -16,3 +16,9 @@ export function gitEnvironment(base: NodeJS.ProcessEnv = process.env): NodeJS.Pr
   for (const name of REPOSITORY_VARIABLES) delete env[name];
   return env;
 }
+
+/**
+ * Git pointed at a submodule's git data. Its working tree is named as the git data itself: git would otherwise change into
+ * the configured `core.worktree`, and fail where that folder is gone (a submodule deinitialised, moved or removed).
+ */
+export const onGitData = (gitData: string) => [`--git-dir=${gitData}`, `--work-tree=${gitData}`];

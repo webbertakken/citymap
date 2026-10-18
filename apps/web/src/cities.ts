@@ -1,45 +1,97 @@
-import { CitymapError, TOGGLES, isToggle, toggleList, type Toggle } from "@citymap/ground-plan";
+import {
+  CitymapError,
+  SEPARATIONS,
+  TOGGLES,
+  effectiveSeparations,
+  isSeparation,
+  isToggle,
+  separationStates,
+  toggleList,
+  type Separation,
+  type Toggle,
+} from "@citymap/ground-plan";
 import type { OnStep } from "./load/step";
 
-/** One layout of a bundled city: the toggles it was laid with, its file under /cities/, and its lot count. */
+/**
+ * One layout of a bundled city: the toggles it was laid with, the separations that name it (for a city that records
+ * any), its file under /cities/, and its lot count.
+ */
 export interface CityVariant {
   readonly toggles: readonly Toggle[];
+  readonly separate?: readonly Separation[];
   readonly file: string;
   readonly lots: number;
 }
 
-/** A bundled city: its name and a variant for every combination of the toggles. */
+/**
+ * A bundled city: its name, the separations that would change it and whether it declares workspaces, and a variant
+ * for every combination of the toggles and state of those separations.
+ */
 export interface CityEntry {
   readonly name: string;
+  readonly separable?: readonly Separation[];
+  readonly declared?: true;
   readonly variants: readonly CityVariant[];
 }
 
-/** The toggles as one text, whatever order they came in. */
-const key = (toggles: readonly Toggle[]) => toggleList(toggles).join(",");
+/** What a city is laid with: the toggles, and the separations (the engine's defaults when absent). */
+export interface Layout {
+  readonly toggles: readonly Toggle[];
+  readonly separate?: readonly Separation[];
+}
+
+/** A variant's toggles and separations as one text, whatever order the toggles came in. */
+const key = (toggles: readonly Toggle[], separate: readonly Separation[] | undefined) =>
+  `${toggleList(toggles).join(",")}~${separate?.join(",") ?? "-"}`;
+
+const isList = <T extends string>(value: unknown, known: (name: string) => name is T): value is T[] =>
+  Array.isArray(value) && value.every((t: unknown) => typeof t === "string" && known(t));
 
 const isVariant = (value: unknown): value is CityVariant =>
   typeof value === "object" &&
   value !== null &&
   "toggles" in value &&
-  Array.isArray(value.toggles) &&
-  value.toggles.every((t: unknown) => typeof t === "string" && isToggle(t)) &&
+  isList(value.toggles, isToggle) &&
+  (!("separate" in value) || isList(value.separate, isSeparation)) &&
   "file" in value &&
   typeof value.file === "string" &&
-  /^\w[\w.-]*\/\w[\w.-]*\.json$/.test(value.file) &&
+  /^\w[\w.~-]*\/\w[\w.~-]*\.json$/.test(value.file) &&
   "lots" in value &&
   typeof value.lots === "number";
 
+/** Recorded separations: known, in `SEPARATIONS` order, at least one. */
+const isRecorded = (value: unknown): value is Separation[] =>
+  isList(value, isSeparation) &&
+  value.length > 0 &&
+  value.every((s, i) => i === 0 || SEPARATIONS.indexOf(value[i - 1]!) < SEPARATIONS.indexOf(s));
+
+/** The separations an entry records: none (null), a valid list, or false when they are not valid. */
+function recordedOf(value: object): Separation[] | null | false {
+  if (!("separable" in value)) return null;
+  return isRecorded(value.separable) ? value.separable : false;
+}
+
 const isEntry = (value: unknown): value is CityEntry => {
   if (typeof value !== "object" || value === null || !("name" in value) || typeof value.name !== "string") return false;
+  const recorded = recordedOf(value);
+  if (recorded === false || ("declared" in value && value.declared !== true)) return false;
   if (!("variants" in value) || !Array.isArray(value.variants) || !value.variants.every(isVariant)) return false;
-  // Every combination of the toggles, once each.
-  return new Set(value.variants.map((v) => key(v.toggles))).size === 2 ** TOGGLES.length;
+  // Every combination of the toggles, once each, times every state of the recorded separations (none recorded: one).
+  const states: (string | null)[] = recorded
+    ? separationStates(recorded, "declared" in value).map((s) => s.join(","))
+    : [null];
+  const known = value.variants.every((v) => states.includes(v.separate?.join(",") ?? null));
+  const keys = new Set(value.variants.map((v) => key(v.toggles, v.separate)));
+  return known && keys.size === 2 ** TOGGLES.length * states.length && keys.size === value.variants.length;
 };
 
-/** The variant of a city laid with exactly these toggles; an index that passed `loadIndex` holds every one. */
-export function variantOf(entry: CityEntry, toggles: readonly Toggle[]): CityVariant {
-  const wanted = key(toggles);
-  return entry.variants.find((v) => key(v.toggles) === wanted)!;
+/** The variant of a city laid with this layout; an index that passed `loadIndex` holds every one. */
+export function variantOf(entry: CityEntry, layout: Layout): CityVariant {
+  const separate = entry.separable
+    ? effectiveSeparations(layout.separate, entry.separable, entry.declared === true)
+    : undefined;
+  const wanted = key(layout.toggles, separate);
+  return entry.variants.find((v) => key(v.toggles, v.separate) === wanted)!;
 }
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
@@ -98,15 +150,15 @@ export async function loadIndex(fetcher: Fetch, base = ""): Promise<CityEntry[]>
   return value;
 }
 
-/** A bundled city's file, in the variant the toggles name, as text: the layout worker reads it. */
+/** A bundled city's file, in the variant its layout names, as text: the layout worker reads it. */
 export function loadCity(
   fetcher: Fetch,
   entry: CityEntry,
-  toggles: readonly Toggle[],
+  layout: Layout,
   base = "",
   options: ReadOptions = {},
 ): Promise<string> {
-  return text(fetcher, `${base}/cities/${variantOf(entry, toggles).file}`, options);
+  return text(fetcher, `${base}/cities/${variantOf(entry, layout).file}`, options);
 }
 
 /** A file's bytes in slices of `FILE_CHUNK`, as a stream: what every browser and jsdom alike can read. */

@@ -2,6 +2,7 @@ import type { DistrictForm, Form } from "../archetype/forms";
 import type { RoadClass } from "../constants";
 import type { Pt } from "../fixed/polygon";
 import type { LandUse } from "../land-use/land-use";
+import type { Separation } from "../region/separate";
 
 export interface Road {
   readonly pts: readonly Pt[];
@@ -73,4 +74,8 @@ export interface City {
   readonly commit: string;
   readonly towns: readonly Town[];
   readonly highways: readonly Road[];
+  /** The separations that would change this city's layout, in `SEPARATIONS` order; absent when none would. */
+  readonly separable?: readonly Separation[];
+  /** Present when the root manifests declare workspaces, which then decide apps and packages. */
+  readonly declared?: true;
 }

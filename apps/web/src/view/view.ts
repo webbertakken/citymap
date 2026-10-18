@@ -255,10 +255,16 @@ export const REPEAT_PX = 240;
 export function declutter(labels: readonly Label[], view: View, viewport: Viewport, mode: Mode = "plan"): Placed[] {
   const kept: Placed[] = [];
   const boxes: [number, number, number, number][] = [];
-  for (const label of labels) {
+  const largest = labels.reduce<Label | null>(
+    (best, l) => (l.size === "town" && (best === null || l.extent > best.extent) ? l : best),
+    null,
+  );
+  for (const named of labels) {
+    const label = named === largest ? named : sized(named, view);
+    if (label === null) continue;
     const at = project(view, viewport, { x: label.x, y: 0, z: label.z }, mode);
     const size = FONT[label.size];
-    const width = label.text.length * size * ADVANCE[label.size];
+    const width = widthOf(label.text, label.size);
     const half = (width + 8) / 2;
     const box: [number, number, number, number] = [at.x - half, at.y - size / 2 - 3, at.x + half, at.y + size / 2 + 3];
     if (box[0] < 0 || box[1] < 0 || box[2] > viewport.width || box[3] > viewport.height) continue;
@@ -271,6 +277,18 @@ export function declutter(labels: readonly Label[], view: View, viewport: Viewpo
     kept.push({ ...label, left: at.x, top: at.y });
   }
   return kept;
+}
+
+/** A name's width on screen, in pixels, at a size. */
+const widthOf = (text: string, size: Label["size"]) => text.length * FONT[size] * ADVANCE[size];
+
+/** A town's label at the largest size its land on screen fits (in full, then at a district's size), or none. */
+function sized(label: Label, view: View): Label | null {
+  if (label.size !== "town") return label;
+  const room = label.extent * view.zoom;
+  if (room >= widthOf(label.text, "town") * LABEL_FIT) return label;
+  if (room >= widthOf(label.text, "district") * LABEL_FIT) return { ...label, size: "district" };
+  return null;
 }
 
 /** The map point under a screen point: where the view ray meets the plane at a height (the ground by default). */

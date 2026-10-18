@@ -66,11 +66,15 @@ function testedRow(building: Building, measures: Measures): CardRow {
   return { label: "Tested", value: building.tested === 1 ? "A test names it" : "No test names it", note: "By name" };
 }
 
+/** Whether every file lies in one of the submodule folders. */
+const inSubmodules = (files: readonly string[], submodules: readonly string[]) =>
+  submodules.length > 0 && files.every((file) => submodules.some((folder) => file.startsWith(`${folder}/`)));
+
 /** Its authors; in a fold whose `.mailmap` could not be fetched, why they are not known. */
-function authorsRow(building: Building, measures: Measures): CardRow {
+function authorsRow(building: Building, measures: Measures, unread: string): CardRow {
   const reason = unavailableReason("authors", measures);
   if (reason !== null) return unknown("Authors", reason);
-  if (building.authors === null) return unknown("Authors", "No commit read changed it");
+  if (building.authors === null) return unknown("Authors", unread);
   return { label: "Authors", value: number(building.authors) };
 }
 
@@ -79,15 +83,16 @@ export function measureRows(building: Building | undefined, measures: Measures |
   if (!measures || !building) return [];
   const has = (m: Measure) => measures.available.includes(m);
   const rows: CardRow[] = [sizeRow(building, measures), testedRow(building, measures)];
+  const unread = inSubmodules(building.files, measures.submodules ?? [])
+    ? "A submodule's own history is not read"
+    : "No commit read changed it";
   if (has("recency"))
     rows.push(
       building.changed === null
-        ? unknown("Changed", "No commit read changed it")
+        ? unknown("Changed", unread)
         : { label: "Changed", value: agoText(building.changed, now), note: dateText(building.changed) },
-      building.commits === null
-        ? unknown("Commits", "No commit read changed it")
-        : { label: "Commits", value: number(building.commits) },
-      authorsRow(building, measures),
+      building.commits === null ? unknown("Commits", unread) : { label: "Commits", value: number(building.commits) },
+      authorsRow(building, measures, unread),
     );
   if (has("comments"))
     rows.push(

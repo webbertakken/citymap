@@ -20,6 +20,7 @@ const readOf = (paths: string[], sizes: Record<string, number> | null): LocalRea
   index: null,
   head: null,
   unread: [],
+  submodules: { read: [], unread: [] },
 });
 
 const tree: Tree = {

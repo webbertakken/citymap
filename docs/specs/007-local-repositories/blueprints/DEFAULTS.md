@@ -15,3 +15,4 @@ One row per value the local repositories spec leaves silent or qualitative.
 | Gitignore matcher          | `ignore` 7.0.12                                              | research: closest to git, MIT, no dependencies                   | 7.x          |
 | Safari detection           | `navigator.vendor` is `Apple Computer, Inc.`                 | research: WebKit only; no feature tells hidden files apart       | fixed        |
 | Phone detection            | `(pointer: coarse)`                                          | the viewer's own touch rule                                      | fixed        |
+| Submodule depth            | 8 levels, as the CLI (`SUBMODULE_DEPTH`)                     | the ground plan ledger                                           | as the CLI   |

@@ -6,6 +6,7 @@ use std::sync::Arc;
 use citymap_ground_plan::Result;
 use citymap_ground_plan::city::{City, Road, Town};
 use citymap_ground_plan::json::canonical_json;
+use citymap_ground_plan::region::separate::Separation;
 use serde::Serialize;
 
 /// Every measure, in its order.
@@ -56,9 +57,27 @@ pub struct Measures {
     pub size: &'static str,
     /// `cli`, `github` or `folder`.
     pub source: &'static str,
+    /// The submodule folders the city's files lie in, sorted; left out when there are none. Their files carry no history.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub submodules: Vec<String>,
     /// How tested is known: `coverage` or `name`.
     pub tested: &'static str,
     pub version: u32,
+}
+
+impl Measures {
+    /// The lots the section holds and the files on them, for the log.
+    #[must_use]
+    pub fn counts(&self) -> (usize, usize) {
+        let lots = self.lots.values().map(BTreeMap::len).sum();
+        let files = self
+            .lots
+            .values()
+            .flat_map(BTreeMap::values)
+            .map(|lot| lot.files.len())
+            .sum();
+        (lots, files)
+    }
 }
 
 /// What a reading gave: the history, the people in it (the laid commit's `.mailmap` read), the files' contents.
@@ -87,10 +106,14 @@ pub fn available_for(source: &str, given: Given) -> Vec<&'static str> {
 #[derive(Serialize)]
 struct CityFile<'a> {
     commit: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    declared: Option<bool>,
     highways: &'a [Road],
     #[serde(skip_serializing_if = "Option::is_none")]
     measures: Option<&'a Measures>,
     repository: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    separable: Option<&'a [Separation]>,
     towns: &'a [Arc<Town>],
 }
 
@@ -98,9 +121,11 @@ struct CityFile<'a> {
 pub fn serialise_city_file(city: &City, measures: Option<&Measures>) -> Result<String> {
     canonical_json(&CityFile {
         commit: &city.commit,
+        declared: city.declared,
         highways: &city.highways,
         measures,
         repository: &city.repository,
+        separable: city.separable.as_deref(),
         towns: &city.towns,
     })
 }
@@ -140,11 +165,29 @@ mod tests {
     }
 
     #[test]
+    fn keeps_what_a_city_records_of_its_separations() {
+        let city = City {
+            commit: "worktree".into(),
+            declared: Some(true),
+            highways: vec![],
+            repository: "demo".into(),
+            separable: Some(vec![Separation::Workspaces, Separation::Packages]),
+            towns: vec![],
+        };
+        let written = serialise_city_file(&city, None).unwrap();
+        assert_eq!(written, serialise_city(&city).unwrap());
+        assert!(written.contains(r#""declared":true"#));
+        assert!(written.contains(r#""separable":["workspaces","packages"]"#));
+    }
+
+    #[test]
     fn writes_a_city_without_measures_as_the_city_alone_and_with_them_beside_it() {
         let city = City {
             commit: "worktree".into(),
+            declared: None,
             highways: vec![],
             repository: "demo".into(),
+            separable: None,
             towns: vec![],
         };
         assert_eq!(
@@ -170,9 +213,19 @@ mod tests {
             )]),
             size: "lines",
             source: "cli",
+            submodules: vec![],
             tested: "name",
             version: MEASURES_VERSION,
         };
+        let within = Measures {
+            submodules: vec!["vendor/a".into(), "vendor/b".into()],
+            ..measures.clone()
+        };
+        assert!(
+            serialise_city_file(&city, Some(&within))
+                .unwrap()
+                .contains(r#""source":"cli","submodules":["vendor/a","vendor/b"],"tested":"name""#)
+        );
         assert_eq!(
             serialise_city_file(&city, Some(&measures)).unwrap(),
             "{\"commit\":\"worktree\",\"highways\":[],\"measures\":{\"available\":[\"size\",\"tested\",\"kind\",\"recency\",\"churn\",\"authors\",\"comments\"],\"lots\":{\"demo\":{\"a@0\":{\"authors\":2,\"files\":[{\"lines\":3,\"named\":true,\"path\":\"a\"}]}}},\"size\":\"lines\",\"source\":\"cli\",\"tested\":\"name\",\"version\":1},\"repository\":\"demo\",\"towns\":[]}\n"

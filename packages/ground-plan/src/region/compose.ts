@@ -18,6 +18,7 @@ import { buildTree, type Shares, type TreeOptions } from "../tree/tree";
 import { workspaceGroups, workspaceMembers } from "../workspace/workspace";
 import { highwayBetween, withApproach } from "./highway";
 import { outlineFor } from "./outline";
+import { declaresWorkspaces, separable, separateMembers, separationList, type Separation } from "./separate";
 
 export interface Options {
   readonly densityPct: number;
@@ -27,18 +28,15 @@ export interface Options {
   readonly warp: boolean;
   /** Lanes joining nearby dead ends; on unless false. They never touch the plat. */
   readonly loops?: boolean;
-  /** Workspace groups whose members each become a town, by folder path or name; `apps` by default. */
-  readonly split?: readonly string[];
+  /** The separations on: kinds of folder whose members each become a town; `DEFAULT_SEPARATIONS` when absent. */
+  readonly separate?: readonly Separation[];
   /** The archetype toggles on; `DEFAULT_TOGGLES` (corridor and tiers) when absent. */
   readonly toggles?: readonly Toggle[];
 }
 
-/** Each app of an `apps/` group is its own town by default; other groups stay one town each. */
-export const DEFAULT_SPLIT: readonly string[] = ["apps"];
-
-/** The setting a plat is laid for: its land uses, its split groups and its toggles. Each setting has its own plat. */
+/** The setting a plat is laid for: its land uses, its separations and its toggles. Each setting has its own plat. */
 export const settingKey = (options: Options) =>
-  `${landKey(options.landUses)}|split:${(options.split ?? DEFAULT_SPLIT).toSorted(compareKeys).join(",")}` +
+  `${landKey(options.landUses)}|separate:${separationList(options.separate).join(",")}` +
   `|toggles:${toggleList(options.toggles).join(",")}`;
 
 /** The locality caches of a fold, per town, and how often they spared a folder its layout. */
@@ -66,6 +64,25 @@ interface Part {
   readonly root: string;
   readonly exclude: readonly string[];
   readonly firstSeen: number;
+  /** The key of the part whose town this one's highway joins: the nearest root holding it, else the main town. */
+  readonly parent: string;
+}
+
+const folderOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")));
+const isInside = (folder: string, root: string) => root === "" || folder.startsWith(`${root}/`);
+
+/** The roots directly inside a root: inside it, and inside no other root inside it. */
+function nearestInside(root: string, roots: readonly string[]): string[] {
+  const inside = roots.filter((r) => r !== root && isInside(r, root));
+  return inside.filter((r) => !inside.some((o) => o !== r && isInside(r, o)));
+}
+
+/** The towns' roots: workspace groups that stay one town, and the members laid apart; sorted. */
+function townRoots(groups: readonly string[], memberFolders: readonly string[], separate: readonly string[]) {
+  const apart = new Set(separate);
+  // A group laid apart, or with any member laid apart, is no town: its members' towns and its other files stand.
+  const towns = groups.filter((g) => !apart.has(g) && !memberFolders.some((m) => folderOf(m) === g && apart.has(m)));
+  return [...new Set([...towns, ...separate])].toSorted(compareKeys);
 }
 
 /** The radius of a circle of the given doubled area, widened by 8 %. */
@@ -191,6 +208,33 @@ function derive(snapshot: Snapshot): Derived {
   return fresh;
 }
 
+/** The members laid apart, kept per file list and setting: a commit that only edits files lays the same ones. */
+const membersKept = new WeakMap<readonly FileEntry[], { key: string; snapshot: Snapshot; members: SeparateList }>();
+type SeparateList = ReturnType<typeof separateMembers>;
+function membersOf(snapshot: Snapshot, separate: readonly Separation[] | undefined): SeparateList {
+  const key = separationList(separate).join(",");
+  const kept = membersKept.get(snapshot.files);
+  if (
+    kept &&
+    kept.key === key &&
+    kept.snapshot.workspaces === snapshot.workspaces &&
+    kept.snapshot.submodules === snapshot.submodules
+  )
+    return kept.members;
+  const members = separateMembers(snapshot, separate);
+  membersKept.set(snapshot.files, { key, snapshot, members });
+  return members;
+}
+
+/** What a city records of its separations: those that would change it, and whether it declares workspaces. */
+function recordOf(snapshot: Snapshot): { separable?: Separation[]; declared?: true } {
+  const offered = separable(snapshot);
+  return {
+    ...(offered.length > 0 ? { separable: offered } : {}),
+    ...(declaresWorkspaces(snapshot) ? { declared: true as const } : {}),
+  };
+}
+
 /**
  * How far a lay has come, in lot seeds: `lots` in every town it lays, `placed` by their neighbourhoods so far, and
  * `shaped` by their warps (or at once, unwarped). Heard only: the city is the same with or without a listener.
@@ -229,15 +273,30 @@ export function layCity(
   // freezes nothing for it, and laying the same commit again rebuilds this record exactly.
   const last: Record<string, Town> = {};
   const events: PlatEvent[] = [];
-  const split = options.split ?? DEFAULT_SPLIT;
-  const isSplit = (group: string) => split.includes(group) || split.includes(group.slice(group.lastIndexOf("/") + 1));
   const firstSeen = (folder: string) => snapshot.folderFirstSeen.get(folder) ?? 0;
-  // A split group lends each member a town of its own; its other files stay in the main town.
-  const townRoots = groups.flatMap((g) => (isSplit(g) ? memberFolders.filter((m) => m.startsWith(`${g}/`)) : [g]));
+  const apart = membersOf(snapshot, options.separate).map((m) => m.folder);
+  const roots = townRoots(groups, memberFolders, apart);
+  const keyOf = (root: string) => (root === "" ? snapshot.repository : `${snapshot.repository}/${root}`);
+  // The nearest root strictly holding a root, or the main town's: sorted, a root's ancestors come before it, nearest last.
+  const parentOf = (root: string) => keyOf(roots.findLast((r) => r !== root && isInside(root, r)) ?? "");
   const parts: Part[] = [
-    { name: snapshot.repository, key: snapshot.repository, root: "", exclude: townRoots, firstSeen: 0 },
-    ...townRoots
-      .map((t) => ({ name: t, key: `${snapshot.repository}/${t}`, root: t, exclude: [], firstSeen: firstSeen(t) }))
+    {
+      name: snapshot.repository,
+      key: snapshot.repository,
+      root: "",
+      exclude: nearestInside("", roots),
+      firstSeen: 0,
+      parent: snapshot.repository,
+    },
+    ...roots
+      .map((r) => ({
+        name: r,
+        key: keyOf(r),
+        root: r,
+        exclude: nearestInside(r, roots),
+        firstSeen: firstSeen(r),
+        parent: parentOf(r),
+      }))
       .toSorted((a, b) => a.firstSeen - b.firstSeen || compareKeys(a.name, b.name)),
   ];
   const treeOptions = (part: Part) => ({
@@ -372,7 +431,8 @@ export function layCity(
     towns.push(town);
   });
 
-  // Highways join each group town to the main town, and each old town to the town that replaced it.
+  // Highways join each town to the town of its parent part (the nearest laid one up the chain, else the first town),
+  // and each old town to the town that replaced it.
   const joined = new Map<Town, Town>();
   const ready = (town: Town, toward: Town) => {
     const t2 = withApproach(joined.get(town) ?? town, centroid(toward.outline));
@@ -382,7 +442,16 @@ export function layCity(
   const highways: Road[] = [];
   const pairs: [Town, Town][] = [];
   const main = towns[0];
-  if (main) for (const town of towns.slice(1)) pairs.push([main, town]);
+  const byKey = new Map(towns.map((town) => [town.key, town]));
+  const partOf = new Map(parts.map((part) => [part.key, part]));
+  const joinedTo = (townKey: string): Town | undefined => {
+    for (let at = partOf.get(townKey)!; ; at = partOf.get(at.parent)!) {
+      if (at.parent === at.key) return main;
+      const town = byKey.get(at.parent);
+      if (town) return town;
+    }
+  };
+  if (main) for (const town of towns.slice(1)) pairs.push([joinedTo(town.key)!, town]);
   for (const o of oldTowns) {
     const successor = towns.find((t2) => t2.key === o.successor) ?? main;
     if (successor) pairs.push([successor, o.town]);
@@ -401,7 +470,13 @@ export function layCity(
   const finalHighways = options.warp ? highways.map((h) => ({ ...h, pts: fade(densify(h.pts, 80, false)) })) : highways;
   checkExtent(finalTowns, finalHighways);
   return {
-    city: { repository: snapshot.repository, commit: snapshot.commit, towns: finalTowns, highways: finalHighways },
+    city: {
+      repository: snapshot.repository,
+      commit: snapshot.commit,
+      towns: finalTowns,
+      highways: finalHighways,
+      ...recordOf(snapshot),
+    },
     state: state.cache ? { plat, last, cache: state.cache } : { plat, last },
     events,
   };

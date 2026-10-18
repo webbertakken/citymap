@@ -100,7 +100,7 @@ export async function measureCity({
     else byBlob.set(blob, [path]);
   }
   const text = new Map<string, TextFacts>();
-  await readBlobs(repo, [...byBlob.keys()], (blob, bytes) => {
+  await readBlobs(repo, tree, (blob, bytes) => {
     if (bytes) for (const path of byBlob.get(blob)!) text.set(path, countText(bytes, path));
   });
 
@@ -139,6 +139,7 @@ export async function measureCity({
     tested,
     lots,
     factsOf,
+    ...(snapshot.submodules ? { submodules: snapshot.submodules } : {}),
     ...(people
       ? { authorsAcross: (files: readonly string[]) => people.authorsAcross(files.map((p) => identityOf.get(p)!)) }
       : {}),

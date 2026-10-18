@@ -52,9 +52,10 @@ The Rust implementation of the CLI lives in `rust/`: see
    The `resume` mode also resumes each fold from a lock saved part way, and must match the uninterrupted fold. The
    `checkout` mode folds a clone with a checkout whose working tree `.mailmap` (and `mailmap.file`) merges its authors,
    and must match the fold of the clone without one. `--long` adds next.js (minutes on TypeScript); `--repos=a,b` and
-   `--modes=state,fold,resume,checkout` narrow it; `--features=mimalloc` builds the Rust CLI with mimalloc;
-   `--toggles=a,b` lays both CLIs with those toggles. Prove a change to a toggle's rules with the defaults, each toggle
-   alone (`--toggles=corridor` and so on) and none (`--toggles=`).
+   `--modes=state,fold,resume,checkout,coverage` narrow it; `--features=mimalloc` builds the Rust CLI with mimalloc;
+   `--toggles=a,b` lays both CLIs with those toggles, `--separate=a,b` with those separations. Prove a change to a
+   toggle's rules with the defaults, each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`); a
+   change to a separation's rules the same way with `--separate=`.
 7. A `parity/differs` line is a bug in one of the two implementations. Both runs' outputs stay in
    `/tmp/citymap-parity-<repo>`: find the first differing byte, then the rule behind it. A `parity/resume-differs` line
    is state a lockfile does not carry: find the first commit where the resumed plat leaves the uninterrupted one. A
@@ -66,9 +67,13 @@ The Rust implementation of the CLI lives in `rust/`: see
    `apps/web/public/cities/` is ignored. Run `bun run bundle` under PM2 once before `next dev`, a local build or the
    end-to-end suite (which refuses to start without them).
 2. It builds the Rust CLI, clones every city in `BUNDLED` (`scripts/bundle/bundle.ts`) from GitHub without contents,
-   checks out its pinned commit, and folds it once per combination of the toggles (16 each) into
-   `apps/web/public/cities/<name>/<variant>.json` with `index.json`; about four minutes.
-3. It logs `bundle/cloned` per city, `bundle/laid` per variant and `bundle/done` with the total bytes, raw and gzipped.
+   checks out its pinned commit, lays it once with the defaults to learn the separations it records (`bundle/recorded`),
+   and folds it once per combination of the toggles (16) in each state of those separations into
+   `apps/web/public/cities/<name>/<variant>.json` with `index.json`; the six cities take 304 variants. The lays run as
+   many at once as the machine has cores; on a shared machine set `CITYMAP_BUNDLE_JOBS=4` (about five minutes; serially
+   about fifteen to eighteen). The output is the same whatever the count.
+3. It logs `bundle/pool` (jobs, cores), `bundle/cloned` and `bundle/recorded` per city, `bundle/laid` per variant and
+   `bundle/done` with the total bytes, raw and gzipped, the jobs and the time.
 4. To show a newer state of a city, move its pin in `BUNDLED` and update the end-to-end expectations that name its
    numbers, in one PR.
 

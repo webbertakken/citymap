@@ -1,11 +1,11 @@
-// `bun run parity [--long] [--repos=a,b] [--modes=state,fold,resume,checkout,partial] [--features=mimalloc]`: runs the
-// TypeScript and Rust CLIs on the repositories under ~/.cache/citymap/repos (or $CITYMAP_REPOS), each on its own shared
-// clone so no lock lands in the cache, and compares their city JSON, SVG, lockfile and log byte for byte. The resume
-// mode folds from a lock saved part way, and its city, SVG and lock must also match the uninterrupted fold of the same
-// CLI. The checkout mode folds a clone with a checkout whose working tree .mailmap (and mailmap.file) merges its
-// authors, and its city, SVG, lock and log must match the fold of the clone without one. The partial mode folds a
-// blob-less clone, which fetches the laid commit's .mailmap, and its authors must match the fold's. Run it under PM2:
-// folds take minutes.
+// `bun run parity [--long] [--repos=a,b] [--modes=state,fold,resume,checkout,partial,coverage] [--features=mimalloc]
+// [--toggles=a,b] [--separate=a,b]`: runs the TypeScript and Rust CLIs on the repositories under ~/.cache/citymap/repos
+// (or $CITYMAP_REPOS), each on its own shared clone so no lock lands in the cache, and compares their city JSON, SVG,
+// lockfile and log byte for byte. The resume mode folds from a lock saved part way, and its city, SVG and lock must also
+// match the uninterrupted fold of the same CLI. The checkout mode folds a clone with a checkout whose working tree
+// .mailmap (and mailmap.file) merges its authors, and its city, SVG, lock and log must match the fold of the clone
+// without one. The partial mode folds a blob-less clone, which fetches the laid commit's .mailmap, and its authors must
+// match the fold's. Run it under PM2: folds take minutes.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -129,11 +129,11 @@ function compare(repo: string, source: string, mode: Mode, dir: string): Result 
     const out = join(dir, `${side}-out`);
     mkdirSync(out);
     if (mode === "resume") {
-      const saved = run([...cli, ...saveArgs(clone, savePoint(clone).commit, settings.toggles)]);
+      const saved = run([...cli, ...saveArgs(clone, savePoint(clone).commit, settings)]);
       if (saved.code !== 0)
         throw new Error(`parity/cli-failed side=${side} repo=${repo} mode=save ${saved.stderr.split("\n", 1)[0]}`);
     }
-    const laid = run([...cli, ...cliArgs(clone, out, mode, settings.toggles)]);
+    const laid = run([...cli, ...cliArgs(clone, out, mode, settings)]);
     if (laid.code !== 0)
       throw new Error(`parity/cli-failed side=${side} repo=${repo} mode=${mode} ${laid.stderr.split("\n", 1)[0]}`);
     writeFileSync(join(out, "log.txt"), withoutTimings(laid.stdout));

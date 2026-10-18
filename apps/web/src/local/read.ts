@@ -7,6 +7,7 @@ import type { Folder } from "./folder";
 import { findGit, headCommit, type Head } from "./git-data";
 import { readIndex } from "./git-index";
 import type { LocalPhase } from "./phases";
+import { readSubmodules, type SubmoduleUnread } from "./submodules";
 import { walkFolder } from "./walk";
 
 export interface LocalRead {
@@ -20,6 +21,11 @@ export interface LocalRead {
   readonly head: Head["how"] | null;
   /** Tracked root manifests the working tree does not hold, left out as the CLI leaves out one it cannot read. */
   readonly unread: readonly string[];
+  /** Each top submodule read, with the files it holds; and each submodule laid as its .gitlink file, with why. */
+  readonly submodules: {
+    readonly read: readonly { readonly path: string; readonly files: number }[];
+    readonly unread: readonly { readonly path: string; readonly reason: SubmoduleUnread }[];
+  };
 }
 
 const encoder = new TextEncoder();
@@ -48,13 +54,25 @@ export async function readLocal(
   let commit = "worktree";
   let index: LocalRead["index"] = null;
   let head: LocalRead["head"] = null;
+  let submodules: readonly string[] = [];
+  let submodulesRead: LocalRead["submodules"] = { read: [], unread: [] };
   if (git) {
     const read = await fromIndex(folder, git.dir, git.idBytes);
-    paths = read.paths;
-    sizes = new Map(read.paths.map((path, i) => [path, read.listing.sizes[i]!]));
     commit = read.head.commit;
     head = read.head.how;
-    index = { version: read.listing.version, entries: read.paths.length, submodules: read.listing.submodules };
+    const { gitlinks } = read.listing;
+    index = { version: read.listing.version, entries: read.paths.length, submodules: gitlinks.length };
+    const inner = await readSubmodules(folder, gitlinks);
+    paths = [...read.paths, ...inner.paths];
+    submodules = inner.submodules;
+    sizes = new Map([...read.paths.map((path, i) => [path, read.listing.sizes[i]!] as const), ...inner.sizes]);
+    const missed = new Set(inner.unread.map((u) => u.path));
+    submodulesRead = {
+      read: gitlinks
+        .filter((path) => !missed.has(path))
+        .map((path) => ({ path, files: inner.paths.filter((p) => p.startsWith(`${path}/`)).length })),
+      unread: inner.unread,
+    };
   } else {
     onPhase({ phase: "folder", files: 0 });
     paths = await walkFolder(folder, (files) => onPhase({ phase: "folder", files }), limit);
@@ -87,11 +105,12 @@ export async function readLocal(
   for (const path of paths) for (let f = folderOf(path); f !== "" && !folders.has(f); f = folderOf(f)) folders.add(f);
   const members = patterns.length > 0 ? resolveWorkspaces(patterns, folders) : undefined;
   return {
-    snapshot: stateSnapshot(folder.name, commit, paths, members),
+    snapshot: stateSnapshot(folder.name, commit, paths, members, [...submodules]),
     sizes,
     source: git ? "index" : "walk",
     index,
     head,
     unread,
+    submodules: submodulesRead,
   };
 }

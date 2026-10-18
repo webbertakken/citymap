@@ -57,6 +57,14 @@ const fixtures: Record<string, string> = {};
 test.beforeAll(() => {
   root = mkdtempSync(join(tmpdir(), "citymap-local-e2e-"));
   fixtures.widgets = repository(root, "widgets");
+  // A repository with a submodule checked out: its git data in .git/modules, its files read through its own index.
+  fixtures.withsub = repository(root, "withsub");
+  const lib = folder(root, "lib", { "src/core.ts": "export {};\n", "src/util.ts": "export {};\n" });
+  git(lib, "init", "--quiet", "--initial-branch=main");
+  git(lib, "add", "--all");
+  git(lib, "commit", "--quiet", "--message", "lib");
+  git(fixtures.withsub, "-c", "protocol.file.allow=always", "submodule", "add", "--quiet", lib, "vendor/lib");
+  git(fixtures.withsub, "commit", "--quiet", "--message", "add lib");
   fixtures.split = repository(root, "split");
   git(fixtures.split, "update-index", "--split-index");
   fixtures.sparse = repository(root, "sparse");
@@ -211,6 +219,32 @@ test.describe("a local repository through Chromium's folder dialog", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("widgets");
   });
 
+  test("lays a checked-out submodule as a town of its own, and offers the separations it records", async ({
+    page,
+  }, info) => {
+    const logs: string[] = [];
+    page.on("console", (message) => logs.push(message.text()));
+    await stage(page, "withsub");
+    await openFolder(page);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("withsub");
+    expect(logs).toContainEqual("viewer/local-submodule path=vendor/lib files=2");
+    await expect(page.getByRole("region", { name: "Towns" })).toContainText("vendor/lib");
+    await page.getByRole("searchbox").fill("core");
+    await expect(page.getByRole("list", { name: "Matches" })).toContainText("vendor/lib/src/core.ts");
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Layout" }).click();
+    const separate = page.getByRole("group", { name: "Separate towns" });
+    await expect(separate.locator("label")).toHaveText(["Workspaces", "Submodules", "Packages"]);
+    await separate.getByRole("switch", { name: "Submodules" }).focus();
+    await expect(page.getByRole("tooltip").filter({ hasText: "laid from the commit it is pinned to" })).toBeVisible();
+    await page.screenshot({ path: info.outputPath("separate-towns.png") });
+    expect((await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations.map((v) => v.id)).toEqual([]);
+    // Turned off, the submodule's files join the main town.
+    await separate.getByRole("switch", { name: "Submodules" }).click();
+    await expect(page.getByRole("region", { name: "Towns" })).not.toContainText("vendor/lib");
+  });
+
   test("honours .gitignore in a folder without git", async ({ page }) => {
     const logs: string[] = [];
     page.on("console", (message) => logs.push(message.text()));
@@ -257,6 +291,14 @@ test.describe("in a light system scheme", () => {
     await drawn(page);
     await page.screenshot({ path: info.outputPath("local-light.png") });
     await page.getByRole("button", { name: "More" }).click();
+    expect((await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations.map((v) => v.id)).toEqual([]);
+    // The separate towns, declared workspaces deciding packages: the note and a disabled switch.
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Layout" }).click();
+    const separate = page.getByRole("group", { name: "Separate towns" });
+    await expect(separate).toContainText("Declared workspaces decide; turn Workspaces off to choose.");
+    await expect(separate.getByRole("switch", { name: "Packages" })).toBeDisabled();
+    await page.screenshot({ path: info.outputPath("separate-towns-light.png") });
     expect((await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations.map((v) => v.id)).toEqual([]);
   });
 });

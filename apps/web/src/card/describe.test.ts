@@ -190,9 +190,13 @@ describe("describeHit", () => {
     const old = describeHit({ ...town, ...member, town: "apps/live old town", old: true, form: "neighbourhood" });
     expect(old).toMatchObject({
       eyebrow: "Old town",
+      title: "live old town",
       meaning: `${TOWN_FORM.neighbourhood} ${OLD}`,
       target: { path: "apps/live", type: "tree" },
     });
+    // A town named by a path is titled by its last folder, the whole path its folder.
+    expect(old.rows).toContainEqual({ label: "Folder", value: "apps/live old town" });
+    expect(describeHit(town).rows.some((r) => r.label === "Folder")).toBe(false);
   });
 });
 

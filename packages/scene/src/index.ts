@@ -5,6 +5,7 @@ export {
   focusOn,
   flatLayer,
   roadRibbon,
+  shortTownName,
   triangulate,
   type Label,
   type Layer,

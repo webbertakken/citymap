@@ -6,6 +6,8 @@ import {
   layCity,
   parseLock,
   serialiseLock,
+  separateMembers,
+  separationList,
   type City,
   type FoldState,
   type Options,
@@ -81,7 +83,7 @@ export async function runLay(
     jog: command.jog,
     warp: command.warp,
     loops: command.loops,
-    split: command.split,
+    separate: command.separate,
     toggles: command.toggles,
   };
   const target = await resolveCommit(repo, command.to);
@@ -152,6 +154,16 @@ export async function runLay(
       }),
     );
   if (command.lock) saveLock(target, index);
+  // What stood apart at the last commit: how many towns each separation laid.
+  const apart = separateMembers(last!, options.separate);
+  if (apart.length > 0)
+    io.log(
+      `fold/separate towns=${apart.length} by=${separationList(options.separate)
+        .map((s) => [s, apart.filter((m) => m.by === s).length] as const)
+        .filter(([, n]) => n > 0)
+        .map(([s, n]) => `${s}:${n}`)
+        .join(",")}`,
+    );
   // The commits folded, the lock's own included; windows lay fewer of them.
   const commits = index + 1 - (lock?.index ?? 0);
   io.log(

@@ -1,4 +1,5 @@
 //! The command line, parsed as `node:util` `parseArgs` parses it in strict mode, with the same options and messages.
+use citymap_ground_plan::region::separate::{SEPARATIONS, Separation, separation_list};
 use citymap_ground_plan::toggles::{TOGGLES, Toggle, toggle_list};
 use citymap_ground_plan::town::context::Jog;
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
@@ -28,8 +29,8 @@ pub struct LayCommand {
     pub voronoi: bool,
     /// Fold the history (true), or lay the tree at `to` once, as if every file arrived together (false).
     pub history: bool,
-    /// Workspace groups whose members each become a town.
-    pub split: Vec<String>,
+    /// The separations on: kinds of folder whose members each become a town, in their own order.
+    pub separate: Vec<Separation>,
     /// The archetype toggles on, in their own order.
     pub toggles: Vec<Toggle>,
     /// Write the measures section beside the layout.
@@ -57,8 +58,9 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --tests             give tests land (the land dimension; default: tests and fixtures take none)
   --density=<pct>     share of land covered by lots, 20 to 80 (default 50)
   --jog=<cuts>        off, top-level or all (default top-level)
-  --split=<groups>    workspace groups whose members each become a town, comma-separated (default apps;
-                      --split=apps,packages splits packages too; --split= splits none)
+  --separate=<kinds>  kinds of folder whose members each become a town, comma-separated: workspaces, submodules, apps, packages, libs,
+                      crates, services, modules, extensions, plugins
+                      (default workspaces,submodules,apps; --separate= lays none apart)
   --toggles=<forms>   archetype toggles on, comma-separated: corridor, archipelago, quarters, tiers
                       (default corridor,tiers; --toggles= turns all off)
   --no-warp           draw the plan without its organic warp
@@ -72,7 +74,7 @@ Folds the repository's first-parent history into its ground plan and writes the 
   --help              show this help";
 
 const STRINGS: [&str; 9] = [
-    "to", "out", "svg", "theme", "camera", "density", "jog", "split", "toggles",
+    "to", "out", "svg", "theme", "camera", "density", "jog", "separate", "toggles",
 ];
 /// Options that may be given many times, each value kept in order.
 const LISTS: [&str; 1] = ["coverage"];
@@ -92,6 +94,23 @@ fn toggles_of(text: &str) -> Result<Vec<Toggle>> {
         toggles.push(toggle);
     }
     Ok(toggle_list(&toggles))
+}
+
+/// The separations a comma-separated list names, each one known.
+fn separations_of(text: &str) -> Result<Vec<Separation>> {
+    let mut separate = Vec::new();
+    for name in text.split(',').filter(|n| !n.is_empty()) {
+        let Some(separation) = Separation::parse(name) else {
+            let names: Vec<&str> = SEPARATIONS.iter().map(|s| s.as_str()).collect();
+            let (last, rest) = names.split_last().expect("ten separations");
+            return Err(usage(format!(
+                "--separate takes {} and {last}, not {name}",
+                rest.join(", ")
+            )));
+        };
+        separate.push(separation);
+    }
+    Ok(separation_list(&separate))
 }
 const BOOLEANS: [&str; 9] = [
     "lock",
@@ -265,11 +284,7 @@ pub fn parse_command_line(argv: &[String]) -> Result<Command> {
         loops: !flag("no-loops"),
         voronoi: flag("voronoi"),
         history: !flag("no-history"),
-        split: text("split", "apps")
-            .split(',')
-            .filter(|g| !g.is_empty())
-            .map(str::to_owned)
-            .collect(),
+        separate: separations_of(&text("separate", "workspaces,submodules,apps"))?,
         toggles: toggles_of(&text("toggles", "corridor,tiers"))?,
         measures: !flag("no-measures"),
         coverage,
@@ -279,6 +294,7 @@ pub fn parse_command_line(argv: &[String]) -> Result<Command> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use citymap_ground_plan::region::separate::DEFAULT_SEPARATIONS;
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| (*s).to_owned()).collect()
@@ -311,7 +327,7 @@ mod tests {
                 loops: true,
                 voronoi: false,
                 history: true,
-                split: vec!["apps".into()],
+                separate: DEFAULT_SEPARATIONS.to_vec(),
                 toggles: vec![Toggle::Corridor, Toggle::Tiers],
                 measures: true,
                 coverage: vec![],
@@ -337,7 +353,7 @@ mod tests {
             "--no-warp",
             "--no-loops",
             "--voronoi",
-            "--split=apps,packages",
+            "--separate=plugins,apps,plugins",
             "--toggles=tiers,archipelago",
             "--coverage=a.info",
             "--coverage",
@@ -351,8 +367,8 @@ mod tests {
         assert!(command.lock && command.verbose && command.tests && command.voronoi);
         assert!(!command.warp && !command.loops);
         assert_eq!((command.density_pct, command.jog), (70, Jog::All));
-        assert_eq!(command.split, ["apps", "packages"]);
-        assert_eq!(lay(&["repo", "--split="]).split, Vec::<String>::new());
+        assert_eq!(command.separate, [Separation::Apps, Separation::Plugins]);
+        assert_eq!(lay(&["repo", "--separate="]).separate, []);
         assert_eq!(command.toggles, [Toggle::Archipelago, Toggle::Tiers]);
         assert_eq!(lay(&["repo", "--toggles="]).toggles, []);
         assert!(!lay(&["repo", "--no-history"]).history);
@@ -368,8 +384,12 @@ mod tests {
 
     #[test]
     fn rejects_bad_command_lines_by_name() {
-        let cases: [(&[&str], &str); 12] = [
+        let cases: [(&[&str], &str); 13] = [
             (&[], "cli/usage: name one repository"),
+            (
+                &["a", "--separate=apps,split"],
+                "cli/usage: --separate takes workspaces, submodules, apps, packages, libs, crates, services, modules, extensions and plugins, not split",
+            ),
             (
                 &["a", "--toggles=corridor,gridiron"],
                 "cli/usage: --toggles takes corridor, archipelago, quarters and tiers, not gridiron",

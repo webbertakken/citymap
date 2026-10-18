@@ -40,9 +40,9 @@ describe("readIndex", () => {
     const want = expected(name);
     const entries = want.entries!;
     const tracked = [...new Set(entries.filter((e) => e.mode !== "160000").map((e) => e.path))];
-    const submodules = new Set(entries.filter((e) => e.mode === "160000").map((e) => e.path)).size;
+    const gitlinks = [...new Set(entries.filter((e) => e.mode === "160000").map((e) => e.path))];
     const listing = readIndex(bytes(name), idBytes(name));
-    expect(listing).toEqual({ version: want.version, paths: tracked, sizes: expect.any(Array), submodules });
+    expect(listing).toEqual({ version: want.version, paths: tracked, sizes: expect.any(Array), gitlinks });
     expect(listing.sizes).toHaveLength(tracked.length);
   });
 
@@ -51,11 +51,11 @@ describe("readIndex", () => {
   });
 
   it("keeps links and executables, leaves out submodules, and reads a path of 4,096 bytes", () => {
-    const { paths, submodules } = readIndex(bytes("v2"), 20);
+    const { paths, gitlinks } = readIndex(bytes("v2"), 20);
     expect(paths).toContain("link-to-readme");
     expect(paths).toContain("bin/run.sh");
     expect(paths).not.toContain("vendor/sub");
-    expect(submodules).toBe(1);
+    expect(gitlinks).toEqual(["vendor/sub"]);
     expect(paths.map((p) => new TextEncoder().encode(p).length)).toContain(4096);
     expect(paths).toContain("docs/naïve café.md");
     // Each path's size as git last saw it: the working tree's bytes.

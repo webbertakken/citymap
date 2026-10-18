@@ -174,7 +174,7 @@ export function buildScene(city: City, theme: Theme): Scene {
       else buildings.add(lot.pts, { town: town.key, key: lot.key, district: lot.district, use: lot.use });
     const heart = centroid(town.outline);
     labels.push({
-      text: town.name.toUpperCase(),
+      text: shortTownName(town.name).toUpperCase(),
       x: heart.x / UNIT,
       z: 0 - heart.y / UNIT,
       size: "town",
@@ -215,3 +215,9 @@ export function buildScene(city: City, theme: Theme): Scene {
     bounds,
   };
 }
+
+/**
+ * A town's name on the map: the text after its last slash. A workspace group's or separate town's name is its folder's
+ * path (`packages/react-reconciler`, `apps/web old town`); the map names it by its last folder, the rest elsewhere.
+ */
+export const shortTownName = (name: string) => name.slice(name.lastIndexOf("/") + 1);

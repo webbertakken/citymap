@@ -28,7 +28,7 @@ interface Ready {
 
 async function prepare(theme: ThemeName): Promise<Ready> {
   const index = await loadIndex(fetcher, base);
-  const file = parseCityFile(await loadCity(fetcher, index[0]!, DEFAULT_TOGGLES, base));
+  const file = parseCityFile(await loadCity(fetcher, index[0]!, { toggles: DEFAULT_TOGGLES }, base));
   const scene = buildScene(file.city, THEMES[theme]);
   const table = tableFor(scene.buildings.order, cityBuildings(file.measures), "folder", THEMES[theme]);
   const street = longestStreet(file.city);

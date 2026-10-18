@@ -77,7 +77,7 @@ pub fn lot_files(city: &City, plat: &Plat, files: &[FileEntry]) -> LotFiles {
 }
 
 /// The people across a lot's files.
-pub type AuthorsAcross<'a> = &'a dyn Fn(&[String]) -> i64;
+pub type AuthorsAcross<'a> = &'a dyn Fn(&[String]) -> Option<i64>;
 
 /// What the section is built from.
 pub struct MeasuresInput<'a> {
@@ -93,8 +93,10 @@ pub struct MeasuresInput<'a> {
     pub lots: &'a LotFiles,
     /// A file's values; its path is set by the builder.
     pub facts_of: &'a dyn Fn(&str) -> FileMeasures,
-    /// The people across a lot's files, when the history was read.
+    /// The people across a lot's files, when the history was read; none when no commit read changed any.
     pub authors_across: Option<AuthorsAcross<'a>>,
+    /// The submodule folders the city's files lie in, sorted.
+    pub submodules: &'a [String],
 }
 
 /// The measures section: every lot's files and their values, keyed by town and lot.
@@ -114,7 +116,7 @@ pub fn build_measures(input: &MeasuresInput) -> Measures {
             entries.insert(
                 key.clone(),
                 LotMeasures {
-                    authors: input.authors_across.map(|across| across(paths)),
+                    authors: input.authors_across.and_then(|across| across(paths)),
                     files,
                 },
             );
@@ -132,6 +134,7 @@ pub fn build_measures(input: &MeasuresInput) -> Measures {
         lots,
         size: input.size,
         source: input.source,
+        submodules: input.submodules.to_vec(),
         tested: input.tested,
         version: MEASURES_VERSION,
     }
@@ -188,8 +191,10 @@ mod tests {
     fn reads_an_old_towns_members_skips_vacant_lots_and_falls_back_to_a_lots_own_path() {
         let city = City {
             commit: "worktree".into(),
+            declared: None,
             highways: vec![],
             repository: "demo".into(),
+            separable: None,
             towns: vec![
                 Arc::new(town(
                     "demo",
@@ -256,7 +261,8 @@ mod tests {
             lines: (path == "a").then_some(3),
             ..FileMeasures::default()
         };
-        let across = |paths: &[String]| i64::try_from(paths.len()).unwrap();
+        // The people across a lot: none for the old town's lot of `c`, whose files no commit read changed.
+        let across = |paths: &[String]| (paths != ["c"]).then(|| i64::try_from(paths.len()).unwrap());
         let measures = build_measures(&MeasuresInput {
             source: "cli",
             size: "lines",
@@ -267,9 +273,12 @@ mod tests {
             lots: &lots,
             facts_of: &facts,
             authors_across: Some(&across),
+            submodules: &["vendor/lib".to_owned()],
         });
+        assert_eq!(measures.submodules, vec!["vendor/lib".to_owned()]);
         assert_eq!(measures.lots["demo"]["a@0"].files[0].lines, Some(3));
         assert_eq!(measures.lots["demo"]["a@0"].authors, Some(1));
+        assert_eq!(measures.lots["demo old town"]["c@0"].authors, None);
         assert_eq!(measures.available.len(), 7);
         let unmapped = build_measures(&MeasuresInput {
             source: "cli",
@@ -281,11 +290,41 @@ mod tests {
             lots: &lots,
             facts_of: &facts,
             authors_across: None,
+            submodules: &[],
         });
         assert_eq!(
             unmapped.available,
             vec!["size", "tested", "kind", "recency", "churn", "comments"]
         );
         assert_eq!(unmapped.lots["demo"]["a@0"].authors, None);
+    }
+
+    #[test]
+    fn counts_the_lots_and_files_the_section_holds_once_a_repeated_lot_key_collapses() {
+        let strings = |v: &[&str]| v.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        // An old town can hold one lot key twice; the section keeps the last, as the reference's map does.
+        let lots: LotFiles = vec![(
+            "demo old town".to_owned(),
+            vec![
+                ("a@0".to_owned(), strings(&["a", "b"])),
+                ("a@0".to_owned(), strings(&["c"])),
+                ("d@0".to_owned(), strings(&["d"])),
+            ],
+        )];
+        let facts = |_: &str| FileMeasures::default();
+        let measures = build_measures(&MeasuresInput {
+            source: "cli",
+            size: "lines",
+            history: false,
+            authors: false,
+            comments: true,
+            tested: "name",
+            lots: &lots,
+            facts_of: &facts,
+            authors_across: None,
+            submodules: &[],
+        });
+        assert_eq!(measures.lots["demo old town"]["a@0"].files.len(), 1);
+        assert_eq!(measures.counts(), (2, 2));
     }
 }

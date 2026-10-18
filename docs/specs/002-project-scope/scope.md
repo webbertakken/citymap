@@ -15,6 +15,8 @@ The first deliverable is the **ground plan**: the city without buildings, as def
   atlas style, plus SVG export from the same model, in plan view or 2:1 dimetric. Themes: Paper atlas, Night atlas, Beck
   schematic, Nolli noir and Dracula. Desktop and phones.
 - **Land dimension**: tests off the map (default) or tests as land.
+- **Separate towns**: kinds of folder (workspace members, submodules, `apps/`, `packages/`, `plugins/` and other
+  conventional folders) laid as towns of their own, a switch each; submodules read from their own git data.
 - **Local repositories**: a repository's folder on the person's machine, laid in the viewer as its single state, with
   nothing installed and nothing sent ([local repositories](../007-local-repositories/local-repositories.md)).
 - **Rust CLI**: a second implementation of the command line, byte for byte the same output, many times faster.

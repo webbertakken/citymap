@@ -135,13 +135,14 @@ const workers = typeof Worker === "function";
 const firstOf = ({ theme, colourBy = "folder", town = null }: OpenOptions) => ({ theme, colourBy, town });
 
 export const layInWorker: Lay = workers
-  ? (snapshot, { toggles, facts, ...options }) =>
+  ? (snapshot, { toggles, separate, facts, ...options }) =>
       inWorker(
         {
           job: "lay",
           snapshot,
           ...firstOf(options),
           ...(toggles === undefined ? {} : { toggles }),
+          ...(separate === undefined ? {} : { separate }),
           ...(facts === undefined ? {} : { facts }),
         },
         options,

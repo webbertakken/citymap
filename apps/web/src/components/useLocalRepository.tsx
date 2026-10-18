@@ -1,7 +1,7 @@
 "use client";
 // Opening a repository on the person's machine: the folder dialog (Chromium) or the folder input (Firefox), the read,
 // the lay, and the remembered folder. The city, its status and the notice stay the viewer's.
-import type { Snapshot, Toggle } from "@citymap/ground-plan";
+import type { Separation, Snapshot, Toggle } from "@citymap/ground-plan";
 import type { ColourBy } from "@citymap/scene";
 import type { ThemeName } from "@citymap/themes";
 import {
@@ -43,6 +43,8 @@ export interface LocalOptions {
   readonly colourBy: ColourBy;
   /** The layout toggles a folder is laid with. */
   readonly toggles: readonly Toggle[];
+  /** The separations a folder is laid with. */
+  readonly separate: readonly Separation[];
   /** Begins a load on the loading card, ending any other. */
   readonly begin: (source: Source, name: string) => Job;
   readonly status: string;
@@ -76,6 +78,7 @@ export function useLocalRepository({
   theme,
   colourBy,
   toggles,
+  separate,
   begin,
   status,
   setStatus,
@@ -122,6 +125,8 @@ export function useLocalRepository({
       if (read.head) log.info("viewer/local-commit", { how: read.head });
       if (read.source === "walk") log.info("viewer/local-walk", { files });
       for (const path of read.unread) log.info("viewer/local-manifest-unread", { path });
+      for (const found of read.submodules.read) log.info("viewer/local-submodule", found);
+      for (const missed of read.submodules.unread) log.info("viewer/local-submodule-unread", missed);
       const facts = await localFacts(folder, read, (phase) => job.step(localStep(phase)));
       job.signal.throwIfAborted();
       job.step({ phase: "lay", files });
@@ -131,6 +136,7 @@ export function useLocalRepository({
         theme,
         colourBy,
         toggles,
+        separate,
         facts,
       });
       await present(job, laid, name, read.snapshot, facts);

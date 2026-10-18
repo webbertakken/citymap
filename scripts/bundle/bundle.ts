@@ -1,5 +1,13 @@
-// The bundled cities: every combination of the toggles for each public city, laid by the CLI, and their index.
-import { TOGGLES, type Toggle } from "@citymap/ground-plan";
+// The bundled cities: for each public city, every combination of the toggles times every state of the separations it
+// records, laid by the CLI, and their index.
+import {
+  DEFAULT_SEPARATIONS,
+  SEPARATIONS,
+  TOGGLES,
+  separationStates,
+  type Separation,
+  type Toggle,
+} from "@citymap/ground-plan";
 
 /**
  * The public cities the viewer bundles, each pinned to a commit so every deploy shows the same cities; move a pin on
@@ -45,36 +53,118 @@ export const cloneArgs = (url: string, into: string): string[] => [
 export const combinations = (): Toggle[][] =>
   Array.from({ length: 2 ** TOGGLES.length }, (_unused, mask) => TOGGLES.filter((_toggle, bit) => (mask >> bit) & 1));
 
-/** A variant's name: its toggles joined with dashes, or `none`. */
-export const variantName = (toggles: readonly Toggle[]) => (toggles.length === 0 ? "none" : toggles.join("-"));
+/** What a city records of its separations: those that would change it, and whether it declares workspaces. */
+export interface Recorded {
+  readonly separable: readonly Separation[];
+  readonly declared: boolean;
+}
+
+/** The separation states a city is laid in: one per state of what it records; none recorded, the defaults alone. */
+export const statesOf = (recorded: Recorded): (Separation[] | null)[] =>
+  recorded.separable.length === 0 ? [null] : separationStates(recorded.separable, recorded.declared);
+
+/**
+ * A variant's name: its toggles joined with dashes, or `none`; for a city that records separations, `~` and the
+ * separations of its state, or `none`.
+ */
+export const variantName = (toggles: readonly Toggle[], state: readonly Separation[] | null = null) =>
+  `${toggles.length === 0 ? "none" : toggles.join("-")}${state === null ? "" : `~${state.join("-") || "none"}`}`;
 
 /** A variant's file under the bundle: one folder per city. */
-export const variantFile = (name: string, toggles: readonly Toggle[]) => `${name}/${variantName(toggles)}.json`;
+export const variantFile = (name: string, toggles: readonly Toggle[], state: readonly Separation[] | null = null) =>
+  `${name}/${variantName(toggles, state)}.json`;
 
-/** The command that folds a repository's history up to its pinned commit, with a variant's toggles, into its city file. */
+/** The separations a state is laid with: the state, and the defaults of those the city does not record. */
+export const separateFor = (state: readonly Separation[], recorded: Recorded): Separation[] =>
+  SEPARATIONS.filter((s) => (recorded.separable.includes(s) ? state.includes(s) : DEFAULT_SEPARATIONS.includes(s)));
+
+/**
+ * The command that folds a repository's history up to its pinned commit, with a variant's toggles (and separations),
+ * into its city file.
+ */
 export const layArgs = (
   cli: string,
   repo: string,
   out: string,
   toggles: readonly Toggle[],
   commit: string,
-): string[] => [cli, repo, `--out=${out}`, `--to=${commit}`, `--toggles=${toggles.join(",")}`];
+  separate: readonly Separation[] | null = null,
+): string[] => [
+  cli,
+  repo,
+  `--out=${out}`,
+  `--to=${commit}`,
+  `--toggles=${toggles.join(",")}`,
+  ...(separate === null ? [] : [`--separate=${separate.join(",")}`]),
+];
 
 export interface Variant {
   readonly toggles: readonly Toggle[];
+  readonly separate?: readonly Separation[];
   readonly file: string;
   readonly lots: number;
 }
 
-/** A city's entry in the index: its name and every variant. */
+/** A city's entry in the index: its name, what it records of its separations, and every variant. */
 export const indexEntry = (
   name: string,
-  variants: readonly { readonly toggles: readonly Toggle[]; readonly lots: number }[],
-): { name: string; variants: Variant[] } => ({
+  recorded: Recorded,
+  variants: readonly {
+    readonly toggles: readonly Toggle[];
+    readonly state: readonly Separation[] | null;
+    readonly lots: number;
+  }[],
+) => ({
   name,
-  variants: variants.map((v) => ({ toggles: v.toggles, file: variantFile(name, v.toggles), lots: v.lots })),
+  ...(recorded.separable.length > 0 ? { separable: recorded.separable } : {}),
+  ...(recorded.declared ? { declared: true as const } : {}),
+  variants: variants.map((v): Variant =>
+    v.state === null
+      ? { toggles: v.toggles, file: variantFile(name, v.toggles), lots: v.lots }
+      : { toggles: v.toggles, separate: v.state, file: variantFile(name, v.toggles, v.state), lots: v.lots },
+  ),
 });
 
 /** The closing line: how many cities and variants, and their bytes raw and gzipped. */
 export const summary = (sizes: readonly { readonly bytes: number; readonly gzip: number }[], cities: number) =>
   `bundle/done cities=${cities} variants=${sizes.length} bytes=${sizes.reduce((s, v) => s + v.bytes, 0)} gzip=${sizes.reduce((s, v) => s + v.gzip, 0)}`;
+
+/**
+ * How many lays run at once: the machine's cores, or fewer when `CITYMAP_BUNDLE_JOBS` asks (never more: each lay is one
+ * busy core). A count that is not a whole number above zero is refused.
+ */
+export function poolSize(cores: number, asked: string | undefined): number {
+  const most = Math.max(1, cores);
+  if (asked === undefined) return most;
+  if (!/^\d+$/.test(asked) || Number(asked) < 1)
+    throw new Error(`bundle/usage: CITYMAP_BUNDLE_JOBS takes a whole number above 0, not ${asked}`);
+  return Math.min(most, Number(asked));
+}
+
+/**
+ * Runs `task` over the items, at most `limit` at once, each taken as soon as one finishes; the results in the items'
+ * order, so what follows from them never depends on which finished first. Once a task fails no more start, and the pool
+ * fails with it.
+ */
+export async function inPool<T, R>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T, at: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  let next = 0;
+  let failed = false;
+  const worker = async (): Promise<void> => {
+    if (failed || next >= items.length) return;
+    const at = next++;
+    try {
+      results[at] = await task(items[at]!, at);
+    } catch (error) {
+      failed = true;
+      throw error;
+    }
+    return worker();
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}

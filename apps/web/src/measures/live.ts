@@ -46,5 +46,6 @@ export function liveMeasures(city: City, plat: Plat, snapshot: Snapshot, facts: 
     tested,
     lots: lotFiles(city, plat, snapshot.files),
     factsOf,
+    ...(snapshot.submodules ? { submodules: snapshot.submodules } : {}),
   });
 }

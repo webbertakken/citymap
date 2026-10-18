@@ -1,6 +1,5 @@
 import {
   DEFAULT_LAND_USES,
-  DEFAULT_SPLIT,
   classifyLandUse,
   emptyPlat,
   emptyTownPlat,
@@ -22,7 +21,6 @@ const options: Options = {
   jog: "top-level",
   warp: true,
   loops: true,
-  split: DEFAULT_SPLIT,
 };
 
 const paths = [
@@ -141,6 +139,37 @@ describe("buildMeasures", () => {
       available: ["size", "tested", "kind", "recency", "churn", "authors", "comments"],
       lots: { demo: { "a@0": { files: [{ path: "a.ts", lines: 3 }, { path: "b.ts" }], authors: 2 } } },
     });
+  });
+
+  it("names the submodule folders when the city has any, and leaves the key out when it has none", () => {
+    const input = {
+      source: "cli",
+      size: "lines",
+      history: true,
+      authors: true,
+      comments: true,
+      tested: "name",
+      lots,
+      factsOf: () => ({}),
+    } as const;
+    expect(buildMeasures({ ...input, submodules: ["vendor/lib"] }).submodules).toEqual(["vendor/lib"]);
+    expect(buildMeasures({ ...input, submodules: [] })).not.toHaveProperty("submodules");
+    expect(buildMeasures(input)).not.toHaveProperty("submodules");
+  });
+
+  it("leaves the people out of a lot whose files no commit read changed", () => {
+    const measures = buildMeasures({
+      source: "cli",
+      size: "lines",
+      history: true,
+      authors: true,
+      comments: true,
+      tested: "name",
+      lots,
+      factsOf: () => ({}),
+      authorsAcross: () => undefined,
+    });
+    expect(measures.lots).toEqual({ demo: { "a@0": { files: [{ path: "a.ts" }, { path: "b.ts" }] } } });
   });
 
   it("leaves the people out without history", () => {

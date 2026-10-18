@@ -9,6 +9,7 @@ import { gitEnvironment } from "./env";
 import type { FileHistory } from "./file-history";
 import { emailOf, readMailmap, type Author, type Mailmap, type MailmapRead } from "./mailmap";
 import { foldSchedule, isLaid, laidCount, type Strides } from "./schedule";
+import { GITLINK_MODE, Pins, SubmoduleReader, type SubmoduleRead, type SubmoduleUnavailable } from "./submodules";
 import { Workspaces, type ManifestUnavailable } from "./workspaces";
 
 /** One changed path of a commit, from git's raw diff against the first parent. */
@@ -39,13 +40,7 @@ export interface ScheduleChosen {
   };
 }
 
-export type HistoryEvent =
-  | { readonly code: "history/skip-submodule"; readonly detail: { readonly path: string; readonly index: number } }
-  | ManifestUnavailable
-  | MailmapRead
-  | ScheduleChosen;
-
-const SUBMODULE = "160000";
+export type HistoryEvent = SubmoduleUnavailable | SubmoduleRead | ManifestUnavailable | MailmapRead | ScheduleChosen;
 
 /**
  * A commit's header, "<sha>\x02<time>\x02<email>\x02<name>" after its \x01 mark: the name is the rest, so one holding a
@@ -99,32 +94,39 @@ const folderOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/
 
 /**
  * Applies one commit to the tree state: deletions, exact renames (equal blobs, paired in path order), additions. True
- * when the set of files changed; a commit that only edits files leaves it as it was.
+ * when the set of files changed; a commit that only edits files leaves it as it was. Gitlinks go to `gitlinks`: a
+ * submodule's files arrive when its pin is expanded.
  */
 function apply(
   state: Map<string, Live>,
   folders: Map<string, number>,
   workspaces: Workspaces,
+  gitlinks: Map<string, string>,
   commit: RawCommit,
   index: number,
-  onEvent: (event: HistoryEvent) => void,
 ): boolean {
   const deleted = new Map<string, Live[]>();
   const added: RawEntry[] = [];
+  const remove = (path: string) => {
+    const live = state.get(path);
+    if (!live) return;
+    state.delete(path);
+    workspaces.remove(path);
+    const list = deleted.get(live.blob) ?? [];
+    list.push(live);
+    deleted.set(live.blob, list);
+  };
   for (const entry of commit.entries) {
     workspaces.touch(entry.path, entry.status === "D" ? null : entry.blob);
     if (entry.status === "D") {
-      const live = state.get(entry.path);
-      if (!live) continue;
-      state.delete(entry.path);
-      workspaces.remove(entry.path);
-      const list = deleted.get(live.blob) ?? [];
-      list.push(live);
-      deleted.set(live.blob, list);
-    } else if (entry.mode === SUBMODULE) {
-      onEvent({ code: "history/skip-submodule", detail: { path: entry.path, index } });
-    } else if (entry.status === "A") added.push(entry);
-    else {
+      if (!gitlinks.delete(entry.path)) remove(entry.path);
+    } else if (entry.mode === GITLINK_MODE) {
+      // A file that becomes a gitlink leaves the tree; the gitlink's pin moves.
+      remove(entry.path);
+      gitlinks.set(entry.path, entry.blob);
+    } else {
+      // A path the tree does not hold arrives (a birth, or a gitlink turned file); one it holds keeps its identity.
+      gitlinks.delete(entry.path);
       const live = state.get(entry.path);
       if (live) live.blob = entry.blob;
       else added.push(entry);
@@ -166,6 +168,7 @@ function snapshotOf(
   files: readonly FileEntry[],
   folders: ReadonlyMap<string, number>,
   workspaces: readonly string[] | undefined,
+  submodules: readonly string[],
 ): Snapshot {
   return {
     repository,
@@ -174,6 +177,7 @@ function snapshotOf(
     files,
     folderFirstSeen: folders,
     ...(workspaces === undefined ? {} : { workspaces }),
+    ...(submodules.length === 0 ? {} : { submodules }),
   };
 }
 
@@ -201,7 +205,7 @@ export interface ReadOptions {
 function recordChanges(history: FileHistory, mailmap: Mailmap, state: ReadonlyMap<string, Live>, commit: RawCommit) {
   const email = emailOf(mailmap, commit.author);
   for (const entry of commit.entries) {
-    if (entry.status === "D" || entry.mode === SUBMODULE) continue;
+    if (entry.status === "D" || entry.mode === GITLINK_MODE) continue;
     // Applying the commit made every such path live.
     history.record(state.get(entry.path)!.identity, commit.time, email);
   }
@@ -227,6 +231,8 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
   const head = await resolveCommit(dir, options.to ?? "HEAD");
   const schedule = foldSchedule(await countCommits(dir, head), options.strides);
   const laid = (at: number) => isLaid(schedule, at, from);
+  // Pins are expanded where the uninterrupted fold lays, whatever the resume, so births carry the same indices.
+  const expandsAt = (at: number) => isLaid(schedule, at) || at === from;
   onEvent({
     code: "history/schedule",
     detail: {
@@ -263,6 +269,9 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
       "--raw",
       "-z",
       "--no-renames",
+      // Every gitlink change, whatever .gitmodules says to ignore: git would read that blob, which a blob-less clone
+      // does not hold and may not fetch, and a submodule it ignores would vanish from the fold.
+      "--ignore-submodules=none",
       "--no-abbrev",
       // The author as written: %aE would map it through the working tree's .mailmap.
       "--format=%x01%H%x02%ct%x02%ae%x02%an",
@@ -281,6 +290,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
   const state = new Map<string, Live>();
   const folders = new Map<string, number>();
   const workspaces = new Workspaces();
+  const pins = new Pins(new SubmoduleReader(dir));
   let index = 0;
   // The files and folders as last handed over: a commit that leaves the file set as it was hands over the same ones, so
   // what the layout derives from them can be kept (snapshots are immutable; nothing mutates these).
@@ -299,13 +309,21 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
     // A manifest blob it cannot read sends it back through that manifest's older blobs, read in one more pass.
     const older = await blobs.readAll(workspaces.fallbacks(commits, index, laid, wanted));
     const texts = new Map([...wanted, ...older]);
+    // The pins these commits expand, read in parallel before their snapshots are built.
+    const names = state.get(".gitmodules")?.blob ?? null;
+    await pins.prepare(commits, index, expandsAt, names, (b) => blobs.readAll(b));
     for (const commit of commits) {
-      if (apply(state, folders, workspaces, commit, index, onEvent)) [files, folderMap] = [null, null];
+      if (apply(state, folders, workspaces, pins.gitlinks, commit, index)) [files, folderMap] = [null, null];
+      // The commit's own changes, recorded before its pins expand: a submodule's files carry no history of their own.
       if (options.fileHistory) recordChanges(options.fileHistory, mailmap, state, commit);
+      const entries = expandsAt(index) ? pins.move(index, state.get(".gitmodules")?.blob ?? null, onEvent) : null;
+      if (entries && apply(state, folders, workspaces, pins.gitlinks, { ...commit, entries }, index))
+        [files, folderMap] = [null, null];
       if (laid(index)) {
         files ??= filesOf(state);
         folderMap ??= new Map(folders);
-        yield snapshotOf(repository, commit.sha, index, files, folderMap, workspaces.resolve(texts, index, onEvent));
+        const declared = workspaces.resolve(texts, index, onEvent);
+        yield snapshotOf(repository, commit.sha, index, files, folderMap, declared, pins.submodules);
       }
       index++;
     }

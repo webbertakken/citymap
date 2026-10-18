@@ -102,19 +102,6 @@ describe("readHistory", () => {
     expect(snaps[1]?.files.map((f) => f.identity)).toEqual(["a.ts@0", "s1.ts@1", "s2.ts@1"]);
   });
 
-  it("skips submodules and reports them", async () => {
-    const dir = repo();
-    write(dir, "a.ts", "a");
-    commit(dir, "one");
-    const head = git(dir, "rev-parse", "HEAD").trim();
-    git(dir, "update-index", "--add", "--cacheinfo", `160000,${head},vendor/lib`);
-    git(dir, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "sub");
-    const events: HistoryEvent[] = [];
-    const snaps = await collect(dir, events);
-    expect(snaps[1]?.files.map((f) => f.path)).toEqual(["a.ts"]);
-    expect(events).toContainEqual({ code: "history/skip-submodule", detail: { path: "vendor/lib", index: 1 } });
-  });
-
   it("keeps an empty commit as a step, and an edited file's identity", async () => {
     const dir = repo();
     write(dir, "a.ts", "a");
@@ -414,6 +401,8 @@ describe("readHistory with a file history", () => {
     expect(files.of("b.ts@0")).toEqual({ changed: 1000, commits: 1, authors: 1 });
     expect(files.of("nothing@0")).toBeUndefined();
     expect(files.authorsAcross([identity("c.ts"), "b.ts@0", "nothing@0"])).toBe(2);
+    // Files no commit read changed (a submodule's) have no people across them, not none.
+    expect(files.authorsAcross(["nothing@0"])).toBeUndefined();
   });
 });
 

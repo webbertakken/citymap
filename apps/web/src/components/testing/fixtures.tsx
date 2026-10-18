@@ -1,5 +1,14 @@
 // Cities, fetchers and a stub canvas for the viewer's tests.
-import { DEFAULT_TOGGLES, TOGGLES, serialiseCity, type City, type Toggle, type Town } from "@citymap/ground-plan";
+import {
+  DEFAULT_TOGGLES,
+  TOGGLES,
+  separationStates,
+  serialiseCity,
+  type City,
+  type Separation,
+  type Toggle,
+  type Town,
+} from "@citymap/ground-plan";
 import { fireEvent, screen, within } from "@testing-library/react";
 import type { View } from "../../view/view";
 import type { CanvasProps } from "../MapView";
@@ -56,14 +65,27 @@ const variantName = (toggles: readonly Toggle[]) => (toggles.length === 0 ? "non
 const changed = (toggles: readonly Toggle[]) =>
   TOGGLES.filter((t) => toggles.includes(t) !== DEFAULT_TOGGLES.includes(t)).length;
 
-/** A bundled city's index entry: a variant per combination, each with one lot more per toggle set otherwise. */
-export const entryOf = (name: string, lots: number) => ({
+/**
+ * A bundled city's index entry: a variant per combination, each with one lot more per toggle set otherwise; with
+ * recorded separations, one per combination and separation state, named `<toggles>~<separations>`.
+ */
+export const entryOf = (name: string, lots: number, separable?: readonly Separation[], declared = false) => ({
   name,
-  variants: COMBINATIONS.map((toggles) => ({
-    toggles,
-    file: `${name}/${variantName(toggles)}.json`,
-    lots: lots + changed(toggles),
-  })),
+  ...(separable ? { separable } : {}),
+  ...(declared ? { declared: true as const } : {}),
+  variants: COMBINATIONS.flatMap((toggles) =>
+    (separable ? separationStates(separable, declared) : [null]).map((separate) => {
+      const lotCount = lots + changed(toggles) + (separate?.length ?? 0);
+      return separate
+        ? {
+            toggles,
+            separate,
+            file: `${name}/${variantName(toggles)}~${separate.join("-") || "none"}.json`,
+            lots: lotCount,
+          }
+        : { toggles, file: `${name}/${variantName(toggles)}.json`, lots: lotCount };
+    }),
+  ),
 });
 
 /** A city as a variant lays it: one lot more per toggle set otherwise than the defaults, so the status tells them apart. */

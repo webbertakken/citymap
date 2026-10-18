@@ -8,7 +8,8 @@ export interface IndexListing {
   readonly paths: readonly string[];
   /** Each path's size in bytes as git last saw it in the working tree (the stat data's 32 bits), in the same order. */
   readonly sizes: readonly number[];
-  readonly submodules: number;
+  /** The submodules' paths (gitlinks), in the index's order, each once. */
+  readonly gitlinks: readonly string[];
 }
 
 const SIGNATURE = 0x44_49_52_43; // "DIRC"
@@ -40,7 +41,7 @@ export function readIndex(bytes: Uint8Array, idBytes: number): IndexListing {
   const seen = new Set<string>();
   const paths: string[] = [];
   const sizes: number[] = [];
-  let submodules = 0;
+  const gitlinks: string[] = [];
   let previous: Uint8Array = new Uint8Array(0);
   let at = 12;
   /** A byte before the checksum. */
@@ -89,7 +90,7 @@ export function readIndex(bytes: Uint8Array, idBytes: number): IndexListing {
     const text = decoder.decode(path);
     if (seen.has(text)) continue;
     seen.add(text);
-    if (type === SUBMODULE) submodules++;
+    if (type === SUBMODULE) gitlinks.push(text);
     else {
       paths.push(text);
       sizes.push(size);
@@ -109,5 +110,5 @@ export function readIndex(bytes: Uint8Array, idBytes: number): IndexListing {
     at += 8 + size;
   }
   if (at !== end) damaged("trailer", at);
-  return { version, paths, sizes, submodules };
+  return { version, paths, sizes, gitlinks };
 }

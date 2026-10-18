@@ -3,7 +3,7 @@
 // while it is shown, making every town's scene ahead and whatever the viewer asks for, one task per macrotask, so a
 // newer ask is heard between two. Buffers are handed over without a copy; the city crosses as JSON pieces, which the
 // main thread parses one per task, faster than it would receive the city by structured clone and never in one long task.
-import type { Snapshot, Toggle } from "@citymap/ground-plan";
+import type { Separation, Snapshot, Toggle } from "@citymap/ground-plan";
 import { pickBuffers, type ColourBy } from "@citymap/scene";
 import type { ThemeName } from "@citymap/themes";
 import type { Step } from "../load/step";
@@ -29,6 +29,7 @@ export type Request =
       readonly job: "lay";
       readonly snapshot: Snapshot;
       readonly toggles?: readonly Toggle[];
+      readonly separate?: readonly Separation[];
       readonly facts?: LiveFacts;
     })
   | (First & { readonly job: "read"; readonly text: string })
@@ -84,6 +85,7 @@ function open(request: Exclude<Request, Ask>) {
         ? layMade(request.snapshot, {
             ...options,
             ...(request.toggles === undefined ? {} : { toggles: request.toggles }),
+            ...(request.separate === undefined ? {} : { separate: request.separate }),
             ...(request.facts === undefined ? {} : { facts: request.facts }),
           })
         : readMade(request.text, options);

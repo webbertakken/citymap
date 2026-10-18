@@ -23,6 +23,8 @@ export interface Settings {
   readonly features: readonly string[];
   /** The toggles both CLIs lay with (`--toggles=corridor`, `--toggles=` for none); null for the defaults. */
   readonly toggles: string | null;
+  /** The separations both CLIs lay with (`--separate=plugins`, `--separate=` for none); null for the defaults. */
+  readonly separate: string | null;
 }
 
 /** The files a run writes, compared between the CLIs; the log is compared without its timings. */
@@ -51,7 +53,7 @@ const isMode = (value: string): value is Mode => MODES.some((mode) => mode === v
 
 /**
  * `--long` adds next.js, `--repos=a,b` names the repositories, `--modes=state,fold,resume` the modes, `--features=a`
- * the Rust build, `--toggles=a,b` the toggles both CLIs lay with.
+ * the Rust build, `--toggles=a,b` the toggles and `--separate=a,b` the separations both CLIs lay with.
  */
 export function parseSettings(argv: readonly string[]): Settings {
   const value = (name: string) => argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -65,6 +67,7 @@ export function parseSettings(argv: readonly string[]): Settings {
     modes: modes.filter(isMode),
     features: list(value("features")) ?? [],
     toggles: value("toggles") ?? null,
+    separate: value("separate") ?? null,
   };
 }
 
@@ -79,24 +82,31 @@ export const buildArgs = (features: readonly string[]): string[] => [
   ...(features.length > 0 ? ["--features", features.join(",")] : []),
 ];
 
-/** The toggles flag of a run, when the settings name toggles. */
-const togglesFlag = (toggles: string | null) => (toggles === null ? [] : [`--toggles=${toggles}`]);
+/** What both CLIs lay with: the toggles and the separations, each null for the defaults. */
+export type Laying = Pick<Settings, "toggles" | "separate">;
+const DEFAULTS: Laying = { toggles: null, separate: null };
 
-/** The CLI arguments of one run: the clone, its outputs in `out`, the mode's own flag and the toggles. */
-export const cliArgs = (clone: string, out: string, mode: Mode, toggles: string | null = null): string[] => [
+/** The flags of a run's toggles and separations, for those the settings name. */
+const layingFlags = ({ toggles, separate }: Laying) => [
+  ...(toggles === null ? [] : [`--toggles=${toggles}`]),
+  ...(separate === null ? [] : [`--separate=${separate}`]),
+];
+
+/** The CLI arguments of one run: the clone, its outputs in `out`, the mode's own flag, the toggles and separations. */
+export const cliArgs = (clone: string, out: string, mode: Mode, laying: Laying = DEFAULTS): string[] => [
   clone,
   `--out=${out}/city.json`,
   `--svg=${out}/city.svg`,
   mode === "state" || mode === "coverage" ? "--no-history" : "--lock",
-  ...togglesFlag(toggles),
+  ...layingFlags(laying),
 ];
 
 /** The CLI arguments that save a lock part way: a fold to `commit`, writing nothing but the lock. */
-export const saveArgs = (clone: string, commit: string, toggles: string | null = null): string[] => [
+export const saveArgs = (clone: string, commit: string, laying: Laying = DEFAULTS): string[] => [
   clone,
   `--to=${commit}`,
   "--lock",
-  ...togglesFlag(toggles),
+  ...layingFlags(laying),
 ];
 
 /**

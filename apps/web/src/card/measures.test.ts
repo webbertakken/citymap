@@ -84,6 +84,24 @@ describe("measureRows", () => {
     ]);
   });
 
+  it("says a submodule's files carry no history of their own", () => {
+    const inside = building({
+      files: ["vendor/lib/a.ts", "vendor/lib/b.ts"],
+      changed: null,
+      commits: null,
+      authors: null,
+    });
+    const rows = measureRows(inside, { ...cli, submodules: ["vendor/lib"] }, NOW).map((r) => [r.label, r.note]);
+    expect(rows.filter(([label]) => ["Changed", "Commits", "Authors"].includes(label!))).toEqual([
+      ["Changed", "A submodule's own history is not read"],
+      ["Commits", "A submodule's own history is not read"],
+      ["Authors", "A submodule's own history is not read"],
+    ]);
+    // A lot beside the submodule, or one only partly in it, keeps the general reason.
+    const beside = building({ files: ["vendor/library.ts"], changed: null, commits: null, authors: null });
+    expect(measureRows(beside, { ...cli, submodules: ["vendor/lib"] }, NOW)[2]!.note).toBe("No commit read changed it");
+  });
+
   it("says a fold's authors are not known when its .mailmap could not be fetched, and its other history", () => {
     const unmapped: Measures = { ...cli, available: ["size", "tested", "kind", "recency", "churn", "comments"] };
     expect(measureRows(building(), unmapped, NOW).map((r) => [r.label, r.value, r.note])).toEqual([

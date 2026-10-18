@@ -1,10 +1,12 @@
-// A public GitHub repository's single state, read from GitHub's API in the browser: its default branch's tree and its
-// root workspace manifests, as the snapshot the CLI's `--no-history` would lay.
-import { CitymapError, compareKeys, stateSnapshot, type Snapshot } from "@citymap/ground-plan";
+// A public GitHub repository's single state, read from GitHub's API in the browser: its default branch's tree, its
+// submodules' trees at their pins, and its root workspace manifests, as the snapshot the CLI's `--no-history` would lay.
+import { CitymapError, GITLINK_FILE, compareKeys, stateSnapshot, type Snapshot } from "@citymap/ground-plan";
+import { parseGitmodules } from "@citymap/history/gitmodules";
 import { isManifest, patternsOf, resolveWorkspaces, type Patterns } from "@citymap/history/manifests";
 import type { Step } from "../load/step";
 import { API, getJson, type Fetcher } from "./api";
 import type { Repository } from "./repository";
+import { SUBMODULE_DEPTH, githubRepositoryOf, type GitHubSubmoduleUnread } from "./submodules";
 
 export type { Fetcher } from "./api";
 const RAW = "https://raw.githubusercontent.com";
@@ -58,6 +60,14 @@ export interface ReadOptions {
   readonly signal?: AbortSignal;
   /** Hears the read's progress: the commit, folders read of folders known, and the manifests. */
   readonly onStep?: (step: ReadStep) => void;
+  /** Hears each submodule laid as its `.gitlink` file, and why. */
+  readonly onUnread?: (path: string, reason: GitHubSubmoduleUnread) => void;
+}
+
+/** A tree's files and gitlinks, as paths from the repository's root. */
+interface Listing {
+  readonly blobs: readonly string[];
+  readonly gitlinks: readonly { readonly path: string; readonly pin: string }[];
 }
 
 /** A repository read: the snapshot to lay, and each file's size in bytes from the tree (no request more). */
@@ -70,7 +80,7 @@ export interface GitHubRead {
 export async function readRepository(
   fetcher: Fetcher,
   repo: Repository,
-  { signal, onStep = () => {} }: ReadOptions = {},
+  { signal, onStep = () => {}, onUnread = () => {} }: ReadOptions = {},
 ): Promise<GitHubRead> {
   let requests = 0;
   const base = `${API}/repos/${repo.owner}/${repo.name}`;
@@ -79,10 +89,17 @@ export async function readRepository(
       owner: repo.owner,
       name: repo.name,
     });
-  const json = async (url: string): Promise<unknown> => {
+  const json = async (url: string, notFound: () => CitymapError = missing): Promise<unknown> => {
     signal?.throwIfAborted();
     requests++;
-    return (await getJson(fetcher, url, missing, signal)).body;
+    return (await getJson(fetcher, url, notFound, signal)).body;
+  };
+  /** A raw file at a commit, outside the API's hourly limit; null when it cannot be read. */
+  const raw = async (at: Repository, commit: string, path: string): Promise<string | null> => {
+    const response = await fetcher(`${RAW}/${at.owner}/${at.name}/${commit}/${path}`, {
+      signal: signal ?? null,
+    }).catch(() => null);
+    return response?.ok ? response.text() : null;
   };
 
   onStep({ phase: "commit", requests });
@@ -95,7 +112,7 @@ export async function readRepository(
   const read = new Set<string>();
   const tellTree = () => onStep({ phase: "tree", done: read.size, of: known.size, requests });
   const sizes = new Map<string, number>();
-  /** A tree's blobs, as paths from the root, their sizes kept. */
+  /** A tree's blobs, as paths from the root, their sizes kept: a submodule's files under its folder too. */
   const blobsIn = (entries: readonly Entry[], prefix: string) =>
     entries
       .filter((e) => e.type === "blob")
@@ -103,30 +120,80 @@ export async function readRepository(
         if (e.size !== undefined) sizes.set(prefix + e.path, e.size);
         return prefix + e.path;
       });
-  // A whole tree at once; one too large for a single answer is read folder by folder.
-  const files = async (treeSha: string, folder: string): Promise<string[]> => {
+  // A whole tree at once (of the repository at `at`, a tree or a commit); one too large for a single answer is read
+  // folder by folder.
+  const listTree = async (
+    at: string,
+    treeSha: string,
+    folder: string,
+    notFound?: () => CitymapError,
+  ): Promise<Listing> => {
     const prefix = folder === "" ? "" : `${folder}/`;
-    const whole = await json(`${base}/git/trees/${treeSha}?recursive=1`);
+    const listing = (entries: readonly Entry[]): Listing => ({
+      blobs: blobsIn(entries, prefix),
+      gitlinks: entries.filter((e) => e.type === "commit").map((e) => ({ path: prefix + e.path, pin: e.sha })),
+    });
+    const whole = await json(`${at}/git/trees/${treeSha}?recursive=1`, notFound);
     const entries = entriesOf(whole);
     const inside = foldersIn(entries, prefix);
     for (const f of inside) known.add(f);
     if (get(whole, "truncated") !== true) {
       for (const f of [folder, ...inside]) read.add(f);
       tellTree();
-      return blobsIn(entries, prefix);
+      return listing(entries);
     }
     tellTree();
-    const top = entriesOf(await json(`${base}/git/trees/${treeSha}`));
+    const top = entriesOf(await json(`${at}/git/trees/${treeSha}`, notFound));
     for (const f of foldersIn(top, prefix)) known.add(f);
     read.add(folder);
     tellTree();
-    const own = blobsIn(top, prefix);
+    const own = listing(top);
     const subtrees = top.filter((e) => e.type === "tree");
-    const nested = await inBatches(subtrees, (t) => files(t.sha, prefix + t.path));
-    return [...own, ...nested.flat()];
+    const nested = await inBatches(subtrees, (s) => listTree(at, s.sha, prefix + s.path, notFound));
+    return {
+      blobs: [...own.blobs, ...nested.flatMap((n) => n.blobs)],
+      gitlinks: [...own.gitlinks, ...nested.flatMap((n) => n.gitlinks)],
+    };
+  };
+  // Every submodule folder, nested ones included.
+  const submodules: string[] = [];
+  /** The gitlinks of a tree of `owner`'s at `commit`, each read from its own repository at its pin, nested in turn. */
+  const readGitlinks = async (owner: Repository, at: string, root: string, listing: Listing, depth: number) => {
+    if (listing.gitlinks.length === 0) return [];
+    const modules = parseGitmodules((await raw(owner, at, ".gitmodules")) ?? "");
+    const inner = root === "" ? (path: string) => path : (path: string) => path.slice(root.length + 1);
+    const ordered = listing.gitlinks.toSorted((a, b) => compareKeys(a.path, b.path));
+    const lists = await inBatches(ordered, async ({ path, pin }): Promise<string[]> => {
+      submodules.push(path);
+      const unread = (reason: GitHubSubmoduleUnread) => {
+        onUnread(path, reason);
+        return [`${path}/${GITLINK_FILE}`];
+      };
+      if (depth >= SUBMODULE_DEPTH) return unread("depth");
+      const target = githubRepositoryOf(modules.get(inner(path))?.url ?? "", owner);
+      if (typeof target === "string") return unread(target);
+      const gone = new CitymapError("github/not-found", `${target.owner}/${target.name} does not exist or is private`, {
+        owner: target.owner,
+        name: target.name,
+      });
+      // Its folder is known once it is to be read, and read once it is listed or found missing.
+      known.add(path);
+      let found: Listing;
+      try {
+        found = await listTree(`${API}/repos/${target.owner}/${target.name}`, pin, path, () => gone);
+      } catch (error) {
+        if (error !== gone) throw error;
+        read.add(path);
+        tellTree();
+        return unread("not-found");
+      }
+      return [...found.blobs, ...(await readGitlinks(target, pin, path, found, depth + 1))];
+    });
+    return lists.flat();
   };
   tellTree();
-  const paths = (await files(tree, "")).toSorted(compareKeys);
+  const top = await listTree(base, tree, "");
+  const paths = [...top.blobs, ...(await readGitlinks(repo, sha, "", top, 0))].toSorted(compareKeys);
 
   // Root workspace manifests come from raw files, outside the API's hourly limit; one that cannot be read is left out.
   const manifests = paths.filter(isManifest);
@@ -135,10 +202,8 @@ export async function readRepository(
   tellManifests();
   const declared = await Promise.all(
     manifests.map(async (path) => {
-      const response = await fetcher(`${RAW}/${repo.owner}/${repo.name}/${sha}/${path}`, {
-        signal: signal ?? null,
-      }).catch(() => null);
-      const patterns = response?.ok ? patternsOf(path, await response.text()) : null;
+      const body = await raw(repo, sha, path);
+      const patterns = body === null ? null : patternsOf(path, body);
       readManifests++;
       tellManifests();
       return patterns;
@@ -155,5 +220,5 @@ export async function readRepository(
     )
       folders.add(f);
   const members = patterns.length > 0 ? resolveWorkspaces(patterns, folders) : undefined;
-  return { snapshot: stateSnapshot(repo.name, sha, paths, members), sizes };
+  return { snapshot: stateSnapshot(repo.name, sha, paths, members, submodules), sizes };
 }

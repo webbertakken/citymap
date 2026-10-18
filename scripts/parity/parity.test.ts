@@ -27,6 +27,7 @@ describe("parseSettings", () => {
       modes: ["state", "fold", "resume", "checkout", "partial", "coverage"],
       features: [],
       toggles: null,
+      separate: null,
     });
     expect(parseSettings(["--long"]).repos).toEqual([...PARITY, ...LONG]);
   });
@@ -37,10 +38,13 @@ describe("parseSettings", () => {
       modes: ["fold"],
       features: [],
       toggles: null,
+      separate: null,
     });
     expect(parseSettings(["--features=mimalloc"]).features).toEqual(["mimalloc"]);
     expect(parseSettings(["--toggles=quarters"]).toggles).toBe("quarters");
     expect(parseSettings(["--toggles="]).toggles).toBe("");
+    expect(parseSettings(["--separate=plugins,apps"]).separate).toBe("plugins,apps");
+    expect(parseSettings(["--separate="]).separate).toBe("");
   });
 
   it("rejects a mode it does not know", () => {
@@ -69,14 +73,21 @@ describe("cliArgs", () => {
     expect(cliArgs("/c/redux", "/o", "resume").at(-1)).toBe("--lock");
     expect(cliArgs("/c/redux", "/o", "checkout").at(-1)).toBe("--lock");
     expect(cliArgs("/c/redux", "/o", "partial").at(-1)).toBe("--lock");
-    expect(cliArgs("/c/redux", "/o", "fold", "corridor").at(-1)).toBe("--toggles=corridor");
+    expect(cliArgs("/c/redux", "/o", "fold", { toggles: "corridor", separate: null }).at(-1)).toBe(
+      "--toggles=corridor",
+    );
+    expect(cliArgs("/c/redux", "/o", "fold", { toggles: "", separate: "plugins" }).slice(-2)).toEqual([
+      "--toggles=",
+      "--separate=plugins",
+    ]);
   });
 });
 
 describe("saveArgs", () => {
   it("folds to the save point and writes its lock, and nothing else", () => {
     expect(saveArgs("/c/redux", "abc")).toEqual(["/c/redux", "--to=abc", "--lock"]);
-    expect(saveArgs("/c/redux", "abc", "").at(-1)).toBe("--toggles=");
+    expect(saveArgs("/c/redux", "abc", { toggles: "", separate: null }).at(-1)).toBe("--toggles=");
+    expect(saveArgs("/c/redux", "abc", { toggles: null, separate: "" }).at(-1)).toBe("--separate=");
   });
 });
 

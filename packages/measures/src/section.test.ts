@@ -62,12 +62,24 @@ describe("serialiseCityFile", () => {
     const without = text.replace(/"measures":\{.*\},"repository"/, '"repository"');
     expect(without).toBe(serialiseCity(city));
   });
+
+  it("keeps what a city records of its separations, measures or not", () => {
+    const recorded: City = { ...city, declared: true, separable: ["workspaces", "packages"] };
+    expect(serialiseCityFile({ city: recorded, measures: null })).toBe(serialiseCity(recorded));
+    expect(parseCityFile(serialiseCityFile({ city: recorded, measures }))).toEqual({ city: recorded, measures });
+  });
 });
 
 describe("parseCityFile", () => {
   it("round-trips a city with measures, and opens one without them", () => {
     expect(parseCityFile(serialiseCityFile({ city, measures }))).toEqual({ city, measures });
     expect(parseCityFile(serialiseCity(city))).toEqual({ city, measures: null });
+  });
+
+  it("round-trips the submodule folders a city's files lie in, and rejects a list of anything else", () => {
+    const within = { ...measures, submodules: ["vendor/a", "vendor/b"] };
+    expect(parseCityFile(serialiseCityFile({ city, measures: within }))).toEqual({ city, measures: within });
+    expect(bad({ ...measures, submodules: [1] })).toThrow("measures/bad-shape: /measures/submodules/0");
   });
 
   it("rejects text that is not JSON, and a bad city", () => {

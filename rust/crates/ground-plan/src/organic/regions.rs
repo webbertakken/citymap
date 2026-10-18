@@ -236,6 +236,8 @@ mod tests {
             commit: "c".into(),
             highways: vec![],
             towns,
+            separable: None,
+            declared: None,
         }
     }
 

@@ -63,6 +63,22 @@ describe("runLay", () => {
     expect(lines[0]).toBe("history/schedule commits=3 coarse=0 tail=0 from=0 laid=3");
   });
 
+  it("logs how many towns each separation laid apart, and nothing when none did", async () => {
+    const dir = repo(1);
+    for (const path of ["apps/web/a.ts", "apps/api/b.ts", "lib/plugins/p/c.ts"]) {
+      mkdirSync(join(dir, path, ".."), { recursive: true });
+      writeFileSync(join(dir, path), path);
+    }
+    git(dir, "add", "-A");
+    git(dir, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "apart");
+    const { io, lines } = memoryIo();
+    await runLay(command(dir, "--separate=apps,plugins"), io);
+    expect(lines).toContain("fold/separate towns=3 by=apps:2,plugins:1");
+    const none = memoryIo();
+    await runLay(command(dir, "--separate="), none.io);
+    expect(none.lines.some((l) => l.startsWith("fold/separate"))).toBe(false);
+  });
+
   it("writes a lockfile and resumes from it, laying the same city", async () => {
     const dir = repo(3);
     const first = memoryIo();
@@ -299,6 +315,40 @@ describe("runLay's measures", () => {
       commits: 2,
       authors: 2,
     });
+  });
+
+  it.each([
+    ["a fold", []],
+    ["a single state", ["--no-history"]],
+  ])("measures a submodule's files from its own git data, with no history of their own, in %s", async (_, history) => {
+    const lib = mkdtempSync(join(tmpdir(), "citymap-cli-lib-"));
+    dirs.push(lib);
+    git(lib, "init", "-q", "-b", "main");
+    writeFileSync(join(lib, "l.ts"), "// TODO: l\nexport const l = 1;\n");
+    git(lib, "add", "-A");
+    git(lib, "-c", "user.email=lib@x.org", "-c", "user.name=x", "commit", "-q", "-m", "lib");
+    const dir = measured();
+    git(dir, "-c", "protocol.file.allow=always", "submodule", "add", "-q", lib, "vendor/lib");
+    git(dir, "-c", "user.email=ann@x.org", "-c", "user.name=x", "commit", "-q", "-m", "lib");
+    const { io, files, lines } = memoryIo();
+    await runLay(command(dir, "--out=city.json", ...history), io);
+    const text = files["city.json"]!;
+    expect(fileOf(text, "vendor/lib/l.ts")).toEqual({
+      path: "vendor/lib/l.ts",
+      bytes: 31,
+      lines: 2,
+      comments: 1,
+      todos: 1,
+    });
+    // The superproject's commits never changed it: no people across its lot, rather than none.
+    const lot = Object.values(parseCityFile(text).measures!.lots)
+      .flatMap((town) => Object.values(town))
+      .find((l) => l.files.some((f) => f.path === "vendor/lib/l.ts"));
+    expect(lot?.authors).toBeUndefined();
+    expect(parseCityFile(text).measures!.submodules).toEqual(["vendor/lib"]);
+    expect(lines.find((l) => l.startsWith("measures/done"))).toMatch(
+      /^measures\/done source=cli size=lines tested=name lots=\d+ files=\d+ read=8 unread=0$/,
+    );
   });
 
   it("propagates a failure that is not a report's", async () => {

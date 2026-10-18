@@ -20,7 +20,7 @@ describe("parseCommandLine", () => {
       loops: true,
       voronoi: false,
       history: true,
-      split: ["apps"],
+      separate: ["workspaces", "submodules", "apps"],
       toggles: ["corridor", "tiers"],
       measures: true,
       coverage: [],
@@ -44,7 +44,7 @@ describe("parseCommandLine", () => {
       "--no-warp",
       "--no-loops",
       "--voronoi",
-      "--split=apps,packages",
+      "--separate=plugins,apps,plugins",
       "--toggles=tiers,archipelago",
       "--coverage=a.info",
       "--coverage=b.xml",
@@ -63,14 +63,20 @@ describe("parseCommandLine", () => {
       warp: false,
       loops: false,
       voronoi: true,
-      split: ["apps", "packages"],
+      separate: ["apps", "plugins"],
       toggles: ["archipelago", "tiers"],
       coverage: ["a.info", "b.xml"],
     });
     expect(parseCommandLine(["repo", "--no-measures"])).toMatchObject({ measures: false, coverage: [] });
     expect(parseCommandLine(["repo", "--toggles="])).toMatchObject({ toggles: [] });
-    expect(parseCommandLine(["repo", "--split="])).toMatchObject({ split: [] });
+    expect(parseCommandLine(["repo", "--separate="])).toMatchObject({ separate: [] });
     expect(parseCommandLine(["repo", "--no-history"])).toMatchObject({ history: false });
+  });
+
+  it("rejects a separation it does not know", () => {
+    expect(() => parseCommandLine(["repo", "--separate=apps,split"])).toThrow(
+      "--separate takes workspaces, submodules, apps, packages, libs, crates, services, modules, extensions and plugins, not split",
+    );
   });
 
   it("rejects a toggle it does not know", () => {

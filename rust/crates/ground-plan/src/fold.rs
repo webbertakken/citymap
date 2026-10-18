@@ -41,6 +41,7 @@ mod parity {
     use crate::json::canonical_json;
     use crate::land_use::default_land_uses;
     use crate::plat::serialise_plat;
+    use crate::region::separate::DEFAULT_SEPARATIONS;
     use crate::snapshot::FileEntry;
     use crate::toggles::{DEFAULT_TOGGLES, TOGGLES, Toggle};
     use crate::town::context::{Jog, Order};
@@ -77,6 +78,7 @@ mod parity {
                         .collect::<HashMap<_, _>>(),
                 ),
                 workspaces: None,
+                submodules: None,
             })
             .collect()
     }
@@ -103,7 +105,7 @@ mod parity {
             jog: Jog::TopLevel,
             warp: true,
             loops: true,
-            split: vec!["apps".into()],
+            separate: DEFAULT_SEPARATIONS.to_vec(),
             toggles: toggles.to_vec(),
         };
         let mut state = initial_state(&options, None, cache);
@@ -151,6 +153,7 @@ mod resume {
     use crate::lock::{Lockfile, parse_lock, serialise_lock};
     use crate::plat::serialise_plat;
     use crate::region::compose::lay_city;
+    use crate::region::separate::DEFAULT_SEPARATIONS;
     use crate::snapshot::FileEntry;
     use crate::toggles::DEFAULT_TOGGLES;
     use crate::town::context::{Jog, Order};
@@ -215,6 +218,7 @@ mod resume {
                 files: Arc::new(files),
                 folder_first_seen: Arc::new(HashMap::new()),
                 workspaces: None,
+                submodules: None,
             });
         }
         out
@@ -228,7 +232,7 @@ mod resume {
             jog: Jog::TopLevel,
             warp: false,
             loops: true,
-            split: vec!["apps".into()],
+            separate: DEFAULT_SEPARATIONS.to_vec(),
             toggles: DEFAULT_TOGGLES.to_vec(),
         }
     }
