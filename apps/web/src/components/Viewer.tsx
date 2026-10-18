@@ -667,14 +667,17 @@ export function Viewer({
           toggles={toggles}
           fixed={origin?.kind === "file"}
           onToggle={toggle}
-          {...(explore && shown && scene && drawnTable
+          {...(explore
             ? {
                 walk: {
                   walking: walking !== null,
-                  onWalk: () =>
-                    walking
-                      ? leaveWalk(null)
-                      : void startWalk(explore.raise, { city: shown, scene, table: drawnTable.table }),
+                  onWalk:
+                    shown && scene && drawnTable
+                      ? () =>
+                          walking
+                            ? leaveWalk(null)
+                            : void startWalk(explore.raise, { city: shown, scene, table: drawnTable.table })
+                      : null,
                 },
               }
             : {})}

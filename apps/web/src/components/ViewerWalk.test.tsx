@@ -149,6 +149,26 @@ describe("Viewer walking", () => {
     expect(raise).not.toHaveBeenCalled();
   });
 
+  it("keeps the Walk button in its place, disabled, until a city is drawn to walk in", async () => {
+    let arrive: ((response: Response) => void) | undefined;
+    const slow: Fetcher = async (url) =>
+      url.startsWith("/cities/alpha/")
+        ? new Promise<Response>((done) => (arrive = done))
+        : new Response(roads[url] ?? "", { status: url in roads ? 200 : 404 });
+    render(
+      <Viewer
+        Canvas={StubCanvas}
+        explore={{ Canvas: ExploreStub, engine: "Stand-in", raise: async () => openWalls().walls }}
+        fetcher={slow}
+      />,
+    );
+    await waitFor(() => expect(arrive).toBeDefined());
+    expect(walkButton()).toHaveProperty("disabled", true);
+    arrive!(new Response(roads["/cities/alpha/corridor-tiers.json"]));
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    expect(walkButton()).toHaveProperty("disabled", false);
+  });
+
   it("offers no walk without the ground-level view", async () => {
     render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
     await screen.findByRole("heading", { level: 1, name: "alpha" });

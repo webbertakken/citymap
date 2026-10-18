@@ -27,8 +27,11 @@ export interface ViewControlsProps {
   readonly toggles: readonly Toggle[];
   readonly fixed: boolean;
   readonly onToggle: (toggle: Toggle, on: boolean) => void;
-  /** Walking in the city: whether a walk is under way, and going down into the city or back to the map. */
-  readonly walk?: { readonly walking: boolean; readonly onWalk: () => void };
+  /**
+   * Walking in the city: whether a walk is under way, and going down into the city or back to the map; null while no
+   * city is drawn to walk in (the button stays, disabled, so the row never shifts).
+   */
+  readonly walk?: { readonly walking: boolean; readonly onWalk: (() => void) | null };
 }
 
 /** Top right: the view switch, walking, the map's theme, the layout toggles, and More (the bundled cities, a city file, a local
@@ -65,7 +68,8 @@ export function ViewControls(props: ViewControlsProps) {
           aria-label="Walk"
           title="Walk: go down into the city on foot"
           aria-pressed={props.walk.walking}
-          onClick={props.walk.onWalk}
+          disabled={props.walk.onWalk === null}
+          onClick={props.walk.onWalk ?? undefined}
         >
           <Footprints size={20} aria-hidden="true" />
         </button>
