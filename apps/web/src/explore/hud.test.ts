@@ -2,7 +2,7 @@ import { GROUND } from "@citymap/world";
 import { describe, expect, it } from "vitest";
 import { resting } from "./bicycle";
 import { started, parkedHeli } from "./helicopter";
-import { hudOfRide } from "./hud";
+import { OPEN, hudOfRide } from "./hud";
 import { parkedMoto } from "./motorbike";
 import { standing } from "./vehicles";
 
@@ -68,7 +68,7 @@ describe("the HUD of a ride", () => {
       ...standing("h", "helicopter", { x: 0, y: GROUND + 42.4, z: 0 }, 0),
       heli: { ...started(parkedHeli()), grounded: false, rotor: 0.874, velocity: { x: 10, y: -2.46, z: 0 } },
     };
-    expect(hudOfRide(flying, true, GROUND + 20)).toEqual({
+    expect(hudOfRide(flying, true, { ...OPEN, under: GROUND + 20 })).toEqual({
       label: "Altitude, climb, speed and rotor",
       rows: [
         ["Altitude", "42 m"],
@@ -79,19 +79,34 @@ describe("the HUD of a ride", () => {
       ],
       foot: null,
       fallen: false,
-      flight: { over: "roof", landed: false, heading: 0, room: true },
+      flight: { over: "roof", landed: false, heading: 0, room: true, landing: null },
     });
     // A taller building within the rotor's reach: no room to land.
-    expect(hudOfRide(flying, true, GROUND + 20, false).rows[4]).toEqual(["Below", "Roof, no room"]);
-    expect(hudOfRide(flying, true, GROUND, false).rows[4]).toEqual(["Below", "Street, no room"]);
-    expect(hudOfRide(flying, true, GROUND, false).flight?.room).toBe(false);
+    expect(hudOfRide(flying, true, { ...OPEN, under: GROUND + 20, room: false }).rows[4]).toEqual([
+      "Below",
+      "Roof, no room",
+    ]);
+    expect(hudOfRide(flying, true, { ...OPEN, room: false }).rows[4]).toEqual(["Below", "Street, no room"]);
+    expect(hudOfRide(flying, true, { ...OPEN, room: false }).flight?.room).toBe(false);
     const climbing = { ...flying, heli: { ...flying.heli, velocity: { x: 0, y: 3, z: 0 } } };
-    expect(hudOfRide(climbing, true, GROUND).rows[1]).toEqual(["Climb", "+3.0 m/s"]);
-    expect(hudOfRide(climbing, true, GROUND).flight).toEqual({ over: "street", landed: false, heading: 0, room: true });
+    expect(hudOfRide(climbing, true, OPEN).rows[1]).toEqual(["Climb", "+3.0 m/s"]);
+    expect(hudOfRide(climbing, true, OPEN).flight).toEqual({
+      over: "street",
+      landed: false,
+      heading: 0,
+      room: true,
+      landing: null,
+    });
+    // The nearest roof with room 30 m ahead and 40 m to the left (north, facing east): 50 m, 53° to the left.
+    const marked = { lot: 1, at: { x: 30, y: 10, z: -40 }, distance: 50 };
+    expect(hudOfRide(climbing, true, { ...OPEN, landing: marked }).flight?.landing).toEqual({
+      distance: 50,
+      bearing: 53,
+    });
     expect(hudOfRide({ ...climbing, heading: -Math.PI / 2 }, true).flight?.heading).toBe(270);
     expect(hudOfRide({ ...climbing, heading: 4 * Math.PI + 0.5 }, true).flight?.heading).toBe(29);
     const landed = { ...standing("h", "helicopter", { x: 0, y: GROUND, z: 0 }, 0) };
-    expect(hudOfRide(landed, true, GROUND)).toMatchObject({ flight: { over: "street", landed: true } });
-    expect(hudOfRide(landed, true, GROUND).rows[1]).toEqual(["Climb", "0.0 m/s"]);
+    expect(hudOfRide(landed, true, OPEN)).toMatchObject({ flight: { over: "street", landed: true } });
+    expect(hudOfRide(landed, true, OPEN).rows[1]).toEqual(["Climb", "0.0 m/s"]);
   });
 });

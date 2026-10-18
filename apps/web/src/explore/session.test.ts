@@ -527,6 +527,16 @@ describe("the helicopter", () => {
     expect(advanceSession(aloft, useKey(), 0, flat).riding).toBe("helicopter");
   });
 
+  it("sets itself down on a marked roof's middle as it sinks near it", () => {
+    const aloft = fly(boarded(), 10, "Space");
+    const pad = { x: 2, y: GROUND, z: 1.5 };
+    let landing = aloft;
+    for (let i = 0; i < 60 * 15; i++) landing = advanceSession(landing, pressing("KeyC"), 1 / 60, flat, null, pad);
+    const down = asHelicopter(ridden(landing));
+    expect(down.heli.grounded).toBe(true);
+    expect(Math.hypot(down.feet.x - pad.x, down.feet.z - pad.z)).toBeLessThan(0.1);
+  });
+
   it("keeps the camera behind it as it turns on the spot", () => {
     const aloft = fly(boarded(), 10, "Space");
     const turned = fly(aloft, 1, "KeyD");

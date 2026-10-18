@@ -488,7 +488,10 @@ test("lays out the touch controls on foot, flying and on the bicycle, nothing ov
   await laidOut(page, "on the bicycle", true, info.outputPath("bicycle.png"));
 });
 
-/** The helicopter's HUD now: its speed, altitude and rotor, what lies under it, and whether it stands on it. */
+/**
+ * The helicopter's HUD now: its speed, altitude and rotor, whether it stands on what lies below, and the nearest roof
+ * marked to land on (metres off, and degrees off the nose, positive to the left), or null.
+ */
 const gauges = (page: Page) =>
   page.evaluate(() => {
     const hud = document.querySelector<HTMLElement>(".explore-hud");
@@ -499,27 +502,22 @@ const gauges = (page: Page) =>
           ?.querySelector("dd")
           ?.textContent?.replace(/[^\d.]/g, "") ?? Number.NaN,
       );
+    const [distance, bearing] = (hud?.dataset.landing ?? "").split(" ").map(Number);
     return {
       speed: value("Speed"),
       altitude: value("Altitude"),
       rotor: value("Rotor"),
-      over: hud?.dataset.over ?? null,
       landed: hud?.dataset.landed === "true",
-      heading: Number(hud?.dataset.heading ?? Number.NaN),
-      room: hud?.dataset.room === "true",
+      landing:
+        distance === undefined || bearing === undefined || hud?.dataset.landing === undefined
+          ? null
+          : { distance, bearing },
     };
   });
+type Gauges = Awaited<ReturnType<typeof gauges>>;
 
-/** Over a roof its rotor has room to land on. */
-const landable = (now: { over: string | null; room: boolean }) => now.over === "roof" && now.room;
-
-/** Holds keys, a couple of frames at a time, until the HUD says what is wanted; at most `checks` looks. */
-async function flyUntil(
-  page: Page,
-  keys: readonly string[],
-  wanted: (now: Awaited<ReturnType<typeof gauges>>) => boolean,
-  checks: number,
-) {
+/** Holds keys, two frames at a time, until the HUD says what is wanted; at most `checks` looks. */
+async function flyUntil(page: Page, keys: readonly string[], wanted: (now: Gauges) => boolean, checks: number) {
   const until = async (left: number): Promise<void> => {
     if (left <= 0 || wanted(await gauges(page))) return;
     await frames(page, 2);
@@ -530,80 +528,69 @@ async function flyUntil(
   await Promise.all(keys.map((key) => page.keyboard.up(key)));
 }
 
-/** The shortest turn from the HUD's heading to a bearing, in degrees: positive anticlockwise from above (A). */
-const turnTo = (bearing: number, heading: number) => ((((bearing - heading + 180) % 360) + 360) % 360) - 180;
+/** Within this many metres of a marked roof's middle, sinking sets it down there: well inside the landing assist's 10 m. */
+const OVER_THE_MARK = 6;
+/** Letting go slows it at about this, in m/s² (the hover assist's 2, less its lag): the approach never outruns it. */
+const LETTING_GO = 1.5;
+/** The fastest it approaches at, km/h; and the slowest, so it never stalls short. */
+const APPROACH_MOST = 30;
+const APPROACH_LEAST = 5;
+/** Arrived: this slow, within `OVER_THE_MARK`. */
+const ARRIVED = 10;
 
-/**
- * The bearing, as the HUD gives headings (degrees anticlockwise from +x, z south), from where the helicopter stands to
- * the middle of the nearest built lot of the city shown: a roof to fly to, whatever the walk landed by.
- */
-async function roofBearing(pad: { x: number; z: number }) {
-  const middles = (await lotsOfTakken()).map(({ pts }) => ({
-    x: (pts.reduce((sum, p) => sum + p.x, 0) / pts.length) * 10,
-    z: (pts.reduce((sum, p) => sum + p.z, 0) / pts.length) * 10,
-  }));
-  const nearest = middles.toSorted(
-    (a, b) => Math.hypot(a.x - pad.x, a.z - pad.z) - Math.hypot(b.x - pad.x, b.z - pad.z),
-  )[0]!;
-  return ((((Math.atan2(-(nearest.z - pad.z), nearest.x - pad.x) * 180) / Math.PI) % 360) + 360) % 360;
-}
-
-/** Turns on the spot (A or D) until the heading is within a few degrees of a bearing. */
-async function face(page: Page, bearing: number) {
-  const error = turnTo(bearing, (await gauges(page)).heading);
-  await flyUntil(page, [error > 0 ? "KeyA" : "KeyD"], (now) => Math.abs(turnTo(bearing, now.heading)) <= 10, 3000);
-  await flyUntil(page, [], (now) => now.speed <= 2, 2000);
+/** From a hover, turns on the spot (A or D) until the nearest marked roof is within a few degrees of the nose. */
+async function faceTheMark(page: Page) {
+  await flyUntil(page, [], (now) => now.speed <= 2, 1000);
+  const bearing = (await gauges(page)).landing!.bearing;
+  await flyUntil(page, [bearing > 0 ? "KeyA" : "KeyD"], (now) => Math.abs(now.landing!.bearing) <= 8, 2000);
+  await flyUntil(page, [], (now) => now.speed <= 2, 1000);
 }
 
 /**
- * Along a bearing at about a speed (W ahead, S backwards, its nose on the bearing) until over a roof with room to land,
- * its heading kept to the bearing by A and D as it goes; then let go until it nearly hovers. Held near a speed, not for
- * a time, the overshoot stays short however slow the frames.
+ * Over the nearest marked roof: faced, then flown at, slower the nearer it is, its nose kept on it from afar, until
+ * within `OVER_THE_MARK`; whenever it slips off the nose, let go to a hover and faced afresh. W is the only key that
+ * flies it along: the HUD's speed has no sign, so slowing is always letting go (the hover assist stops any drift).
+ * Let go there, for sinking to set it down.
  */
-async function homeIn(page: Page, bearing: number, kmh: number, key: "KeyW" | "KeyS" = "KeyW") {
-  const keys = { KeyW: false, KeyS: false, KeyA: false, KeyD: false };
+async function overTheMark(page: Page) {
+  await faceTheMark(page);
+  const keys = { KeyW: false, KeyA: false, KeyD: false };
   const press = async (code: keyof typeof keys, want: boolean) => {
     if (keys[code] !== want) await (want ? page.keyboard.down(code) : page.keyboard.up(code));
     keys[code] = want;
   };
+  const letGo = () => Promise.all((["KeyW", "KeyA", "KeyD"] as const).map((held) => press(held, false)));
   const on = async (left: number): Promise<void> => {
-    const now = await gauges(page);
-    if (left <= 0 || landable(now)) return;
-    const error = turnTo(bearing, now.heading);
-    await press(key, now.speed < kmh);
-    await press("KeyA", error > 4);
-    await press("KeyD", error < -4);
-    await frames(page, 2);
+    const { landing, speed } = await gauges(page);
+    expect(landing, "a marked roof within reach").not.toBeNull();
+    if (left <= 0 || (landing!.distance <= OVER_THE_MARK && speed <= ARRIVED)) return;
+    if (Math.abs(landing!.bearing) > 60) {
+      // Off the nose (overshot, or drifted): let go to a hover and face it again.
+      await letGo();
+      await faceTheMark(page);
+    } else {
+      // As fast as letting go can stop it in the distance left, short of the mark by a few metres.
+      const stoppable = Math.sqrt(2 * LETTING_GO * Math.max(0, landing!.distance - 4)) * 3.6;
+      const kmh = Math.max(APPROACH_LEAST, Math.min(APPROACH_MOST, stoppable));
+      await press("KeyW", speed < kmh);
+      // Steered only from afar: close by, a metre's drift swings the bearing wildly.
+      await press("KeyA", landing!.distance > 8 && landing!.bearing > 4);
+      await press("KeyD", landing!.distance > 8 && landing!.bearing < -4);
+      await frames(page, 2);
+    }
     await on(left - 1);
   };
   await on(3000);
-  await Promise.all((["KeyW", "KeyS", "KeyA", "KeyD"] as const).map((held) => press(held, false)));
-  await flyUntil(page, [], (now) => now.speed <= 2, 2000);
+  await letGo();
+  const over = await gauges(page);
+  expect(over.landing!.distance, JSON.stringify(over)).toBeLessThanOrEqual(OVER_THE_MARK);
 }
 
-/**
- * Over the nearest roof: turned to it and homed in on, then back and forth along the line, slower each pass, until it
- * hovers over a roof (each pass ends nearly still, so an overshoot is seen before it sinks).
- */
-async function overARoof(page: Page, bearing: number) {
-  await test.step("turns to the nearest lot", () => face(page, bearing));
-  await test.step("homes in on it", () => homeIn(page, bearing, 20));
-  const pass = async (kmhs: readonly number[], i: number): Promise<void> => {
-    const kmh = kmhs[i];
-    if (kmh === undefined || landable(await gauges(page))) return;
-    // It overshot as it slowed: back the other way, slower, its nose kept on the bearing (S flies backwards).
-    await homeIn(page, bearing, kmh, i % 2 === 0 ? "KeyS" : "KeyW");
-    await pass(kmhs, i + 1);
-  };
-  await test.step("settles over a roof with room", () => pass([8, 5, 4, 3, 3, 3, 3, 3, 3, 3], 0));
-}
-
-test("flies the helicopter: in, spun up, lifted, flown onto a roof, landed there, and out", async ({
+test("flies the helicopter: in, spun up, lifted, onto a marked roof, set down there, and out", async ({
   page,
   isMobile,
 }, info) => {
-  // A flight holds a spin-up, a climb, an approach and a descent: three rides' time on a slow runner.
-  test.setTimeout(RIDING_MS * 3);
+  test.setTimeout(RIDING_MS * 2);
   const lines = logOf(page);
   await walkDown(page, isMobile);
   // It stands straight on along the landing's road: a run reaches its tail.
@@ -623,17 +610,18 @@ test("flies the helicopter: in, spun up, lifted, flown onto a roof, landed there
     await expect(page.getByRole("button", { name: "Down", exact: true })).toBeVisible();
   }
   await laidOut(page, "in the helicopter", isMobile, info.outputPath("helicopter.png"));
-  await test.step("lifts off and climbs", () => flyUntil(page, ["Space"], (now) => now.altitude >= 40, 3000));
+  await test.step("lifts off and climbs", () => flyUntil(page, ["Space"], (now) => now.altitude >= 30, 3000));
   expect(lines).toContain("explore/heli-lifted");
   await expect(page.getByRole("button", { name: "Land to get out of the helicopter" })).toBeDisabled();
+  // A roof with room is marked near it.
+  await expect(hud).toHaveAttribute("data-landing", /^\d+ -?\d+$/);
   if (!isMobile) await page.screenshot({ path: info.outputPath("flying.png") });
-  const [, x, z] = /x=(-?[\d.]+) z=(-?[\d.]+)/.exec(lines.find((l) => l.startsWith("explore/helipad"))!)!;
-  await overARoof(page, await roofBearing({ x: Number(x), z: Number(z) }));
-  const hovering = await gauges(page);
-  expect(landable(hovering), JSON.stringify(hovering)).toBe(true);
-  await test.step("sinks onto the roof", () => flyUntil(page, ["ShiftLeft"], (now) => now.landed, 3000));
+  await test.step("flies over the nearest marked roof", () => overTheMark(page));
+  await test.step("sinks onto it, set down on its middle", () =>
+    flyUntil(page, ["ShiftLeft"], (now) => now.landed, 3000));
   await expect(hud).toHaveAttribute("data-landed", "true");
   expect(lines.find((l) => l.startsWith("explore/heli-landed"))).toMatch(/^explore\/heli-landed on=roof y=\d+\.\d$/);
+  await expect(hud).toHaveAttribute("data-landing", /^0 /);
   if (!isMobile) await page.screenshot({ path: info.outputPath("on-the-roof.png") });
   const out = page.getByRole("button", { name: "Get out of the helicopter", exact: true });
   await expect(out).toBeVisible();

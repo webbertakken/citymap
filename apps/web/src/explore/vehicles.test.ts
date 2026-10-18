@@ -5,6 +5,7 @@ import { FALL_LEAN, HARD_HIT as THROWN_AT, START_GEAR, resting } from "./bicycle
 import { BODY_RADIUS, HARD_HIT, MAST, ROTOR_RADIUS, started, thrustDirection, type Heli } from "./helicopter";
 import type { Landing } from "./landing";
 import { parkedMoto } from "./motorbike";
+import { ROOFTOP_MARGIN } from "./rooftops";
 import {
   BUMP,
   CAR,
@@ -555,6 +556,18 @@ describe("stepVehicle on the helicopter", () => {
     // The taller one's own roof has nothing higher beside it.
     expect(roomToLand({ x: 22, y: 30, z: 10 }, 14, walls)).toBe(true);
     expect(roomToLand({ x: -3, y: 30, z: 10 }, GROUND, walls)).toBe(false);
+  });
+
+  it("sets itself down on a marked roof's middle, sinking within reach of it", () => {
+    const walls = cityWalls([tower(0, 0, 20, 20, 10)]);
+    const pad = { x: 10, y: 10, z: 10 };
+    let heli: Vehicle = chopper(8, 25, 12);
+    for (let i = 0; i < 120 * 20; i++) heli = stepVehicle(heli, { ...NO_INTENTS, sink: true }, 1 / 120, walls, pad);
+    const down = asHelicopter(heli);
+    expect(down.heli.grounded).toBe(true);
+    expect(down.feet.y).toBe(10);
+    // Well inside the room its marking guarantees round the middle.
+    expect(Math.hypot(down.feet.x - pad.x, down.feet.z - pad.z)).toBeLessThan(ROOFTOP_MARGIN / 2);
   });
 
   it("feels the ground below only within its reach", () => {
