@@ -1,7 +1,7 @@
 "use client";
 import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } from "@citymap/ground-plan";
 import type { Measures } from "@citymap/measures";
-import { buildScene, folderHit, pick, pickIndex, type ColourBy, type Hit, type Scene } from "@citymap/scene";
+import { buildScene, folderHit, onlyTown, pick, pickIndex, type ColourBy, type Hit, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
 import type { Footprint, Walls } from "@citymap/world";
 import {
@@ -207,7 +207,11 @@ export function Viewer({
   const wholeIndex = useMemo(() => (city ? pickIndex(city) : null), [city]);
   const town = useMemo(() => (city && focus !== null ? focusOn(city, focus) : null), [city, focus]);
   const townScene = useMemo(() => (town ? buildScene(town, THEMES[theme]) : null), [town, theme]);
-  const townIndex = useMemo(() => (town ? pickIndex(town) : null), [town]);
+  // A town shown alone picks from the whole city's index, restricted to that town: nothing is built on a drill.
+  const townIndex = useMemo(
+    () => (wholeIndex && focus !== null ? onlyTown(wholeIndex, focus) : null),
+    [wholeIndex, focus],
+  );
   const shown = town ?? city;
   const scene = townScene ?? wholeScene;
   const index = townIndex ?? wholeIndex;

@@ -24,10 +24,10 @@ live, Loading, Web experience).
 
 ## Phase 3: the pick index as flat arrays
 
-- [ ] `pickGrid(city)` and `pickFrom(city, grid)`: typed arrays and a dense grid; `pickIndex` is the two together; the
+- [x] `pickGrid(city)` and `pickFrom(city, grid)`: typed arrays and a dense grid; `pickIndex` is the two together; the
       existing tests pass unchanged (tests first for the flat form, its buffers and a town's view)
-- [ ] Same answers: every point of a fine raster over every bundled city and linux picks the same hit as before
-- [ ] A town shown alone picks from the whole city's index, restricted to that town (no index built on a drill)
+- [x] Same answers: every point of a fine raster over every bundled city and linux picks the same hit as before
+- [x] A town shown alone picks from the whole city's index, restricted to that town (no index built on a drill)
 
 ## Phase 4: every opening through the worker
 

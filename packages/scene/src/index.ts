@@ -36,5 +36,17 @@ export {
   type ColourBy,
   type RampMeasure,
 } from "./colour-by";
-export { folderHit, pick, pickIndex, townRoot, type Hit, type PickIndex } from "./pick";
+export {
+  folderHit,
+  onlyTown,
+  pick,
+  pickBuffers,
+  pickFrom,
+  pickGrid,
+  pickIndex,
+  townRoot,
+  type Hit,
+  type PickGrid,
+  type PickIndex,
+} from "./pick";
 export { folderOf, parseAddress, type Address } from "./address";
