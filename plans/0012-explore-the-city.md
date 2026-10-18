@@ -121,7 +121,8 @@ The showpiece: a bicycle that rides like one.
 - [x] Bell, HUD (speed, gear, cadence), controls on keyboard, touch and gamepad
 - [x] E2E: ride, shift, brake, stop with a foot down; gate, commit, local build
 - [x] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
-- [ ] Webber tests on desktop and phone; feedback folded in
+- [x] Webber tests on desktop and phone; feedback folded in (the rider on the grips, saddle and pedals; the kickstand;
+      true wheels: PR #63)
 
 ## Phase 6: motorbike and car
 
@@ -140,7 +141,8 @@ The showpiece: a bicycle that rides like one.
       step, brought forward); the walk no longer dimmed while the loading card holds
 - [x] E2E; gate, commit, local build
 - [x] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
-- [ ] Webber tests on desktop and phone (the 30 fps on a real phone's GPU too); feedback folded in
+- [x] Webber tests on desktop and phone (the 30 fps on a real phone's GPU too); feedback folded in (the rider on the
+      grips, seat and pegs: PR #63)
 
 ## Phase 7: helicopter
 
