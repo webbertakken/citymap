@@ -289,9 +289,6 @@ test("flies the camera freely with F, over the city, and lands it on the walker"
 const promptNow = (page: Page) =>
   page.evaluate(() => document.querySelector(".explore-use")?.textContent?.replace(/^E/, "") ?? null);
 
-/** Shift held with the walking keys runs: the car is reached in a third of the frames. */
-const RUN = "ShiftLeft";
-
 /** Keys held until the prompt says what is wanted, looked for every two frames, at most `checks` times. */
 async function holdForPrompt(page: Page, keys: readonly string[], wanted: string, checks: number) {
   const until = async (left: number): Promise<void> => {
@@ -304,25 +301,20 @@ async function holdForPrompt(page: Page, keys: readonly string[], wanted: string
   await Promise.all(keys.map((key) => page.keyboard.up(key)));
 }
 
-/** On foot from the landing to the motorbike, 7 m back along the street at the near kerb: walked, so the diagonal
- * never runs past its reach between two looks. */
+/**
+ * Routes that hold by geometry, not by time (a frame is anything from 17 to 100 ms of the walk): to the motorbike, 6 m
+ * back at the near kerb, the back-right diagonal passes 0.35 m from its outline; to the car, 10 m ahead at the far kerb,
+ * the forward-left diagonal from beside the bicycle runs into its side.
+ */
 async function toTheMotorbike(page: Page) {
-  await holdForPrompt(page, ["KeyS", "KeyD"], "Get on the motorbike", 600);
+  await holdForPrompt(page, ["KeyS", "KeyD"], "Get on the motorbike", 900);
   return page.getByRole("button", { name: "Get on the motorbike", exact: true });
 }
 
-/** On foot from the landing to the car across the street, 10 m ahead: up the street a little at a time, then across. */
 async function toTheCar(page: Page) {
-  const wanted = "Get in the car";
-  const across = async (tries: number): Promise<void> => {
-    if (tries <= 0 || (await promptNow(page)) === wanted) return;
-    await holdForPrompt(page, [RUN, "KeyW"], wanted, 3);
-    await holdForPrompt(page, [RUN, "KeyA"], wanted, 10);
-    if ((await promptNow(page)) !== wanted) await holdForPrompt(page, [RUN, "KeyD"], wanted, 10);
-    await across(tries - 1);
-  };
-  await across(16);
-  return page.getByRole("button", { name: wanted, exact: true });
+  await toTheBicycle(page);
+  await holdForPrompt(page, ["KeyW", "KeyA"], "Get in the car", 900);
+  return page.getByRole("button", { name: "Get in the car", exact: true });
 }
 
 /** Every visible control box of the walk and the map's top row, and any two that overlap or leave the screen. */

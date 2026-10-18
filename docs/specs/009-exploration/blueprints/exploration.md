@@ -193,7 +193,7 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
   `atan(turn · wheelbase / v)` held to `MAX_STEER` 0.6.
 - The landing's three: `PARKING.bicycle` 4 m ahead, 0.8 m in from the kerb on the right, facing along the road;
   `PARKING.car` 10 m ahead and 1.4 m in from the far kerb (`side` −1), facing back (`faces` −1), so the bicycle's line
-  along its kerb is clear; `PARKING.motorbike` 7 m behind, 0.9 m in from the near kerb, facing back, out of both lines;
+  along its kerb is clear; `PARKING.motorbike` 6 m behind, 0.9 m in from the near kerb, facing back, out of both lines;
   moved out from the road's middle by the walls; ids `bicycle`, `car` and `motorbike`.
 - Gears in a frame: riding a bicycle (not flying), `Controls.gears` shifts it, once per frame, before the steps.
 
