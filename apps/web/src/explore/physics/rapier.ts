@@ -45,7 +45,8 @@ export async function rapierWalls(footprints: readonly Footprint[], options: Wal
   const engineMs = Math.round(performance.now() - started);
   const world = new rapier.World({ x: 0, y: 0, z: 0 });
   try {
-    world.createCollider(rapier.ColliderDesc.cuboid(1e5, 1, 1e5).setTranslation(0, GROUND - 1, 0));
+    // No ground collider: a box a city wide is beyond Rapier's 32-bit precision, and a walker on it sinks and bobs by
+    // centimetres. The flat ground is held here instead, as the bespoke walls hold it; Rapier has buildings and roofs.
     // Slice by slice, letting the page paint between them; each says how many it could not raise.
     const raiseFrom = async (from: number): Promise<number> => {
       if (from >= footprints.length) return 0;
@@ -88,6 +89,16 @@ function raise(rapier: Rapier, world: InstanceType<Rapier["World"]>, footprint: 
   return true;
 }
 
+/**
+ * Feet after a move, held to the flat ground: never below it, and kept on it over a small drop going down, as a walker
+ * keeps to a pavement; rising, they leave it.
+ */
+export function onGround(moved: Vec3, from: Vec3, delta: Vec3): { readonly feet: Vec3; readonly grounded: boolean } {
+  const near = delta.y <= 0 && moved.y - GROUND <= SNAP_DOWN && from.y - GROUND <= SNAP_DOWN;
+  if (moved.y <= GROUND || near) return { feet: { ...moved, y: GROUND }, grounded: true };
+  return { feet: moved, grounded: false };
+}
+
 /** Movers in the world: a capsule per size, moved by the character controller; and rays for the camera. */
 function walk(rapier: Rapier, world: InstanceType<Rapier["World"]>): Walls {
   // Movers are sensors: rays and other movers pass through them, and only the walls stop them.
@@ -111,10 +122,10 @@ function walk(rapier: Rapier, world: InstanceType<Rapier["World"]>): Walls {
       body.setTranslation({ x: feet.x, y: feet.y + capsuleHalf(radius) + radius + SKIN, z: feet.z });
       controller.computeColliderMovement(body, delta, passThrough);
       const moved = controller.computedMovement();
-      return {
-        feet: { x: feet.x + moved.x, y: feet.y + moved.y, z: feet.z + moved.z },
-        grounded: controller.computedGrounded(),
-      };
+      const after = { x: feet.x + moved.x, y: feet.y + moved.y, z: feet.z + moved.z };
+      // Standing on a roof or a kerb, Rapier holds the feet; anywhere else, the ground does.
+      if (controller.computedGrounded() && after.y > GROUND) return { feet: after, grounded: true };
+      return onGround(after, feet, delta);
     },
     clearance: (from: Vec3, to: Vec3) => {
       const length = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
@@ -124,7 +135,10 @@ function walk(rapier: Rapier, world: InstanceType<Rapier["World"]>): Walls {
         y: (to.y - from.y) / length,
         z: (to.z - from.z) / length,
       });
-      return world.castRay(ray, length, true, passThrough)?.timeOfImpact ?? length;
+      const wall = world.castRay(ray, length, true, passThrough)?.timeOfImpact ?? length;
+      // The ground stops a line going down.
+      const ground = to.y < GROUND && from.y >= GROUND ? ((from.y - GROUND) / (from.y - to.y)) * length : length;
+      return Math.min(wall, ground);
     },
     dispose: () => {
       world.removeCharacterController(controller);

@@ -52,6 +52,61 @@ describe("rapierWalls", () => {
     walls.dispose();
   });
 
+  it("keeps feet level on the ground over a long walk, far from the middle of the city", async () => {
+    const walls = await rapierWalls([building(0, 300, 300)]);
+    let feet = { x: 1500, y: GROUND, z: 1500 };
+    const heights = new Set<number>();
+    for (let i = 0; i < 2400; i++) {
+      const moved = walls.move(feet, { x: 0.04, y: -9.81 / 14400, z: 0.01 });
+      expect(moved.grounded).toBe(true);
+      feet = moved.feet;
+      heights.add(feet.y);
+    }
+    expect([...heights]).toEqual([GROUND]);
+    walls.dispose();
+  });
+
+  it("lands on the ground from a jump, and leaves it rising", async () => {
+    const walls = await rapierWalls([]);
+    expect(walls.move({ x: 0, y: GROUND + 0.1, z: 0 }, { x: 0, y: -1, z: 0 })).toEqual({
+      feet: { x: 0, y: GROUND, z: 0 },
+      grounded: true,
+    });
+    expect(walls.move({ x: 0, y: GROUND, z: 0 }, { x: 0, y: 0.05, z: 0 }).grounded).toBe(false);
+    walls.dispose();
+  });
+
+  it("steps up onto a low kerb and stays on it, then down off it", async () => {
+    // A kerb 20 cm high, 10 m to 20 m east.
+    const kerb: Footprint = {
+      lot: 0,
+      corners: [
+        { x: 10, z: -5 },
+        { x: 20, z: -5 },
+        { x: 20, z: 5 },
+        { x: 10, z: 5 },
+      ],
+      top: GROUND + 0.2,
+    };
+    const walls = await rapierWalls([kerb]);
+    let feet = { x: 5, y: GROUND, z: 0 };
+    const at: Record<string, number> = {};
+    for (let i = 0; i < 1200; i++) {
+      feet = walls.move(feet, { x: 0.02, y: -9.81 / 14400, z: 0 }).feet;
+      if (Math.abs(feet.x - 15) < 0.011) at.on = feet.y;
+      if (Math.abs(feet.x - 25) < 0.011) at.off = feet.y;
+    }
+    expect(at.on).toBeCloseTo(GROUND + 0.2, 1);
+    expect(at.off).toBe(GROUND);
+    walls.dispose();
+  });
+
+  it("stops a line going down at the ground", async () => {
+    const walls = await rapierWalls([]);
+    expect(walls.clearance({ x: 0, y: 5, z: 0 }, { x: 0, y: -5, z: 0 })).toBeCloseTo(5 - GROUND, 6);
+    walls.dispose();
+  });
+
   it("measures how far a line runs before it meets a wall", async () => {
     const walls = await rapierWalls([building(0, 1, 1, 1, 3)]);
     const from = { x: 0, y: 1.5, z: 5 };
