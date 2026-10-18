@@ -15,7 +15,7 @@ const linux = advance(startProgress("github", "torvalds/linux", 0), {
 describe("LoadingCard", () => {
   it("counts what it can, says the time spent and left, and cancels", () => {
     const cancel = vi.fn<() => void>();
-    render(<LoadingCard progress={linux} now={12_000} onCancel={cancel} />);
+    render(<LoadingCard progress={linux} now={12_000} cancellable onCancel={cancel} />);
     const bar = screen.getByRole("progressbar", { name: "Reading the file tree" });
     expect(bar.getAttribute("value")).toBe("34");
     expect(bar.parentElement?.getAttribute("data-sweep")).toBe("false");
@@ -25,9 +25,16 @@ describe("LoadingCard", () => {
     expect(cancel).toHaveBeenCalledOnce();
   });
 
+  it("keeps Cancel in place but unusable once the load is done and the card only holds", () => {
+    render(<LoadingCard progress={linux} now={12_000} cancellable={false} onCancel={() => {}} />);
+    const cancel = screen.getByRole("button", { name: "Cancel", hidden: true });
+    expect(cancel).toHaveProperty("disabled", true);
+    expect(cancel.dataset["held"]).toBe("true");
+  });
+
   it("sweeps where nothing can be counted, and says its percentage instead", () => {
     const drawing = advance(linux, { phase: "draw" });
-    render(<LoadingCard progress={drawing} now={1000} onCancel={() => {}} />);
+    render(<LoadingCard progress={drawing} now={1000} cancellable onCancel={() => {}} />);
     const bar = screen.getByRole("progressbar", { name: "Drawing the map" });
     expect(bar.parentElement?.getAttribute("data-sweep")).toBe("true");
     expect(bar.getAttribute("aria-valuetext")).toBe("Drawing the map: 90 %");

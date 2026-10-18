@@ -52,6 +52,22 @@ describe("useLoading", () => {
     ]);
   });
 
+  it("holds a finished load's card without letting it be cancelled, or calling it cancelled", () => {
+    const { result } = renderHook(() => useLoading());
+    const job = begin(result.current, "bundled", "redux");
+    wait(SHOW_AFTER_MS);
+    expect(result.current.cancellable).toBe(true);
+    act(() => job.done());
+    expect(result.current.shown).toBe(true);
+    expect(result.current.cancellable).toBe(false);
+    act(() => result.current.cancel());
+    expect(result.current.shown).toBe(true);
+    expect(lines().filter((l) => l.startsWith("viewer/load-cancelled"))).toEqual([]);
+    wait(HOLD_MS);
+    expect(result.current.shown).toBe(false);
+    expect(result.current.cancellable).toBe(false);
+  });
+
   it("never shows a load done within 300 ms, and drops a failed one at once", () => {
     const { result } = renderHook(() => useLoading());
     const quick = begin(result.current, "file", "a.json");

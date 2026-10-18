@@ -26,6 +26,8 @@ export interface Loading {
   readonly progress: Progress | null;
   /** True while the card shows. */
   readonly shown: boolean;
+  /** True while the load the card shows is still running; a finished load holds its card but cannot be cancelled. */
+  readonly cancellable: boolean;
   /** The card's clock: `performance.now()` at its last tick. */
   readonly now: number;
   /** Begins a load, aborting any load in flight. */
@@ -39,6 +41,7 @@ interface Current {
   progress: Progress;
   shownAt: number | null;
   timer: ReturnType<typeof setTimeout> | undefined;
+  finished: boolean;
 }
 
 const fields = (progress: Progress, now: number) => ({
@@ -51,6 +54,7 @@ const fields = (progress: Progress, now: number) => ({
 export function useLoading(): Loading {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [shown, setShown] = useState(false);
+  const [running, setRunning] = useState(false);
   const [now, setNow] = useState(0);
   const current = useRef<Current | null>(null);
 
@@ -61,13 +65,15 @@ export function useLoading(): Loading {
     current.current = null;
     setProgress(null);
     setShown(false);
+    setRunning(false);
   }, []);
 
   // Ends the load in flight: by the person, or replaced by the next one.
   const end = useCallback(
     (why: "cancel" | "replaced") => {
       const load = current.current;
-      if (!load) return;
+      // A finished load is only holding its card: there is nothing left to cancel.
+      if (!load || load.finished) return;
       log.info("viewer/load-cancelled", { ...fields(load.progress, performance.now()), why });
       load.controller.abort();
       clear(load);
@@ -85,9 +91,11 @@ export function useLoading(): Loading {
         progress: startProgress(source, name, started),
         shownAt: null,
         timer: undefined,
+        finished: false,
       };
       current.current = load;
       setProgress(load.progress);
+      setRunning(true);
       setNow(started);
       log.info("viewer/load-phase", fields(load.progress, started));
       load.timer = setTimeout(() => {
@@ -109,6 +117,8 @@ export function useLoading(): Loading {
           const ended = performance.now();
           log.info("viewer/load-done", { source, name, ms: Math.round(ended - started) });
           load.progress = finish(load.progress);
+          load.finished = true;
+          setRunning(false);
           setProgress(load.progress);
           clearTimeout(load.timer);
           const left = load.shownAt === null ? 0 : load.shownAt + HOLD_MS - ended;
@@ -137,7 +147,7 @@ export function useLoading(): Loading {
     [],
   );
 
-  return { progress, shown, now, begin, cancel };
+  return { progress, shown, cancellable: shown && running, now, begin, cancel };
 }
 
 /** The status line's words for a load: "{name}: {phase}". */

@@ -7,6 +7,8 @@ export interface LoadingCardProps {
   readonly progress: Progress;
   /** The card's clock, `performance.now()` at its last tick. */
   readonly now: number;
+  /** False once the load is done and the card only holds: Cancel then has nothing to stop. */
+  readonly cancellable: boolean;
   readonly onCancel: () => void;
 }
 
@@ -15,7 +17,7 @@ export interface LoadingCardProps {
  * counted, the time spent and the time left, and Cancel. It floats, so it moves nothing; the status line announces
  * the phase, so the card itself announces nothing.
  */
-export function LoadingCard({ progress, now, onCancel }: LoadingCardProps) {
+export function LoadingCard({ progress, now, cancellable, onCancel }: LoadingCardProps) {
   const phase = useId();
   const words = phaseWords(progress);
   const count = countWords(progress);
@@ -46,7 +48,8 @@ export function LoadingCard({ progress, now, onCancel }: LoadingCardProps) {
           <p className="time">
             {spentWords(now - progress.started)} spent{left && ` · ${left}`}
           </p>
-          <button type="button" className="cancel" onClick={onCancel}>
+          {/* Kept in place while hidden, so nothing in the card moves when the load finishes. */}
+          <button type="button" className="cancel" onClick={onCancel} disabled={!cancellable} data-held={!cancellable}>
             Cancel
           </button>
         </div>

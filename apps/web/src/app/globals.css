@@ -1200,3 +1200,8 @@ mark {
     box-shadow: none;
   }
 }
+
+/* A finished load holds its card for a moment; its Cancel has nothing left to stop, so it keeps its place unseen. */
+.cancel[data-held="true"] {
+  visibility: hidden;
+}
