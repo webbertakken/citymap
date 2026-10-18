@@ -1,6 +1,7 @@
 import { UNIT, parseCity, serialiseCity } from "@citymap/ground-plan";
 import type { Footprint, Walls } from "@citymap/world";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RaiseWalls } from "../explore/physics/raise";
 import type { Fetcher } from "../github/read";
@@ -32,8 +33,12 @@ const roads: Record<string, string> = Object.fromEntries(
 const fetcher: Fetcher = async (url) => new Response(roads[url] ?? "", { status: url in roads ? 200 : 404 });
 const bare: Fetcher = async (url) => new Response(files[url] ?? "", { status: url in files ? 200 : 404 });
 
+/** Draws one frame once mounted, as the real canvas draws them after each paint. */
 function ExploreStub({ frame }: ExploreCanvasProps) {
-  return <p data-testid="explore-canvas">{frame(0).session.body.feet.x.toFixed(1)}</p>;
+  useEffect(() => {
+    frame(0);
+  }, [frame]);
+  return <p data-testid="explore-canvas" />;
 }
 
 /** Walls of open ground, that say when they are freed. */
