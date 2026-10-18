@@ -112,8 +112,15 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
   `{ standing, waiting, nearest }` (the gap of the nearest building still waiting from the player, infinite when none).
   Never awaited.
 - Vehicles in the world: a car is a dynamic body asleep where it stands (by `feet` and `attitude`) on four wheels; a
-  two-wheeler a fixed block its length and width, 1.1 m tall. A car changed outside the garage (the walker got out) is
-  placed afresh, still; a two-wheeler moved is blocked afresh where it is.
+  parked two-wheeler a dynamic block asleep (`TWO_WHEELER_MASS` bicycle 15 kg, motorbike 200 kg; its length,
+  `TWO_WHEELER_BASE` 0.4 of its width, `TWO_WHEELER_HEIGHT` 1.1 m tall, origin at its feet; friction 0.6, damping
+  `TWO_WHEELER_DAMPING` 0.5), turned by `tiltedBy(heading, lean, pitch)`; awake, it is read back by `tiltOf` (Euler YXZ,
+  as its model is posed: heading, then `−lean` about x, then `−pitch` about z) into its feet, heading, lean and pitch,
+  still. A ridden two-wheeler (a driver that is no car) is a kinematic block moved where its own physics stands it. The
+  walker's body, a kinematic capsule (`WALKER_HALF` 0.6 m, `PERSON_RADIUS`, middle `WALKER_MIDDLE` 0.9 m up), is moved
+  to the walker's feet each step and out of the world in a car or flying; collision groups let it meet only the
+  two-wheelers, never a car. A car changed outside the garage (the walker got out) is placed afresh, still; a parked
+  two-wheeler changed outside it, likewise.
 
 ## The car on Rapier
 
@@ -124,13 +131,14 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
 - Rapier's ray-cast vehicle controller (up y, forward x): four wheels at (±`AXLE_AHEAD` 1.3, ±`TRACK_HALF` 0.78) m, hard
   points `WHEEL_RADIUS + SPRING_REST − SAG` up (0.31 + 0.3 − 0.07 m), suspension down, axle +z, radius 0.31 m; springs
   `SPRING_STIFFNESS` 35 (per kilogram of car, so `SAG` = g / (4 · 35)), travel 0.2 m, compression damping 3.5,
-  relaxation 5, at most 40,000 N; tyres' friction slip `TYRE_GRIP` 1.2 (0.96 g measured in a steady turn).
+  relaxation 5, at most 40,000 N; tyres' friction slip `TYRE_GRIP` 2 (a quarter turn from 50 km/h in 1.2 s, about 8 m
+  round, upright; from 100 km/h in 2.1 s; measured by `garage.test.ts`).
 - `pedalsOf(gear, speed, intents)`: W with the car rolling back past `CREEP` 0.5 m/s brakes by `BRAKE` 30 (Rapier's
   impulse a step: about 8 m/s²); S rolling on past it brakes by `BRAKE · −forward`; S below it backs up in reverse (gear
   −1) through `CAR_GEARBOX.reverse`, the throttle shut past `REVERSE_TOP` 8 m/s; otherwise the gearbox (`automatic`)
   picks the forward gear and `driveOf` the push, split between the back wheels (rear-wheel drive).
-- Steering: `−right · steerReach(|v|)`, `steerReach(v) = CAR_STEER / (1 + (v / STEER_FALL)²)` (0.6 rad, 14 m/s), slewed
-  at `STEER_RATE` 3 rad/s, on the front wheels.
+- Steering: `−right · steerReach(|v|)`, `steerReach(v) = CAR_STEER / (1 + (v / STEER_FALL)²)` (0.6 rad, 22 m/s), slewed
+  at `STEER_RATE` 4 rad/s, on the front wheels.
 - The handbrake (Space): the back wheels brake by `HANDBRAKE` 60, their drive off (a wheel with power ignores its
   brake), their sideways stiffness `HANDBRAKE_SIDE` 0.4 of their own: the back steps out.
 - Every awake car each step: forces reset, then the air and the road against its motion, `CAR_ROLLING` 0.015 m g + ½ ρ
@@ -166,9 +174,13 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
   below `LEAVE_SPEED` 1.5 m/s at `alightFrom` (the vehicle `parkedNow`); then `STEP` = 1/120 s steps of the time due, a
   frame at most `LONGEST_FRAME` 0.1 s. A car with a garage is stepped by `garage.drive` (Rapier keeps it out of
   buildings and vehicles); any other ride steps by `stepVehicle` and is cleared of the others (`BUMP` keeps 0.2 of its
-  speed); on foot the walker is cleared of every vehicle. Riding faster than `CHASE_FROM` 1 m/s with no drag, the
-  orbit's yaw eases over the ride's `follow.chase` (else `CHASE` 0.25 s) behind the way it moved over its last step
-  while rolling forwards (a car sliding shows its slide), else behind its heading.
+  speed); on foot the walker is cleared of every vehicle. With a garage, the walker and a ridden two-wheeler are cleared
+  of the cars only, and `garage.drive` steps every step (the ridden two-wheeler as a driver, the walker's feet, null
+  flying), shoving the parked two-wheelers; getting on one stands it up (`parkedNow`, on the walker's ground).
+  `sinceLook` counts the seconds since the last drag. Riding faster than `CHASE_FROM` 1 m/s, `LOOK_HOLD` 1.5 s after the
+  last drag, the orbit's yaw eases, by a share squared-ramped in over `LOOK_EASE` 1 s, over the ride's `follow.chase`
+  (else `CHASE` 0.25 s) behind the way it moved over its last step while rolling forwards (a car sliding shows its
+  slide), else behind its heading.
 - `followOf`: on foot `ON_FOOT`; riding, the ride's `follow`, its distance `distance + stretch · |v|`, at most
   `farthest`.
 - `shownVehicles`: a car's `attitude` between its last two by normalised linear interpolation the short way

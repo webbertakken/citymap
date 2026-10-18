@@ -42,8 +42,9 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 - W A S D or the arrow keys walk where the camera looks; Shift runs; Space jumps. On a touch screen, a stick under the
   left thumb walks (pushed nearly all the way, it runs) and a Jump button sits under the right.
 - A walk is about 1.6 m a second and a run 4.5; the figure's walk and sprint keep pace with the ground.
-- Buildings and parked vehicles stop the walker, who slides along them; kerbs and plinths up to 45 cm are stepped up
-  onto, and roofs are stood on.
+- Buildings and parked cars stop the walker, who slides along them; parked bicycles and motorbikes are pushed aside or
+  over, by the walker, a ridden two-wheeler or a car, and stood up again when got on (with the arcade cars, they stop
+  the walker too); kerbs and plinths up to 45 cm are stepped up onto, and roofs are stood on.
 - Dragging turns the camera, which follows over the walker's shoulder and pulls in at once short of a wall behind,
   easing back out; it never looks from inside a building. On a desktop, a click captures the mouse to look round (Escape
   releases it).
@@ -72,13 +73,15 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 - **Engine and gearbox.** W opens the throttle. The engine pulls by its torque curve, strongest in the middle of its
   range and nothing past the red line, through five gears that change by themselves: up near the red line, down when the
   engine would labour. S brakes; once stopped, S backs up in reverse, and W brakes a car rolling back.
-- **Steering.** A and D (or a stick) steer the front wheels, less the faster it goes, so it stays catchable at speed.
+- **Steering.** A and D (or a stick) steer the front wheels, less the faster it goes, so it stays catchable at speed; a
+  ten-metre street's corner is taken from 50 km/h on full lock, and the car runs straight once let go.
 - **The handbrake.** Space locks the back wheels and loosens their grip: the back steps out, and the car drifts, held by
   steering into the slide and the throttle.
-- **Crashes and roll-overs.** It stops against buildings and other cars, and pushes parked cars it hits. Hit hard or
-  flicked over a kerb, it rolls; lying on its side or roof, nearly still, for two seconds, it is set back on its wheels
-  where it lies.
-- **The camera** chases the way it moves, so a drift shows the slide, and draws further back as it speeds up.
+- **Crashes and roll-overs.** It stops against buildings and other cars, pushes parked cars it hits, and shoves parked
+  bicycles and motorbikes aside or knocks them over. Hit hard or flicked over a kerb, it rolls; lying on its side or
+  roof, nearly still, for two seconds, it is set back on its wheels where it lies.
+- **The camera** chases the way it moves, so a drift shows the slide, and draws further back as it speeds up. A look
+  round (a drag, or the captured mouse) holds for a moment after the last movement, then the camera eases back behind.
 - **The HUD**, while in the car: speed in km/h, the gear (R in reverse), and the engine's turns a minute; an arcade car
   shows its speed alone.
 

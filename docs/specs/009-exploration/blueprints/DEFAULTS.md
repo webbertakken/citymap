@@ -62,7 +62,9 @@ One row per value the exploration spec leaves silent or qualitative.
 | Car engine              | 300 N·m at 4,000, red line 6,500                 | 0 to 100 km/h in 4.4 s                                                    | taste                     |
 | Car gearbox             | 5, 3.2 to 0.87 × 3.9, up 6,000, down 2,500       | no hunting: after a change the engine is within both                      | taste                     |
 | Car brakes              | 30 a wheel, handbrake 60, side 0.4               | 8 m/s² on the footbrake; the back steps out on the handbrake              | taste                     |
-| Car steering            | 0.6 rad, half by 14 m/s, 3 rad/s                 | tight at a crawl, catchable at speed                                      | taste                     |
+| Car steering            | 0.6 rad, half by 22 m/s, 4 rad/s, grip 2         | a 10 m street's corner from 50 km/h; brisk, upright, straight on release  | taste                     |
+| Parked two-wheelers     | bicycle 15 kg, motorbike 200 kg, base 0.4 wide   | real weights; a push tips it over its tyres, not its bars                 | fixed                     |
+| Look round held         | 1.5 s, then eased in over 1 s                    | time to look and look back; the camera never snaps behind                 | 0.5 to 3 s                |
 | Reverse                 | below 0.5 m/s, at most 8 m/s                     | S stops, then backs up as GTA's does                                      | taste                     |
 | Righting                | tipped past 60°, still for 2 s                   | a moment to see it lie, then back to the game                             | 1 to 4 s                  |
 | Crash                   | 4 m/s lost in a step                             | a knock, not braking (8 m/s² is 0.07 m/s a step)                          | 2 to 8 m/s                |
