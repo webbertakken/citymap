@@ -1,9 +1,13 @@
 import { PERSON_RADIUS, type Walls } from "@citymap/world";
 import { describe, expect, it } from "vitest";
+import { START_GEAR, resting, type Cycle } from "./bicycle";
 import { LOOK_SPEED, ON_FOOT, START_PITCH } from "./camera";
+import { parkedMoto } from "./motorbike";
+import type { Garage } from "./physics/garage";
 import {
   LONGEST_FRAME,
   STEP,
+  CHASE,
   advanceSession,
   followOf,
   newControls,
@@ -14,9 +18,27 @@ import {
   shownOf,
   shownVehicles,
   startSession,
+  turnBetweenQuats,
 } from "./session";
-import { VEHICLES, type Vehicle } from "./vehicles";
+import { CAR, VEHICLES, standing, yawOf, type Bicycle, type Car, type Motorbike, type Vehicle } from "./vehicles";
 import { RUN_SPEED, WALK_SPEED } from "./walker";
+
+/** The vehicle as a bicycle, failing the test when it is not one. */
+const asBicycle = (vehicle: Vehicle | null | undefined): Bicycle => {
+  if (vehicle?.kind !== "bicycle") throw new Error(`expected a bicycle, got ${vehicle?.kind ?? "nothing"}`);
+  return vehicle;
+};
+
+/** The vehicle as a car, failing the test when it is not one. */
+const asCar = (vehicle: Vehicle | null | undefined): Car => {
+  if (vehicle?.kind !== "car") throw new Error(`expected a car, got ${vehicle?.kind ?? "nothing"}`);
+  return vehicle;
+};
+/** The vehicle as a motorbike, failing the test when it is not one. */
+const asMotorbike = (vehicle: Vehicle | null | undefined): Motorbike => {
+  if (vehicle?.kind !== "motorbike") throw new Error(`expected a motorbike, got ${vehicle?.kind ?? "nothing"}`);
+  return vehicle;
+};
 
 const open: Walls = {
   move: (feet, delta) => ({
@@ -60,6 +82,14 @@ describe("advanceSession", () => {
     const session = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0), controls, STEP, open);
     expect(session.orbit.yaw).toBeCloseTo(Math.PI / 2, 9);
     expect(session.body.feet.z).toBeCloseTo(-STEP * WALK_SPEED, 9);
+  });
+
+  it("follows a gamepad's stick and its A button, as the touch stick and the jump button", () => {
+    const controls = newControls();
+    controls.pad = { stick: { x: 0, y: 1 }, jump: true };
+    const session = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0), controls, STEP, open);
+    expect(session.body.feet.x).toBeGreaterThan(0);
+    expect(session.body.grounded).toBe(false);
   });
 
   it("follows the stick and the jump button", () => {
@@ -137,8 +167,8 @@ const useKey = () => ({ ...newControls(), use: true });
 
 describe("riding", () => {
   // A car parked 2 m east of the walker, facing east; a bicycle far off.
-  const car: Vehicle = { id: "car", kind: "car", feet: { x: 4, y: 0, z: 0 }, heading: 0, speed: 0, turn: 0, steer: 0 };
-  const bicycle: Vehicle = { ...car, id: "bicycle", kind: "bicycle", feet: { x: 100, y: 0, z: 0 } };
+  const car = standing("car", "car", { x: 4, y: 0, z: 0 }, 0);
+  const bicycle = standing("bicycle", "bicycle", { x: 100, y: 0, z: 0 }, 0);
   const parked = () => startSession({ x: 1.5, y: 0, z: 0 }, 0, [car, bicycle]);
 
   it("offers to get in the vehicle within reach, and nothing out of reach", () => {
@@ -151,13 +181,13 @@ describe("riding", () => {
     expect(inside.riding).toBe("car");
     expect(ridden(inside)?.id).toBe("car");
     expect(promptOf(inside)).toEqual({ action: "leave", kind: "car", ready: true });
-    expect(followOf(inside)).toBe(VEHICLES.car.follow);
+    expect(followOf(inside)).toEqual(VEHICLES.car.follow);
     let driving = inside;
     for (let i = 0; i < 60; i++) driving = advanceSession(driving, pressing("KeyW"), 1 / 60, open);
     const moved = ridden(driving)!;
     // A second of throttle from a standstill: nearly its full power all the way.
-    expect(moved.speed).toBeGreaterThan(0.95 * VEHICLES.car.accelerate);
-    expect(moved.speed).toBeLessThan(VEHICLES.car.accelerate);
+    expect(moved.speed).toBeGreaterThan(0.95 * CAR.accelerate);
+    expect(moved.speed).toBeLessThan(CAR.accelerate);
     expect(driving.body.feet).toEqual(moved.feet);
     expect(driving.speed).toBeCloseTo(moved.speed, 6);
     // Too fast to get out: E does nothing, and the prompt says so.
@@ -213,6 +243,8 @@ describe("riding", () => {
     expect(shownBicycle!.feet).toEqual(bicycle.feet);
     const fresh = { ...parked(), previousVehicles: [] };
     expect(shownVehicles(fresh)[0]!.feet).toEqual(car.feet);
+    // A vehicle that has not moved is drawn as it is.
+    expect(shownVehicles(half)[1]).toBe(half.vehicles[1]);
   });
 
   it("walks into a parked vehicle and no further", () => {
@@ -225,16 +257,61 @@ describe("riding", () => {
   it("bumps a ridden vehicle off another, costing most of its speed", () => {
     // On the bicycle, 10 m behind the car, riding at it.
     const bike: Vehicle = { ...bicycle, feet: { x: -8, y: 0, z: 0 } };
+    let thrown = false;
     let riding = advanceSession(startSession({ x: -8, y: 0, z: 1 }, 0, [car, bike]), useKey(), 0, open);
     expect(riding.riding).toBe("bicycle");
     let fastest = 0;
     for (let i = 0; i < 600; i++) {
       riding = advanceSession(riding, pressing("KeyW"), 1 / 60, open);
       fastest = Math.max(fastest, ridden(riding)!.speed);
+      thrown ||= asBicycle(ridden(riding)).cycle.fall?.cause === "hit";
     }
+    // Ridden hard into the car, its rider was thrown.
+    expect(thrown).toBe(true);
     const stopped = ridden(riding)!;
     expect(stopped.feet.x).toBeLessThan(4 - VEHICLES.car.length / 2);
     expect(stopped.speed).toBeLessThan(fastest);
+  });
+
+  it("shifts the bicycle's gears by the wheel and the gear keys, once a frame, and never a car's", () => {
+    const bike: Vehicle = { ...bicycle, feet: { x: 4, y: 0, z: 0 } };
+    const other: Vehicle = { ...bicycle, id: "other", feet: { x: 40, y: 0, z: 0 } };
+    const on = advanceSession(startSession({ x: 4, y: 0, z: 1 }, 0, [bike, other]), useKey(), 0, open);
+    const shifted = advanceSession(on, { ...newControls(), gears: 2 }, 0, open);
+    expect(asBicycle(ridden(shifted)).cycle.gear).toBe(START_GEAR + 2);
+    expect(shifted.vehicles[1]).toBe(other);
+    const inCar = advanceSession(parked(), useKey(), 0, open);
+    expect(advanceSession(inCar, { ...newControls(), gears: 2 }, 0, open).vehicles).toEqual(inCar.vehicles);
+    // Flying, the wheel gears the camera, not the bicycle.
+    const up = advanceSession(on, flying(), 0, open);
+    expect(asBicycle(ridden(advanceSession(up, { ...newControls(), gears: 2 }, 0, open))).cycle.gear).toBe(START_GEAR);
+  });
+
+  it("gets off the bicycle leaving it upright on its stand, in its gear", () => {
+    const bike: Vehicle = { ...bicycle, feet: { x: 4, y: 0, z: 0 } };
+    let on = advanceSession(startSession({ x: 4, y: 0, z: 1 }, 0, [bike]), useKey(), 0, open);
+    on = advanceSession(on, { ...newControls(), gears: 1 }, 0, open);
+    for (let i = 0; i < 20; i++) on = advanceSession(on, pressing("KeyW", "KeyD"), 1 / 60, open);
+    const off = advanceSession(on, useKey(), 0, open);
+    expect(off.riding).toBeNull();
+    const left = asBicycle(off.vehicles[0]);
+    expect(left.cycle).toEqual(resting(START_GEAR + 1, asBicycle(ridden(on)).cycle.crank));
+  });
+
+  it("draws a bicycle's lean, pitch, steer and crank between its last two steps", () => {
+    const a: Cycle = { ...resting(), lean: 0.1, pitch: 0, steer: 0, crank: 1 };
+    const b: Cycle = { ...a, lean: 0.3, pitch: 0.2, crank: 2 };
+    const before: Bicycle = { ...asBicycle(bicycle), cycle: a, steer: 0 };
+    const after: Bicycle = { ...before, cycle: b, steer: 0.4 };
+    const session = {
+      ...startSession({ x: 0, y: 0, z: 0 }, 0),
+      vehicles: [after],
+      previousVehicles: [before],
+      spare: STEP / 2,
+    };
+    const shown = asBicycle(shownVehicles(session)[0]);
+    expect(shown.cycle).toMatchObject({ lean: 0.2, pitch: 0.1, crank: 1.5 });
+    expect(shown.steer).toBeCloseTo(0.2, 9);
   });
 
   it("says what E would do in words", () => {
@@ -247,5 +324,167 @@ describe("riding", () => {
 
   it("follows on foot over the shoulder", () => {
     expect(followOf(parked())).toBe(ON_FOOT);
+  });
+});
+
+/** Controls asking to fly, or land. */
+const flying = (controls = newControls()) => ({ ...controls, fly: true });
+
+describe("flying", () => {
+  it("lifts the camera off the walker from where it is, and flies it where it looks, the walker staying put", () => {
+    const start = startSession({ x: 0, y: 0, z: 0 }, 0);
+    const up = advanceSession(start, flying(), 0, open);
+    expect(up.flyer).not.toBeNull();
+    // From where the camera was: behind and above the walker.
+    expect(up.flyer!.at.x).toBeLessThan(0);
+    expect(up.flyer!.at.y).toBeGreaterThan(0);
+    expect(promptOf(up)).toBeNull();
+    const ahead = advanceSession(up, pressing("KeyW"), 0.5, open);
+    expect(ahead.flyer!.at.x).toBeGreaterThan(up.flyer!.at.x);
+    expect(ahead.body.feet).toEqual(start.body.feet);
+  });
+
+  it("rises with Space, sinks with C or Control, and changes gear by the wheel", () => {
+    const up = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0), flying(), 0, open);
+    const y = up.flyer!.at.y;
+    expect(advanceSession(up, pressing("Space"), 0.5, open).flyer!.at.y).toBeGreaterThan(y);
+    expect(advanceSession(up, pressing("KeyC"), 0.5, open).flyer!.at.y).toBeLessThan(y);
+    expect(advanceSession(up, pressing("ControlLeft"), 0.5, open).flyer!.at.y).toBeLessThan(y);
+    const geared = advanceSession(up, { ...newControls(), gears: 2 }, 0, open);
+    expect(geared.flyer!.speed).toBeCloseTo(up.flyer!.speed * 1.25 ** 2, 9);
+  });
+
+  it("lands back on the walker with F again", () => {
+    const up = advanceSession(startSession({ x: 0, y: 0, z: 0 }, 0), flying(), 0, open);
+    expect(advanceSession(up, flying(), 0, open).flyer).toBeNull();
+  });
+
+  it("leaves a ride coasting while the camera flies", () => {
+    const car = standing("car", "car", { x: 4, y: 0, z: 0 }, 0);
+    let session = advanceSession(startSession({ x: 1.5, y: 0, z: 0 }, 0, [car]), useKey(), 0, open);
+    session = advanceSession(session, flying(), 0, open);
+    const before = ridden(session)!.feet.x;
+    session = advanceSession(session, pressing("KeyW"), 0.5, open);
+    expect(ridden(session)!.feet.x).toBe(before);
+    expect(promptOf(session)).toBeNull();
+  });
+});
+
+/**
+ * A garage that moves the ridden car by a fixed step each time it drives, `ahead` along x and `aside` along z, keeping
+ * its heading (so a car sliding sideways shows), and leaves every other vehicle as it is.
+ */
+function slidingGarage(ahead: number, aside: number, speed?: number): Garage & { readonly driven: string[] } {
+  const driven: string[] = [];
+  return {
+    driven,
+    follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+    drive: (vehicles, drivers) =>
+      vehicles.map((v) => {
+        if (!drivers.has(v.id) || v.kind !== "car") return v;
+        driven.push(v.id);
+        const feet = { x: v.feet.x + ahead, y: v.feet.y, z: v.feet.z + aside };
+        return { ...v, feet, speed: speed ?? Math.hypot(ahead, aside) / STEP };
+      }),
+    keepingUp: () => true,
+    load: () => 0,
+    dispose: () => undefined,
+  };
+}
+
+/** In a car parked 2.5 m east of the walker, facing east. */
+const inCar = () =>
+  advanceSession(
+    startSession({ x: 1.5, y: 0, z: 0 }, 0, [standing("car", "car", { x: 4, y: 0, z: 0 }, 0)]),
+    { ...newControls(), use: true },
+    0,
+    open,
+  );
+/** How far back the camera follows a car going at a speed. */
+const followedAt = (speed: number) => {
+  const session = inCar();
+  return followOf({ ...session, vehicles: session.vehicles.map((v) => Object.assign({}, v, { speed })) }).distance;
+};
+/** A session drawn half way between two steps, of one vehicle. */
+const betweenSteps = (before: Vehicle, after: Vehicle) => ({
+  ...startSession({ x: 0, y: 0, z: 0 }, 0),
+  vehicles: [after],
+  previousVehicles: [before],
+  spare: STEP / 2,
+});
+
+describe("a car on Rapier", () => {
+  it("is driven by the garage where there is one, the walker going with it", () => {
+    const garage = slidingGarage(0.1, 0);
+    const driving = advanceSession(inCar(), pressing("KeyW"), STEP * 3, open, garage);
+    expect(garage.driven).toEqual(["car", "car", "car"]);
+    expect(ridden(driving)!.feet.x).toBeCloseTo(4.3, 9);
+    expect(driving.body.feet.x).toBeCloseTo(4.3, 9);
+  });
+
+  it("swings the camera round behind the way it slides, not the way it faces", () => {
+    // Moving north-east while facing east: the camera chases north-east.
+    let session = inCar();
+    for (let i = 0; i < 60; i++)
+      session = advanceSession(session, pressing("KeyW"), 0.05, open, slidingGarage(0.1, -0.1));
+    expect(session.orbit.yaw).toBeCloseTo(Math.PI / 4, 2);
+  });
+
+  it("chases its heading when backing up", () => {
+    let session = inCar();
+    for (let i = 0; i < 30; i++)
+      session = advanceSession(session, pressing("KeyS"), 0.05, open, slidingGarage(-0.1, -0.1, -10));
+    expect(session.orbit.yaw).toBeCloseTo(0, 6);
+  });
+
+  it("is followed from further back the faster it goes, no further than its farthest", () => {
+    const follow = VEHICLES.car.follow;
+    const at = followedAt;
+    expect(at(0)).toBe(follow.distance);
+    expect(at(10)).toBeCloseTo(follow.distance + follow.stretch! * 10, 9);
+    expect(at(-10)).toBe(at(10));
+    expect(at(100)).toBe(follow.farthest);
+    expect(CHASE).toBeLessThan(follow.chase!);
+  });
+});
+
+describe("shown between steps", () => {
+  const session = betweenSteps;
+
+  it("turns a car half way, the short way round", () => {
+    const before = standing("car", "car", { x: 0, y: 0, z: 0 }, 0);
+    const after: Car = { ...before, heading: 0.4, attitude: yawOf(0.4) };
+    const shown = asCar(shownVehicles(session(before, after))[0]);
+    expect(shown.attitude.y).toBeCloseTo(yawOf(0.2).y, 3);
+    expect(shown.attitude.w).toBeCloseTo(yawOf(0.2).w, 3);
+  });
+
+  it("leans and lifts a motorbike half way", () => {
+    const before = standing("moto", "motorbike", { x: 0, y: 0, z: 0 }, 0);
+    const after: Motorbike = {
+      ...before,
+      feet: { x: 1, y: 0, z: 0 },
+      moto: { ...parkedMoto(), lean: 0.4, pitch: -0.2 },
+    };
+    const shown = asMotorbike(shownVehicles(session(before, after))[0]);
+    expect(shown.moto.lean).toBeCloseTo(0.2, 9);
+    expect(shown.moto.pitch).toBeCloseTo(-0.1, 9);
+    expect(shown.feet.x).toBeCloseTo(0.5, 9);
+  });
+
+  it("shows a vehicle that changed its kind as it is now", () => {
+    const kinds = ["car", "motorbike", "bicycle"] as const;
+    for (const [i, kind] of kinds.entries()) {
+      const before = standing("v", kinds[(i + 1) % 3]!, { x: 0, y: 0, z: 0 }, 0);
+      const after = standing("v", kind, { x: 1, y: 0, z: 0 }, 0);
+      expect(shownVehicles(session(before, after))[0]).toBe(after);
+    }
+  });
+
+  it("finds the short way between turns written either sign", () => {
+    const q = yawOf(0.3);
+    const flipped = { x: -q.x, y: -q.y, z: -q.z, w: -q.w };
+    const half = turnBetweenQuats(yawOf(0.1), flipped, 0.5);
+    expect(half.y).toBeCloseTo(yawOf(0.2).y, 3);
   });
 });

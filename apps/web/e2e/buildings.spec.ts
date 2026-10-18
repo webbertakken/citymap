@@ -122,3 +122,32 @@ for (const scheme of ["dark", "light"] as const)
       expect(await violations(page)).toEqual([]);
     });
   });
+
+test("turns and tilts the Buildings view by keys, names the roofs close up, and keeps the turn back from plan view", async ({
+  page,
+}, info) => {
+  await page.getByRole("button", { name: "Buildings" }).click();
+  await page.getByRole("searchbox").fill("FitFiles");
+  await page.keyboard.press("Enter");
+  const map = page.getByRole("application", { name: /^Map of takken\.io/ });
+  await expect(map).toHaveAttribute("aria-label", /Q and E turn/);
+  const name = page.locator(".label:not(.roof)").first();
+  const before = await name.boundingBox();
+  await map.focus();
+  await page.keyboard.press("e");
+  await page.keyboard.press("e");
+  await page.keyboard.press("PageUp");
+  // A name on the map swings round with the view.
+  await expect.poll(async () => (await name.boundingBox())?.x).not.toBeCloseTo(before?.x ?? 0, 0);
+  // Close up, the buildings are named over their roofs.
+  await page.keyboard.type("++++++");
+  await expect(page.locator(".label.roof").first()).toBeVisible();
+  await drawn(page);
+  await page.screenshot({ path: info.outputPath("turned.png") });
+  // Plan view (Buildings pressed again) names no roofs; they come back with the Buildings view.
+  await page.getByRole("button", { name: "Buildings" }).click();
+  await expect(page.locator("main")).toHaveAttribute("data-mode", "plan");
+  await expect(page.locator(".label.roof")).toHaveCount(0);
+  await page.getByRole("button", { name: "Buildings" }).click();
+  await expect(page.locator(".label.roof").first()).toBeVisible();
+});

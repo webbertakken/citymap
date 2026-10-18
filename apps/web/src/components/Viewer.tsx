@@ -1,5 +1,13 @@
 "use client";
-import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } from "@citymap/ground-plan";
+import {
+  DEFAULT_TOGGLES,
+  UNIT,
+  centroid,
+  toggleList,
+  type City,
+  type Snapshot,
+  type Toggle,
+} from "@citymap/ground-plan";
 import type { Measures } from "@citymap/measures";
 import {
   buildScene,
@@ -27,11 +35,15 @@ import {
 import type { GitHubSource } from "../card/github";
 import { measureRows } from "../card/measures";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
+import type { ArcadeWhy, GoDown } from "../explore/descent";
 import { footprintsOf } from "../explore/footprints";
 import { inspector } from "../explore/inspect";
 import { landingOf, type Landing } from "../explore/landing";
-import type { RaiseWalls } from "../explore/physics/raise";
-import { roadGrid, roadSegments, type RoadGrid } from "../explore/signs";
+import { parkedIn } from "../explore/parking";
+import type { Garage } from "../explore/physics/garage";
+import { roadGrid, roadSegments, signName, type RoadGrid } from "../explore/signs";
+import { METRE } from "../explore/street";
+import { parkedBy, type Vehicle } from "../explore/vehicles";
 import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
 import { readRepository, type Fetcher } from "../github/read";
@@ -48,7 +60,7 @@ import { useSearchIndex } from "../search/useSearchIndex";
 import { buildingOf, cityBuildings, colourFor, tableFor } from "../view/buildings";
 import { FLY_MS, between, ease, flyTo } from "../view/fly";
 import { insetsFor } from "../view/insets";
-import { fit, onKey, type Mode, type View, type Viewport } from "../view/view";
+import { ELEVATION, YAW, fit, onKey, type Mode, type View, type Viewport } from "../view/view";
 import { Drawer } from "./Drawer";
 import { ExploreView, type ExploreCanvasProps } from "./ExploreView";
 import { Legend } from "./Legend";
@@ -63,11 +75,14 @@ import { LOCAL_STATUS, LOCAL_TITLE, useLocalRepository } from "./useLocalReposit
 import { ViewControls } from "./ViewControls";
 import { ZoomControls } from "./ZoomControls";
 
-/** Going down into the city: the ground-level canvas, the physics engine by name, and how it raises the walls. */
+/**
+ * Going down into the city: the ground-level canvas, the walls' physics engine by name, and how everything the walk
+ * needs is loaded behind the loading card.
+ */
 export interface Explore {
   readonly Canvas: ComponentType<ExploreCanvasProps>;
   readonly engine: string;
-  readonly raise: RaiseWalls;
+  readonly goDown: GoDown;
 }
 
 export interface ViewerProps {
@@ -159,13 +174,19 @@ const sourceOf = (name: string, commit: string): GitHubSource => {
   return { owner: name.slice(0, slash), name: name.slice(slash + 1), commit };
 };
 
-/** A walk under way: the city (or town) it walks in, its walls, and where it began. */
+/**
+ * A walk under way: the city (or town) it walks in, its walls and the cars' garage (null for arcade cars, and why),
+ * where it began, and the vehicles parked about.
+ */
 interface Walking {
   readonly city: City;
   readonly walls: Walls;
+  readonly garage: Garage | null;
+  readonly arcade: ArcadeWhy | null;
   readonly footprints: readonly Footprint[];
   readonly roads: RoadGrid;
   readonly landing: Landing;
+  readonly parked: readonly Vehicle[];
 }
 
 /** The viewer: one city at a time, its theme, its view and its layout toggles. */
@@ -201,7 +222,7 @@ export function Viewer({
   const theme: ThemeName = chosen ?? (dark ? "night-atlas" : "paper-atlas");
   const [viewport, setViewport] = useState<Viewport>({ width: 800, height: 600 });
   // The view the person moved to; while `fitted`, the view is derived instead, fitting what is shown to the map.
-  const [moved, setMoved] = useState<View>({ centre: { x: 0, z: 0 }, zoom: 1 });
+  const [moved, setMoved] = useState<View>({ centre: { x: 0, z: 0 }, zoom: 1, yaw: YAW, tilt: ELEVATION });
   // A newly opened city or town stays fitted to the map, whatever size the map turns out to be, until the person moves it.
   const [fitted, setFitted] = useState(true);
   // Drill down: the key of the one town shown, or null for the whole city.
@@ -230,7 +251,8 @@ export function Viewer({
   const [drawer, setDrawer] = useState<boolean | null>(null);
   const insets = useMemo(() => insetsFor(viewport, drawer), [viewport, drawer]);
   const view = useMemo(
-    () => (fitted && scene ? fit(scene.bounds, viewport, insets, mode) : moved),
+    // The Buildings view's turn is the person's, held by the view they moved to and kept when fitting.
+    () => (fitted && scene ? fit(scene.bounds, viewport, insets, mode, moved) : moved),
     [fitted, scene, viewport, insets, moved, mode],
   );
   // Each lot's measures together, the lot table the buildings are drawn from, and the cards' measure rows.
@@ -247,6 +269,27 @@ export function Viewer({
         : [],
     [buildings],
   );
+  // Every building's name over its roof, for the Buildings view close up: its files from its measures, else its path.
+  const roofs = useMemo(
+    () =>
+      shown && drawnTable
+        ? shown.towns.flatMap((place) =>
+            place.lots
+              .filter((lot) => !lot.vacant && lot.path !== "")
+              .map((lot) => {
+                const middle = centroid(lot.pts);
+                return {
+                  text: signName(buildingOf(buildings, place.key, lot.key)?.files ?? [lot.path]),
+                  x: middle.x / UNIT,
+                  // Every built lot of the city shown is in its own lot table.
+                  y: drawnTable.heights.of(place.key, lot.key)!,
+                  z: -middle.y / UNIT,
+                };
+              }),
+          )
+        : [],
+    [shown, drawnTable, buildings],
+  );
   const uses = useMemo(() => [...new Set(scene?.buildings.order.map((ref) => ref.use))], [scene]);
   const [picked, setPickedHit] = useState<Hit | null>(null);
   // A walk in the city or town shown: showing another ends it (a new theme draws the same city, and keeps it).
@@ -254,7 +297,13 @@ export function Viewer({
   if (walk && walk.city !== shown) setWalk(null);
   const walking = walk?.city === shown ? walk : null;
   // A walk's walls are freed once it is over: ended, replaced, or the viewer gone.
-  useEffect(() => () => walk?.walls.dispose(), [walk]);
+  useEffect(
+    () => () => {
+      walk?.walls.dispose();
+      walk?.garage?.dispose();
+    },
+    [walk],
+  );
   // Where a search took the person: a marker over the map, until the selection changes.
   const [marker, setMarker] = useState<{ x: number; z: number } | null>(null);
   const setPicked = (hit: Hit | null) => {
@@ -304,7 +353,7 @@ export function Viewer({
   const goTo = (entry: SearchEntry, { bounds, picking }: NonNullable<typeof finder>) => {
     const leaving = focus !== null && focus !== entry.townKey;
     if (leaving) setFocus(null);
-    const whole = fit(bounds, viewport, insets, mode);
+    const whole = fit(bounds, viewport, insets, mode, moved);
     const from = leaving ? whole : view;
     flyView(from, flyTo(viewport, entry, whole, insets, mode));
     const hit: Hit | null =
@@ -540,7 +589,7 @@ export function Viewer({
   // Going down into the city: before the selected building, else on the road nearest the map's middle; the walls rise
   // under the loading card.
   const startWalk = async (
-    raise: RaiseWalls,
+    goDown: GoDown,
     into: { readonly city: City; readonly scene: Scene; table: Float32Array },
   ) => {
     const landing = landingOf(into.city, picked, view.centre);
@@ -552,20 +601,36 @@ export function Viewer({
     const job = begin("explore", into.city.repository);
     try {
       const footprints = footprintsOf(into.scene.buildings, into.table);
-      const walls = await raise(footprints, { onStep: job.step, signal: job.signal });
+      const landed = { x: landing.at.x / METRE, z: landing.at.z / METRE };
+      const { walls, garage, arcade } = await goDown(footprints, landed, { onStep: job.step, signal: job.signal });
       log.info("explore/enter", {
         landing: landing.kind,
         buildings: footprints.length,
         x: landing.at.x.toFixed(3),
         z: landing.at.z.toFixed(3),
       });
-      setWalk({ city: into.city, walls, footprints, roads: roadGrid(roadSegments(into.city)), landing });
+      // The landing's pair at the kerb ahead, then the city's own, worked out from its plan.
+      const parked = [...parkedBy(landing, walls), ...parkedIn(into.city, landing, walls)];
+      log.info("explore/parked", {
+        bicycles: parked.filter((v) => v.kind === "bicycle").length,
+        cars: parked.filter((v) => v.kind === "car").length,
+      });
+      setWalk({
+        city: into.city,
+        walls,
+        garage,
+        arcade,
+        footprints,
+        roads: roadGrid(roadSegments(into.city)),
+        landing,
+        parked,
+      });
       job.done();
     } catch (failure) {
       if (isAbort(failure)) return;
       job.failed();
       log.error("explore/failed", { reason: reasonOf(failure) });
-      setError("Walking could not start: the physics engine did not load.");
+      setError("Walking could not start: the city’s walls did not rise.");
     }
   };
   // Back to the map: centred where the walk ended, when it ended on foot.
@@ -600,6 +665,9 @@ export function Viewer({
             roads={walking.roads}
             inspect={inspector(scene, walking.footprints, index, buildings)}
             landing={walking.landing}
+            parked={walking.parked}
+            garage={walking.garage}
+            arcade={walking.arcade}
             engine={explore.engine}
             Canvas={explore.Canvas}
             onLeave={leaveWalk}
@@ -622,6 +690,7 @@ export function Viewer({
             mode={mode}
             table={drawnTable.table}
             heights={drawnTable.heights}
+            roofs={roofs}
             focused={focus !== null}
             github={source !== null}
             Canvas={Canvas}
@@ -676,7 +745,7 @@ export function Viewer({
                       ? () =>
                           walking
                             ? leaveWalk(null)
-                            : void startWalk(explore.raise, { city: shown, scene, table: drawnTable.table })
+                            : void startWalk(explore.goDown, { city: shown, scene, table: drawnTable.table })
                       : null,
                 },
               }

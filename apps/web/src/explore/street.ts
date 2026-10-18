@@ -13,7 +13,12 @@ export interface Street {
 }
 
 /** Roads that people walk and ride along, rather than a lane between back gardens or a highway between towns. */
-const STREET_CLASSES: ReadonlySet<RoadClass> = new Set<RoadClass>(["street", "collector", "avenue", "boulevard"]);
+export const STREET_CLASSES: ReadonlySet<RoadClass> = new Set<RoadClass>([
+  "street",
+  "collector",
+  "avenue",
+  "boulevard",
+]);
 
 /** Consecutive segments whose directions differ by less than this (radians) are one straight run. */
 const STRAIGHT = 0.02;

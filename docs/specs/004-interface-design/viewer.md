@@ -166,7 +166,8 @@ Every control meets measurable rules:
   says. Switching keeps the centre and the zoom; the map's names stay readable in both.
 - In the Buildings view the city stays responsive on a phone with linux's 75,000 buildings: windows are drawn on the
   facades, not built one by one.
-- Pan by dragging or the arrow keys; zoom by the wheel, a pinch, or `+` and `-`; `0` fits the city to the window.
+- Pan by dragging or the arrow keys; zoom by the wheel or a pinch about the point under the pointer, or `+` and `-`; `0`
+  fits the city to the window. The Buildings view turns and tilts (see the exploration spec's Cameras).
 - Town names and the largest district names float over the map as text, never as images, and never overlap. A name shown
   once is not repeated nearby, whatever its letter case (`NET` and `net` are the same name), and smaller names appear
   only as the map is zoomed in far enough to read them.

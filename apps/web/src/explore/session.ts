@@ -1,16 +1,21 @@
 // A walk through the city, frame by frame: what the devices hold, the walker and the vehicles they move, and the camera.
 // Everything steps at a fixed rate, whatever the screen's, so a walk is the same on every device. Metres.
 import { PERSON_RADIUS, type Vec3, type Walls } from "@citymap/world";
-import { ON_FOOT, behind, turned, type Follow, type Orbit } from "./camera";
-import { intentsOf, type Stick } from "./input";
+import { shift } from "./bicycle";
+import { ON_FOOT, behind, cameraOf, turned, type Follow, type Orbit } from "./camera";
+import { FLY_SPEED, geared as gearedFlight, stepFlyer, type Flyer } from "./flyer";
+import { intentsOf, type Pad, type Stick } from "./input";
+import type { Garage } from "./physics/garage";
 import {
-  BUMP,
   LEAVE_SPEED,
   VEHICLES,
   alightFrom,
+  bumped,
   clearOfVehicles,
+  parkedNow,
   reachable,
   stepVehicle,
+  type Quat,
   type Vehicle,
   type VehicleKind,
 } from "./vehicles";
@@ -25,6 +30,17 @@ export interface Controls {
   look: { dx: number; dy: number };
   /** Getting on or off was asked for since the last frame. */
   use: boolean;
+  /** Flying freely, or landing again, was asked for since the last frame. */
+  fly: boolean;
+  /**
+   * Gear steps since the last frame (the wheel, the gear keys, the gear buttons): up positive. They shift the bicycle,
+   * or set the free camera's speed while it flies.
+   */
+  gears: number;
+  /** Sinking, while flying, is held (a touch button). */
+  sink: boolean;
+  /** A gamepad's stick and A button, read each frame; null with no pad. */
+  pad: Pad | null;
 }
 
 export const newControls = (): Controls => ({
@@ -33,6 +49,10 @@ export const newControls = (): Controls => ({
   jump: false,
   look: { dx: 0, dy: 0 },
   use: false,
+  fly: false,
+  gears: 0,
+  sink: false,
+  pad: null,
 });
 
 /**
@@ -49,6 +69,8 @@ export interface Session {
   readonly orbit: Orbit;
   readonly spare: number;
   readonly walked: number;
+  /** The free camera, while it flies; null while it follows the walker. */
+  readonly flyer: Flyer | null;
 }
 
 /** Everything steps 120 times a second. */
@@ -72,8 +94,20 @@ export const startSession = (feet: Vec3, heading: number, vehicles: readonly Veh
     orbit: behind(heading),
     spare: 0,
     walked: 0,
+    flyer: null,
   };
 };
+
+/** Keys that sink the free camera, as Space raises it. */
+const SINK_KEYS = ["KeyC", "ControlLeft", "ControlRight"];
+
+/** The free camera lifted from where the follow camera is, or landed back on the walker. */
+function toggleFlight(session: Session, walls: Walls): Session {
+  if (session.flyer) return { ...session, flyer: null };
+  const shown = shownOf(session);
+  const { eye } = cameraOf(shown.feet, session.orbit, walls, followOf(session));
+  return { ...session, flyer: { at: eye, speed: FLY_SPEED } };
+}
 
 /** The vehicle being ridden, or null on foot. */
 export const ridden = (session: Session): Vehicle | null =>
@@ -85,7 +119,7 @@ function use(session: Session, walls: Walls): Session {
   if (vehicle) {
     if (Math.abs(vehicle.speed) >= LEAVE_SPEED) return session;
     const body: Body = { feet: alightFrom(vehicle, walls), rise: 0, heading: vehicle.heading, grounded: true };
-    const parked = session.vehicles.map((v) => (v === vehicle ? { ...v, speed: 0, turn: 0, steer: 0 } : v));
+    const parked = session.vehicles.map((v) => (v === vehicle ? parkedNow(v) : v));
     return { ...session, body, previous: body, vehicles: parked, previousVehicles: parked, riding: null, speed: 0 };
   }
   if (!session.body.grounded) return session;
@@ -93,30 +127,73 @@ function use(session: Session, walls: Walls): Session {
   return near ? { ...session, riding: near.id } : session;
 }
 
+/** The ridden bicycle shifted by the gear steps asked for; anything else as it is. */
+function geared(session: Session, steps: number): Session {
+  const vehicle = ridden(session);
+  if (steps === 0 || vehicle?.kind !== "bicycle") return session;
+  const vehicles = session.vehicles.map((v) =>
+    v === vehicle ? { ...vehicle, cycle: shift(vehicle.cycle, steps) } : v,
+  );
+  return { ...session, vehicles };
+}
+
+/** Which way a ride moves over its last step: its heading, or the way it went when moving forwards (a car sliding). */
+function travelOf(session: Session, previous: Body, body: Body, speed: number): number {
+  const vehicle = ridden(session);
+  const dx = body.feet.x - previous.feet.x;
+  const dz = body.feet.z - previous.feet.z;
+  if (!vehicle || vehicle.speed <= 0 || speed <= CHASE_FROM) return body.heading;
+  return Math.atan2(-dz, dx);
+}
+
 /**
- * The walk after a frame of `seconds`: the drag turns the camera; getting on or off, if asked; then every whole step
- * due, of the walker or of what it rides, the walker going with it; and the camera swinging round behind a ride.
+ * The walk after a frame of `seconds`: the drag turns the camera; getting on or off, if asked; the ridden bicycle's
+ * gears; then every whole step due, of the walker or of what it rides, the walker going with it (a car on Rapier's
+ * `garage` where there is one, else on its arcade handling); and the camera swinging round behind a ride, the way it
+ * moves.
  */
-export function advanceSession(session: Session, controls: Readonly<Controls>, seconds: number, walls: Walls): Session {
+export function advanceSession(
+  session: Session,
+  controls: Readonly<Controls>,
+  seconds: number,
+  walls: Walls,
+  garage: Garage | null = null,
+): Session {
   let orbit = turned(session.orbit, controls.look.dx, controls.look.dy);
-  const intents = intentsOf(controls.keys, controls.stick, controls.jump);
-  const used = controls.use ? use(session, walls) : session;
-  let { body, previous, vehicles, previousVehicles, speed, walked } = used;
+  const intents = intentsOf(controls.keys, controls.stick, controls.jump, controls.pad);
+  const toggled = controls.fly ? toggleFlight(session, walls) : session;
+  const used = controls.use && !toggled.flyer ? use(toggled, walls) : toggled;
+  // While the camera flies, the walker and any ride are left alone, and the keys fly the camera.
+  const flight = used.flyer
+    ? {
+        forward: intents.forward,
+        right: intents.right,
+        up: (intents.jump ? 1 : 0) - (controls.sink || SINK_KEYS.some((k) => controls.keys.has(k)) ? 1 : 0),
+      }
+    : null;
+  const steering = flight ? { ...intents, forward: 0, right: 0, jump: false, run: false } : intents;
+  let flyer = used.flyer && controls.gears !== 0 ? gearedFlight(used.flyer, controls.gears) : used.flyer;
+  let { body, previous, vehicles, previousVehicles, speed, walked } = used.flyer ? used : geared(used, controls.gears);
   let spare = used.spare + Math.min(seconds, LONGEST_FRAME);
   while (spare >= STEP) {
     let next: Body;
     const vehicle = vehicles.find((v) => v.id === used.riding);
     previousVehicles = vehicles;
-    if (vehicle) {
-      // Other vehicles are in the way of the one ridden: a bump costs most of its speed.
-      const stepped = stepVehicle(vehicle, intents, STEP, walls);
+    if (vehicle?.kind === "car" && garage) {
+      // Rapier keeps the car out of the buildings and the other vehicles itself.
+      vehicles = garage.drive(vehicles, new Map([[vehicle.id, steering]]), STEP);
+      const moved = vehicles.find((v) => v.id === vehicle.id)!;
+      next = { feet: moved.feet, rise: 0, heading: moved.heading, grounded: true };
+    } else if (vehicle) {
+      // Other vehicles are in the way of the one ridden: a bump costs most of its speed, a hard one a rider.
+      const stepped = stepVehicle(vehicle, steering, STEP, walls);
       const clear = clearOfVehicles(stepped.feet, VEHICLES[vehicle.kind].radius, vehicles, vehicle.id);
-      const moved = { ...stepped, feet: clear.feet, speed: clear.hit ? stepped.speed * BUMP : stepped.speed };
+      const moved = clear.hit ? bumped({ ...stepped, feet: clear.feet }) : stepped;
       vehicles = vehicles.map((v) => (v === vehicle ? moved : v));
       next = { feet: moved.feet, rise: 0, heading: moved.heading, grounded: true };
     } else {
       // Vehicles are in a walker's way, as walls are.
-      const stepped = stepWalker(body, intents, orbit.yaw, STEP, walls);
+      const stepped = stepWalker(body, steering, orbit.yaw, STEP, walls);
       next = { ...stepped, feet: clearOfVehicles(stepped.feet, PERSON_RADIUS, vehicles, null).feet };
     }
     const stride = Math.hypot(next.feet.x - body.feet.x, next.feet.z - body.feet.z);
@@ -124,15 +201,21 @@ export function advanceSession(session: Session, controls: Readonly<Controls>, s
     speed = stride / STEP;
     previous = body;
     body = next;
+    if (flyer && flight) flyer = stepFlyer(flyer, flight, orbit, STEP);
     spare -= STEP;
   }
   const dragged = controls.look.dx !== 0 || controls.look.dy !== 0;
-  if (used.riding && speed > CHASE_FROM && !dragged)
+  const after = { ...used, body, previous, vehicles, previousVehicles, speed, spare, walked, flyer };
+  const riding = ridden(after);
+  if (riding && speed > CHASE_FROM && !dragged) {
+    const chase = VEHICLES[riding.kind].follow.chase ?? CHASE;
+    const way = travelOf(after, previous, body, speed);
     orbit = {
       ...orbit,
-      yaw: orbit.yaw + turnBetween(orbit.yaw, body.heading) * (1 - Math.exp(-Math.min(seconds, LONGEST_FRAME) / CHASE)),
+      yaw: orbit.yaw + turnBetween(orbit.yaw, way) * (1 - Math.exp(-Math.min(seconds, LONGEST_FRAME) / chase)),
     };
-  return { ...used, body, previous, vehicles, previousVehicles, speed, orbit, spare, walked };
+  }
+  return { ...after, orbit };
 }
 
 const between = (a: number, b: number, share: number) => a + (b - a) * share;
@@ -158,23 +241,67 @@ export function shownOf(session: Session): { readonly feet: Vec3; readonly headi
   };
 }
 
-/** Where to draw each vehicle this frame, between its last two steps as the walker is. */
+/** A turn between two others, the short way round (normalised linear interpolation: close enough over one step). */
+export function turnBetweenQuats(a: Quat, b: Quat, share: number): Quat {
+  const sign = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w < 0 ? -1 : 1;
+  const q = {
+    x: between(a.x, b.x * sign, share),
+    y: between(a.y, b.y * sign, share),
+    z: between(a.z, b.z * sign, share),
+    w: between(a.w, b.w * sign, share),
+  };
+  const length = Math.hypot(q.x, q.y, q.z, q.w);
+  return { x: q.x / length, y: q.y / length, z: q.z / length, w: q.w / length };
+}
+
+/**
+ * Where to draw each vehicle this frame, between its last two steps as the walker is (a car's whole turn, a
+ * two-wheeler's lean and pitch, a bicycle's crank too); one that has not moved, as it is. A step keeps the vehicles in
+ * their order and kinds, so each is found by its place.
+ */
 export function shownVehicles(session: Session): Vehicle[] {
   const share = session.spare / STEP;
-  return session.vehicles.map((v) => {
-    const before = session.previousVehicles.find((p) => p.id === v.id) ?? v;
-    return {
-      ...v,
+  return session.vehicles.map((v, i) => {
+    const before = session.previousVehicles[i];
+    if (!before || before === v) return v;
+    const placed = {
       feet: betweenFeet(before.feet, v.feet, share),
       heading: before.heading + turnBetween(before.heading, v.heading) * share,
+      steer: between(before.steer, v.steer, share),
     };
+    // A vehicle that changed its kind (none does) is shown as it is now.
+    if (v.kind === "car")
+      return before.kind === "car"
+        ? { ...v, ...placed, attitude: turnBetweenQuats(before.attitude, v.attitude, share) }
+        : v;
+    if (v.kind === "motorbike") {
+      if (before.kind !== "motorbike") return v;
+      const moto = {
+        ...v.moto,
+        lean: between(before.moto.lean, v.moto.lean, share),
+        pitch: between(before.moto.pitch, v.moto.pitch, share),
+      };
+      return { ...v, ...placed, moto };
+    }
+    if (before.kind !== "bicycle") return v;
+    const cycle = {
+      ...v.cycle,
+      lean: between(before.cycle.lean, v.cycle.lean, share),
+      pitch: between(before.cycle.pitch, v.cycle.pitch, share),
+      crank: between(before.cycle.crank, v.cycle.crank, share),
+    };
+    return { ...v, ...placed, cycle };
   });
 }
 
-/** How the camera follows: a ride from further back and higher; on foot, over the shoulder. */
+/** How the camera follows: a ride from further back and higher (a car further still the faster it goes); on foot, over
+ * the shoulder. */
 export const followOf = (session: Session): Follow => {
   const vehicle = ridden(session);
-  return vehicle ? VEHICLES[vehicle.kind].follow : ON_FOOT;
+  if (!vehicle) return ON_FOOT;
+  const { follow } = VEHICLES[vehicle.kind];
+  const stretched = follow.distance + (follow.stretch ?? 0) * Math.abs(vehicle.speed);
+  return { ...follow, distance: Math.min(follow.farthest ?? follow.distance, stretched) };
 };
 
 /** What pressing E would do now: get on or in a vehicle within reach, or off or out of the one ridden (ready once it
@@ -186,6 +313,7 @@ export interface Prompt {
 }
 
 export function promptOf(session: Session): Prompt | null {
+  if (session.flyer) return null;
   const vehicle = ridden(session);
   if (vehicle) return { action: "leave", kind: vehicle.kind, ready: Math.abs(vehicle.speed) < LEAVE_SPEED };
   if (!session.body.grounded) return null;

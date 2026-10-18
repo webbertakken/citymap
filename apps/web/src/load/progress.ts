@@ -13,8 +13,9 @@ export const PHASES: Readonly<Record<Source, readonly Phase[]>> = {
   file: ["download", "parse", "draw"],
   // A folder with git reads its index; one without is walked instead.
   local: ["index", "folder", "manifests", "contents", "coverage", "lay", "draw"],
-  // Going down into the city: the physics engine arrives, then every building becomes a wall.
-  explore: ["engine", "walls"],
+  // Going down into the city: the physics engine arrives, then the people and vehicles, every building becomes a wall,
+  // and the streets round the landing rise in the physics engine.
+  explore: ["engine", "models", "walls", "streets"],
 };
 
 /** Each phase's share of the bar, per source: their shares of the time linux takes (see DEFAULTS.md). */
@@ -23,7 +24,7 @@ export const PHASE_WEIGHTS: Readonly<Record<Source, Partial<Record<Phase, number
   bundled: { download: 0.6, parse: 0.15, draw: 0.25 },
   file: { download: 0.1, parse: 0.3, draw: 0.6 },
   local: { index: 0.1, folder: 0.15, manifests: 0.05, contents: 0.15, coverage: 0.05, lay: 0.4, draw: 0.1 },
-  explore: { engine: 0.4, walls: 0.6 },
+  explore: { engine: 0.35, models: 0.15, walls: 0.3, streets: 0.2 },
 };
 
 /** The share of the bar, and the time spent, before the time left is estimated. */
@@ -94,7 +95,9 @@ const WORDS: Readonly<Record<Phase, string>> = {
   parse: "Reading the city",
   draw: "Drawing the map",
   engine: "Loading the physics engine",
+  models: "Loading the people and vehicles",
   walls: "Raising the city’s walls",
+  streets: "Raising the nearby streets",
 };
 
 /** What the load is, as the card's title: opening something, or going down into the city shown. */

@@ -4,11 +4,16 @@ import { THEMES } from "@citymap/themes";
 import { GROUND, type Footprint, type Walls } from "@citymap/world";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ArcadeWhy } from "../explore/descent";
 import type { Inspect } from "../explore/inspect";
 import type { Landing } from "../explore/landing";
+import type { Garage } from "../explore/physics/garage";
 import { roadGrid } from "../explore/signs";
 import { METRE } from "../explore/street";
+import { parkedBy } from "../explore/vehicles";
 import {
   ExploreView,
   STICK_REACH,
@@ -21,7 +26,38 @@ import { city } from "./testing/fixtures";
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  pads = [];
 });
+
+/** The gamepads the page sees: none, unless a test connects one. */
+let pads: unknown[] = [];
+Object.defineProperty(navigator, "getGamepads", { configurable: true, value: () => pads });
+
+/** A standard gamepad at rest but for the axes and buttons given (by index), named as a browser names one. */
+const gamepad = (axes: Partial<Record<number, number>> = {}, held: Partial<Record<number, number>> = {}) => ({
+  id: "Test pad (STANDARD GAMEPAD)",
+  mapping: "standard",
+  axes: [0, 1, 2, 3].map((i) => axes[i] ?? 0),
+  buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: (held[i] ?? 0) > 0.5, value: held[i] ?? 0 })),
+});
+
+/** Web Audio that counts the tones the bell plays. */
+let tones = 0;
+class CountingAudio {
+  readonly currentTime = 0;
+  readonly destination = {};
+  createOscillator() {
+    tones += 1;
+    return { frequency: { value: 0 }, connect: () => undefined, start: () => undefined, stop: () => undefined };
+  }
+  createGain() {
+    return {
+      gain: { setValueAtTime: () => undefined, exponentialRampToValueAtTime: () => undefined },
+      connect: () => undefined,
+    };
+  }
+}
 
 /** Open ground at the walking height: every move is taken. */
 const open: Walls = {
@@ -91,7 +127,13 @@ const inspectAhead: Inspect = (lot) =>
 
 const show = (
   onLeave = vi.fn<ExploreViewProps["onLeave"]>(),
-  sights: { footprints?: readonly Footprint[]; inspect?: Inspect } = {},
+  sights: {
+    footprints?: readonly Footprint[];
+    inspect?: Inspect;
+    walls?: Walls;
+    garage?: Garage | null;
+    arcade?: ArcadeWhy | null;
+  } = {},
 ) => {
   render(
     <ExploreView
@@ -99,12 +141,15 @@ const show = (
       scene={scene}
       table={lookTable}
       theme={theme}
-      walls={open}
+      walls={sights.walls ?? open}
       footprints={sights.footprints ?? []}
       roads={roadGrid([])}
       inspect={sights.inspect ?? (() => ({ hit: null, files: [] }))}
       landing={landing}
+      parked={parkedBy(landing, sights.walls ?? open)}
       engine="Rapier"
+      garage={sights.garage ?? null}
+      arcade={sights.arcade ?? null}
       Canvas={StubCanvas}
       onLeave={onLeave}
     />,
@@ -119,10 +164,13 @@ const hold = (code: string, tenths: number) => {
   for (let i = 0; i < tenths; i++) walk();
   fireEvent.keyUp(window, { code });
 };
-/** Up the street and across to the kerb: 4 m ahead and 3.2 m to the right lies the bicycle, 10 m ahead the car. */
-const toTheKerb = (ahead: number) => {
+/**
+ * Up the street and across to a kerb: 4 m ahead and 3.2 m to the right lies the bicycle; 10 m ahead and across the
+ * street, to the left, the car.
+ */
+const toTheKerb = (ahead: number, side = "KeyD") => {
   hold("KeyW", ahead);
-  hold("KeyD", 20);
+  hold(side, 20);
 };
 const walk = (seconds = 0.1): ExploreFrame => {
   let now: ExploreFrame | null = null;
@@ -132,7 +180,54 @@ const walk = (seconds = 0.1): ExploreFrame => {
   return now!;
 };
 
+/** The bicycle's HUD, while it shows. */
+const hud = () => document.querySelector<HTMLElement>(".explore-hud")!;
+
 describe("ExploreView", () => {
+  it("hears Escape the moment it is on screen, before its passive effects have run", async () => {
+    // Rendered at default priority outside act, as a walk that begins when its walls resolve, React commits, then runs
+    // the passive effects in a later task: the gap a busy machine stretches, in which a key must not be lost. The press
+    // comes as the commit's mutations are observed, as Testing Library's findBy sees them.
+    const acting = Reflect.get(globalThis, "IS_REACT_ACT_ENVIRONMENT");
+    Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", false);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const onLeave = vi.fn<ExploreViewProps["onLeave"]>();
+    const committed = new Promise<void>((resolve) => {
+      const watch = new MutationObserver(() => {
+        watch.disconnect();
+        resolve();
+      });
+      watch.observe(host, { childList: true });
+    });
+    root.render(
+      <ExploreView
+        name="alpha"
+        scene={scene}
+        table={lookTable}
+        theme={theme}
+        walls={open}
+        footprints={[]}
+        roads={roadGrid([])}
+        inspect={() => ({ hit: null, files: [] })}
+        landing={landing}
+        parked={parkedBy(landing, open)}
+        garage={null}
+        arcade={null}
+        engine="Rapier"
+        Canvas={StubCanvas}
+        onLeave={onLeave}
+      />,
+    );
+    await committed;
+    fireEvent.keyDown(window, { key: "Escape", code: "Escape" });
+    expect(onLeave).toHaveBeenCalledOnce();
+    flushSync(() => root.unmount());
+    host.remove();
+    Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", acting);
+  });
+
   it("stands at the landing, says how to walk and which engine it runs on, and has the keyboard", () => {
     show();
     const start = walk(0);
@@ -167,9 +262,9 @@ describe("ExploreView", () => {
 
   it("leaves other keys to the page", () => {
     show();
-    const keyQ = new KeyboardEvent("keydown", { code: "KeyQ", key: "q", cancelable: true });
-    window.dispatchEvent(keyQ);
-    expect(keyQ.defaultPrevented).toBe(false);
+    const keyZ = new KeyboardEvent("keydown", { code: "KeyZ", key: "z", cancelable: true });
+    window.dispatchEvent(keyZ);
+    expect(keyZ.defaultPrevented).toBe(false);
   });
 
   it("goes back to the map by Escape or the button, where the walker stands", () => {
@@ -211,6 +306,54 @@ describe("ExploreView", () => {
     expect(z).toBeCloseTo(2 / METRE, 9);
   });
 
+  it("flies the camera freely by F, at a speed the wheel sets, and lands it on the walker by F again", () => {
+    show();
+    fireEvent.keyDown(window, { code: "KeyF" });
+    // A held F lifts once.
+    fireEvent.keyDown(window, { code: "KeyF", repeat: true });
+    const lifted = walk();
+    expect(lifted.session.flyer).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Flying" })).toBeTruthy();
+    expect(screen.getByText(/F lands/)).toBeTruthy();
+    fireEvent.keyUp(window, { code: "KeyF" });
+    fireEvent.wheel(view(), { deltaY: -100 });
+    fireEvent.wheel(view(), { deltaY: 0 });
+    const faster = walk();
+    expect(faster.session.flyer!.speed).toBeGreaterThan(lifted.session.flyer!.speed);
+    fireEvent.keyDown(window, { code: "KeyW" });
+    const ahead = walk(0.5);
+    fireEvent.keyUp(window, { code: "KeyW" });
+    expect(ahead.camera.eye).toEqual(ahead.session.flyer!.at);
+    expect(ahead.session.body.feet).toEqual(lifted.session.body.feet);
+    fireEvent.keyDown(window, { code: "KeyF" });
+    expect(walk().session.flyer).toBeNull();
+    expect(screen.getByRole("heading", { name: "On foot" })).toBeTruthy();
+  });
+
+  it("flies by the touch buttons: Fly, then Up and Down while held, and Fly again to land", () => {
+    show();
+    expect(screen.queryByRole("button", { name: "Down" })).toBeNull();
+    const fly = screen.getByRole("button", { name: "Fly" });
+    fireEvent.pointerDown(fly, { pointerId: 4 });
+    fireEvent.click(fly);
+    const lifted = walk();
+    expect(fly.getAttribute("aria-pressed")).toBe("true");
+    const up = screen.getByRole("button", { name: "Up" });
+    fireEvent.pointerDown(up, { pointerId: 3 });
+    const risen = walk(0.5);
+    fireEvent.pointerUp(up, { pointerId: 3 });
+    expect(risen.session.flyer!.at.y).toBeGreaterThan(lifted.session.flyer!.at.y);
+    const down = screen.getByRole("button", { name: "Down" });
+    fireEvent.pointerDown(down, { pointerId: 3 });
+    const sunk = walk(0.5);
+    fireEvent.pointerCancel(down, { pointerId: 3 });
+    expect(sunk.session.flyer!.at.y).toBeLessThan(risen.session.flyer!.at.y);
+    expect(walk(0.5).session.flyer!.at.y).toBe(sunk.session.flyer!.at.y);
+    fireEvent.click(fly);
+    walk();
+    expect(fly.getAttribute("aria-pressed")).toBe("false");
+  });
+
   it("jumps while the jump button is held", () => {
     show();
     const jump = screen.getByRole("button", { name: "Jump" });
@@ -224,7 +367,7 @@ describe("ExploreView", () => {
   it("parks a bicycle and a car by the road, and offers to get on the bicycle within reach", () => {
     show();
     const start = walk(0);
-    expect(start.vehicles.map((v) => v.kind)).toEqual(["bicycle", "car"]);
+    expect(start.vehicles.map((v) => v.kind)).toEqual(["bicycle", "car", "motorbike"]);
     expect(start.riding).toBeNull();
     expect(screen.queryByRole("button", { name: /Get on the bicycle/ })).toBeNull();
     toTheKerb(25);
@@ -265,7 +408,7 @@ describe("ExploreView", () => {
 
   it("gets in the car, and says so", () => {
     show();
-    toTheKerb(62);
+    toTheKerb(62, "KeyA");
     walk();
     fireEvent.click(screen.getByRole("button", { name: "Get in the car" }));
     expect(walk().riding).toBe("car");
@@ -361,5 +504,246 @@ describe("ExploreView", () => {
     fireEvent.pointerDown(screen.getByRole("button", { name: "Back to the map" }), { pointerId: 4, clientX: 0 });
     fireEvent.pointerMove(view(), { pointerId: 4, clientX: 300 });
     expect(walk(0).session.orbit.yaw).toBe(0);
+  });
+
+  it("shows the bicycle's speed, gear and cadence while riding it, a foot down at a stop, and none on foot", () => {
+    show();
+    toTheKerb(25);
+    expect(screen.queryByRole("region", { name: "Speed, gear and cadence" })).toBeNull();
+    fireEvent.keyDown(window, { code: "KeyE" });
+    walk();
+    expect(hud().getAttribute("aria-label")).toBe("Speed, gear and cadence");
+    expect(hud().dataset.foot).toBe("down");
+    expect(hud().textContent).toContain("0 km/h");
+    expect(hud().textContent).toContain("3 of 7");
+    hold("KeyW", 8);
+    expect(hud().dataset.foot).toBe("up");
+    expect(hud().textContent).not.toContain("0 rpm");
+    expect(hud().textContent).not.toContain(" 0 km/h");
+    // Shown afresh no more often than the HUD's beat: a frame within it changes nothing.
+    const before = hud().textContent;
+    fireEvent.keyDown(window, { code: "KeyW" });
+    walk(0.01);
+    expect(hud().textContent).toBe(before);
+    fireEvent.keyUp(window, { code: "KeyW" });
+    fireEvent.keyDown(window, { code: "Space" });
+    for (let i = 0; i < 30; i++) walk();
+    fireEvent.keyUp(window, { code: "Space" });
+    fireEvent.keyDown(window, { code: "KeyE" });
+    walk();
+    walk();
+    expect(document.querySelector(".explore-hud")).toBeNull();
+  });
+
+  it("changes gear by Q and R, once a press, and by the touch buttons", () => {
+    show();
+    toTheKerb(25);
+    fireEvent.keyDown(window, { code: "KeyE" });
+    walk();
+    const gear = () => {
+      const now = walk();
+      return now.session.vehicles.find((v) => v.id === now.session.riding);
+    };
+    const keyR = new KeyboardEvent("keydown", { code: "KeyR", cancelable: true });
+    window.dispatchEvent(keyR);
+    expect(keyR.defaultPrevented).toBe(true);
+    fireEvent.keyDown(window, { code: "KeyR", repeat: true });
+    fireEvent.keyUp(window, { code: "KeyR" });
+    expect(gear()).toMatchObject({ cycle: { gear: 3 } });
+    fireEvent.keyDown(window, { code: "KeyQ" });
+    fireEvent.keyDown(window, { code: "KeyQ" });
+    expect(gear()).toMatchObject({ cycle: { gear: 1 } });
+    fireEvent.click(screen.getByRole("button", { name: "Gear up" }));
+    expect(gear()).toMatchObject({ cycle: { gear: 2 } });
+    const down = screen.getByRole("button", { name: "Gear down" });
+    fireEvent.pointerDown(down, { pointerId: 2 });
+    fireEvent.click(down);
+    expect(gear()).toMatchObject({ cycle: { gear: 1 } });
+  });
+
+  it("rings the bell by B and the Ring button, on the bicycle only", () => {
+    vi.stubGlobal("AudioContext", CountingAudio);
+    tones = 0;
+    show();
+    const keyB = new KeyboardEvent("keydown", { code: "KeyB", cancelable: true });
+    window.dispatchEvent(keyB);
+    expect(keyB.defaultPrevented).toBe(true);
+    expect(tones).toBe(0);
+    toTheKerb(25);
+    fireEvent.keyDown(window, { code: "KeyE" });
+    walk();
+    fireEvent.keyDown(window, { code: "KeyB" });
+    fireEvent.keyDown(window, { code: "KeyB", repeat: true });
+    expect(tones).toBe(4);
+    fireEvent.click(screen.getByRole("button", { name: "Ring" }));
+    expect(tones).toBe(8);
+  });
+
+  it("turns the jump button into the front brake on the bicycle", () => {
+    show();
+    toTheKerb(25);
+    fireEvent.keyDown(window, { code: "KeyE" });
+    walk();
+    hold("KeyW", 8);
+    const brake = screen.getByRole("button", { name: "Brake" });
+    fireEvent.pointerDown(brake, { pointerId: 3 });
+    for (let i = 0; i < 20; i++) walk();
+    fireEvent.pointerUp(brake, { pointerId: 3 });
+    const now = walk();
+    expect(now.session.vehicles.find((v) => v.id === "bicycle")!.speed).toBe(0);
+  });
+
+  it("walks and rides by a gamepad: its sticks and triggers, each button once a press, said once in the log", () => {
+    vi.stubGlobal("AudioContext", CountingAudio);
+    tones = 0;
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    show();
+    // A pad without the standard mapping means nothing.
+    pads = [null, { ...gamepad({ 1: -1 }), mapping: "" }];
+    expect(walk().session.body.feet.x).toBeCloseTo(1 / METRE, 9);
+    pads = [null, gamepad({ 1: -1 })];
+    expect(walk().session.body.feet.x).toBeGreaterThan(1 / METRE);
+    pads = [gamepad({ 2: 1 })];
+    expect(walk(0.1).session.orbit.yaw).toBeLessThan(0);
+    pads = [gamepad()];
+    toTheKerb(25);
+    pads = [gamepad({}, { 3: 1 })];
+    expect(walk().riding).toBe("bicycle");
+    // Held, Y does not get off again.
+    expect(walk().riding).toBe("bicycle");
+    pads = [gamepad({}, { 7: 1, 5: 1, 2: 1 })];
+    const going = walk(0.5);
+    expect(going.session.vehicles.find((v) => v.id === "bicycle")).toMatchObject({ cycle: { gear: 3 } });
+    expect(going.session.vehicles.find((v) => v.id === "bicycle")!.speed).toBeGreaterThan(0);
+    expect(tones).toBe(4);
+    pads = [gamepad({}, { 8: 1 })];
+    expect(walk().session.flyer).not.toBeNull();
+    const lines = info.mock.calls.map(([line]) => String(line));
+    expect(lines.filter((l) => l.startsWith("explore/gamepad"))).toEqual([
+      'explore/gamepad id="Test pad (STANDARD GAMEPAD)"',
+    ]);
+  });
+
+  it("gets on the motorbike behind the landing, says its keys, and shows its speed, gear and engine", () => {
+    show();
+    // 7 m back along the street and across to the near kerb.
+    hold("KeyS", 40);
+    hold("KeyD", 20);
+    walk();
+    fireEvent.click(screen.getByRole("button", { name: "Get on the motorbike" }));
+    expect(walk().riding).toBe("motorbike");
+    walk();
+    expect(screen.getByRole("region", { name: "On the motorbike" }).textContent).toContain("W throttle");
+    expect(hud().getAttribute("aria-label")).toBe("Speed, gear and engine");
+    expect(hud().textContent).toContain("1 of 5");
+    expect(hud().dataset.foot).toBe("down");
+    // On a touch screen its main button is the front brake, with no bell or gears beside it.
+    expect(screen.getByRole("button", { name: "Brake" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ring" })).toBeNull();
+    hold("KeyW", 10);
+    expect(hud().textContent).toMatch(/Engine\d[\d,]* rpm/);
+    expect(hud().textContent).not.toContain(" 0 km/h");
+    // Both brakes to a stop, then off.
+    fireEvent.keyDown(window, { code: "Space" });
+    fireEvent.keyDown(window, { code: "KeyS" });
+    for (let i = 0; i < 40; i++) walk();
+    fireEvent.keyUp(window, { code: "Space" });
+    fireEvent.keyUp(window, { code: "KeyS" });
+    walk();
+    expect(screen.getByRole("button", { name: "Get off the motorbike" })).toBeTruthy();
+    fireEvent.keyDown(window, { code: "KeyE" });
+    expect(walk().riding).toBeNull();
+  });
+
+  it("drives the car on the garage, keeps the streets round it each frame, and shows its gear and engine", () => {
+    const follow = vi.fn<Garage["follow"]>(() => ({ standing: 4, waiting: 0, nearest: Infinity }));
+    const garage: Garage = {
+      follow,
+      drive: (vehicles, drivers) =>
+        vehicles.map((v) =>
+          v.kind === "car" && drivers.has(v.id)
+            ? Object.assign({}, v, { feet: { ...v.feet, x: v.feet.x + 0.05 }, speed: 6, gear: 1, rpm: 2345 })
+            : v,
+        ),
+      keepingUp: () => true,
+      load: () => 0.1,
+      dispose: () => undefined,
+    };
+    show(undefined, { garage });
+    expect(follow).not.toHaveBeenCalled();
+    walk();
+    expect(follow).toHaveBeenCalledOnce();
+    toTheKerb(62, "KeyA");
+    walk();
+    fireEvent.click(screen.getByRole("button", { name: "Get in the car" }));
+    const before = walk().session.vehicles.find((v) => v.id === "car")!.feet.x;
+    hold("KeyW", 5);
+    const after = walk().session.vehicles.find((v) => v.id === "car")!;
+    expect(after.feet.x).toBeGreaterThan(before);
+    expect(hud().textContent).toContain("2");
+    expect(hud().textContent).toContain("2,300 rpm");
+    expect(screen.getByRole("button", { name: "Handbrake" })).toBeTruthy();
+    // The window follows where the car is going: its speed along the way it moved.
+    const [at, velocity] = follow.mock.calls.at(-1)!;
+    expect(at.x).toBeCloseTo(after.feet.x, 9);
+    expect(velocity.x).toBeGreaterThan(0);
+    // Leaving, the log says what the cars' physics cost.
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    cleanup();
+    expect(info).toHaveBeenCalledWith("explore/garage load=0.100");
+  });
+
+  it("hands the cars to their arcade handling when the garage cannot keep up, and says so once", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const drive = vi.fn<Garage["drive"]>((vehicles) => vehicles);
+    const garage: Garage = {
+      follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+      drive,
+      keepingUp: () => false,
+      load: () => 0.73,
+      dispose: () => undefined,
+    };
+    show(undefined, { garage });
+    toTheKerb(62, "KeyA");
+    walk();
+    fireEvent.click(screen.getByRole("button", { name: "Get in the car" }));
+    walk();
+    expect(screen.getByRole("status").textContent).toBe("Cars drive simply here: this device could not keep up.");
+    expect(error).toHaveBeenCalledWith("explore/arcade reason=slow load=0.73");
+    const driven = drive.mock.calls.length;
+    hold("KeyW", 5);
+    expect(drive.mock.calls.length).toBe(driven);
+    // The arcade car shows its speed alone.
+    expect(hud().getAttribute("aria-label")).toBe("Speed");
+    expect(error).toHaveBeenCalledOnce();
+  });
+
+  it("says in the log when a hard knock throws the rider, and when they are back up", () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    // A wall across the street 20 m on from the landing: 6 m beyond the bicycle.
+    const walled: Walls = {
+      ...open,
+      move: (feet, delta, radius) => {
+        const moved = open.move(feet, delta, radius);
+        return { ...moved, feet: { ...moved.feet, x: Math.min(moved.feet.x, 20 - (radius ?? 0.3)) } };
+      },
+    };
+    show(undefined, { walls: walled });
+    toTheKerb(25);
+    fireEvent.keyDown(window, { code: "KeyE" });
+    walk();
+    // Pedalled hard at the wall.
+    fireEvent.keyDown(window, { code: "KeyW" });
+    let thrown = false;
+    for (let i = 0; i < 40 && !thrown; i++) {
+      walk();
+      thrown = document.querySelector<HTMLElement>(".explore-hud")?.dataset.fallen === "true";
+    }
+    fireEvent.keyUp(window, { code: "KeyW" });
+    expect(thrown).toBe(true);
+    for (let i = 0; i < 30; i++) walk();
+    const lines = info.mock.calls.map(([line]) => String(line));
+    expect(lines.find((l) => l.startsWith("explore/thrown"))).toMatch(/^explore\/thrown cause=hit speed=\d+\.\d$/);
+    expect(lines).toContain("explore/up");
   });
 });

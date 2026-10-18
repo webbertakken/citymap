@@ -23,6 +23,23 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("loading Rapier", () => {
+  it("tries afresh after a load that failed", async () => {
+    vi.resetModules();
+    const init = vi.fn<() => Promise<void>>(() => Promise.reject(new Error("no WebAssembly")));
+    vi.doMock("@dimforge/rapier3d-compat", () => ({ init }));
+    try {
+      const { loadRapier } = await import("./rapier");
+      await expect(loadRapier()).rejects.toThrow("no WebAssembly");
+      await expect(loadRapier()).rejects.toThrow("no WebAssembly");
+      expect(init).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.doUnmock("@dimforge/rapier3d-compat");
+      vi.resetModules();
+    }
+  });
+});
+
 describe("rapierWalls", () => {
   it("stops a walker at a building's wall", async () => {
     // A building whose west wall runs along x = 10 m.

@@ -92,49 +92,55 @@ The thinnest path through every layer: world, one mover, intents, camera, render
 - [x] Inspection: crosshair over a window or a building shows its card; a window says what it holds and whether it is
       lit, and why
 - [x] Signs: the nearest buildings' names on their street-facing walls, pooled, self-hosted font
-- [ ] Roofs named in the turned Buildings view (Phase 4)
+- [x] Roofs named in the turned Buildings view (Phase 4)
 - [x] E2E: aim at a known building and window, read the card; signs never more than the pool
 - [x] Gate, commit, local build; Webber tests; feedback folded in (crosshair: shoulder offset, panel at the right, touch
       scrolling)
 
 ## Phase 4: cameras, the Buildings view turned and free
 
-- [ ] Buildings view gains rotate and tilt (perspective), zoom to the cursor, drag and edge pan, touch gestures (tests
-      first on the maths)
-- [ ] Free camera: fly in six directions, speed by wheel, no collision
-- [ ] View switch: Plan, Buildings, Free; the view's centre carries across every switch
+- [x] Buildings view gains rotate and tilt (orthographic kept; no edge pan), zoom to the cursor, drag, touch gestures
+      (tests first on the maths)
+- [x] Free camera: fly in six directions, speed by wheel, no collision (F from the walk; Fly on touch)
+- [x] View switch: Plan and Buildings keep centre, zoom and turn; the free camera lifts from the walk and lands back
 - [ ] E2E and vitals in each view; gate, commit, local build; Webber tests; feedback folded in
 
 ## Phase 5: parked vehicles and the bicycle
 
-- [ ] Parked vehicles: where they stand in a city (deterministic from the plan), walking up to one, getting on and off
+- [x] Parked vehicles: where they stand in a city (deterministic from the plan), walking up to one, getting on and off
 
 The showpiece: a bicycle that rides like one.
 
-- [ ] Single-track core: lean, steering geometry with trail and self-stability, countersteer, weight transfer, tyre grip
+- [x] Single-track core: lean, steering geometry with trail and self-stability, countersteer, weight transfer, tyre grip
       limit, low-speed wobble (tests first: rides straight hands-free above its stable speed, falls below it, turns by
       leaning)
-- [ ] Drivetrain: pedalling cadence and torque, gears up and down, freewheel, front and rear brakes (a hard front brake
+- [x] Drivetrain: pedalling cadence and torque, gears up and down, freewheel, front and rear brakes (a hard front brake
       lifts the rear), rolling resistance and air drag
-- [ ] Rider: pedals, legs and wheels turn in step with cadence and speed; foot down at a stop; a fall on a hard hit or a
+- [x] Rider: pedals, legs and wheels turn in step with cadence and speed; foot down at a stop; a fall on a hard hit or a
       lean past grip, then back up
-- [ ] Bell, HUD (speed, gear, cadence), controls on keyboard, touch and gamepad
-- [ ] E2E: ride, shift, brake, stop with a foot down; gate, commit, local build; Webber tests; feedback folded in
+- [x] Bell, HUD (speed, gear, cadence), controls on keyboard, touch and gamepad
+- [x] E2E: ride, shift, brake, stop with a foot down; gate, commit, local build
+- [x] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
+- [ ] Webber tests on desktop and phone; feedback folded in
 
 ## Phase 6: motorbike and car
 
-- [ ] Nearby streets for Rapier: only buildings within a window round the player, added and removed as it moves, in a
+- [x] Nearby streets for Rapier: only buildings within a window round the player, added and removed as it moves, in a
       frame centred near the player (no 32-bit drift); memory and raising time measured at linux's size (tests first)
-- [ ] Everything loads once, behind the Walk loading card (Rapier, every model, the walls), so nothing waits after:
+- [x] Everything loads once, behind the Walk loading card (Rapier, every model, the walls), so nothing waits after:
       getting into a car is instant; falls back to the arcade car (logged) where Rapier cannot load (no WebAssembly) or
       cannot keep up (frame time), saying so once
-- [ ] Nearby streets swapped in without a hitch: raised ahead of the player within a frame's budget, never waited on
-- [ ] Car on Rapier's ray-cast vehicle controller: suspension, tyre grip, drift, crashes and roll-overs, getting it back
+- [x] Nearby streets swapped in without a hitch: raised ahead of the player within a frame's budget, never waited on
+- [x] Car on Rapier's ray-cast vehicle controller: suspension, tyre grip, drift, crashes and roll-overs, getting it back
       on its wheels; engine, automatic gearbox, handbrake; follow camera tuned for it
-- [ ] Measured on a 4x slowed phone: the car and 20 other Rapier cars at 30 fps, memory within budget
-- [ ] Motorbike on the single-track core (our own): engine torque curve, gearbox, throttle, both brakes, wheelie limit
-- [ ] HUD per ride; getting off leaves the vehicle parked where it stopped
-- [ ] E2E; gate, commit, local build; Webber tests; feedback folded in
+- [x] Measured on a 4x slowed phone: the car and 20 other Rapier cars at 30 fps, memory within budget
+- [x] Motorbike on the single-track core (our own): engine torque curve, gearbox, throttle, both brakes, wheelie limit
+- [x] HUD per ride; getting off leaves the vehicle parked where it stopped
+- [x] Touch layout per ride: nothing overlapping at 412 × 915 and on its side, the prompt on one line (Phase 8's touch
+      step, brought forward); the walk no longer dimmed while the loading card holds
+- [x] E2E; gate, commit, local build
+- [ ] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
+- [ ] Webber tests on desktop and phone; feedback folded in
 
 ## Phase 7: helicopter
 
@@ -144,7 +150,7 @@ The showpiece: a bicycle that rides like one.
 
 ## Phase 8: phones, gamepads and the hosted site
 
-- [ ] Touch controls per ride, sized and spaced by the design rules; landscape and portrait
+- [x] Touch controls per ride, sized and spaced by the design rules; landscape and portrait (in Phase 6)
 - [ ] Gamepad bindings per ride
 - [ ] Budgets: linux at 60 fps on desktop and 30 fps on a 4x slowed phone while riding; signs and world build within
       budget

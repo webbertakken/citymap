@@ -4,12 +4,14 @@ import { join, resolve } from "node:path";
 // Builds the models the walk uses into public/models, from their sources, reproducibly:
 //   people:   Wobble Blocks' PS2 Styled Characters (CC0), split into a man and a woman, with the clips of Quaternius'
 //             Universal Animation Library (CC0) retargeted and baked onto their rig;
-//   vehicles: heyheythere's PSX Vehicles Free (CC BY 4.0): bicycle, sedan and pickup, with the pack's atlas attached.
+//   vehicles: heyheythere's PSX Vehicles Free (CC BY 4.0): bicycle, sedan and pickup, with the pack's atlas attached;
+//             Duhgless' Another PSX Style Low-poly Bike (CC0): the motorbike, its parts rigged to steer and roll.
 // Usage: bun scripts/models/build-models.ts   (writes public/models and its CREDITS.md; prints each clip's ground speed)
-import { Document, NodeIO, type Node as GltfNode } from "@gltf-transform/core";
-import { KHRONOS_EXTENSIONS } from "@gltf-transform/extensions";
-import { dedup, prune } from "@gltf-transform/functions";
+import { Document, NodeIO, type Node as GltfNode, type mat4 } from "@gltf-transform/core";
+import { EXTTextureWebP, KHRONOS_EXTENSIONS } from "@gltf-transform/extensions";
+import { dedup, prune, textureCompress, transformMesh } from "@gltf-transform/functions";
 import { $ } from "bun";
+import sharp from "sharp";
 import {
   AnimationMixer,
   Bone,
@@ -29,7 +31,7 @@ import { download, entry, itch, unzip } from "./sources";
 const NEAREST = 9728;
 
 const out = resolve(import.meta.dirname, "../../public/models");
-const io = new NodeIO().registerExtensions(KHRONOS_EXTENSIONS);
+const io = new NodeIO().registerExtensions([...KHRONOS_EXTENSIONS, EXTTextureWebP]);
 
 /** The clips the walk plays, by their names in the library. */
 export const CLIPS = [
@@ -195,11 +197,115 @@ async function vehicles(scratch: string) {
   await Promise.all(["bicycle_red", "sedan_blue", "pickup_red"].map((name) => vehicle(pack, scratch, name)));
 }
 
+/** A column-major 4×4 matrix: a turn about z by `angle`, then a quaternion's turn and a uniform scale before it. */
+function turnedScaled(angle: number, q: readonly [number, number, number, number], scale: number): mat4 {
+  const [x, y, z, w] = q;
+  // The quaternion's rotation, rows first.
+  const r = [
+    [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+    [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+    [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+  ];
+  const c = Math.cos(angle);
+  const sn = Math.sin(angle);
+  const zTurn = [
+    [c, -sn, 0],
+    [sn, c, 0],
+    [0, 0, 1],
+  ];
+  const m = zTurn.map((row) => [0, 1, 2].map((j) => row.reduce((sum, v, k) => sum + v * r[k]![j]!, 0) * scale));
+  const at = (i: number, j: number) => (i < 3 && j < 3 ? m[i]![j]! : i === j ? 1 : 0);
+  // Column by column.
+  return [
+    at(0, 0),
+    at(1, 0),
+    at(2, 0),
+    at(3, 0),
+    at(0, 1),
+    at(1, 1),
+    at(2, 1),
+    at(3, 1),
+    at(0, 2),
+    at(1, 2),
+    at(2, 2),
+    at(3, 2),
+    at(0, 3),
+    at(1, 3),
+    at(2, 3),
+    at(3, 3),
+  ];
+}
+
+/** A part's own turn and scale baked into its mesh, after a turn about z; its node left only placed. */
+function bake(node: GltfNode, angle: number) {
+  transformMesh(node.getMesh()!, turnedScaled(angle, node.getRotation(), node.getScale()[0]));
+  node.setRotation([0, 0, 0, 1]).setScale([1, 1, 1]);
+}
+
+/**
+ * Duhgless' chopper, rigged as the walk poses it: each part's turn and scale baked into its mesh (so a part's own turn
+ * is only its pose); the fork hung from a head tilted to its rake (34.9°, from the head to the front axle) so steering
+ * turns it about that axis, with the front wheel on it; the parts named; textures cut to 256 px WebP, point-filtered.
+ */
+async function motorbike() {
+  const doc = await io.readBinary(await itch("https://duhgless.itch.io/another-psx-style-low-poly-bike", "Bike3.glb"));
+  const nodes = new Map(
+    doc
+      .getRoot()
+      .listNodes()
+      .map((n) => [n.getName(), n]),
+  );
+  const part = (name: string) => {
+    const node = nodes.get(name);
+    if (!node) throw new Error(`models/no-node ${name}`);
+    return node;
+  };
+  const frame = part("Cube");
+  const fork = part("Fork");
+  const front = part("Front-Wheel");
+  const back = part("Back-Wheel");
+  const head = fork.getTranslation();
+  const axle = front.getTranslation();
+  const rake = Math.atan2(axle[0] - head[0], head[1] - axle[1]);
+  bake(frame, 0);
+  bake(back, 0);
+  bake(fork, -rake);
+  bake(front, -rake);
+  const steering = doc
+    .createNode("motorbike_head")
+    .setTranslation(head)
+    .setRotation([0, 0, Math.sin(rake / 2), Math.cos(rake / 2)]);
+  const scene = doc.getRoot().getDefaultScene() ?? doc.getRoot().listScenes()[0]!;
+  scene.removeChild(fork);
+  scene.removeChild(front);
+  scene.addChild(steering);
+  steering.addChild(fork.setTranslation([0, 0, 0]));
+  // The front axle in the head's own (raked) frame.
+  const dx = axle[0] - head[0];
+  const dy = axle[1] - head[1];
+  const c = Math.cos(-rake);
+  const sn = Math.sin(-rake);
+  fork.addChild(front.setTranslation([c * dx - sn * dy, sn * dx + c * dy, axle[2] - head[2]]));
+  frame.setName("motorbike_frame");
+  fork.setName("motorbike_fork");
+  front.setName("motorbike_wheel_front");
+  back.setName("motorbike_wheel_back");
+  for (const material of doc.getRoot().listMaterials())
+    material.getBaseColorTextureInfo()?.setMagFilter(NEAREST).setMinFilter(NEAREST);
+  await doc.transform(textureCompress({ encoder: sharp, targetFormat: "webp", resize: [256, 256] }), prune(), dedup());
+  const file = join(out, "vehicles", "motorbike.glb");
+  await io.write(file, doc);
+  console.log(
+    `[models] vehicles/motorbike.glb ${(Bun.file(file).size / 1024).toFixed(0)} KB, rake ${((rake * 180) / Math.PI).toFixed(1)}°`,
+  );
+}
+
 const CREDITS = `# Model credits
 
 - People: PS2 Styled Characters by Wobble Blocks, CC0 1.0, https://opengameart.org/content/ps2-styled-characters
 - Their clips: Universal Animation Library by Quaternius, CC0 1.0, https://quaternius.com/packs/universalanimationlibrary.html
 - Vehicles: PSX Vehicles Free by heyheythere - https://heyheythere.itch.io/psx-vehicles-free - CC BY 4.0
+- Motorbike: Another PSX Style Low-poly Bike by Duhgless, CC0 1.0, https://duhgless.itch.io/another-psx-style-low-poly-bike
 `;
 
 const scratch = await mkdtemp(join(tmpdir(), "citymap-models-"));
@@ -207,6 +313,7 @@ try {
   await rm(out, { recursive: true, force: true });
   await mkdir(out, { recursive: true });
   await Promise.all([people(scratch), vehicles(scratch)]);
+  await motorbike();
   await Bun.write(join(out, "CREDITS.md"), CREDITS);
 } finally {
   await rm(scratch, { recursive: true, force: true });
