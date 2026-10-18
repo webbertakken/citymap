@@ -55,8 +55,8 @@ import { loadingStatus, useLoading, type Job } from "../load/useLoading";
 import type { LocalPorts } from "../local/ports";
 import { log, reasonOf } from "../log";
 import type { LiveFacts } from "../measures/live";
-import type { SearchEntry } from "../search/search";
-import { useSearchIndex } from "../search/useSearchIndex";
+import type { SearchEntry, SearchIndex } from "../search/search";
+import { searchIndexInSlices } from "../search/slices";
 import { buildingOf, cityBuildings, colourFor, tableFor } from "../view/buildings";
 import { FLY_MS, between, ease, flyTo } from "../view/fly";
 import { insetsFor } from "../view/insets";
@@ -310,9 +310,10 @@ export function Viewer({
     setPickedHit(hit);
     setMarker(null);
   };
-  // What a search needs: the whole city's folders and files (listed in slices once it shows), where they lie, and how
-  // to pick them.
-  const search = useSearchIndex(city);
+  // What a search needs: the whole city's folders and files (listed in slices as it opens), where they lie, and how to
+  // pick them.
+  const [listed, setListed] = useState<{ readonly city: City; readonly index: SearchIndex } | null>(null);
+  const search = listed?.city === city ? listed.index : null;
   const finder = useMemo(
     () => (search && wholeScene && wholeIndex ? { search, bounds: wholeScene.bounds, picking: wholeIndex } : null),
     [search, wholeScene, wholeIndex],
@@ -384,9 +385,17 @@ export function Viewer({
       const { city: next, scene: prebuilt, measures: opened } = laid;
       job.step({ phase: "draw" });
       await afterPaint();
-      job.signal.throwIfAborted();
+      // The city's folders and files are listed for search in slices that yield to input, so the city shows with them.
+      const listing = performance.now();
+      const { index: listedIndex, slices } = await searchIndexInSlices(next, { signal: job.signal });
+      log.info("viewer/search-index", {
+        entries: listedIndex.entries.length,
+        slices,
+        ms: Math.round(performance.now() - listing),
+      });
       setDrawn(prebuilt && { city: next, ...prebuilt });
       setWholePick(laid.pick);
+      setListed({ city: next, index: listedIndex });
       setMeasures(opened);
       if (opened)
         log.info("viewer/measures", {

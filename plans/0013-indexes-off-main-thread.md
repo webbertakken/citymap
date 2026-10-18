@@ -35,7 +35,8 @@ live, Loading, Web experience).
       and answers with the city file's text (laid) and the grid's buffers, transferred; errors keep their code
 - [x] The main thread parses the city file it is handed without validating it again, and attaches the pick grid
 - [x] Bundled cities, variants and city files open through it; the loading phases stay as they are
-- [x] The search index is built in slices that yield to input once the city shows; search waits for it
+- [x] The search index is built in slices that yield to input, before the city shows, so a city on the map can always be
+      searched (built after it showed at first; a journey typing at once caught the race)
 - [x] Logs for every new decision point and failure
 
 ## Phase 5: proof

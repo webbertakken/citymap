@@ -174,14 +174,15 @@ in `BufferGeometry`.
   that theme; another theme builds its scene on the main thread, as does a town shown alone. It keeps the opening's pick
   index with the city (`wholePick`, used while its city is the one shown), and a town shown alone picks from
   `onlyTown(wholePick, focus)`.
-- The search index (`useSearchIndex(city)`, `search/useSearchIndex.ts`, through
-  `searchIndexInSlices(city, { signal, pause, now })`, `search/slices.ts`, the entries of `entriesOf(city)` in order) is
-  built on the main thread once the city shows, in slices of at most `SLICE_MS` 5 ms that yield to input between them
-  (`scheduler.yield()` where the browser has it, else a zero timeout): its entries are objects the main thread owns, and
-  receiving 75,000 of them by structured clone takes longer than building them (linux in Chromium: 62 ms against 30 to
-  39 ms). It equals `searchIndex(city)`. A new city aborts the build in flight. Until it is done the search box has no
-  index, so typed text matches nothing yet and matches as soon as it is done; `viewer/search-index entries slices ms` is
-  logged then (a build that fails, `viewer/search-index-failed reason`).
+- The search index (`searchIndexInSlices(city, { signal, pause, now })`, `search/slices.ts`, the entries of
+  `entriesOf(city)` in order) is built on the main thread in `draw`, before the city shows, in slices of at most
+  `SLICE_MS` 5 ms that yield to input between them (`scheduler.yield()` where the browser has it, else a zero timeout):
+  its entries are objects the main thread owns, and receiving 75,000 of them by structured clone takes longer than
+  building them (linux in Chromium: 62 ms against 30 to 39 ms). It equals `searchIndex(city)`. It is part of the
+  opening: the job's signal stops it (a cancel or a newer opening), and a failure fails the opening. `Viewer` keeps it
+  with its city (`listed`), so the search box has an index whenever a city shows, and text typed the moment a city
+  appears finds it (and is never offered to GitHub as a repository for want of a list);
+  `viewer/search-index entries slices ms` is logged once it is built.
 - A repository is laid from the search box (below). While it loads, the status line names the phase ("{name}: {phase}…";
   see Loading); then "{towns} towns · {lots} lots · single state, not folded". On success the address becomes
   `?repo=owner/name` (`history.replaceState`); on load, a `repo` parameter is laid instead of the first bundled city.
@@ -238,8 +239,9 @@ in `BufferGeometry`.
   `parse`, then `draw`), and a GitHub repository (`readRepository`, then the worker's `lay`). Before showing the city,
   `afterPaint()` (`load/paint.ts`) waits for a frame, or `FRAME_WAIT_MS` 100 ms in a hidden tab, so the phase is seen
   before the main thread is busy.
-- `draw` (`Viewer`'s `draw(job, laid, how)`): the phase is said, a frame passes, the city is shown with its scene and
-  pick index (and More's current city set), a frame passes, and the job is done.
+- `draw` (`Viewer`'s `draw(job, laid, how)`): the phase is said, a frame passes, the search index is built in slices,
+  the city is shown with its scene, pick index and search index (and More's current city set), a frame passes, and the
+  job is done.
 - `ReadStep`s from `readRepository`: `commit` before the first request; `tree` on entering the phase and after each tree
   answer, with `done` the folders whose entries are in hand and `of` the folders known (the root, and every `tree` entry
   seen in any answer, the truncated first answer included); `manifests` with `done` of `of` root manifests read.
@@ -545,9 +547,8 @@ One description of a hit feeds the hover card and the drawer's selection, so bot
   `viewer/worker job ms` (when the layout worker answers: `lay` or `read`, ms since it was asked), `viewer/drawer open`,
   `viewer/copy-path kind`, `viewer/github-open kind`, the loading and suggestion events above (to `console.info`);
   `viewer/index-failed reason`, `viewer/open-failed name reason`, `viewer/file-rejected file reason`,
-  `viewer/suggest-failed owner reason`, `viewer/copy-failed reason`, `viewer/search-index-failed reason` (to
-  `console.error`). A reason is the engine's code (`city/bad-json`) or the error's text. Every failure also reaches the
-  person as `role="alert"` text.
+  `viewer/suggest-failed owner reason`, `viewer/copy-failed reason` (to `console.error`). A reason is the engine's code
+  (`city/bad-json`) or the error's text. Every failure also reaches the person as `role="alert"` text.
 
 ## Constants
 
