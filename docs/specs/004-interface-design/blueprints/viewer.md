@@ -396,9 +396,9 @@ phone), so nothing the cards do moves the map or each other.
   and `declared`, `--no-measures`); `separationStates(separable, declared)` lists every subset of `separable`, less
   those with `declared`, `workspaces` on and `apps` or `packages` off their defaults; each lay passes `--separate=` the
   state plus the defaults of the separations the city does not record. One line per lay:
-  `bundle/laid name variant lots bytes gzip ms`; at the end `bundle/done cities variants bytes gzip`. BUNDLE_SIZES They
-  are not committed: `.github/workflows/pages.yml` runs `bun run bundle` before `next build`, and `public/cities/` is
-  ignored.
+  `bundle/laid name variant lots bytes gzip ms`; at the end `bundle/done cities variants bytes gzip`. The six cities'
+  304 variants take 462 MB (67 MB gzipped); a visitor loads one at a time, at most 440 kB gzipped. They are not
+  committed: `.github/workflows/pages.yml` runs `bun run bundle` before `next build`, and `public/cities/` is ignored.
 
 ## Labels
 

@@ -69,7 +69,8 @@ The Rust implementation of the CLI lives in `rust/`: see
 2. It builds the Rust CLI, clones every city in `BUNDLED` (`scripts/bundle/bundle.ts`) from GitHub without contents,
    checks out its pinned commit, lays it once with the defaults to learn the separations it records (`bundle/recorded`),
    and folds it once per combination of the toggles (16) in each state of those separations into
-   `apps/web/public/cities/<name>/<variant>.json` with `index.json`; BUNDLE_TIME.
+   `apps/web/public/cities/<name>/<variant>.json` with `index.json`; the six cities take 304 variants, about fourteen
+   minutes.
 3. It logs `bundle/cloned` per city, `bundle/recorded` per city, `bundle/laid` per variant and `bundle/done` with the
    total bytes, raw and gzipped.
 4. To show a newer state of a city, move its pin in `BUNDLED` and update the end-to-end expectations that name its
