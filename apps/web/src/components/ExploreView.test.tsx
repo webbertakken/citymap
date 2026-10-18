@@ -626,7 +626,7 @@ describe("ExploreView", () => {
 
   it("gets on the motorbike behind the landing, says its keys, and shows its speed, gear and engine", () => {
     show();
-    // 7 m back along the street and across to the near kerb.
+    // 6 m back along the street and across to the near kerb.
     hold("KeyS", 40);
     hold("KeyD", 20);
     walk();

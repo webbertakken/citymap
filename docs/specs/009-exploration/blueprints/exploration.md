@@ -193,7 +193,7 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
   `atan(turn · wheelbase / v)` held to `MAX_STEER` 0.6.
 - The landing's three: `PARKING.bicycle` 4 m ahead, 0.8 m in from the kerb on the right, facing along the road;
   `PARKING.car` 10 m ahead and 1.4 m in from the far kerb (`side` −1), facing back (`faces` −1), so the bicycle's line
-  along its kerb is clear; `PARKING.motorbike` 7 m behind, 0.9 m in from the near kerb, facing back, out of both lines;
+  along its kerb is clear; `PARKING.motorbike` 6 m behind, 0.9 m in from the near kerb, facing back, out of both lines;
   moved out from the road's middle by the walls; ids `bicycle`, `car` and `motorbike`.
 - Gears in a frame: riding a bicycle (not flying), `Controls.gears` shifts it, once per frame, before the steps.
 
@@ -518,11 +518,12 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   m/s (2 ms a frame at 60 frames a second): never a building waiting, at most 320 and 379 standing, a frame's `follow`
   median 0.00 ms, p99 0.33 and 0.51 ms, at most 2.9 ms; the garage's world 11 to 15 MB beside the engine, against 312 MB
   for the whole city in Rapier.
-- The car and 20 other Rapier cars (`?traffic=20`) on a Pixel 7 profile at 4x CPU slowdown (production build, headless
-  Chromium drawing WebGL in software): 29.2 fps (24.5 to 30.1 over runs on a shared machine; frame median 33.3 ms, p90
-  50); alone 30.5 to 35.6 fps. Scripts take 22 % of the main thread with the traffic, 14 % alone; Rapier 11.7 % of the
-  real time (3.8 % alone), so about 4 ms of a 33 ms frame; the rest is the software drawing. JS heap 23 to 29 MB
-  driving, array buffers (Rapier's memory among them) 9 MB: within the walk's budget of 64 MB and 32 MB.
+- The car and 20 other Rapier cars (`?traffic=20`) on a Pixel 7 profile at 4x CPU slowdown (the live site, headless
+  Chromium on an integrated GPU, Intel through ANGLE and Mesa, the closer stand-in for a phone): 60 fps, frames p99 16.8
+  ms; the main thread busy 31 % (scripts 26 %); alone 60 fps, busy 24 %. Rapier takes 12.5 % of the real time with the
+  traffic (4.6 % alone), about 2 ms of a 16.7 ms frame. JS heap 23 to 27 MB driving, array buffers (Rapier's memory
+  among them) 9 MB: within the walk's budget of 64 MB and 32 MB. Drawn in software (SwiftShader, Chromium's default
+  headless) the same drive manages 24.5 to 30 fps: the drawing binds there, not the walk.
 - The motorbike's models: 255 KB. Rapier's chunk: 1.6 MB gzipped, now loaded on every walk behind the card.
 - Parking: `parkedIn` 1.8 ms for takken.io (115 kept) and 2.9 ms for livediagram (4,135 lots, 200 kept); at most
   `PARKED_MOST` 200 vehicles in the session (each step's `clearOfVehicles` and `reachable` skip a vehicle by its box

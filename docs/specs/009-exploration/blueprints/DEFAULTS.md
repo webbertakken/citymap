@@ -73,7 +73,7 @@ One row per value the exploration spec leaves silent or qualitative.
 | Motorbike gearbox       | 5, 12.5 to 4.6 overall, up 5,300, down 2,200     | first wheelies, second does not                                           | taste                     |
 | Motorbike brakes        | back 1,800 N, front 4,000 N, grip 1.1            | the front stops at 10.8 m/s², the back at 5.4                             | grip 0.9 to 1.3           |
 | Wheelie limit           | 0.6 rad                                          | the rider's hold short of going over backwards                            | 0.3 to 0.8 rad            |
-| Motorbike parking       | 6 % of kerb places; 7 m behind the landing       | fewer than bicycles and cars; out of both their lines                     | taste                     |
+| Motorbike parking       | 6 % of kerb places; 6 m behind the landing       | fewer than bicycles and cars; out of both lines, on a walker's diagonal   | taste                     |
 | Pickups                 | 35 % of cars, drawn at 4.6 m                     | two shapes in the street; wheels match the car's physics                  | taste                     |
 | Measuring traffic       | ?traffic=n, throttle 0.35, steering ±0.4         | slow circles near the player, for the phone measure                       | a measuring aid           |
 | Load phases             | engine 0.35, models 0.15, walls 0.3, streets 0.2 | the engine and linux's walls the longest (takken.io: 159, 68, 7, 6 ms)    | taste                     |

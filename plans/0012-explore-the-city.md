@@ -139,8 +139,8 @@ The showpiece: a bicycle that rides like one.
 - [x] Touch layout per ride: nothing overlapping at 412 × 915 and on its side, the prompt on one line (Phase 8's touch
       step, brought forward); the walk no longer dimmed while the loading card holds
 - [x] E2E; gate, commit, local build
-- [ ] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
-- [ ] Webber tests on desktop and phone; feedback folded in
+- [x] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
+- [ ] Webber tests on desktop and phone (the 30 fps on a real phone's GPU too); feedback folded in
 
 ## Phase 7: helicopter
 

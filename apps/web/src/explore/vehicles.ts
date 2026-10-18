@@ -211,7 +211,7 @@ export const PARKING: Readonly<
   Record<VehicleKind, { readonly inset: number; readonly ahead: number; readonly side: 1 | -1; readonly faces: 1 | -1 }>
 > = {
   bicycle: { inset: 0.8, ahead: 4, side: 1, faces: 1 },
-  motorbike: { inset: 0.9, ahead: -7, side: 1, faces: -1 },
+  motorbike: { inset: 0.9, ahead: -6, side: 1, faces: -1 },
   car: { inset: 1.4, ahead: 10, side: -1, faces: -1 },
 };
 
