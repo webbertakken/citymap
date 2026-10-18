@@ -226,7 +226,8 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   allowing filters and any object by id, as a promisor remote serves them), so each CLI fetches the laid commit's
   `.mailmap` when it has one. The CLIs' outputs are compared with each other, and each CLI's authors (`authorsOf`:
   `available` and every file's and lot's `authors`) with its own `fold` outputs: `parity/partial repo=… same` or
-  `parity/partial-differs repo=… sides=<side>,…` (exit 1).
+  `parity/partial-differs repo=… files=<side>:authors,…` (exit 1). `cloneArgs` names each mode's clone, and
+  `UPLOAD_PACK` the upload-pack the partial clone and its later fetch use.
 - The `checkout` mode folds a clone made with a checkout, whose working tree `.mailmap` (and `mailmap.file`, pointed at
   the same text) maps up to `CHECKOUT_AUTHORS` 200 of its authors' emails to one (`checkoutMailmap`), so a CLI that read
   the working tree would count fewer authors. Each such clone logs `parity/checkout-mailmap clone=… lines=…`. The CLIs'

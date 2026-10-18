@@ -226,7 +226,7 @@ interface Report {
   live (added, modified, renamed in; not deleted, not a submodule), after the commit is applied, so a rename counts
   under the identity it carries, with the email the mailmap gives the commit's author (`emailOf`). Per identity:
   `changed` the largest time, `commits` the count, the set of authors (emails lower-cased in ASCII, interned to
-  integers). `of(identity)` and `authorsAcross(identities)`.
+  integers). `of(identity)` (its `authors` left out once `forgetAuthors()` was called) and `authorsAcross(identities)`.
 - `readHistory(dir, { fileHistory })` records into it while reading; every commit is recorded, resumed folds included (a
   resume applies every earlier commit too), so a resumed city's measures match the uninterrupted fold's. The mailmap is
   the target's (`to`, resolved before the log), read once before the log starts, and only when a file history is asked
@@ -247,20 +247,23 @@ interface Report {
   through the reader's `BlobReader` (never fetched) and parsed: status `read`. No entry is `absent`; a symbolic link, a
   folder or a submodule is `not-a-file` (git does not follow a `.mailmap` link in a checkout either). Both map nobody.
 - A regular file whose blob the clone does not hold is fetched, that one object and nothing else
-  (`fetchBlob(dir, blob)`, Rust `fetch_blob`): the promisor remotes are `extensions.partialclone`, then each
-  `remote.<name>.promisor` set true, in config order (`git config --get-regexp`), each tried in turn until one gives the
-  object, as git's own lazy fetch does:
-  `git -c fetch.negotiationAlgorithm=noop fetch --quiet --no-tags --no-write-fetch-head --recurse-submodules=no --filter=blob:none <remote> <blob>`,
-  with `GIT_TERMINAL_PROMPT=0` (no credential prompt), `GIT_NO_LAZY_FETCH=1` (nothing else is fetched on the side) and
-  standard input closed, killed after `MAILMAP_FETCH_TIMEOUT` 30 s. Then `git cat-file blob <blob>` reads it and it is
-  parsed: status `fetched`. When no remote gives it, the status is `unfetchable` with a reason: `no-promisor` (no
-  promisor remote: a clone that is not partial yet lacks the blob), `timeout`, or `exit-<code>` (git's exit code, from
-  the last remote tried). An unfetchable `.mailmap` makes the authors unknown: the reader calls
-  `fileHistory.forgetAuthors()` (Rust `FileHistory::forget_authors`), after which `authorsKnown` (Rust
-  `authors_known()`) is false; the commits are still recorded for recency and churn.
+  (`fetchBlob(dir, blob, timeout)`, Rust `fetch_blob`): `git cat-file blob <blob>` with git's lazy fetch allowed for
+  this one call (`GIT_NO_LAZY_FETCH` left out). Git then asks the clone's promisor remotes, in its own order, for that
+  object alone, as its lazy fetch always does
+  (`git -c fetch.negotiationAlgorithm=noop fetch <remote> --no-tags --no-write-fetch-head --recurse-submodules=no --filter=blob:none`),
+  and prints it; the clone keeps it, so the next read finds it held (`read`). `GIT_TERMINAL_PROMPT=0` forbids a
+  credential prompt and standard input is closed. The run (`runWithin(command, args, env, timeout)`, Rust
+  `run_within(command, timeout)`) is killed after `MAILMAP_FETCH_TIMEOUT` 30 s and answers at once: whatever git started
+  in turn may hold the pipes open, and is let go, not waited for. Fetched and parsed, the status is `fetched`.
+- Otherwise the status is `unfetchable` with a reason: `timeout`, or `exit-<code>` (git's exit code; `exit-null` when it
+  could not start or was killed) with git's first line of complaint (`fatal: '…' does not appear to be a git repository`
+  offline; `fatal: git cat-file <blob>: bad file` in a clone with no promisor remote, where nothing is asked of anyone).
+  An unfetchable `.mailmap` makes the authors unknown: the reader calls `fileHistory.forgetAuthors()` (Rust
+  `FileHistory::forget_authors`), after which `authorsKnown` (Rust `authors_known()`) is false and `of(identity)` leaves
+  `authors` out; the commits are still recorded for recency and churn.
 - One log line, after `history/schedule`:
   `history/mailmap status=<read|fetched|absent|not-a-file|unfetchable> entries=<n>` (`n` the commit emails it has lines
-  for, 0 unless read or fetched); an unfetchable one adds `reason=<no-promisor|timeout|exit-N>` and, when git said why,
+  for, 0 unless read or fetched); an unfetchable one adds `reason=<timeout|exit-N>` and, for an exit,
   `error=<git's first stderr line>`.
 - `parseMailmap(text)` (Rust `Mailmap::parse`), as git's `mailmap.c` reads a blob: the text ends at its first NUL; it
   splits at `\n` (a `\r` stays in the line); a line starting `#` is skipped. A pair is a `<`, the first `>` after it,
@@ -420,30 +423,30 @@ interface Report {
 
 ## Errors and edge cases
 
-| Case                                          | Handling                                                                   |
-| --------------------------------------------- | -------------------------------------------------------------------------- |
-| City file without `measures`                  | opens; every building one floor, unknown; colour by offers folder and kind |
-| `measures.version` above 1                    | `measures/too-new`; the file is refused as any bad city is                 |
-| Measures whose lots name a town or lot absent | ignored: no building shows them                                            |
-| Blob not held (partial clone)                 | no size, no lines: unknown, hatched roof, one floor                        |
-| Binary file                                   | bytes only; in a lines city its size is unknown                            |
-| Empty file                                    | 0 lines: one floor                                                         |
-| Every size equal                              | the scale's ends are equal: one floor                                      |
-| Report path outside the repository            | unmatched, counted                                                         |
-| Report line hits negative or not numbers      | 0                                                                          |
-| Two reports name one file                     | their lines join                                                           |
-| Executable 0                                  | no `covered`/`executable`: unknown                                         |
-| Lot of several files, some unknown            | sums and the weakest over the known; unknown only when none is             |
-| Folder over 50 MB of tracked files            | bytes from the index; comments unavailable                                 |
-| A file that vanishes while read (folder)      | that file's facts are unknown; counted in `viewer/local-contents` `unread` |
-| No `.mailmap` at the laid commit              | nobody is mapped; `history/mailmap status=absent`                          |
-| `.mailmap` blob not held (partial clone)      | that one blob fetched; `history/mailmap status=fetched`                    |
-| `.mailmap` blob not fetchable                 | authors unknown, reason on switch and card; `status=unfetchable reason=…`  |
-| No promisor remote, blob missing              | `status=unfetchable reason=no-promisor`; authors unknown                   |
-| Fetch hangs (a prompt, a stalled network)     | killed after 30 s; `status=unfetchable reason=timeout`; authors unknown    |
-| `.mailmap` a link, folder or submodule        | nobody is mapped; `history/mailmap status=not-a-file`                      |
-| A working tree `.mailmap`, `mailmap.*` config | never read: the city is the same with or without a checkout                |
-| A mailmap line that is not one of the forms   | maps nothing (no `<`, no `>`, an empty first email); the rest still read   |
+| Case                                          | Handling                                                                     |
+| --------------------------------------------- | ---------------------------------------------------------------------------- |
+| City file without `measures`                  | opens; every building one floor, unknown; colour by offers folder and kind   |
+| `measures.version` above 1                    | `measures/too-new`; the file is refused as any bad city is                   |
+| Measures whose lots name a town or lot absent | ignored: no building shows them                                              |
+| Blob not held (partial clone)                 | no size, no lines: unknown, hatched roof, one floor                          |
+| Binary file                                   | bytes only; in a lines city its size is unknown                              |
+| Empty file                                    | 0 lines: one floor                                                           |
+| Every size equal                              | the scale's ends are equal: one floor                                        |
+| Report path outside the repository            | unmatched, counted                                                           |
+| Report line hits negative or not numbers      | 0                                                                            |
+| Two reports name one file                     | their lines join                                                             |
+| Executable 0                                  | no `covered`/`executable`: unknown                                           |
+| Lot of several files, some unknown            | sums and the weakest over the known; unknown only when none is               |
+| Folder over 50 MB of tracked files            | bytes from the index; comments unavailable                                   |
+| A file that vanishes while read (folder)      | that file's facts are unknown; counted in `viewer/local-contents` `unread`   |
+| No `.mailmap` at the laid commit              | nobody is mapped; `history/mailmap status=absent`                            |
+| `.mailmap` blob not held (partial clone)      | that one blob fetched; `history/mailmap status=fetched`                      |
+| `.mailmap` blob not fetchable                 | authors unknown, reason on switch and card; `status=unfetchable reason=…`    |
+| No promisor remote, blob missing              | nothing asked of anyone; `reason=exit-128 error=… bad file`; authors unknown |
+| Fetch hangs (a prompt, a stalled network)     | killed after 30 s; `status=unfetchable reason=timeout`; authors unknown      |
+| `.mailmap` a link, folder or submodule        | nobody is mapped; `history/mailmap status=not-a-file`                        |
+| A working tree `.mailmap`, `mailmap.*` config | never read: the city is the same with or without a checkout                  |
+| A mailmap line that is not one of the forms   | maps nothing (no `<`, no `>`, an empty first email); the rest still read     |
 
 ## Observability
 
@@ -504,9 +507,9 @@ interface Report {
   stay in the page; they reach a city file only through the CLI, run by the person.
 - The CLI reads reports from the working directory and the named files only; git never fetches (`GIT_ALLOW_PROTOCOL`
   `none`, `GIT_NO_LAZY_FETCH`), with one named exception: the laid commit's `.mailmap` blob, when a partial clone does
-  not hold it, is fetched by its object id from the clone's own promisor remote, alone (`GIT_NO_LAZY_FETCH` stays set,
-  so the fetch brings nothing else), without prompts, within 30 s. Why this one: it is one small file that decides every
-  author count, while sizes and comments would need the whole tree.
+  not hold it, is fetched by its object id from the clone's own promisor remotes, alone (git's lazy fetch, allowed for
+  that one `cat-file` call only, asks for exactly the objects the call reads), without prompts, within 30 s. Why this
+  one: it is one small file that decides every author count, while sizes and comments would need the whole tree.
 - The mailmap is data from the history: parsed line by line in one pass, never handed to git. Nothing outside the laid
   commit (the working tree, `mailmap.file`, `mailmap.blob`, `log.mailmap`) changes a count.
 
