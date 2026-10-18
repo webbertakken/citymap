@@ -42,6 +42,12 @@ describe("cameraOf", () => {
     expect(cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(2)).eye.x).toBeCloseTo(10 - (2 - WALL_GAP), 9);
     expect(cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(0.1)).eye.x).toBeCloseTo(10 - NEAREST, 9);
   });
+
+  it("follows from as far back and as high as asked", () => {
+    const { eye, target } = cameraOf(feet, { yaw: 0, pitch: 0 }, clearFor(Infinity), { distance: 7, height: 2 });
+    expect(target.y).toBe(2);
+    expect(eye.x).toBeCloseTo(10 - 7, 9);
+  });
 });
 
 describe("turned and behind", () => {

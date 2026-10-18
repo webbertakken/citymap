@@ -35,6 +35,14 @@ describe("rapierWalls", () => {
     walls.dispose();
   });
 
+  it("stops a wider mover by its own radius", async () => {
+    const walls = await rapierWalls([building(0, 1, 1)]);
+    const car = walls.move({ x: 5, y: GROUND, z: 5 }, { x: 10, y: -0.01, z: 0 }, 1);
+    expect(car.feet.x).toBeLessThan(9.1);
+    expect(car.feet.x).toBeGreaterThan(8.5);
+    walls.dispose();
+  });
+
   it("lets a walker walk where no building stands, on the ground", async () => {
     const walls = await rapierWalls([building(0, 50, 50)]);
     let body = standing(0, 0);

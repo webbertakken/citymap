@@ -30,9 +30,22 @@ export const turned = (orbit: Orbit, dx: number, dy: number): Orbit => ({
   pitch: Math.max(PITCH_MIN, Math.min(PITCH_MAX, orbit.pitch + dy * LOOK_SPEED)),
 });
 
+/** How the camera follows: how far back it sits and how high above the feet it looks from. */
+export interface Follow {
+  readonly distance: number;
+  readonly height: number;
+}
+
+export const ON_FOOT: Follow = { distance: ORBIT_DISTANCE, height: SHOULDER };
+
 /** Where the camera is and what it looks at, for feet at a point: as far back as the walls allow. */
-export function cameraOf(feet: Vec3, orbit: Orbit, walls: Walls): { readonly eye: Vec3; readonly target: Vec3 } {
-  const target = { x: feet.x, y: feet.y + SHOULDER, z: feet.z };
+export function cameraOf(
+  feet: Vec3,
+  orbit: Orbit,
+  walls: Walls,
+  follow: Follow = ON_FOOT,
+): { readonly eye: Vec3; readonly target: Vec3 } {
+  const target = { x: feet.x, y: feet.y + follow.height, z: feet.z };
   const look = {
     x: Math.cos(orbit.pitch) * Math.cos(orbit.yaw),
     y: -Math.sin(orbit.pitch),
@@ -43,7 +56,7 @@ export function cameraOf(feet: Vec3, orbit: Orbit, walls: Walls): { readonly eye
     y: target.y - look.y * distance,
     z: target.z - look.z * distance,
   });
-  const clear = walls.clearance(target, at(ORBIT_DISTANCE));
-  const distance = clear < ORBIT_DISTANCE ? Math.max(NEAREST, clear - WALL_GAP) : ORBIT_DISTANCE;
+  const clear = walls.clearance(target, at(follow.distance));
+  const distance = clear < follow.distance ? Math.max(NEAREST, clear - WALL_GAP) : follow.distance;
   return { eye: at(distance), target };
 }

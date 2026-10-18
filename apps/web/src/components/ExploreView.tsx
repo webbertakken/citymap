@@ -1,21 +1,40 @@
 "use client";
 // On foot in the city: the ground-level canvas, the devices that move the walker (keys, a drag to look, a touch stick
-// and a jump button), and a card that says how, with the way back to the map.
+// and a jump button), getting on and off vehicles (E, or the prompt's button), and a card that says how, with the way
+// back to the map.
 import type { Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
 import { GROUND, type Vec3, type Walls } from "@citymap/world";
-import { Footprints, X } from "lucide-react";
+import { Bike, Car, Footprints, X } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState, type ComponentType, type PointerEvent } from "react";
 import { cameraOf } from "../explore/camera";
 import { WALK_KEYS, stickAt } from "../explore/input";
 import type { Landing } from "../explore/landing";
-import { advanceSession, newControls, shownOf, startSession, type Session } from "../explore/session";
+import {
+  advanceSession,
+  followOf,
+  newControls,
+  promptOf,
+  promptWords,
+  ridden,
+  shownOf,
+  shownVehicles,
+  startSession,
+  type Prompt,
+  type Session,
+} from "../explore/session";
 import { METRE } from "../explore/street";
+import { VEHICLES, parkedBy, type Vehicle, type VehicleKind } from "../explore/vehicles";
 
-/** One frame of the walk: the session after it, where to draw the walker, and where the camera is and looks. */
+/**
+ * One frame of the walk: the session after it, where to draw the walker and the vehicles, what the walker rides (if
+ * anything), and where the camera is and looks.
+ */
 export interface ExploreFrame {
   readonly session: Session;
   readonly shown: { readonly feet: Vec3; readonly heading: number; readonly walked: number };
+  readonly vehicles: readonly Vehicle[];
+  readonly riding: VehicleKind | null;
   readonly camera: { readonly eye: Vec3; readonly target: Vec3 };
 }
 
@@ -26,6 +45,8 @@ export interface ExploreCanvasProps {
   readonly theme: Theme;
   /** Advances the walk by a frame of `seconds` and says where everything now is. */
   readonly frame: (seconds: number) => ExploreFrame;
+  /** The vehicles about, by name and kind, to have a model each before the first frame places them. */
+  readonly vehicles: readonly { readonly id: string; readonly kind: VehicleKind }[];
 }
 
 export interface ExploreViewProps {
@@ -48,8 +69,16 @@ export const STICK_REACH = 48;
 /** Walking: the canvas fills the map; keys, drags, the stick and the jump button move the walker. */
 export function ExploreView({ name, scene, table, theme, walls, landing, engine, Canvas, onLeave }: ExploreViewProps) {
   const [start] = useState(() =>
-    startSession({ x: landing.at.x / METRE, y: GROUND, z: landing.at.z / METRE }, landing.heading),
+    startSession(
+      { x: landing.at.x / METRE, y: GROUND, z: landing.at.z / METRE },
+      landing.heading,
+      parkedBy(landing, walls),
+    ),
   );
+  // What E would do now: shown as a button, changed only when it changes.
+  const [prompt, setPrompt] = useState<Prompt | null>(() => promptOf(start));
+  const [riding, setRiding] = useState<VehicleKind | null>(null);
+  const said = useRef(JSON.stringify(promptOf(start)));
   const session = useRef(start);
   const controls = useRef(newControls());
   // The finger on the stick and where it landed, and the pointer that drags the view.
@@ -60,9 +89,27 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
   const frame = (seconds: number): ExploreFrame => {
     const next = advanceSession(session.current, controls.current, seconds, walls);
     controls.current.look = { dx: 0, dy: 0 };
+    controls.current.use = false;
     session.current = next;
+    const now = promptOf(next);
+    const words = JSON.stringify(now);
+    if (words !== said.current) {
+      said.current = words;
+      setPrompt(now);
+    }
+    const kind = ridden(next)?.kind ?? null;
+    if (kind !== riding) setRiding(kind);
     const shown = shownOf(next);
-    return { session: next, shown, camera: cameraOf(shown.feet, next.orbit, walls) };
+    return {
+      session: next,
+      shown,
+      vehicles: shownVehicles(next),
+      riding: kind,
+      camera: cameraOf(shown.feet, next.orbit, walls, followOf(next)),
+    };
+  };
+  const use = () => {
+    controls.current.use = true;
   };
   const back = () => {
     const { feet } = session.current.body;
@@ -72,6 +119,11 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
     if (down && event.key === "Escape") {
       event.preventDefault();
       back();
+      return;
+    }
+    if (event.code === "KeyE") {
+      event.preventDefault();
+      if (down && !event.repeat) use();
       return;
     }
     if (!WALK_KEYS.has(event.code)) return;
@@ -129,6 +181,7 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
     stick.current = null;
     controls.current.stick = null;
   };
+  const title = riding ? VEHICLES[riding].riding : "On foot";
   const jump = (held: boolean) => (event: PointerEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     controls.current.jump = held;
@@ -146,19 +199,43 @@ export function ExploreView({ name, scene, table, theme, walls, landing, engine,
       onPointerUp={release}
       onPointerCancel={release}
     >
-      <Canvas scene={scene} table={table} theme={theme} frame={frame} />
-      <section className="glass explore-card" aria-label="On foot">
+      <Canvas scene={scene} table={table} theme={theme} frame={frame} vehicles={start.vehicles} />
+      <section className="glass explore-card" aria-label={title}>
         <h2>
-          <Footprints size={18} aria-hidden="true" />
-          <span>On foot</span>
+          {riding === "car" ? (
+            <Car size={18} aria-hidden="true" />
+          ) : riding === "bicycle" ? (
+            <Bike size={18} aria-hidden="true" />
+          ) : (
+            <Footprints size={18} aria-hidden="true" />
+          )}
+          <span>{title}</span>
         </h2>
         <p className="explore-engine">Physics prototype: {engine}</p>
-        <p className="explore-keys">W A S D walk · Shift runs · Space jumps · drag to look · Esc leaves</p>
+        <p className="explore-keys">
+          {riding
+            ? VEHICLES[riding].keys
+            : "W A S D walk · Shift runs · Space jumps · E gets in · drag to look · Esc leaves"}
+        </p>
         <button type="button" className="text-button" onPointerDown={(event) => event.stopPropagation()} onClick={back}>
           <X size={16} aria-hidden="true" />
           <span>Back to the map</span>
         </button>
       </section>
+      {prompt && (
+        <button
+          type="button"
+          className="glass explore-use"
+          disabled={!prompt.ready}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={use}
+        >
+          <kbd className="explore-keys" aria-hidden="true">
+            E
+          </kbd>
+          <span>{promptWords(prompt)}</span>
+        </button>
+      )}
       <div
         className="explore-stick"
         aria-hidden="true"

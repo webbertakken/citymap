@@ -100,9 +100,10 @@ describe("cityWalls: moving", () => {
     expect(walls.move(at(0, 0), flat(20, 0)).feet.x).toBe(20);
   });
 
-  it("takes a wider person's radius", () => {
-    const walls = cityWalls([box(0, 10, -5, 10, 10, 10)], { radius: 1 });
-    expect(walls.move(at(0, 0), flat(20, 0)).feet.x).toBeCloseTo(9, 9);
+  it("moves a wider mover by its own radius", () => {
+    const walls = cityWalls([box(0, 10, -5, 10, 10, 10)]);
+    expect(walls.move(at(0, 0), flat(20, 0), 1).feet.x).toBeCloseTo(9, 9);
+    expect(walls.move(at(0, 0), flat(20, 0)).feet.x).toBeCloseTo(10 - r, 9);
   });
 
   it("never leaves a person inside a building, however they walk among many", () => {

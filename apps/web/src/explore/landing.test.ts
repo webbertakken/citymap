@@ -48,7 +48,12 @@ describe("landingOf", () => {
 
   it("stands on the road where the building's middle is on it, facing along the road", () => {
     const landing = landingOf(withRoads([road("street", [0, 0.5], [10, 0.5])]), lotHit, { x: 0, z: 0 });
-    expect(landing).toEqual({ at: { x: 1.5, z: -0.5 }, heading: headingTowards(1, 0), kind: "selected" });
+    expect(landing).toEqual({
+      at: { x: 1.5, z: -0.5 },
+      heading: headingTowards(1, 0),
+      kind: "selected",
+      road: { at: { x: 1.5, z: -0.5 }, along: { x: 1, z: 0 }, width: 1 },
+    });
   });
 
   it("lands on the road nearest the middle of the map without a selected building, facing along it", () => {
@@ -61,6 +66,8 @@ describe("landingOf", () => {
     const landing = landingOf(withRoads(roads), null, { x: 4, z: -8 });
     expect(landing?.kind).toBe("road");
     expect(landing?.at).toEqual({ x: 4, z: -9 });
+    // The road beside it: where, which way it runs, and how wide.
+    expect(landing?.road).toEqual({ at: { x: 4, z: -9 }, along: { x: 1, z: 0 }, width: 1 });
     expect(along(landing!.heading).x).toBeCloseTo(1, 9);
   });
 

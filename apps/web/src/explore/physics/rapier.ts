@@ -17,8 +17,8 @@ import { breathe, type WallOptions } from "./raise";
 
 type Rapier = typeof import("@dimforge/rapier3d-compat");
 
-/** A person as Rapier's capsule: the straight part between its two half spheres. */
-export const CAPSULE_HALF = PERSON_HEIGHT / 2 - PERSON_RADIUS;
+/** A mover as Rapier's capsule, as tall as a person: the straight part between its two half spheres, at a radius. */
+export const capsuleHalf = (radius: number) => Math.max(0, PERSON_HEIGHT / 2 - radius);
 /** The controller keeps this gap to every wall, in metres. */
 export const SKIN = 0.02;
 /** Walls rise in slices of this many buildings between reports. */
@@ -88,18 +88,28 @@ function raise(rapier: Rapier, world: InstanceType<Rapier["World"]>, footprint: 
   return true;
 }
 
-/** A person in the world: their capsule, moved by the character controller; and rays for the camera. */
+/** Movers in the world: a capsule per size, moved by the character controller; and rays for the camera. */
 function walk(rapier: Rapier, world: InstanceType<Rapier["World"]>): Walls {
-  const body = world.createCollider(rapier.ColliderDesc.capsule(CAPSULE_HALF, PERSON_RADIUS));
+  // Movers are sensors: rays and other movers pass through them, and only the walls stop them.
+  const passThrough = rapier.QueryFilterFlags.EXCLUDE_SENSORS;
+  const capsules = new Map<number, InstanceType<Rapier["Collider"]>>();
+  const capsuleOf = (radius: number) => {
+    let capsule = capsules.get(radius);
+    if (!capsule) {
+      capsule = world.createCollider(rapier.ColliderDesc.capsule(capsuleHalf(radius), radius).setSensor(true));
+      capsules.set(radius, capsule);
+    }
+    return capsule;
+  };
   const controller = world.createCharacterController(SKIN);
   controller.enableAutostep(STEP_UP, PERSON_RADIUS, false);
   controller.enableSnapToGround(SNAP_DOWN);
   controller.setApplyImpulsesToDynamicBodies(false);
-  const middle = CAPSULE_HALF + PERSON_RADIUS + SKIN;
   return {
-    move: (feet: Vec3, delta: Vec3) => {
-      body.setTranslation({ x: feet.x, y: feet.y + middle, z: feet.z });
-      controller.computeColliderMovement(body, delta);
+    move: (feet: Vec3, delta: Vec3, radius = PERSON_RADIUS) => {
+      const body = capsuleOf(radius);
+      body.setTranslation({ x: feet.x, y: feet.y + capsuleHalf(radius) + radius + SKIN, z: feet.z });
+      controller.computeColliderMovement(body, delta, passThrough);
       const moved = controller.computedMovement();
       return {
         feet: { x: feet.x + moved.x, y: feet.y + moved.y, z: feet.z + moved.z },
@@ -114,7 +124,7 @@ function walk(rapier: Rapier, world: InstanceType<Rapier["World"]>): Walls {
         y: (to.y - from.y) / length,
         z: (to.z - from.z) / length,
       });
-      return world.castRay(ray, length, true, undefined, undefined, body)?.timeOfImpact ?? length;
+      return world.castRay(ray, length, true, passThrough)?.timeOfImpact ?? length;
     },
     dispose: () => {
       world.removeCharacterController(controller);

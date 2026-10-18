@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-// Fetches the glTF models: the people the walk uses into public/models (committed, with their credits), and the
+// Fetches the glTF models: the people and vehicles the walk uses into public/models (committed, with their credits), and the
 // vehicles the model lab compares into public/lab/models (gitignored), until each vehicle's phase brings it into the app.
 // Usage: bun scripts/fetch-models.ts
 // Kenney's packs are CC0; the poly.pizza bicycle and motorbike are CC-BY 3.0 (Poly by Google), credited beside them.
@@ -23,6 +23,12 @@ const PACKS: readonly Pack[] = [
     zip: "https://kenney.nl/media/pages/assets/mini-characters/bfc7e272b4-1774770718/kenney_mini-characters.zip",
     files: ["character-male-a.glb", "character-female-b.glb"],
     credit: "Mini Characters by Kenney (www.kenney.nl), CC0 1.0, https://kenney.nl/assets/mini-characters",
+  },
+  {
+    to: "models/cars",
+    zip: "https://kenney.nl/media/pages/assets/car-kit/1a312ec241-1775131960/kenney_car-kit.zip",
+    files: ["sedan.glb"],
+    credit: "Car Kit by Kenney (www.kenney.nl), CC0 1.0, https://kenney.nl/assets/car-kit",
   },
   {
     to: "lab/models/kenney-cars",

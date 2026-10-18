@@ -3,8 +3,8 @@
 import { RUN_SPEED, WALK_SPEED } from "../walker";
 import { LEAP } from "./bound";
 
-/** The clips a figure plays, by their names in Kenney's characters. */
-export type Motion = "idle" | "walk" | "sprint" | "jump" | "fall";
+/** The clips a figure plays, by their names in Kenney's characters; "drive" sits a rider on a vehicle. */
+export type Motion = "idle" | "walk" | "sprint" | "jump" | "fall" | "drive";
 
 /** Below this pace, in metres a second, a figure stands. */
 export const STANDING = 0.2;

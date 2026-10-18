@@ -9,11 +9,19 @@ interface Point {
   readonly z: number;
 }
 
-/** Where to stand, which way to face (a turn about y from +x), and why there. */
+/** The road a landing is by: its nearest point, its direction there (a unit vector) and its width. Scene units. */
+export interface RoadPlace {
+  readonly at: Point;
+  readonly along: Point;
+  readonly width: number;
+}
+
+/** Where to stand, which way to face (a turn about y from +x), why there, and the road beside it. */
 export interface Landing {
   readonly at: Point;
   readonly heading: number;
   readonly kind: "selected" | "road";
+  readonly road: RoadPlace;
 }
 
 /** In front of a building, a person stands this far, in metres, inside the road's edge. */
@@ -58,16 +66,18 @@ export function landingOf(city: City, selected: Hit | null, centre: Point): Land
   const building = selectedLot(city, selected);
   const road = nearestRoad(city, building ?? centre);
   if (!road) return null;
-  if (!building) return { at: road.at, heading: headingTowards(road.dx, road.dz), kind: "road" };
+  const by: RoadPlace = { at: road.at, along: { x: road.dx, z: road.dz }, width: road.width };
+  if (!building) return { at: road.at, heading: headingTowards(road.dx, road.dz), kind: "road", road: by };
   // From the road towards the building: stand just inside the road's edge on the building's side, facing it.
   const dx = building.x - road.at.x;
   const dz = building.z - road.at.z;
   const length = Math.hypot(dx, dz);
-  if (length === 0) return { at: road.at, heading: headingTowards(road.dx, road.dz), kind: "selected" };
+  if (length === 0) return { at: road.at, heading: headingTowards(road.dx, road.dz), kind: "selected", road: by };
   const inside = Math.max(0, Math.min(road.width / 2 - KERB_GAP * METRE, road.distance));
   return {
     at: { x: road.at.x + (dx / length) * inside, z: road.at.z + (dz / length) * inside },
     heading: headingTowards(dx, dz),
     kind: "selected",
+    road: by,
   };
 }

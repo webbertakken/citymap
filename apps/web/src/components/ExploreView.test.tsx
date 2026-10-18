@@ -1,7 +1,7 @@
 import { buildScene } from "@citymap/scene";
 import { THEMES } from "@citymap/themes";
 import { GROUND, type Walls } from "@citymap/world";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Landing } from "../explore/landing";
@@ -28,7 +28,13 @@ const open: Walls = {
 };
 const theme = THEMES["paper-atlas"];
 const scene = buildScene(city("alpha"), theme);
-const landing: Landing = { at: { x: 1, z: 2 }, heading: 0, kind: "road" };
+// On a street running east through the landing: the bicycle parks 4 m ahead at the kerb, the car 10 m.
+const landing: Landing = {
+  at: { x: 1, z: 2 },
+  heading: 0,
+  kind: "road",
+  road: { at: { x: 1, z: 2 }, along: { x: 1, z: 0 }, width: 1 },
+};
 
 let frame: ExploreCanvasProps["frame"] = () => {
   throw new Error("no canvas");
@@ -58,7 +64,24 @@ const show = (onLeave = vi.fn<ExploreViewProps["onLeave"]>()) => {
   return onLeave;
 };
 const view = () => screen.getByRole("application");
-const walk = (seconds = 0.1): ExploreFrame => frame(seconds);
+/** Holds a key for so many tenths of a second, then lets it go. */
+const hold = (code: string, tenths: number) => {
+  fireEvent.keyDown(window, { code });
+  for (let i = 0; i < tenths; i++) walk();
+  fireEvent.keyUp(window, { code });
+};
+/** Up the street and across to the kerb: 4 m ahead and 3.2 m to the right lies the bicycle, 10 m ahead the car. */
+const toTheKerb = (ahead: number) => {
+  hold("KeyW", ahead);
+  hold("KeyD", 20);
+};
+const walk = (seconds = 0.1): ExploreFrame => {
+  let now: ExploreFrame | null = null;
+  act(() => {
+    now = frame(seconds);
+  });
+  return now!;
+};
 
 describe("ExploreView", () => {
   it("stands at the landing, says how to walk and which engine it runs on, and has the keyboard", () => {
@@ -147,6 +170,58 @@ describe("ExploreView", () => {
     fireEvent.pointerUp(jump, { pointerId: 3 });
     for (let i = 0; i < 100; i++) walk();
     expect(walk().session.body.grounded).toBe(true);
+  });
+
+  it("parks a bicycle and a car by the road, and offers to get on the bicycle within reach", () => {
+    show();
+    const start = walk(0);
+    expect(start.vehicles.map((v) => v.kind)).toEqual(["bicycle", "car"]);
+    expect(start.riding).toBeNull();
+    expect(screen.queryByRole("button", { name: /Get on the bicycle/ })).toBeNull();
+    toTheKerb(25);
+    walk();
+    expect(screen.getByRole("button", { name: "Get on the bicycle" })).toBeTruthy();
+  });
+
+  it("gets on with E or the prompt's button, rides, and says how; off again once stopped", () => {
+    show();
+    toTheKerb(25);
+    const e = new KeyboardEvent("keydown", { code: "KeyE", key: "e", cancelable: true });
+    window.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(true);
+    // A held key repeating gets on once.
+    fireEvent.keyDown(window, { code: "KeyE", key: "e", repeat: true });
+    fireEvent.keyUp(window, { code: "KeyE", key: "e" });
+    expect(walk().riding).toBe("bicycle");
+    walk();
+    expect(screen.getByRole("region", { name: "On the bicycle" }).textContent).toContain("W pedals");
+    const off = screen.getByRole("button", { name: "Get off the bicycle" });
+    fireEvent.pointerDown(off, { pointerId: 5 });
+    fireEvent.click(off);
+    expect(walk().riding).toBeNull();
+    walk();
+    expect(screen.getByRole("region", { name: "On foot" })).toBeTruthy();
+  });
+
+  it("says to slow down before getting off, and will not until then", () => {
+    show();
+    toTheKerb(25);
+    fireEvent.keyDown(window, { code: "KeyE", key: "e" });
+    walk();
+    // A second and a half of pedalling: faster than a rider gets off at, short of the car parked ahead.
+    hold("KeyW", 15);
+    const slow = screen.getByRole("button", { name: "Slow down to get off the bicycle" });
+    expect(slow).toHaveProperty("disabled", true);
+  });
+
+  it("gets in the car, and says so", () => {
+    show();
+    toTheKerb(62);
+    walk();
+    fireEvent.click(screen.getByRole("button", { name: "Get in the car" }));
+    expect(walk().riding).toBe("car");
+    walk();
+    expect(screen.getByRole("region", { name: "In the car" }).textContent).toContain("W accelerates");
   });
 
   it("keeps a press on its card from turning the camera", () => {

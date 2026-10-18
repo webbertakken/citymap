@@ -32,6 +32,6 @@ describe("paceOf", () => {
   });
 
   it("plays standing, jumping and falling at their own speed", () => {
-    for (const motion of ["idle", "jump", "fall"] as const) expect(paceOf(motion, 3)).toBe(1);
+    for (const motion of ["idle", "jump", "fall", "drive"] as const) expect(paceOf(motion, 3)).toBe(1);
   });
 });

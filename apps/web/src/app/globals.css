@@ -1258,6 +1258,36 @@ mark {
   align-items: center;
   justify-self: start;
 }
+/* What E does now: getting on or off a vehicle, at the top in the middle, where the search is while on the map. */
+.explore-use {
+  position: absolute;
+  top: var(--gap);
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: var(--control);
+  padding: 0 16px;
+  font-weight: 600;
+  color: var(--ink);
+  translate: -50% 0;
+  border-radius: var(--radius-control);
+}
+.explore-use:disabled {
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.explore-use kbd {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid var(--glass-line);
+  border-radius: 6px;
+}
 /* Touch only: a stick under the left thumb, a jump button under the right. */
 .explore-stick,
 .explore-jump {
@@ -1270,6 +1300,10 @@ mark {
   .explore-card {
     bottom: auto;
     top: calc(var(--gap) + 82px + 8px);
+  }
+  .explore-use {
+    top: auto;
+    bottom: calc(var(--gap) + 24px + 144px + 16px);
   }
   .explore-stick {
     position: absolute;

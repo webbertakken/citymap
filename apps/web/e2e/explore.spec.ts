@@ -103,3 +103,29 @@ test("walks as Kenney's figure, its model loaded with the walk", async ({ page }
   await expect.poll(() => lines.some((l) => l.startsWith("explore/model-normalised url=models/people/"))).toBe(true);
   expect(lines.some((l) => l.startsWith("explore/model-failed"))).toBe(false);
 });
+
+test("gets on the bicycle parked by the road with E, rides it, and gets off once stopped", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "the keyboard's E; touch uses the prompt's button");
+  const hold = async (key: string, ms: number) => {
+    await page.keyboard.down(key);
+    await page.waitForTimeout(ms);
+    await page.keyboard.up(key);
+  };
+  await page.getByRole("button", { name: "Walk" }).click();
+  await drawn(page);
+  // The bicycle stands 4 m up the street, at the kerb on the right.
+  await hold("KeyW", 2500);
+  await hold("KeyD", 2000);
+  await expect(page.getByRole("button", { name: "Get on the bicycle" })).toBeVisible();
+  await page.keyboard.press("KeyE");
+  await expect(page.getByRole("region", { name: "On the bicycle" })).toBeVisible();
+  await page.keyboard.down("KeyW");
+  await expect(page.getByRole("button", { name: "Slow down to get off the bicycle" })).toBeDisabled();
+  await page.keyboard.up("KeyW");
+  await hold("Space", 2500);
+  await page.keyboard.press("KeyE");
+  await expect(page.getByRole("region", { name: "On foot" })).toBeVisible();
+});

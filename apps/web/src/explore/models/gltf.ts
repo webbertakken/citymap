@@ -32,7 +32,7 @@ export const GLTF_MODELS = {
   walker: { url: "models/people/character-female-b.glb", metres: 1.68, measure: "height", yaw: Math.PI / 2 },
   bicycle: { url: "lab/models/bicycle.glb", metres: 1.75, measure: "length", yaw: 0 },
   motorbike: { url: "lab/models/motorbike.glb", metres: 2.1, measure: "length", yaw: Math.PI / 2 },
-  car: { url: "lab/models/kenney-cars/hatchback-sports.glb", metres: 4.1, measure: "length", yaw: Math.PI / 2 },
+  car: { url: "models/cars/sedan.glb", metres: 4.2, measure: "length", yaw: Math.PI / 2 },
   helicopter: { url: "lab/models/helicopter.glb", metres: 10, measure: "length", yaw: 0 },
 } as const satisfies Record<string, ModelFile>;
 

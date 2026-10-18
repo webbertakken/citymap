@@ -167,26 +167,20 @@ const cellOf = (metres: number) => Math.floor(metres / CELL);
 /** A cell's key: cells within ±2²⁰ of the origin (16,000 km) never share one. */
 const keyOf = (cx: number, cz: number) => (cx + 1_048_576) * 2_097_152 + (cz + 1_048_576);
 
-export interface CityWallsOptions {
-  /** How wide a person is, as a circle on the ground. */
-  readonly radius?: number;
-}
-
 /** The walls of these buildings: footprints that enclose no ground or stand on none make no wall. */
-export function cityWalls(footprints: readonly Footprint[], options: CityWallsOptions = {}): Walls {
-  const r = options.radius ?? PERSON_RADIUS;
+export function cityWalls(footprints: readonly Footprint[]): Walls {
   const grid = new Grid(footprints.filter(solid).map(prismOf));
-  const around = (x: number, z: number) => grid.near(x - r, z - r, x + r, z + r);
+  const around = (x: number, z: number, r: number) => grid.near(x - r, z - r, x + r, z + r);
 
   /** The highest thing to stand on under a circle at a height: the ground, or a top no more than a step above it. */
-  const floorAt = (x: number, z: number, y: number) =>
-    around(x, z).reduce(
+  const floorAt = (x: number, z: number, y: number, r: number) =>
+    around(x, z, r).reduce(
       (floor, p) => (p.top <= y + STEP_UP && p.top > floor && pushOut(p, x, z, r) ? p.top : floor),
       GROUND,
     );
 
   return {
-    move: (feet, delta) => {
+    move: (feet, delta, r = PERSON_RADIUS) => {
       const steps = Math.min(MAX_STEPS, Math.max(1, Math.ceil(Math.hypot(delta.x, delta.z) / (r / 2))));
       let { x, y, z } = feet;
       // Each step lands a share of the way along the move, plus every push so far: a free move ends exactly there.
@@ -197,7 +191,7 @@ export function cityWalls(footprints: readonly Footprint[], options: CityWallsOp
         z = feet.z + (delta.z * s) / steps + pushedZ;
         for (let k = 0; k < PUSHES; k++) {
           let pushed = false;
-          for (const p of around(x, z)) {
+          for (const p of around(x, z, r)) {
             // A top within a step is climbed, a roof below the feet is stood on; only the rest stop the person.
             if (p.top <= y + STEP_UP) continue;
             const push = pushOut(p, x, z, r);
@@ -210,9 +204,9 @@ export function cityWalls(footprints: readonly Footprint[], options: CityWallsOp
           }
           if (!pushed) break;
         }
-        y = Math.max(y, floorAt(x, z, y));
+        y = Math.max(y, floorAt(x, z, y, r));
       }
-      const floor = floorAt(x, z, y);
+      const floor = floorAt(x, z, y, r);
       const wanted = y + delta.y;
       // Down onto the floor, or kept to it over a small drop; rising, the person leaves it.
       if (wanted <= floor || (delta.y <= 0 && wanted - floor <= SNAP_DOWN && feet.y - floor <= SNAP_DOWN))

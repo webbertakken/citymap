@@ -60,7 +60,7 @@ describe("loadGltfModels", () => {
   it("sizes a figure by its height and a vehicle by its length, in metres", async () => {
     const models = await loadGltfModels("", read);
     expect(boxOf(models.figure.make()).getSize(new Vector3()).y).toBeCloseTo(1.75, 6);
-    expect(boxOf(models.car.make()).getSize(new Vector3()).x).toBeCloseTo(4.1, 6);
+    expect(boxOf(models.car.make()).getSize(new Vector3()).x).toBeCloseTo(GLTF_MODELS.car.metres, 6);
   });
 
   it("turns a model to face +x, stands it on the ground and centres its footprint", async () => {
@@ -79,7 +79,7 @@ describe("loadGltfModels", () => {
     const two = models.car.make();
     expect(one).not.toBe(two);
     one.scale.setScalar(0.1);
-    expect(boxOf(one).getSize(new Vector3()).x).toBeCloseTo(0.41, 6);
+    expect(boxOf(one).getSize(new Vector3()).x).toBeCloseTo(GLTF_MODELS.car.metres / 10, 6);
   });
 
   it("shows textures and colours as authored, on a canvas that writes colours as they are", async () => {

@@ -14,10 +14,13 @@ export interface Footprint {
   readonly top: number;
 }
 
-/** The city's walls, as a physics engine answers for them: how far a person moves, and how far a line runs clear. */
+/** The city's walls, as a physics engine answers for them: how far a mover moves, and how far a line runs clear. */
 export interface Walls {
-  /** The feet moved as far along `delta` as the walls allow, stepping up kerbs, and whether they then stand on ground. */
-  readonly move: (feet: Vec3, delta: Vec3) => { readonly feet: Vec3; readonly grounded: boolean };
+  /**
+   * The feet of a mover `radius` wide (a person by default) moved as far along `delta` as the walls allow, stepping up
+   * kerbs, and whether they then stand on ground.
+   */
+  readonly move: (feet: Vec3, delta: Vec3, radius?: number) => { readonly feet: Vec3; readonly grounded: boolean };
   /** How far from `from` towards `to` is clear, up to their distance. */
   readonly clearance: (from: Vec3, to: Vec3) => number;
   readonly dispose: () => void;
