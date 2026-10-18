@@ -226,8 +226,9 @@ export function advanceSession(
       if (garage) vehicles = garage.drive(vehicles, new Map([[vehicle.id, steering]]), STEP);
       next = { feet: moved.feet, rise: 0, heading: moved.heading, grounded: true };
     } else {
-      // Vehicles are in a walker's way, as walls are; with the garage, the walker's body shoves two-wheelers aside.
-      const stepped = stepWalker(body, steering, orbit.yaw, STEP, walls);
+      // Vehicles are in a walker's way, as walls are; with the garage, the walker walks on its Rapier walls and its body
+      // shoves two-wheelers aside.
+      const stepped = stepWalker(body, steering, orbit.yaw, STEP, garage ? garage.walls : walls);
       next = { ...stepped, feet: clearOfVehicles(stepped.feet, PERSON_RADIUS, inTheWay(vehicles, garage), null).feet };
       if (garage) vehicles = garage.drive(vehicles, new Map(), STEP, used.flyer ? null : next.feet);
     }

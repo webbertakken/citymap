@@ -421,6 +421,7 @@ function slidingGarage(ahead: number, aside: number, speed?: number): Garage & {
   return {
     driven,
     follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+    walls: open,
     drive: (vehicles, drivers) =>
       vehicles.map((v) => {
         if (!drivers.has(v.id) || v.kind !== "car") return v;
@@ -616,6 +617,7 @@ function recordingGarage(): Garage & { readonly steps: { drivers: string[]; walk
   return {
     steps,
     follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+    walls: open,
     drive: (vehicles, drivers, _dt, walker = null) => {
       steps.push({ drivers: [...drivers.keys()], walker });
       return vehicles;
@@ -625,6 +627,22 @@ function recordingGarage(): Garage & { readonly steps: { drivers: string[]; walk
     dispose: () => undefined,
   };
 }
+
+describe("the walker on Rapier", () => {
+  it("walks on the garage's walls where there is a garage, and on the city's where there is none", () => {
+    // The garage's walls hold the walker still; the city's are open.
+    const held: Walls = { ...open, move: (feet) => ({ feet, grounded: true }) };
+    const garage = { ...recordingGarage(), walls: held };
+    let onRapier = startSession({ x: 0, y: 0, z: 0 }, 0);
+    let onOwn = onRapier;
+    for (let i = 0; i < 10; i++) {
+      onRapier = advanceSession(onRapier, pressing("KeyW"), 0.1, open, garage);
+      onOwn = advanceSession(onOwn, pressing("KeyW"), 0.1, open);
+    }
+    expect(onRapier.body.feet.x).toBe(0);
+    expect(onOwn.body.feet.x).toBeGreaterThan(1);
+  });
+});
 
 describe("the parked two-wheelers on Rapier", () => {
   const bike = standing("bike", "bicycle", { x: 3, y: 0, z: 0 }, Math.PI / 2);

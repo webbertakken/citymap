@@ -136,6 +136,7 @@ describe("Viewer walking", () => {
     const dispose = vi.fn<() => void>();
     const garage: Garage = {
       follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+      walls,
       drive: (vehicles) => vehicles,
       keepingUp: () => true,
       load: () => 0,

@@ -74,7 +74,14 @@ export async function rapierWalls(footprints: readonly Footprint[], options: Wal
       engineMs,
       ms: Math.round(performance.now() - started),
     });
-    return walk(rapier, world);
+    const walls = characterWalls(rapier, world);
+    return {
+      ...walls,
+      dispose: () => {
+        walls.dispose();
+        world.free();
+      },
+    };
   } catch (failure) {
     world.free();
     throw failure;
@@ -104,15 +111,29 @@ export function onGround(moved: Vec3, from: Vec3, delta: Vec3): { readonly feet:
   return { feet: moved, grounded: false };
 }
 
-/** Movers in the world: a capsule per size, moved by the character controller; and rays for the camera. */
-function walk(rapier: Rapier, world: InstanceType<Rapier["World"]>): Walls {
+/**
+ * Movers on a world's walls: a capsule per size moved by Rapier's character controller (stepping up kerbs, kept to the
+ * ground going down), and rays for the camera, both meeting only the colliders `meets` (interaction groups; every
+ * collider by default) and passing through sensors. `into` places a point of the city in the world's frame (the
+ * garage's moves with the player). The flat ground is held here, as the bespoke walls hold it.
+ * Disposing frees the controller and the capsules, never the world.
+ */
+export function characterWalls(
+  rapier: Rapier,
+  world: InstanceType<Rapier["World"]>,
+  into: (p: Vec3) => Vec3 = (p) => p,
+  meets?: number,
+): Walls {
   // Movers are sensors: rays and other movers pass through them, and only the walls stop them.
   const passThrough = rapier.QueryFilterFlags.EXCLUDE_SENSORS;
   const capsules = new Map<number, InstanceType<Rapier["Collider"]>>();
   const capsuleOf = (radius: number) => {
     let capsule = capsules.get(radius);
     if (!capsule) {
-      capsule = world.createCollider(rapier.ColliderDesc.capsule(capsuleHalf(radius), radius).setSensor(true));
+      // The capsule itself meets nothing: it is only ever moved by the controller's queries.
+      capsule = world.createCollider(
+        rapier.ColliderDesc.capsule(capsuleHalf(radius), radius).setSensor(true).setCollisionGroups(0),
+      );
       capsules.set(radius, capsule);
     }
     return capsule;
@@ -124,8 +145,8 @@ function walk(rapier: Rapier, world: InstanceType<Rapier["World"]>): Walls {
   return {
     move: (feet: Vec3, delta: Vec3, radius = PERSON_RADIUS) => {
       const body = capsuleOf(radius);
-      body.setTranslation({ x: feet.x, y: feet.y + capsuleHalf(radius) + radius + SKIN, z: feet.z });
-      controller.computeColliderMovement(body, delta, passThrough);
+      body.setTranslation(into({ x: feet.x, y: feet.y + capsuleHalf(radius) + radius + SKIN, z: feet.z }));
+      controller.computeColliderMovement(body, delta, passThrough, meets);
       const moved = controller.computedMovement();
       const after = { x: feet.x + moved.x, y: feet.y + moved.y, z: feet.z + moved.z };
       // Standing on a roof or a kerb, Rapier holds the feet; anywhere else, the ground does.
@@ -135,19 +156,20 @@ function walk(rapier: Rapier, world: InstanceType<Rapier["World"]>): Walls {
     clearance: (from: Vec3, to: Vec3) => {
       const length = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
       if (length === 0) return 0;
-      const ray = new rapier.Ray(from, {
+      const ray = new rapier.Ray(into(from), {
         x: (to.x - from.x) / length,
         y: (to.y - from.y) / length,
         z: (to.z - from.z) / length,
       });
-      const wall = world.castRay(ray, length, true, passThrough)?.timeOfImpact ?? length;
+      const wall = world.castRay(ray, length, true, passThrough, meets)?.timeOfImpact ?? length;
       // The ground stops a line going down.
       const ground = to.y < GROUND && from.y >= GROUND ? ((from.y - GROUND) / (from.y - to.y)) * length : length;
       return Math.min(wall, ground);
     },
     dispose: () => {
+      for (const capsule of capsules.values()) world.removeCollider(capsule, false);
+      capsules.clear();
       world.removeCharacterController(controller);
-      world.free();
     },
   };
 }

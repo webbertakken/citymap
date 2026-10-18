@@ -70,6 +70,11 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
 
 - `bespokeWalls(footprints, { onStep, signal })`: steps `walls 0/n`, a breath, the walls, `walls n/n`; logs
   `explore/walls engine=bespoke buildings skipped ms`.
+- `characterWalls(rapier, world, into = identity, meets?)`: a sensor capsule per radius (meeting nothing itself), one
+  character controller (`SKIN` 0.02 m, autostep `STEP_UP` over `PERSON_RADIUS`, snap `SNAP_DOWN`, no impulses); `move`
+  places the capsule at `into(feet)` and asks the controller for the move against colliders in `meets`, sensors
+  excluded; grounded on a roof or kerb by Rapier, else held by `onGround`; `clearance` casts a ray the same way, the
+  ground stopping a line going down; `dispose` frees the capsules and the controller, never the world.
 - `rapierWalls`: `engine` step while `@dimforge/rapier3d-compat` loads and initialises (once per page); walls in slices
   of `SLICE` = 2,000 with a breath between (each slice a `walls done/of` step); convex hulls from ground to top; no
   ground collider. Movers are sensor capsules per radius (`capsuleHalf(r) = max(0, PERSON_HEIGHT / 2 − r)`), moved by a
@@ -104,16 +109,23 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
   200 m (or unknown). Planned afresh when the point has moved `RECHOOSE` 8 m.
 - `rebased(origin, at)`: past `REBASE` 256 m from the frame's origin, a new origin at the player, to the metre.
 - `openGarage(footprints, { at, onStep, signal, traffic, now })`: a Rapier world, gravity −9.81, timestep 1/120 s; a
-  ground slab `GROUND_HALF` 1,000 m each way, its top at `GROUND`, friction 1; then every building round the landing,
-  `STREETS_SLICE` 200 a step with a breath between (`streets done/of`); logs `explore/streets buildings ms`.
-- A building is a convex hull of its corners about its own middle, from 0 to its top, friction 0.3, placed by
-  translation `middle − origin` (64-bit in JavaScript); a hull Rapier cannot make is raised as nothing, once
-  (`explore/no-hull lot`). Re-centring sets every building's translation afresh and moves every body by `old − new`.
+  ground slab `GROUND_HALF` 1,000 m each way, its top at `GROUND`, friction 1 (in its own group, which the walker's
+  moves never meet); then every building round the landing, `STREETS_SLICE` 200 a step with a breath between
+  (`streets done/of`); logs `explore/streets buildings ms`.
+- A building is a convex hull of its corners about its own middle, from 0 to its top, friction 0.3, in the `BUILDINGS`
+  group (meeting everyone), placed by translation `middle − origin` (64-bit in JavaScript); a hull Rapier cannot make is
+  raised as nothing, once (`explore/no-hull lot`). Re-centring sets every building's translation afresh and moves every
+  body by `old − new`.
 - `follow(at, velocity, vehicles, budget)`, once a frame (`RAISE_BUDGET` 2 ms from the view): re-centres if due; brings
   into the world every vehicle within `STREETS_KEEP` of the player and lets go of those beyond; lowers what the plan
   lowers; raises from its list, nearest first, while the clock is short of `budget`; returns
   `{ standing, waiting, nearest }` (the gap of the nearest building still waiting from the player, infinite when none).
   Never awaited.
+- `walls`: the walker's, `characterWalls(rapier, world, local, groups(WALKER, BUILDINGS))`: the buildings alone, in the
+  frame round the player, the flat ground held as the city's walls hold it; its `dispose` does nothing (the garage's
+  frees the world). Rapier's queries see a building raised or moved by re-centring from its next step: the session moves
+  the walker, then steps the garage, so a building raised ahead is seen a step later; a walker pressing on a wall
+  through a re-centring stays out of it (tested).
 - Vehicles in the world: a car is a dynamic body asleep where it stands (by `feet` and `attitude`) on four wheels; a
   parked two-wheeler a dynamic block asleep (`TWO_WHEELER_MASS` bicycle 15 kg, motorbike 200 kg; its length,
   `TWO_WHEELER_BASE` 0.4 of its width, `TWO_WHEELER_HEIGHT` 1.1 m tall, origin at its feet; friction 0.6, damping
@@ -181,13 +193,13 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
   below `LEAVE_SPEED` 1.5 m/s at `alightFrom` (the vehicle `parkedNow`); then `STEP` = 1/120 s steps of the time due, a
   frame at most `LONGEST_FRAME` 0.1 s. A car with a garage is stepped by `garage.drive` (Rapier keeps it out of
   buildings and vehicles); any other ride steps by `stepVehicle` and is cleared of the others (`BUMP` keeps 0.2 of its
-  speed); on foot the walker is cleared of every vehicle. With a garage, the walker and a ridden two-wheeler are cleared
-  of the cars only, and `garage.drive` steps every step (the ridden two-wheeler as a driver, the walker's feet, null
-  flying), shoving the parked two-wheelers; getting on one stands it up (`parkedNow`, on the walker's ground).
-  `sinceLook` counts the seconds since the last drag. Riding faster than `CHASE_FROM` 1 m/s, `LOOK_HOLD` 1.5 s after the
-  last drag, the orbit's yaw eases, by a share squared-ramped in over `LOOK_EASE` 1 s, over the ride's `follow.chase`
-  (else `CHASE` 0.25 s) behind the way it moved over its last step while rolling forwards (a car sliding shows its
-  slide), else behind its heading.
+  speed); on foot the walker is cleared of every vehicle. With a garage, the walker steps on `garage.walls` (else on the
+  city's), and it and a ridden two-wheeler are cleared of the cars only, and `garage.drive` steps every step (the ridden
+  two-wheeler as a driver, the walker's feet, null flying), shoving the parked two-wheelers; getting on one stands it up
+  (`parkedNow`, on the walker's ground). `sinceLook` counts the seconds since the last drag. Riding faster than
+  `CHASE_FROM` 1 m/s, `LOOK_HOLD` 1.5 s after the last drag, the orbit's yaw eases, by a share squared-ramped in over
+  `LOOK_EASE` 1 s, over the ride's `follow.chase` (else `CHASE` 0.25 s) behind the way it moved over its last step while
+  rolling forwards (a car sliding shows its slide), else behind its heading.
 - `followOf`: on foot `ON_FOOT`; riding, the ride's `follow`, its distance `distance + stretch · |v|`, at most
   `farthest`.
 - `shownVehicles`: a car's `attitude` between its last two by normalised linear interpolation the short way
@@ -655,26 +667,28 @@ uneven frame times), camera, input, vehicles, models, retargeting (rest frames, 
 and the Animator; the bicycle: hands-free self-stability within 4.3 to 6 m/s and falling below, turning by leaning,
 countersteering, tracking the aim at every speed, the low-speed wobble, weight transfer and the back wheel lifting, the
 grip limit, cadence and freewheel, gears, resistance, foot down, falls and getting back up; parking from the plan; the
-pool; the pad; the leg reaching its pedal; the bell with a stand-in context. The core: the benchmark's matrices from its
-parameters, the middle, the loads, the wheel lifting and coming down to exactly 0. The motorbike: the wheelie held in
-first until the red line, 0 to 100 km/h, top speed, the throttle's rate, changing down, both brakes, paddling back, a
-slide under braking leaned, tracking the lean at 6 to 40 m/s, riding straight, the foot, falls, the HUD. The engine and
-gearbox. The nearby streets: reach, ties, cells below zero, the plan, re-centring. The garage against real Rapier:
-counted opening, cancelling, a hull it cannot make, the budget, re-centring by a wall 600 m off, pulling away through
-the gears, braking then reversing, the handbrake's slide, a crash, righting, pushing a parked car, two-wheelers in the
-way, letting go and bringing back, traffic, keeping up. The descent's order and every failure; the HUD of each ride. The
-helicopter: spin-up to full in five seconds, staying down with the collective down, spin-down slower, blades turning
-with the rotor, no lift below `hoverShare`; ground effect's cushion and its fade; height held let go, the most climb and
-sink, a soft landing, the ceiling, height kept flying ahead; the cyclic's tilt, about 200 km/h, backwards, levelling to
-a hover; the tail rotor turning on the spot, holding its heading, a banked turn and its levelling; on its skids;
-thrust's axis and `tiltedOf`; contact (a slide, a hard hit, a landing, lifting off, held by its rotor); through walls (a
-wall as high as the rotor, a brush, over a low building, the cabin, a roof landing, perched and eased off, `belowOf`,
-`roomToLand`); the helipad (ahead, past buildings, clear of a parked car, behind, none); boarding, the prompt, the
-camera, landing and spinning down in the session; stepping out onto the roof's side; the view's Up and Down on a roof
-and a hit and landing by keys, logged. End to end: in, spun up, lifted, homed in on the nearest lot (from the helipad's
-place and the HUD's heading) until over a roof with room, landed on it, out on the roof and in reach again, with the
-touch layout measured upright and on its side. End to end: loading once (its four phases), the motorbike (throttle,
-gears, both brakes, off), the car on Rapier (engine, gears, reverse, parked where it stopped), arcade cars without
-WebAssembly, and each ride's touch layout with nothing overlapping, upright and on its side. End to end
+pool; the pad; the walker on the garage's Rapier walls (on the ground exactly, stopped and slid at a wall, a jump, a
+plinth stepped up and walked off, through vehicles, pressing on a wall through a re-centring, the camera's line) and the
+session walking on them; the leg reaching its pedal; the bell with a stand-in context. The core: the benchmark's
+matrices from its parameters, the middle, the loads, the wheel lifting and coming down to exactly 0. The motorbike: the
+wheelie held in first until the red line, 0 to 100 km/h, top speed, the throttle's rate, changing down, both brakes,
+paddling back, a slide under braking leaned, tracking the lean at 6 to 40 m/s, riding straight, the foot, falls, the
+HUD. The engine and gearbox. The nearby streets: reach, ties, cells below zero, the plan, re-centring. The garage
+against real Rapier: counted opening, cancelling, a hull it cannot make, the budget, re-centring by a wall 600 m off,
+pulling away through the gears, braking then reversing, the handbrake's slide, a crash, righting, pushing a parked car,
+two-wheelers in the way, letting go and bringing back, traffic, keeping up. The descent's order and every failure; the
+HUD of each ride. The helicopter: spin-up to full in five seconds, staying down with the collective down, spin-down
+slower, blades turning with the rotor, no lift below `hoverShare`; ground effect's cushion and its fade; height held let
+go, the most climb and sink, a soft landing, the ceiling, height kept flying ahead; the cyclic's tilt, about 200 km/h,
+backwards, levelling to a hover; the tail rotor turning on the spot, holding its heading, a banked turn and its
+levelling; on its skids; thrust's axis and `tiltedOf`; contact (a slide, a hard hit, a landing, lifting off, held by its
+rotor); through walls (a wall as high as the rotor, a brush, over a low building, the cabin, a roof landing, perched and
+eased off, `belowOf`, `roomToLand`); the helipad (ahead, past buildings, clear of a parked car, behind, none); boarding,
+the prompt, the camera, landing and spinning down in the session; stepping out onto the roof's side; the view's Up and
+Down on a roof and a hit and landing by keys, logged. End to end: in, spun up, lifted, homed in on the nearest lot (from
+the helipad's place and the HUD's heading) until over a roof with room, landed on it, out on the roof and in reach
+again, with the touch layout measured upright and on its side. End to end: loading once (its four phases), the motorbike
+(throttle, gears, both brakes, off), the car on Rapier (engine, gears, reverse, parked where it stopped), arcade cars
+without WebAssembly, and each ride's touch layout with nothing overlapping, upright and on its side. End to end
 (`e2e/explore.spec.ts`): walking by keys and by touch, the loading log, getting on the bicycle and off, riding it
 (pedal, shift, brake, stop with a foot down, the HUD), the Rapier prototype, Wobble Blocks loaded, axe light and dark.

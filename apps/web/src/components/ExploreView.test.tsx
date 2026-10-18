@@ -134,6 +134,7 @@ const show = (
     garage?: Garage | null;
     arcade?: ArcadeWhy | null;
     parked?: readonly Vehicle[];
+    engine?: string;
   } = {},
 ) => {
   render(
@@ -148,7 +149,7 @@ const show = (
       inspect={sights.inspect ?? (() => ({ hit: null, files: [] }))}
       landing={landing}
       parked={[...parkedBy(landing, sights.walls ?? open), ...(sights.parked ?? [])]}
-      engine="Rapier"
+      engine={sights.engine ?? "Rapier"}
       garage={sights.garage ?? null}
       arcade={sights.arcade ?? null}
       Canvas={StubCanvas}
@@ -665,10 +666,27 @@ describe("ExploreView", () => {
     expect(walk().riding).toBeNull();
   });
 
+  it("names Rapier on foot while the walker walks on the garage, and the walls' engine without one", () => {
+    const garage: Garage = {
+      follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+      walls: open,
+      drive: (vehicles) => vehicles,
+      keepingUp: () => true,
+      load: () => 0,
+      dispose: () => undefined,
+    };
+    show(undefined, { garage, engine: "bespoke 2.5D" });
+    expect(screen.getByRole("region", { name: "On foot" }).textContent).toContain("Physics prototype: Rapier");
+    cleanup();
+    show(undefined, { engine: "bespoke 2.5D" });
+    expect(screen.getByRole("region", { name: "On foot" }).textContent).toContain("Physics prototype: bespoke 2.5D");
+  });
+
   it("drives the car on the garage, keeps the streets round it each frame, and shows its gear and engine", () => {
     const follow = vi.fn<Garage["follow"]>(() => ({ standing: 4, waiting: 0, nearest: Infinity }));
     const garage: Garage = {
       follow,
+      walls: open,
       drive: (vehicles, drivers) =>
         vehicles.map((v) =>
           v.kind === "car" && drivers.has(v.id)
@@ -710,6 +728,7 @@ describe("ExploreView", () => {
     const drive = vi.fn<Garage["drive"]>((vehicles) => vehicles);
     const garage: Garage = {
       follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+      walls: open,
       drive,
       keepingUp: () => false,
       load: () => 0.73,
