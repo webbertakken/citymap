@@ -17,6 +17,7 @@ use crate::ancestry::{count_commits, resolve_commit};
 use crate::blobs::BlobReader;
 use crate::env::git_command;
 use crate::file_history::FileHistory;
+use crate::mailmap::{Author, Mailmap, MailmapStatus, read_mailmap};
 use crate::schedule::{FOLD_STRIDES, Strides, fold_schedule, is_laid, laid_count};
 use crate::workspaces::{Change, Workspaces};
 
@@ -31,6 +32,8 @@ pub enum HistoryEvent {
     SkipSubmodule { path: String, index: i64 },
     /// A root manifest's blob could not be read (a blob-less clone never fetches).
     ManifestUnavailable { path: String, index: i64 },
+    /// The target's `.mailmap`, read for a file history: what was found, and how many commit emails it has lines for.
+    Mailmap { status: MailmapStatus, entries: i64 },
     /// The fold schedule a read follows: the history's length, its zone boundaries, the first index and how many it lays.
     Schedule {
         commits: i64,
@@ -47,6 +50,7 @@ impl HistoryEvent {
         match self {
             Self::SkipSubmodule { .. } => "history/skip-submodule",
             Self::ManifestUnavailable { .. } => "history/manifest-unavailable",
+            Self::Mailmap { .. } => "history/mailmap",
             Self::Schedule { .. } => "history/schedule",
         }
     }
@@ -57,6 +61,9 @@ impl HistoryEvent {
         match self {
             Self::SkipSubmodule { path, index } | Self::ManifestUnavailable { path, index } => {
                 format!("{} path={path} index={index}", self.code())
+            }
+            Self::Mailmap { status, entries } => {
+                format!("{} status={} entries={entries}", self.code(), status.as_str())
             }
             Self::Schedule {
                 commits,
@@ -81,21 +88,22 @@ pub struct RawEntry {
     pub path: String,
 }
 
-/// One first-parent commit: its id, its committer time (epoch seconds), its author's email, and its changes.
+/// One first-parent commit: its id, its committer time (epoch seconds), its author as written, and its changes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawCommit {
     pub sha: String,
     pub time: i64,
-    pub author: String,
+    pub author: Author,
     pub entries: Vec<RawEntry>,
 }
 
 /// The largest safe integer of a JavaScript number: a time beyond it reads 0, as the reference reads it.
 const MAX_SAFE: i64 = (1 << 53) - 1;
 
-/// A commit's header, "<sha>\x02<time>\x02<email>" after its \x01 mark; a time that is no number reads 0.
+/// A commit's header, "<sha>\x02<time>\x02<email>\x02<name>" after its \x01 mark: the name is the rest, so one holding a
+/// \x02 stays whole; a time that is no number reads 0.
 fn header_of(header: &str) -> RawCommit {
-    let mut parts = header.split('\u{2}');
+    let mut parts = header.splitn(4, '\u{2}');
     let sha = parts.next().unwrap_or("").to_owned();
     let time = parts.next().unwrap_or("");
     let seconds = if !time.is_empty() && time.bytes().all(|b| b.is_ascii_digit()) {
@@ -106,7 +114,10 @@ fn header_of(header: &str) -> RawCommit {
     RawCommit {
         sha,
         time: seconds,
-        author: parts.next().unwrap_or("").to_owned(),
+        author: Author {
+            email: parts.next().unwrap_or("").to_owned(),
+            name: parts.next().unwrap_or("").to_owned(),
+        },
         entries: vec![],
     }
 }
@@ -396,6 +407,16 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
     if send.send(Ok(HistoryItem::Event(chosen))).is_err() {
         return Ok(());
     }
+    let mut blobs = BlobReader::new(dir);
+    // The target's own .mailmap names the people, so the history alone decides who they are. Read before the log starts.
+    let mut mailmap = Mailmap::default();
+    if options.files {
+        let (read, event) = read_mailmap(dir, &head, &mut blobs)?;
+        if send.send(Ok(HistoryItem::Event(event))).is_err() {
+            return Ok(());
+        }
+        mailmap = read;
+    }
     let args = [
         "-c",
         "core.quotepath=off",
@@ -409,7 +430,8 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
         "-z",
         "--no-renames",
         "--no-abbrev",
-        "--format=%x01%H%x02%ct%x02%aE",
+        // The author as written: %aE would map it through the working tree's .mailmap.
+        "--format=%x01%H%x02%ct%x02%ae%x02%an",
         head.as_str(),
         "--",
     ];
@@ -433,7 +455,6 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
         files: None,
         folder_map: None,
     };
-    let mut blobs = BlobReader::new(dir);
     let mut parser = RawLogParser::default();
     let mut files = options.files.then(FileHistory::default);
     let mut index = 0;
@@ -461,7 +482,7 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
             tree.folder_map = None;
         }
         if let Some(history) = files.as_mut() {
-            record_changes(history, &tree, &commit);
+            record_changes(history, &mailmap, &tree, &commit);
         }
         let snapshot = if laid(*index) {
             let workspaces = tree
@@ -530,15 +551,17 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
     Ok(())
 }
 
-/// Records a commit's changes to the files it leaves live, after it is applied, by the identities they carry.
-fn record_changes(history: &mut FileHistory, tree: &Tree, commit: &RawCommit) {
+/// Records a commit's changes to the files it leaves live, after it is applied, by the identities they carry, under the
+/// email the mailmap gives its author.
+fn record_changes(history: &mut FileHistory, mailmap: &Mailmap, tree: &Tree, commit: &RawCommit) {
+    let email = mailmap.email_of(&commit.author);
     for entry in &commit.entries {
         if entry.status == "D" || entry.mode == SUBMODULE {
             continue;
         }
         // Applying the commit made every such path live.
         if let Some(live) = tree.state.get(entry.path.as_str()) {
-            history.record(&live.identity, commit.time, &commit.author);
+            history.record(&live.identity, commit.time, email);
         }
     }
 }
