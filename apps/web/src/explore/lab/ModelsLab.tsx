@@ -10,6 +10,7 @@ import type { Object3D } from "three";
 import { Buildings, Mesh } from "../../components/CityMeshes";
 import { pose, type GltfName, type Loaded } from "../models/gltf";
 import { bicycle, car, figure, helicopter, motorbike, paletteOf } from "../models/procedural";
+import { poseStride } from "../models/stride";
 import { METRE, headingOf, onStreet, type Street } from "../street";
 
 export type Style = "procedural" | "gltf" | "mixed";
@@ -62,11 +63,7 @@ interface Placed {
 
 /** A procedural figure caught mid-stride. */
 const walking = (model: Object3D) => {
-  const swing = 0.45;
-  model.getObjectByName("leg-left")?.rotation.set(0, 0, swing);
-  model.getObjectByName("leg-right")?.rotation.set(0, 0, -swing);
-  model.getObjectByName("arm-left")?.rotation.set(0, 0, -swing * 0.8);
-  model.getObjectByName("arm-right")?.rotation.set(0, 0, swing * 0.8);
+  poseStride(model, 0.45);
   return model;
 };
 

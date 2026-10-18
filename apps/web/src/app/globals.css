@@ -1116,9 +1116,9 @@ mark {
   :root {
     --gap: 8px;
   }
-  /* The title takes the row's width left of the controls: four 48 px buttons with gaps, 204 px on a touch screen. */
+  /* The title takes the row's width left of the controls: five 48 px buttons with gaps, 256 px on a touch screen. */
   .card-title {
-    right: calc(2 * var(--gap) + 204px);
+    right: calc(2 * var(--gap) + 256px);
     width: auto;
     padding: 8px 12px;
   }
@@ -1198,5 +1198,92 @@ mark {
     width: auto;
     margin: 0 8px 8px;
     box-shadow: none;
+  }
+}
+
+/* Walking: the Walk button pressed in the accent, like the view switch. */
+.icon-button[aria-pressed="true"] {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.icon-button[aria-pressed="true"]:hover {
+  background: var(--accent);
+}
+/* On foot: the canvas takes drags to look round; a card at the bottom says how to walk and leads back to the map. */
+.explore {
+  touch-action: none;
+  cursor: grab;
+}
+.explore:active {
+  cursor: grabbing;
+}
+.explore-card {
+  position: absolute;
+  bottom: var(--gap);
+  left: 50%;
+  z-index: 20;
+  display: grid;
+  gap: 4px;
+  width: min(420px, calc(100% - 2 * var(--gap)));
+  padding: 12px 16px;
+  translate: -50% 0;
+  cursor: auto;
+}
+.explore-card h2 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  font-size: 15px;
+}
+.explore-card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.explore-card .text-button {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-self: start;
+}
+/* Touch only: a stick under the left thumb, a jump button under the right. */
+.explore-stick,
+.explore-jump {
+  display: none;
+}
+@media (pointer: coarse) {
+  .explore-keys {
+    display: none;
+  }
+  .explore-card {
+    bottom: auto;
+    top: calc(var(--gap) + 82px + 8px);
+  }
+  .explore-stick {
+    position: absolute;
+    bottom: calc(var(--gap) + 24px);
+    left: calc(var(--gap) + 24px);
+    z-index: 20;
+    display: block;
+    width: 144px;
+    height: 144px;
+    background: color-mix(in srgb, var(--glass) 60%, transparent);
+    border: 2px solid var(--glass-line);
+    border-radius: 50%;
+    touch-action: none;
+  }
+  .explore-jump {
+    position: absolute;
+    right: calc(var(--gap) + 24px);
+    bottom: calc(var(--gap) + 48px);
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    font-weight: 600;
+    border-radius: 50%;
+    touch-action: none;
   }
 }

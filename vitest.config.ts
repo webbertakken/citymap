@@ -17,6 +17,7 @@ const COVERAGE_EXCLUDE = [
   // WebGL and the Next.js entry points cannot run in jsdom; the end-to-end suite proves them in a browser.
   "apps/web/src/components/CityCanvas.tsx",
   "apps/web/src/components/CityMeshes.tsx",
+  "apps/web/src/components/ExploreCanvas.tsx",
   // The research labs draw with WebGL; they are proved by their captures and leave at fold-back.
   "apps/web/src/explore/lab/**",
   // Web Workers cannot run in jsdom; the end-to-end suite proves them, and tests lay through `layHere`.
