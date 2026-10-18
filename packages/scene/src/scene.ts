@@ -136,6 +136,13 @@ export function roadRibbon(pts: readonly Pt[], width: number): Pt[][] {
   });
 }
 
+/** The city with only the town of that key, and no highways: what a town shown alone draws. */
+export const focusOn = (city: City, key: string): City => ({
+  ...city,
+  towns: city.towns.filter((t) => t.key === key),
+  highways: [],
+});
+
 /** The city as drawable layers, labels and bounds, in a theme. Pure; no WebGL. */
 export function buildScene(city: City, theme: Theme): Scene {
   const ground = new Builder("ground");

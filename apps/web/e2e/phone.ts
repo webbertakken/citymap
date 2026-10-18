@@ -12,6 +12,24 @@ export const PHONE_SLOWDOWN = 4;
  */
 export const REFERENCE_MS = 43;
 
+/**
+ * How much longer than on the reference machine the work may take here before this machine is slower than the phone it
+ * stands for: a busy machine cannot be sped up (`phoneRate` never goes below 1), and the slowest of its cores slows
+ * drawing and the browser's own work out of step with the throttled main thread.
+ */
+export const BUSY_SHARE = 1.3;
+
+/**
+ * Why a machine whose work took `workMs` cannot time a phone's answers, or null when it can: beyond `BUSY_SHARE` of the
+ * reference (56 ms), it is busier than the phone it stands for.
+ */
+export function tooBusyForAPhone(workMs: number, referenceMs = REFERENCE_MS, share = BUSY_SHARE): string | null {
+  const limit = share * referenceMs;
+  return workMs > limit
+    ? `the machine is busy: its work took ${workMs.toFixed(1)} ms, beyond ${limit.toFixed(0)} ms (${share}x the reference), so it is slower than the phone it stands for`
+    : null;
+}
+
 /** The slowdown that makes this machine as fast as the phone; never below 1, since a slower machine cannot be sped up. */
 export const phoneRate = (measuredMs: number, referenceMs = REFERENCE_MS, slowdown = PHONE_SLOWDOWN) =>
   Math.max(1, (slowdown * referenceMs) / measuredMs);
@@ -46,15 +64,21 @@ async function timeRuns(page: Page, n: number, done: readonly number[] = []): Pr
   return timeRuns(page, n - 1, [...done, await page.evaluate(work)]);
 }
 
-/** The slowdown for this machine, timed now and reported with the test, so a budget's margin is read against it. */
+/**
+ * The slowdown for this machine, timed now and reported with the test, so a budget's margin is read against it. A
+ * machine too busy to stand for the phone (`tooBusyForAPhone`) skips the test there, with its reason.
+ */
 export async function slowToPhone(page: Page): Promise<number> {
   const { test } = await import("@playwright/test");
   const measured = await timeWork(page);
   const rate = phoneRate(measured);
+  const busy = tooBusyForAPhone(measured);
   test
     .info()
     .annotations.push({ type: "phone", description: `work ${measured.toFixed(1)} ms, slowed ${rate.toFixed(2)}x` });
-  console.log(`e2e/phone work=${measured.toFixed(1)} rate=${rate.toFixed(2)}`);
+  console.log(`e2e/phone work=${measured.toFixed(1)} rate=${rate.toFixed(2)} busy=${busy !== null}`);
+  if (busy) console.log(`e2e/phone-skipped reason="${busy}"`);
+  test.skip(busy !== null, busy ?? "");
   return rate;
 }
 

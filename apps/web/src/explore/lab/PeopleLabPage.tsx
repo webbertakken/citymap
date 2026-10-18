@@ -30,7 +30,7 @@ async function prepare(theme: ThemeName): Promise<Ready> {
   const index = await loadIndex(fetcher, base);
   const file = parseCityFile(await loadCity(fetcher, index[0]!, { toggles: DEFAULT_TOGGLES }, base));
   const scene = buildScene(file.city, THEMES[theme]);
-  const { table } = tableFor(scene, cityBuildings(file.measures), "folder", THEMES[theme]);
+  const table = tableFor(scene.buildings.order, cityBuildings(file.measures), "folder", THEMES[theme]);
   const street = longestStreet(file.city);
   if (!street) throw new Error("lab/no-street");
   const [wobble, quaternius, library] = await Promise.all([

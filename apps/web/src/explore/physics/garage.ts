@@ -2,16 +2,27 @@
 // within a frame's budget and lowered behind), a ground under it, and every car near the player as a body on four
 // wheels by Rapier's ray-cast vehicle controller, with an engine, an automatic gearbox, brakes and a handbrake. The world
 // is placed round the player and re-centred as it goes, each building from its own middle in 64-bit numbers, so nothing
-// drifts however far the walk goes. The walker and a ridden two-wheeler move on the walls; here each is a body moved
-// where they are, which shoves the parked bicycles and motorbikes (loose bodies, as the cars are) but never a car.
+// drifts however far the walk goes. The walker walks here too, by Rapier's character controller on the nearby streets'
+// buildings (`walls`). A ridden two-wheeler moves on the city's walls; here the walker and it are each a body moved
+// where they are, which shoves the parked bicycles and motorbikes (loose bodies, as the cars are) but never a car. The
+// helicopter flies by its own physics; here it is a block moved where it is, in the cars' and the two-wheelers' way.
 // Metres, seconds, newtons; headings as the walk's.
-import { GROUND, PERSON_RADIUS, solid, type Footprint, type Vec3 } from "@citymap/world";
+import { GROUND, PERSON_RADIUS, solid, type Footprint, type Vec3, type Walls } from "@citymap/world";
 import { log } from "../../log";
 import { automatic, driveOf, rpmOf, type Engine, type Gearbox } from "../engine";
-import { VEHICLES, type Bicycle, type Car, type Motorbike, type Quat, type Vehicle } from "../vehicles";
-import { GRAVITY, type Intents } from "../walker";
+import {
+  VEHICLES,
+  tiltedOf,
+  type Bicycle,
+  type Car,
+  type Helicopter,
+  type Motorbike,
+  type Quat,
+  type Vehicle,
+} from "../vehicles";
+import { GRAVITY, NO_INTENTS, type Intents } from "../walker";
 import { breathe, type WallOptions } from "./raise";
-import { loadRapier, type Rapier } from "./rapier";
+import { characterWalls, loadRapier, type Rapier } from "./rapier";
 import {
   RECHOOSE,
   STREETS_KEEP,
@@ -78,6 +89,8 @@ export const SLOW_WINDOW = 2;
 /** A parked two-wheeler: its weight, how tall its block stands, and how soon it stops sliding and rolling. */
 export const TWO_WHEELER_MASS: Readonly<Record<"bicycle" | "motorbike", number>> = { bicycle: 15, motorbike: 200 };
 export const TWO_WHEELER_HEIGHT = 1.1;
+/** The helicopter's cabin, skids to roof, as a block in the cars' way: its rotor stands above any car. */
+export const HELICOPTER_HEIGHT = 2.6;
 export const TWO_WHEELER_DAMPING = 0.5;
 /** It stands on its tyres, not its bars: its block is this share of its width, so a push tips it as it would a bike. */
 export const TWO_WHEELER_BASE = 0.4;
@@ -221,9 +234,12 @@ interface Block {
 }
 
 /** Who meets whom: a collider's own group in the high half, the groups it meets in the low half. */
+const BUILDINGS = 0b0001;
 const CARS = 0b0010;
 const TWO_WHEELERS = 0b0100;
 const WALKER = 0b1000;
+const HELICOPTERS = 0b1_0000;
+const THE_GROUND = 0b10_0000;
 const EVERYONE = 0xffff;
 const groups = (own: number, meets: number) => (own << 16) | meets;
 
@@ -260,6 +276,11 @@ export interface Garage {
     dt: number,
     walker?: Vec3 | null,
   ) => readonly Vehicle[];
+  /**
+   * The walker's walls: the nearby streets' buildings, met by Rapier's character controller (stepping up kerbs, kept to
+   * the ground), the flat ground held as the city's walls hold it; no vehicle in them. Freed with the garage.
+   */
+  readonly walls: Walls;
   /** Whether Rapier keeps up: its steps take no more than `SLOW_SHARE` of the time they cover, over `SLOW_WINDOW`. */
   readonly keepingUp: () => boolean;
   /** The share of the time its steps cover that they take, over the last window. */
@@ -335,6 +356,8 @@ function garageIn(
   const raised = new Map<number, Collider | null>();
   const cars = new Map<string, Wheeled>();
   const blocks = new Map<string, Block>();
+  /** Each helicopter near the player: a block moved where its flight puts it, never shoved. */
+  const helicopters = new Map<string, Body>();
   const last = new Map<string, Vehicle>();
   let chosen: { at: Spot; raise: readonly number[]; lower: readonly number[] } | null = null;
   // The cars that drive themselves (a measuring aid), chosen the first time the vehicles are seen.
@@ -344,7 +367,8 @@ function garageIn(
   world.createCollider(
     rapier.ColliderDesc.cuboid(GROUND_HALF, 0.5, GROUND_HALF)
       .setTranslation(0, GROUND - 0.5, 0)
-      .setFriction(1),
+      .setFriction(1)
+      .setCollisionGroups(groups(THE_GROUND, EVERYONE)),
   );
 
   const local = (p: { x: number; y: number; z: number }) => ({ x: p.x - origin.x, y: p.y, z: p.z - origin.z });
@@ -355,7 +379,9 @@ function garageIn(
   const raiseOne = (lot: number) => {
     const footprint = byLot.get(lot)!;
     const hull = hullOf(rapier, footprint, grid.standing.get(lot)!.middle);
-    const collider = hull ? world.createCollider(hull.setFriction(0.3)) : null;
+    const collider = hull
+      ? world.createCollider(hull.setFriction(0.3).setCollisionGroups(groups(BUILDINGS, EVERYONE)))
+      : null;
     if (collider) placeBuilding(lot, collider);
     else log.info("explore/no-hull", { lot });
     raised.set(lot, collider);
@@ -473,6 +499,33 @@ function garageIn(
     );
     return { body, ridden };
   };
+  /** A helicopter's block where it stands, about its outline's middle, turned as it flies. */
+  const pad = (vehicle: Helicopter) => {
+    const { length, width, middle } = VEHICLES.helicopter;
+    const { heli } = vehicle;
+    const body = world.createRigidBody(
+      rapier.RigidBodyDesc.kinematicPositionBased()
+        .setTranslation(vehicle.feet.x - origin.x, vehicle.feet.y, vehicle.feet.z - origin.z)
+        .setRotation(tiltedOf(vehicle.heading, heli.pitch, heli.roll)),
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(length / 2, HELICOPTER_HEIGHT / 2, width / 2)
+        .setTranslation(middle, HELICOPTER_HEIGHT / 2, 0)
+        .setCollisionGroups(groups(HELICOPTERS, CARS | TWO_WHEELERS)),
+      body,
+    );
+    return body;
+  };
+  /** A helicopter's block moved to where it now stands, when it moved. */
+  const fly = (vehicle: Helicopter) => {
+    const body = helicopters.get(vehicle.id);
+    if (!body || last.get(vehicle.id) === vehicle) return;
+    body.setNextKinematicTranslation(local(vehicle.feet));
+    body.setNextKinematicRotation(tiltedOf(vehicle.heading, vehicle.heli.pitch, vehicle.heli.roll));
+    last.set(vehicle.id, vehicle);
+  };
+  // The walker walks on the buildings alone, in the world's frame round the player.
+  const walkerWalls = characterWalls(rapier, world, local, groups(WALKER, BUILDINGS));
   // The walker's body: only the two-wheelers meet it; it rests out of the world while nobody walks.
   const walking = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased().setEnabled(false));
   world.createCollider(
@@ -493,8 +546,9 @@ function garageIn(
   /** Each two-wheeler's block as its rider has it: moved where it stands when ridden; made loose again once left. */
   const ride = (vehicles: readonly Vehicle[], drivers: Drivers) => {
     for (const vehicle of vehicles) {
-      const blocked = vehicle.kind === "car" ? undefined : blocks.get(vehicle.id);
-      if (!blocked || vehicle.kind === "car") continue;
+      if (vehicle.kind === "helicopter") fly(vehicle);
+      const blocked = vehicle.kind === "car" || vehicle.kind === "helicopter" ? undefined : blocks.get(vehicle.id);
+      if (!blocked || vehicle.kind === "car" || vehicle.kind === "helicopter") continue;
       const ridden = drivers.has(vehicle.id);
       if (ridden !== blocked.ridden) {
         dropBlock(vehicle.id);
@@ -543,13 +597,20 @@ function garageIn(
           .map((v) => ({ id: v.id, gap: Math.hypot(v.feet.x - at.x, v.feet.z - at.z) }))
           .toSorted((a, b) => a.gap - b.gap)
           .slice(1, 1 + traffic)
-          .map(({ id }, i) => [id, { forward: 0.35, right: i % 2 === 0 ? 0.4 : -0.4, run: false, jump: false }]),
+          .map(({ id }, i) => [id, { ...NO_INTENTS, forward: 0.35, right: i % 2 === 0 ? 0.4 : -0.4 }]),
       );
       if (traffic > 0) log.info("explore/traffic", { cars: autopilot.size });
     }
     for (const vehicle of vehicles) {
       const near = Math.hypot(vehicle.feet.x - at.x, vehicle.feet.z - at.z) <= STREETS_KEEP;
-      if (vehicle.kind === "car") {
+      if (vehicle.kind === "helicopter") {
+        const flown = helicopters.get(vehicle.id);
+        if (near && !flown) helicopters.set(vehicle.id, pad(vehicle));
+        else if (!near && flown) {
+          world.removeRigidBody(flown);
+          helicopters.delete(vehicle.id);
+        } else fly(vehicle);
+      } else if (vehicle.kind === "car") {
         const wheeled = cars.get(vehicle.id);
         if (near && !wheeled) cars.set(vehicle.id, carBody(vehicle));
         else if (!near && wheeled) dropCar(vehicle.id);
@@ -680,6 +741,7 @@ function garageIn(
       }
       world.step();
       const next = vehicles.map((vehicle) => {
+        if (vehicle.kind === "helicopter") return vehicle;
         if (vehicle.kind !== "car") {
           const blocked = blocks.get(vehicle.id);
           if (!blocked || blocked.ridden || blocked.body.isSleeping()) return vehicle;
@@ -709,6 +771,7 @@ function garageIn(
       return covered === 0 ? 0 : spent.reduce((sum, s) => sum + s.ms, 0) / covered;
     },
     keepingUp: () => spent.length < SLOW_WINDOW * 120 || garage.load() <= SLOW_SHARE,
+    walls: { ...walkerWalls, dispose: () => undefined },
     dispose: () => world.free(),
   };
   return {

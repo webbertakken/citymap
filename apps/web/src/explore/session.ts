@@ -4,22 +4,25 @@ import { PERSON_RADIUS, type Vec3, type Walls } from "@citymap/world";
 import { shift } from "./bicycle";
 import { ON_FOOT, behind, cameraOf, turned, type Follow, type Orbit } from "./camera";
 import { FLY_SPEED, geared as gearedFlight, stepFlyer, type Flyer } from "./flyer";
+import { started } from "./helicopter";
 import { intentsOf, type Pad, type Stick } from "./input";
 import type { Garage } from "./physics/garage";
 import {
-  LEAVE_SPEED,
   VEHICLES,
   alightFrom,
   bumped,
+  canLeave,
   clearOfVehicles,
+  idleHeli,
   parkedNow,
   reachable,
   stepVehicle,
+  type Helicopter,
   type Quat,
   type Vehicle,
   type VehicleKind,
 } from "./vehicles";
-import { facing, stepWalker, turnBetween, type Body } from "./walker";
+import { NO_INTENTS, facing, stepWalker, turnBetween, type Body } from "./walker";
 
 /** What the devices hold now: the view's listeners write it, each frame reads it. */
 export interface Controls {
@@ -37,7 +40,7 @@ export interface Controls {
    * or set the free camera's speed while it flies.
    */
   gears: number;
-  /** Sinking, while flying, is held (a touch button). */
+  /** Sinking, while flying the free camera or the helicopter, is held (a touch button). */
   sink: boolean;
   /** A gamepad's stick and A button, read each frame; null with no pad. */
   pad: Pad | null;
@@ -104,9 +107,6 @@ export const startSession = (feet: Vec3, heading: number, vehicles: readonly Veh
   };
 };
 
-/** Keys that sink the free camera, as Space raises it. */
-const SINK_KEYS = ["KeyC", "ControlLeft", "ControlRight"];
-
 /** The free camera lifted from where the follow camera is, or landed back on the walker. */
 function toggleFlight(session: Session, walls: Walls): Session {
   if (session.flyer) return { ...session, flyer: null };
@@ -119,11 +119,14 @@ function toggleFlight(session: Session, walls: Walls): Session {
 export const ridden = (session: Session): Vehicle | null =>
   session.vehicles.find((v) => v.id === session.riding) ?? null;
 
-/** Getting on the vehicle within reach, or off the one ridden once it has nearly stopped; else nothing changes. */
+/**
+ * Getting on the vehicle within reach (a helicopter's engine starting), or off the one ridden once it has nearly
+ * stopped (a helicopter once landed); else nothing changes.
+ */
 function use(session: Session, walls: Walls): Session {
   const vehicle = ridden(session);
   if (vehicle) {
-    if (Math.abs(vehicle.speed) >= LEAVE_SPEED) return session;
+    if (!canLeave(vehicle)) return session;
     const body: Body = { feet: alightFrom(vehicle, walls), rise: 0, heading: vehicle.heading, grounded: true };
     const parked = session.vehicles.map((v) => (v === vehicle ? parkedNow(v) : v));
     return { ...session, body, previous: body, vehicles: parked, previousVehicles: parked, riding: null, speed: 0 };
@@ -131,16 +134,22 @@ function use(session: Session, walls: Walls): Session {
   if (!session.body.grounded) return session;
   const near = reachable(session.body.feet, session.vehicles);
   if (!near) return session;
-  // A two-wheeler shoved over is stood up again, on the walker's ground, to be got on.
-  const up = (v: Vehicle) =>
-    v === near && v.kind !== "car" ? { ...parkedNow(v), feet: { ...v.feet, y: session.body.feet.y } } : v;
+  // A two-wheeler shoved over is stood up again, on the walker's ground, to be got on; a helicopter's engine starts.
+  const up = (v: Vehicle): Vehicle => {
+    if (v !== near || v.kind === "car") return v;
+    if (v.kind === "helicopter") return { ...v, heli: started(v.heli) };
+    return { ...parkedNow(v), feet: { ...v.feet, y: session.body.feet.y } };
+  };
   const vehicles = session.vehicles.map(up);
   return { ...session, vehicles, previousVehicles: session.previousVehicles.map(up), riding: near.id };
 }
 
-/** What stops a mover on the walls: every vehicle, or with Rapier's garage only the cars (it shoves the rest aside). */
+/**
+ * What stops a mover on the walls: every vehicle, or with Rapier's garage the cars and the helicopter (it shoves the
+ * two-wheelers aside).
+ */
 const inTheWay = (vehicles: readonly Vehicle[], garage: Garage | null) =>
-  garage ? vehicles.filter((v) => v.kind === "car") : vehicles;
+  garage ? vehicles.filter((v) => v.kind === "car" || v.kind === "helicopter") : vehicles;
 
 /** The ridden bicycle shifted by the gear steps asked for; anything else as it is. */
 function geared(session: Session, steps: number): Session {
@@ -152,14 +161,21 @@ function geared(session: Session, steps: number): Session {
   return { ...session, vehicles };
 }
 
-/** Which way a ride moves over its last step: its heading, or the way it went when moving forwards (a car sliding). */
+/**
+ * Which way a ride moves over its last step: its heading, or the way it went when moving forwards (a car sliding); a
+ * helicopter's heading, as it flies any way.
+ */
 function travelOf(session: Session, previous: Body, body: Body, speed: number): number {
   const vehicle = ridden(session);
   const dx = body.feet.x - previous.feet.x;
   const dz = body.feet.z - previous.feet.z;
-  if (!vehicle || vehicle.speed <= 0 || speed <= CHASE_FROM) return body.heading;
+  if (!vehicle || vehicle.kind === "helicopter" || vehicle.speed <= 0 || speed <= CHASE_FROM) return body.heading;
   return Math.atan2(-dz, dx);
 }
+
+/** A helicopter left with its rotor turning, each step: it spins down. */
+const spinning = (vehicle: Vehicle, riding: string | null): vehicle is Helicopter =>
+  vehicle.kind === "helicopter" && vehicle.id !== riding && vehicle.heli.rotor > 0;
 
 /**
  * The walk after a frame of `seconds`: the drag turns the camera; getting on or off, if asked; the ridden bicycle's
@@ -175,18 +191,14 @@ export function advanceSession(
   garage: Garage | null = null,
 ): Session {
   let orbit = turned(session.orbit, controls.look.dx, controls.look.dy);
-  const intents = intentsOf(controls.keys, controls.stick, controls.jump, controls.pad);
+  const intents = intentsOf(controls.keys, controls.stick, controls.jump, controls.pad, controls.sink);
   const toggled = controls.fly ? toggleFlight(session, walls) : session;
   const used = controls.use && !toggled.flyer ? use(toggled, walls) : toggled;
   // While the camera flies, the walker and any ride are left alone, and the keys fly the camera.
   const flight = used.flyer
-    ? {
-        forward: intents.forward,
-        right: intents.right,
-        up: (intents.jump ? 1 : 0) - (controls.sink || SINK_KEYS.some((k) => controls.keys.has(k)) ? 1 : 0),
-      }
+    ? { forward: intents.forward, right: intents.right, up: (intents.jump ? 1 : 0) - (intents.sink ? 1 : 0) }
     : null;
-  const steering = flight ? { ...intents, forward: 0, right: 0, jump: false, run: false } : intents;
+  const steering = flight ? NO_INTENTS : intents;
   let flyer = used.flyer && controls.gears !== 0 ? gearedFlight(used.flyer, controls.gears) : used.flyer;
   let { body, previous, vehicles, previousVehicles, speed, walked } = used.flyer ? used : geared(used, controls.gears);
   let spare = used.spare + Math.min(seconds, LONGEST_FRAME);
@@ -214,11 +226,14 @@ export function advanceSession(
       if (garage) vehicles = garage.drive(vehicles, new Map([[vehicle.id, steering]]), STEP);
       next = { feet: moved.feet, rise: 0, heading: moved.heading, grounded: true };
     } else {
-      // Vehicles are in a walker's way, as walls are; with the garage, the walker's body shoves two-wheelers aside.
-      const stepped = stepWalker(body, steering, orbit.yaw, STEP, walls);
+      // Vehicles are in a walker's way, as walls are; with the garage, the walker walks on its Rapier walls and its body
+      // shoves two-wheelers aside.
+      const stepped = stepWalker(body, steering, orbit.yaw, STEP, garage ? garage.walls : walls);
       next = { ...stepped, feet: clearOfVehicles(stepped.feet, PERSON_RADIUS, inTheWay(vehicles, garage), null).feet };
       if (garage) vehicles = garage.drive(vehicles, new Map(), STEP, used.flyer ? null : next.feet);
     }
+    if (vehicles.some((v) => spinning(v, used.riding)))
+      vehicles = vehicles.map((v) => (spinning(v, used.riding) ? idleHeli(v, STEP) : v));
     const stride = Math.hypot(next.feet.x - body.feet.x, next.feet.z - body.feet.z);
     walked += stride;
     speed = stride / STEP;
@@ -231,7 +246,8 @@ export function advanceSession(
   const sinceLook = dragged ? 0 : used.sinceLook + seconds;
   const after = { ...used, body, previous, vehicles, previousVehicles, speed, spare, walked, flyer, sinceLook };
   const riding = ridden(after);
-  if (riding && speed > CHASE_FROM && sinceLook > LOOK_HOLD) {
+  // A helicopter turns on the spot, so the camera comes back behind it at any speed.
+  if (riding && (speed > CHASE_FROM || riding.kind === "helicopter") && sinceLook > LOOK_HOLD) {
     // A look round is left alone a while; then the camera comes back behind, gently at first.
     const ease = Math.min(1, (sinceLook - LOOK_HOLD) / LOOK_EASE);
     const chase = VEHICLES[riding.kind].follow.chase ?? CHASE;
@@ -298,6 +314,17 @@ export function shownVehicles(session: Session): Vehicle[] {
       return before.kind === "car"
         ? { ...v, ...placed, attitude: turnBetweenQuats(before.attitude, v.attitude, share) }
         : v;
+    if (v.kind === "helicopter") {
+      if (before.kind !== "helicopter") return v;
+      const heli = {
+        ...v.heli,
+        pitch: between(before.heli.pitch, v.heli.pitch, share),
+        roll: between(before.heli.roll, v.heli.roll, share),
+        blades: before.heli.blades + turnBetween(before.heli.blades, v.heli.blades) * share,
+        tail: before.heli.tail + turnBetween(before.heli.tail, v.heli.tail) * share,
+      };
+      return { ...v, ...placed, heli };
+    }
     if (v.kind === "motorbike") {
       if (before.kind !== "motorbike") return v;
       const moto = {
@@ -329,7 +356,7 @@ export const followOf = (session: Session): Follow => {
 };
 
 /** What pressing E would do now: get on or in a vehicle within reach, or off or out of the one ridden (ready once it
- * has nearly stopped); null when there is nothing to do. */
+ * has nearly stopped, a helicopter once landed); null when there is nothing to do. */
 export interface Prompt {
   readonly action: "enter" | "leave";
   readonly kind: VehicleKind;
@@ -339,7 +366,7 @@ export interface Prompt {
 export function promptOf(session: Session): Prompt | null {
   if (session.flyer) return null;
   const vehicle = ridden(session);
-  if (vehicle) return { action: "leave", kind: vehicle.kind, ready: Math.abs(vehicle.speed) < LEAVE_SPEED };
+  if (vehicle) return { action: "leave", kind: vehicle.kind, ready: canLeave(vehicle) };
   if (!session.body.grounded) return null;
   const near = reachable(session.body.feet, session.vehicles);
   return near ? { action: "enter", kind: near.kind, ready: true } : null;
@@ -347,11 +374,14 @@ export function promptOf(session: Session): Prompt | null {
 
 const capital = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
 
-/** A prompt in words: "Get in the car", "Get off the bicycle", or "Slow down to get out of the car". */
+/**
+ * A prompt in words: "Get in the car", "Get off the bicycle", "Slow down to get out of the car" or "Land to get out of
+ * the helicopter".
+ */
 export function promptWords(prompt: Prompt): string {
   const spec = VEHICLES[prompt.kind];
   if (prompt.action === "enter") return capital(`${spec.enter} ${spec.name}`);
-  return prompt.ready ? capital(`${spec.leave} ${spec.name}`) : `Slow down to ${spec.leave} ${spec.name}`;
+  return prompt.ready ? capital(`${spec.leave} ${spec.name}`) : `${spec.until} ${spec.leave} ${spec.name}`;
 }
 
 /** Where the walker stands and faces, on the ground: for the map to come back to. */

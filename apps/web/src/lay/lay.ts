@@ -1,6 +1,7 @@
 // Every opening becomes a city here: a snapshot laid with the CLI's default options and the chosen toggles and
-// separations (so the browser lays what `citymap --no-history --toggles=… --separate=…` does), or a city file's text read; then its scene and its pick
-// index are built beside it. The layout worker runs this off the main thread; tests run it in place.
+// separations (so the browser lays what `citymap --no-history --toggles=… --separate=…` does), or a city file's text read; then the city's work is made
+// beside it (its first look: a lot table and the whole city's scene) with its pick index. The city's worker runs this
+// off the main thread, and stays with the city to make the rest; tests run it in place.
 import {
   CitymapError,
   DEFAULT_LAND_USES,
@@ -14,20 +15,27 @@ import {
   type Snapshot,
   type Toggle,
 } from "@citymap/ground-plan";
-import { parseCityFile, type CityFile, type Measures } from "@citymap/measures";
-import { buildScene, pickFrom, pickGrid, type PickGrid, type PickIndex, type Scene } from "@citymap/scene";
-import { THEMES, type ThemeName } from "@citymap/themes";
+import { parseCityFile, type CityFile, type Measures, type Scales } from "@citymap/measures";
+import { pickFrom, pickGrid, type ColourBy, type PickGrid, type PickIndex } from "@citymap/scene";
+import type { ThemeName } from "@citymap/themes";
 import type { OnStep, Step } from "../load/step";
 import { liveMeasures, type LiveFacts } from "../measures/live";
+import type { Roofs } from "../view/roofs";
+import { herePort, type CityPort } from "./port";
+import { cityWork, opening, type Answer, type CityWork, type Tasks } from "./work";
 
-/** What every opening may be given: a way to stop it, an ear for its progress, and the theme to build its scene in. */
+/** What every opening is given: the look to make first, a way to stop it, and an ear for its progress. */
 export interface OpenOptions {
-  /** Ends the work: the worker is terminated and the promise rejects with the signal's reason. */
+  /** Ends the opening: the worker is terminated and the promise rejects with the signal's reason. */
   readonly signal?: AbortSignal;
-  /** Hears the work's progress as steps, then a `draw` step when it builds the scene. */
+  /** Hears the work's progress as steps, then a `draw` step when it makes the first look. */
   readonly onProgress?: OnStep;
-  /** The map theme to build the scene in, off the main thread; none builds no scene. */
-  readonly theme?: ThemeName;
+  /** The map theme to make the first look in. */
+  readonly theme: ThemeName;
+  /** The colour asked for (folder when the city cannot give it); folder when absent. */
+  readonly colourBy?: ColourBy;
+  /** The town shown, made with the first look (a city shown again in another layout); none when absent. */
+  readonly town?: string | null;
 }
 
 export interface LayOptions extends OpenOptions {
@@ -39,41 +47,35 @@ export interface LayOptions extends OpenOptions {
   readonly facts?: LiveFacts;
 }
 
-/** A scene built in a theme, ready to draw while that theme is the map's. */
-export interface Drawn {
-  readonly theme: ThemeName;
-  readonly scene: Scene;
-}
-
-/** What an opening hands back: the city, its measures (or null), its scene when a theme was given, its pick index. */
+/**
+ * What an opening hands back: the city, its measures (or null), its pick index, the legend's scales, every building's
+ * floors, the opening's answers (its first lot table, the whole city's scene, the town asked for), and the city's port,
+ * which goes on making every other town's scene and answers what is asked while the city is shown.
+ */
 export interface Laid {
   readonly city: City;
   readonly measures: Measures | null;
-  readonly scene: Drawn | null;
   readonly pick: PickIndex;
+  readonly scales: Scales;
+  readonly floors: Uint8Array;
+  /** Every building's roof, named, for the Buildings view close up. */
+  readonly roofs: Roofs;
+  readonly answers: readonly Answer[];
+  readonly port: CityPort;
 }
 
 /** A snapshot laid into a city. */
-export type Lay = (snapshot: Snapshot, options?: LayOptions) => Promise<Laid>;
+export type Lay = (snapshot: Snapshot, options: LayOptions) => Promise<Laid>;
 /** A city file's text read into a city. */
-export type Read = (text: string, options?: OpenOptions) => Promise<Laid>;
+export type Read = (text: string, options: OpenOptions) => Promise<Laid>;
 
-/** What the work makes before the city reaches the main thread: the city file, its scene, its pick grid. */
+/** What the work makes before the city reaches the main thread: its work, its pick grid, its first answers, the rest. */
 export interface Made {
-  readonly file: CityFile;
-  readonly scene: Drawn | null;
+  readonly work: CityWork;
   readonly grid: PickGrid;
+  readonly answers: readonly Answer[];
+  readonly tasks: Tasks;
 }
-
-/** The buffers under a scene's layers, handed to the main thread without a copy. */
-export const buffersOf = (scene: Scene): ArrayBuffer[] =>
-  [
-    ...scene.layers.flatMap((l) => [l.positions.buffer, l.colours.buffer, l.indices.buffer]),
-    scene.buildings.positions.buffer,
-    scene.buildings.lots.buffer,
-    scene.buildings.facades.buffer,
-    scene.buildings.indices.buffer,
-  ].filter((b): b is ArrayBuffer => b instanceof ArrayBuffer);
 
 /** The CLI's defaults, with the toggles and separations chosen (the engine's defaults when none are). */
 export const liveOptions = (toggles?: readonly Toggle[], separate?: readonly Separation[]): Options => ({
@@ -113,15 +115,16 @@ export function throttled<T>(tell: (value: T) => void, ms: number, now: () => nu
   return call;
 }
 
-/** The scene, when a theme was given (saying `draw` first), and the pick grid of a city file. */
-function finish(file: CityFile, { onProgress, theme }: OpenOptions): Made {
-  if (theme === undefined) return { file, scene: null, grid: pickGrid(file.city) };
+/** The city's work and its first look (saying `draw` first), and the pick grid of a city file. */
+function finish(file: CityFile, { onProgress, theme, colourBy = "folder", town = null }: OpenOptions): Made {
   onProgress?.({ phase: "draw" });
-  return { file, scene: { theme, scene: buildScene(file.city, THEMES[theme]) }, grid: pickGrid(file.city) };
+  const work = cityWork(file);
+  const { answers, tasks } = opening(work, { ask: "look", theme, colourBy, first: town });
+  return { work, grid: pickGrid(file.city), answers, tasks };
 }
 
 /** Lays a snapshot, with its measures when given what the source knows, and builds what goes with it. */
-export function layMade(snapshot: Snapshot, options: LayOptions = {}): Made {
+export function layMade(snapshot: Snapshot, options: LayOptions): Made {
   const { signal, onProgress, toggles, separate, facts } = options;
   signal?.throwIfAborted();
   const tell = onProgress && ((progress: LayProgress) => onProgress(layStep(progress)));
@@ -132,42 +135,50 @@ export function layMade(snapshot: Snapshot, options: LayOptions = {}): Made {
 }
 
 /** Reads a city file's text, validating it (its rejections are the file's), and builds what goes with it. */
-export function readMade(text: string, options: OpenOptions = {}): Made {
+export function readMade(text: string, options: OpenOptions): Made {
   options.signal?.throwIfAborted();
   options.onProgress?.({ phase: "parse" });
   return finish(parseCityFile(text), options);
 }
 
-/** What the main thread keeps of the work: the city with its pick grid attached. */
-export const laidOf = ({ file, scene, grid }: Made): Laid => ({
-  city: file.city,
-  measures: file.measures,
-  scene,
-  pick: pickFrom(file.city, grid),
-});
+/** What the main thread keeps of an opening: the city with its pick grid attached, and the port to its work. */
+export const laidOf = (
+  file: CityFile,
+  made: {
+    readonly grid: PickGrid;
+    readonly floors: Uint8Array;
+    readonly roofs: Roofs;
+    readonly scales: Scales;
+    readonly answers: readonly Answer[];
+  },
+  port: CityPort,
+): Laid => {
+  const { grid, floors, roofs, scales, answers } = made;
+  return {
+    city: file.city,
+    measures: file.measures,
+    pick: pickFrom(file.city, grid),
+    scales,
+    floors,
+    roofs,
+    answers,
+    port,
+  };
+};
+
+/** An opening made on the calling thread, its work kept there. */
+const here = ({ work, grid, answers, tasks }: Made): Laid =>
+  laidOf(
+    work.file,
+    { grid, floors: work.floors, roofs: work.roofs, scales: work.buildings.scales, answers },
+    herePort(work, tasks),
+  );
 
 /** Lays on the calling thread: where no Worker exists, and in tests. */
-export const layHere: Lay = async (snapshot, options) => laidOf(layMade(snapshot, options));
+export const layHere: Lay = async (snapshot, options) => here(layMade(snapshot, options));
 
 /** Reads on the calling thread: where no Worker exists, and in tests. */
-export const readHere: Read = async (text, options) => laidOf(readMade(text, options));
-
-/**
- * A city file as plain JSON, for the hop from the worker to the main thread: the city file's keys, in the engine's
- * order rather than canonical (`serialiseCityFile`), at a tenth of the cost.
- */
-export const wireText = ({ city, measures }: CityFile): string =>
-  JSON.stringify(measures ? { ...city, measures } : city);
-
-/**
- * A city file the worker has validated or laid, taken in without validating again: the schemas are strict and
- * transform nothing, so the parsed city equals the validated one, at a quarter of the cost on the main thread.
- */
-export function trustedCityFile(text: string): CityFile {
-  const parsed: City & { readonly measures?: Measures } = JSON.parse(text);
-  const { measures, ...city } = parsed;
-  return { city, measures: measures ?? null };
-}
+export const readHere: Read = async (text, options) => here(readMade(text, options));
 
 /** A failure as the worker posts it: an engine's code and detail kept, so the main thread names it as before. */
 export interface Failure {

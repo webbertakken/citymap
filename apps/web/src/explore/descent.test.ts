@@ -17,6 +17,7 @@ const walls = (): Walls & { disposed: boolean } => {
 };
 const garage = (): Garage => ({
   follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+  walls: { move: (feet) => ({ feet, grounded: true }), clearance: () => 0, dispose: () => undefined },
   drive: (vehicles) => vehicles,
   keepingUp: () => true,
   load: () => 0,

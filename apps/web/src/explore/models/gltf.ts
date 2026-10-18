@@ -1,6 +1,6 @@
 // Figures and vehicles from glTF files (Kenney's CC0 packs and poly.pizza), normalised to one frame: metres, facing +x,
-// standing on y = 0, centred on their footprint. People ship with the app (public/models); vehicles are in the model lab
-// (public/lab/models) until their phase brings them in. Both are fetched by scripts/fetch-models.ts.
+// standing on y = 0, centred on their footprint. The walk's people and vehicles ship with the app (public/models), built
+// by scripts/models/build-models.ts; the model lab's other candidates are in public/lab/models.
 import {
   AnimationMixer,
   Box3,
@@ -14,6 +14,7 @@ import {
   type AnimationClip,
   type Object3D,
 } from "three";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { log } from "../../log";
@@ -31,7 +32,8 @@ export interface ModelFile {
 /**
  * The models the walk uses, built by scripts/models/build-models.ts into public/models (credited in its CREDITS.md):
  * Wobble Blocks' people with the Universal Animation Library's clips baked on, heyheythere's PSX vehicles (facing +z in
- * their files) and Duhgless' motorbike (facing +x), at their real sizes. The helicopter is still the model lab's.
+ * their files), Duhgless' motorbike (facing +x) and ArcheoteryxFr's AS350 B2 helicopter (facing −z, its fuselage 11.01
+ * m long; its geometry meshopt-compressed), at their real sizes.
  */
 export const GLTF_MODELS = {
   figure: { url: "models/people/man.glb", metres: 1.78, measure: "height", yaw: Math.PI / 2 },
@@ -41,7 +43,7 @@ export const GLTF_MODELS = {
   car: { url: "models/vehicles/sedan.glb", metres: 4.68, measure: "length", yaw: Math.PI / 2 },
   // Drawn a little under its own 5.2 m, so its wheels and wheelbase are the car's on Rapier.
   pickup: { url: "models/vehicles/pickup.glb", metres: 4.6, measure: "length", yaw: Math.PI / 2 },
-  helicopter: { url: "lab/models/helicopter.glb", metres: 10, measure: "length", yaw: 0 },
+  helicopter: { url: "models/vehicles/helicopter.glb", metres: 11.01, measure: "length", yaw: -Math.PI / 2 },
 } as const satisfies Record<string, ModelFile>;
 
 export type GltfName = keyof typeof GLTF_MODELS;
@@ -143,7 +145,8 @@ export interface GltfFile {
 /** Reads a glTF file from a URL: three.js's loader in the browser, a stand-in in tests. */
 export type ReadGltf = (url: string) => Promise<GltfFile>;
 
-export const readGltfWithThree: ReadGltf = (url) => new GLTFLoader().loadAsync(url);
+/** Reads a glTF file with three.js's loader, which decodes meshopt-compressed geometry (the helicopter's). */
+export const readGltfWithThree: ReadGltf = (url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url);
 
 /** Loads one model from under the site's path (`base`): each `make` gives a fresh copy, sized and turned. */
 export async function loadModel(base: string, file: ModelFile, read: ReadGltf = readGltfWithThree): Promise<Loaded> {

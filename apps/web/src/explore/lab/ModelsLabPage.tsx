@@ -81,7 +81,7 @@ async function prepare(asked: Asked): Promise<Ready> {
   const file = parseCityFile(await loadCity(fetcher, entry, { toggles: DEFAULT_TOGGLES }, base));
   const theme = THEMES[asked.theme];
   const scene = buildScene(file.city, theme);
-  const { table } = tableFor(scene, cityBuildings(file.measures), "folder", theme);
+  const table = tableFor(scene.buildings.order, cityBuildings(file.measures), "folder", theme);
   const street = longestStreet(file.city);
   if (!street) throw new Error("lab/no-street");
   const gltf =

@@ -56,12 +56,18 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
   stands at the kerb of the street the walk lands on, just ahead, a car across the street, clear of the bicycle's way,
   and a motorbike at the near kerb behind the landing, facing away. Motorbikes park at the city's kerbs too, fewer than
   bicycles and cars; cars are saloons and pickups. The walk keeps those nearest its landing, a few hundred, so a large
-  city costs what a small one does. A helicopter is found in the city.
-- Within reach (1.2 m), a prompt says what E does: "Get on the bicycle", "Get on the motorbike", "Get in the car".
-  Riding, E gets off or out beside the vehicle once it has nearly stopped; until then the prompt says "Slow down to get
-  off the bicycle". On a touch screen the prompt is a button.
+  city costs what a small one does. The city's helicopter stands on the landing's road, straight on from it, at the
+  first open ground its rotor clears, so walking on reaches it.
+- Within reach (1.2 m), a prompt says what E does: "Get on the bicycle", "Get on the motorbike", "Get in the car", "Get
+  in the helicopter". Riding, E gets off or out beside the vehicle once it has nearly stopped (the helicopter once it
+  has landed), on the side that has a floor at its level; until then the prompt says "Slow down to get off the bicycle"
+  or "Land to get out of the helicopter". On a touch screen the prompt is a button.
 - A vehicle left stays where it stopped, as it stopped: a car on its side stays on its side until it is driven again.
-  Vehicles stand in the way of walkers and of each other.
+  Vehicles stand in the way of walkers and of each other, on their own level: a helicopter on a roof is out of the way
+  of the street below.
+- Where a rider sits, holds on and rests their feet on a two-wheeler comes from its own model, measured once when the
+  models are built, never set by eye: the saddle or seat, the grips (which turn with the bars), the pedals (which go
+  round with the crank) or the pegs.
 - **The car**, the motorbike and the helicopter handle as GTA's do: cars on suspension that grip, drift, crash, roll
   over and are put back on their wheels; the motorbike leans on the bicycle's single-track core, with an engine and a
   wheelie; the helicopter flies by collective and cyclic and lands on roofs.
@@ -85,6 +91,31 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 - **The HUD**, while in the car: speed in km/h, the gear (R in reverse), and the engine's turns a minute; an arcade car
   shows its speed alone.
 
+## The helicopter
+
+- **It flies by its rotors**, by citymap's own flight physics. The main rotor's thrust, set by the collective, holds it
+  up; the cyclic tilts the rotor, and the tilted thrust carries it; the tail rotor turns it, and holds it straight
+  against the main rotor's torque. Near the ground or a roof, under its own downwash, it lifts more (ground effect), so
+  a hover a metre up settles a little higher.
+- **The rotor spins up and down.** Getting in starts the engine: the rotor takes five seconds to reach its flying speed,
+  and the helicopter cannot lift until it turns fast enough to hold it up. Getting out stops the engine, and the rotor
+  spins down over about twelve seconds. The blades and the tail rotor turn as fast as the rotor does.
+- **Assisted, as GTA's.** W and S tilt it nose down and up, flying it ahead and back; A and D turn it, on the spot in a
+  hover and banking into the turn at speed. Space climbs and Shift or C sinks; let go, it holds its height. Let go of
+  everything and it levels itself and slows to a hover. It flies at up to about 200 km/h, climbs at 8 m/s and sinks at
+  6, more gently near what lies below, and goes no higher than 500 m.
+- **Landing and taking off.** Sinking onto the street or a roof, it lands on its skids, level; Space lifts it off again.
+  A roof is landed on only where the rotor has room: a taller building within the rotor's reach holds the rotor up, and
+  the helicopter slides off that building's edge.
+- **Collision at any height.** Its rotor's disc is stopped by any building as high as the disc, its cabin by anything
+  lower; it flies over what lies below its skids. Touching a wall it slides along it; a hard hit (from 5 m/s) strikes
+  the rotor, which loses speed, and jolts it away.
+- **The camera** follows from further back and higher, drawing back with speed, and swings behind it as it turns, even
+  on the spot.
+- **The HUD**, while in the helicopter: its altitude above the street in metres, its climb in metres a second, its speed
+  in km/h, its rotor's speed as a share of its flying speed, and what lies below (street or roof, and "no room" where
+  the rotor could not land there).
+
 ## The motorbike
 
 - **It balances as the bicycle does**, on the same single-track physics with a motorbike's build: longer, heavier, its
@@ -96,8 +127,10 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 - **The wheelie.** Pulling away hard in a low gear lifts the front wheel; the rider holds it short of going over
   backwards, and it comes down when the throttle eases or the engine reaches its red line, the gearbox holding first
   until it is down. With the front wheel up it steers nothing.
-- **The rider** sits astride with hands on the bars and feet on the pegs, a foot down at a stop, and is thrown off as
-  from the bicycle.
+- **The rider** sits on the seat, hands closed round the grips and feet on the forward pegs, knees bent, leaning forward
+  as far as the high bars ask and coming forward along the seat when they ask more; the hands stay on the grips as the
+  bars turn and the motorbike leans. A foot goes down at a stop, and the rider is thrown off as from the bicycle. It has
+  no kickstand: parked, it stands upright.
 - **The HUD**, while on the motorbike: speed in km/h, the gear, and the engine's turns a minute.
 
 ## The bicycle
@@ -120,33 +153,41 @@ The showpiece: a bicycle that rides like one, and stays fun on a keyboard.
   alone skids long before that. Stopped, S walks the bicycle backwards.
 - **Grip.** The tyres hold a turn and a brake together up to their grip; asking for more, such as braking hard while
   leaned over, slides the bicycle from under its rider.
-- **The rider.** Pedals, legs and wheels turn in step. Coming to a stop, a foot goes down to the ground, and comes up
-  again once moving. A hard hit (from about 11 km/h) or a slide throws the rider off; both lie a moment, then the rider
-  gets back up, on the bicycle, a foot down.
+- **The rider.** The rider sits on the saddle, hands closed round the grips, feet on the pedals as they go round with
+  the crank, knees bent ahead; the hands stay on the grips as the bars turn and the bicycle leans. Pedals, legs and
+  wheels turn in step, and the wheels turn true about their axles, never wobbling. Coming to a stop, a foot goes down to
+  the ground, and comes up again once moving. A hard hit (from about 11 km/h) or a slide throws the rider off; both lie
+  a moment, then the rider gets back up, on the bicycle, a foot down.
+- **The kickstand.** Parked, the bicycle leans on its kickstand. The stand folds up as the rider gets on, stays up while
+  it is ridden, and swings down when it is left; it swings in about 0.3 s, at once where motion is unwelcome.
 - **The bell.** B rings it; on a touch screen, a Ring button.
 - **The HUD**, while on the bicycle: speed in km/h, the gear, and the cadence in turns a minute.
 
 ## Controls per device
 
-| Doing           | Keyboard and mouse  | Touch                 | Gamepad              |
-| --------------- | ------------------- | --------------------- | -------------------- |
-| Walk, steer     | W A S D, arrows     | the stick             | left stick           |
-| Look            | the mouse, captured | a drag                | right stick          |
-| Jump            | Space               | Jump                  | A                    |
-| Get on, off     | E                   | the prompt            | Y                    |
-| Pedal, throttle | W                   | the stick pushed up   | right trigger, stick |
-| Back brake      | S                   | the stick pulled down | left trigger         |
-| Front brake     | Space               | Brake                 | A                    |
-| Handbrake (car) | Space               | Handbrake             | A                    |
-| Gears           | Q down, R up, wheel | Gear down, Gear up    | LB down, RB up       |
-| Bell            | B                   | Ring                  | X                    |
-| Fly, land       | F                   | Fly                   | View (Back)          |
-| Back to the map | Escape              | Back to the map       | (the card's button)  |
+| Doing            | Keyboard and mouse  | Touch                 | Gamepad              |
+| ---------------- | ------------------- | --------------------- | -------------------- |
+| Walk, steer      | W A S D, arrows     | the stick             | left stick           |
+| Tilt, turn       | W S, A D            | the stick             | left stick           |
+| Look             | the mouse, captured | a drag                | right stick          |
+| Jump             | Space               | Jump                  | A                    |
+| Climb, sink      | Space, Shift or C   | Up, Down              | A, B                 |
+| Get on, off      | E                   | the prompt            | Y                    |
+| Pedal, throttle  | W                   | the stick pushed up   | right trigger, stick |
+| Back brake       | S                   | the stick pulled down | left trigger         |
+| Front brake      | Space               | Brake                 | A                    |
+| Handbrake (car)  | Space               | Handbrake             | A                    |
+| Gears            | Q down, R up, wheel | Gear down, Gear up    | LB down, RB up       |
+| Bell             | B                   | Ring                  | X                    |
+| Fly, land (free) | F                   | Fly                   | View (Back)          |
+| Back to the map  | Escape              | Back to the map       | (the card's button)  |
 
 ## Physics
 
-- One game on every device. Walking, the bicycle and the motorbike move on citymap's own walls; cars on Rapier, a
-  physics engine.
+- One game on every device. Cars drive on Rapier, a physics engine, and the walker walks on it too, by its character
+  controller among the nearby streets' buildings, looking and moving as on citymap's own walls (the same speeds, the
+  same kerbs stepped up, the feet exactly on the ground). The bicycle, the motorbike and the helicopter move on
+  citymap's own walls, and so does the walker where Rapier cannot load or keep up.
 - **The nearby streets.** Rapier is given only the buildings near the player, never the whole city: those within a reach
   of where the player will be a moment ahead are raised, nearest first, a few each frame within a small share of it, and
   those left far behind are lowered. Rapier's world is placed round the player and moved along with it, so its numbers
@@ -174,16 +215,17 @@ The showpiece: a bicycle that rides like one, and stays fun on a keyboard.
   The map does not pan at its edges.
 - Close up in the Buildings view, the buildings nearest the middle are named over their roofs.
 - The free camera flies from the walk: F lifts it from where the follow camera is and lands it on the walker again. It
-  flies where it looks and through anything, Space and C (or Control) rise and sink, the wheel sets its speed; on touch,
-  a Fly button and Up and Down. The walker and any ride wait where they are, and the crosshair reads from the camera.
+  flies where it looks and through anything, Space rises and C, Control or Shift sinks, the wheel sets its speed; on
+  touch, a Fly button and Up and Down. The walker and any ride wait where they are, and the crosshair reads from the
+  camera.
 
 ## People and vehicles, and their sources
 
 - The look is GTA 3 to San Andreas: textured, realistic proportions, low-poly and light.
 - People: Wobble Blocks' PS2 Styled Characters (CC0), animated by Quaternius' Universal Animation Library (CC0), its
   clips retargeted onto their skeleton. Vehicles: heyheythere's PSX Vehicles Free (CC BY 4.0), GGBotNet's PSX Style Cars
-  (CC0), Duhgless' PSX bikes (CC0), and helicopters from Sketchfab (CC BY 4.0). Mixamo's terms forbid freely
-  distributing its files, so it is not used.
+  (CC0), Duhgless' PSX bikes (CC0), and ArcheoteryxFr's AS350 B2 helicopter from Sketchfab (CC BY 4.0). Mixamo's terms
+  forbid freely distributing its files, so it is not used.
 - Each model is built from its source by a script, reproducibly, and credited beside the models.
 
 ## Phones and accessibility
@@ -192,6 +234,7 @@ The showpiece: a bicycle that rides like one, and stays fun on a keyboard.
   WCAG 2.2 AA, light and dark; the walk has an accessible name that says how to move.
 - On a touch screen the controls sit along the bottom, laid out per ride so nothing overlaps, upright or on its side:
   the stick under the left thumb; under the right, the ride's main button (Jump, Brake, Handbrake, Up) with its others
-  beside it (Ring and the gears on the bicycle, Down while flying) and Fly above; the prompt on one line above them,
-  upright, or between the stick and the buttons on its side. The walk's card and the panel in sight keep clear of them.
+  beside it (Ring and the gears on the bicycle, Down while flying and in the helicopter) and Fly above; the prompt on
+  one line above them, upright, or between the stick and the buttons on its side. The walk's card and the panel in sight
+  keep clear of them.
 - Reduced motion turns off the camera's sway.

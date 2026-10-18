@@ -1,7 +1,8 @@
 import { UNIT, type City, type Road } from "@citymap/ground-plan";
-import { cityWalls, type Footprint } from "@citymap/world";
+import { GROUND, cityWalls, type Footprint } from "@citymap/world";
 import { describe, expect, it } from "vitest";
 import { city } from "../components/testing/fixtures";
+import { ROTOR_RADIUS } from "./helicopter";
 import type { Landing } from "./landing";
 import {
   BICYCLE_SHARE,
@@ -13,10 +14,13 @@ import {
   LANDING_CLEAR,
   PARKED_MOST,
   PLACE_GAP,
+  HELIPAD_FROM,
+  HELIPAD_MARGIN,
+  helipadBy,
   parkedIn,
   placeHash,
 } from "./parking";
-import { PARKING, VEHICLES } from "./vehicles";
+import { PARKING, VEHICLES, distanceTo, standing } from "./vehicles";
 
 const open = cityWalls([]);
 /** A road through plan points given in street widths (10 m each). */
@@ -61,7 +65,7 @@ describe("parkedIn", () => {
       expect(u).toBeLessThan(BICYCLE_SHARE + CAR_SHARE + MOTORBIKE_SHARE);
       expect(vehicle.feet.x).toBeCloseTo((k + 0.5) * PLACE_GAP, 9);
       // A street is 10 m wide: the kerb is 5 m out, the vehicle its inset in from it; right of east is +z.
-      const out = 5 - PARKING[vehicle.kind].inset;
+      const out = 5 - PARKING[kindAt(u)!].inset;
       expect(vehicle.feet.z).toBeCloseTo(k % 2 === 0 ? out : -out, 9);
       expect(Math.cos(vehicle.heading)).toBeCloseTo(k % 2 === 0 ? 1 : -1, 9);
       expect(vehicle.speed).toBe(0);
@@ -125,5 +129,64 @@ describe("parkedIn", () => {
     expect(parkedIn(withRoads([]), away, open)).toEqual([]);
     // A road of no points or one, or none long enough for a place.
     expect(parkedIn(withRoads([road("street"), road("street", [0, 0])]), away, open)).toEqual([]);
+  });
+});
+
+/** A building from (x0, z0) to (x1, z1), metres. */
+const block = (x0: number, z0: number, x1: number, z1: number, top = 10): Footprint => ({
+  lot: 0,
+  corners: [
+    { x: x0, z: z0 },
+    { x: x1, z: z0 },
+    { x: x1, z: z1 },
+    { x: x0, z: z1 },
+  ],
+  top,
+});
+// Landed on a road through the origin running east (scene units: a tenth of a metre's tenfold).
+const landed = landingAt(0, 0);
+/** Whether the rotor's circle about a point is clear of every building, as the walls say. */
+const clear = (walls: ReturnType<typeof cityWalls>, x: number, z: number) => {
+  const spot = { x, y: GROUND, z };
+  const moved = walls.move(spot, { x: 0, y: 0, z: 0 }, ROTOR_RADIUS + HELIPAD_MARGIN).feet;
+  return moved.x === x && moved.z === z && moved.y === GROUND;
+};
+
+describe("helipadBy", () => {
+  it("stands the helicopter on the landing's road ahead, facing along it, its rotor still", () => {
+    const pad = helipadBy(landed, open, [])!;
+    expect(pad.kind).toBe("helicopter");
+    expect(pad.id).toBe("helicopter");
+    expect(pad.feet).toEqual({ x: HELIPAD_FROM, y: GROUND, z: 0 });
+    expect(Math.cos(pad.heading)).toBe(1);
+    expect(pad.heli.rotor).toBe(0);
+    expect(pad.heli.grounded).toBe(true);
+  });
+
+  it("goes on along the road until its rotor clears the buildings beside it", () => {
+    const walls = cityWalls([block(20, 3, 60, 20)]);
+    const pad = helipadBy(landed, walls, [])!;
+    expect(pad.feet.x).toBeGreaterThanOrEqual(60 + ROTOR_RADIUS + HELIPAD_MARGIN);
+    expect(clear(walls, pad.feet.x, pad.feet.z)).toBe(true);
+    expect(pad.feet.x).toBeLessThan(60 + ROTOR_RADIUS + HELIPAD_MARGIN + 2.01);
+  });
+
+  it("stands clear of a vehicle parked in its way", () => {
+    const parked = [standing("car", "car", { x: HELIPAD_FROM, y: GROUND, z: 0 }, 0)];
+    const pad = helipadBy(landed, open, parked)!;
+    expect(pad.feet.x).toBeGreaterThan(HELIPAD_FROM);
+    expect(distanceTo(parked[0]!.feet, pad)).toBeGreaterThan(0);
+    expect(distanceTo(pad.feet, parked[0]!)).toBeGreaterThan(VEHICLES.helicopter.width / 2);
+  });
+
+  it("stands behind the landing, facing away from it, when the way ahead is walled", () => {
+    const walls = cityWalls([block(10, -50, 30, 50)]);
+    const pad = helipadBy(landed, walls, [])!;
+    expect(pad.feet.x).toBe(-HELIPAD_FROM);
+    expect(Math.cos(pad.heading)).toBeCloseTo(-1, 12);
+  });
+
+  it("stands nowhere when no ground along the road is open enough", () => {
+    expect(helipadBy(landed, cityWalls([block(-500, 2, 500, 50)]), [])).toBeNull();
   });
 });

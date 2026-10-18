@@ -22,7 +22,7 @@ export default function CityCanvas({ scene, view, theme, mode, table }: CanvasPr
         onUpdate={(camera) => camera.lookAt(view.centre.x, 0, view.centre.z)}
       />
       {scene.layers.map((layer) => (
-        <Mesh key={layer.name} layer={layer} />
+        <Mesh key={layer.name} layer={layer} bounds={scene.bounds} />
       ))}
       <Buildings buildings={scene.buildings} table={table} mode={mode} theme={theme} />
     </Canvas>

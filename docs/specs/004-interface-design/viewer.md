@@ -149,9 +149,10 @@ Under the toggles, the same popover holds a second group, "Separate towns": a sw
   of folders known, lots placed of lots, bytes of bytes) and shows the count beside it ("1,204 of 2,610 folders · 27
   requests", "31,200 of 75,663 lots"); where nothing can be counted, a gentle sweep over it, still under reduced motion.
   Once the pace is steady it estimates the time left ("about 12 s left"), and it always shows the time spent.
-- "Cancel" (and Escape, anywhere but in the search box or an open menu) stops the work: requests are aborted, the layout
-  worker ends, and the last city stays as it was. Opening something else while one load runs replaces it. The last city
-  stays visible, dimmed, under the card while the next one loads; search, the menus and the drawer stay usable.
+- "Cancel" (and Escape, anywhere but in the search box or an open menu) stops the work: requests are aborted, the
+  opening's worker ends, and the last city stays as it was, with its own. Opening something else while one load runs
+  replaces it. The last city stays visible, dimmed, under the card while the next one loads; search, the menus and the
+  drawer stay usable.
 - Once the load is done the card holds a moment with its bar full and Cancel gone from view (keeping its place); nothing
   is left to cancel, so Escape is the map's again.
 - A failure removes the card and says why in the notice, as elsewhere.
@@ -283,6 +284,21 @@ what it means, so a person who has never read this spec understands the map.
   opening (a bundled city, another layout, a city file, a repository) is read or laid off the main thread, where the
   map's shapes and its index for the pointer are built too; the main thread only takes the finished city in, and lists
   the city's folders and files for search in short slices between inputs before the city shows, so a city on the map can
-  always be searched. Showing one town alone builds no new index for the pointer. On a phone the longest main-thread
-  task while opening livediagram, or another layout of it, stays under 200 ms.
+  always be searched. Showing one town alone builds no new index for the pointer. A large city reaches the main thread
+  in pieces, each taken in its own short task. On a phone the longest main-thread task while opening livediagram, or
+  another layout of it, stays under 200 ms.
+- Once a city shows, the work that made it stays with it off the main thread, and makes what the map needs next before
+  it is asked for: every town's shapes, in the theme shown, so showing one town alone draws shapes already at hand; and
+  the buildings' heights and colours. A town shown alone before its shapes are ready shows at once all the same, its
+  shapes made on the main thread, as the person asked to see it.
+- Another theme or another colour is made there too: the menu answers at once, and the map keeps its colours until the
+  new ones are ready, then changes as a whole (its background, its names and the legend with it); the theme menu shows
+  the theme chosen meanwhile. A card reads only its own building's measures.
+- The buildings are drawn by one program, compiled with the city's first frame and kept: switching to the Buildings view
+  and back, another colour, another theme or one town alone changes what it draws, never the program.
+- On a phone every step of a visit answers in under 200 ms: a tap on the map, the arrow keys and zoom, another layout, a
+  theme, a search and its pick, Details and Hide details, one town alone and the whole city again, the Buildings view,
+  the legend and a colour by measure.
+- The phone's answers are timed only on a machine that can stand for the phone: one busier than it (its fixed work
+  taking more than 1.3 times as long as on the reference machine) skips the budget, saying why, instead of failing.
 - Phones draw at a device pixel ratio of at most 2.

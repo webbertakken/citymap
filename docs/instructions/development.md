@@ -122,7 +122,10 @@ The Rust implementation of the CLI lives in `rust/`: see
     the bundle script) or laid afresh by `bun run bundle`; a throwaway loopback certificate (`bun run cert`); Chromium;
     then `bun run --cwd apps/web e2e` (the export, then the Playwright suite). On failure, `test-results/` (traces and
     screenshots) is uploaded for seven days. The phone interaction budget is skipped there, with its reason: the runner
-    draws in software on 4 cores. It gates in the local end-to-end run, which every PR gets before merging.
+    draws in software on 4 cores. It gates in the local end-to-end run, which every PR gets before merging. Locally too,
+    a run whose machine is busier than the phone it stands for (`e2e/phone.ts`'s calibration work above 56 ms, 1.3 times
+    the reference) skips each phone budget with its reason (`e2e/phone-skipped` in the log); run the vitals again on a
+    quieter machine until they are timed, as a skip proves nothing.
 - `.github/workflows/workflows.yml` runs actionlint when a workflow or `mise.toml` changes; it is not a required check.
 - A newer push to a pull request cancels its running checks; runs on `main` always finish.
 - Every action is pinned by full commit SHA with its version in a comment; Dependabot (`.github/dependabot.yml`)

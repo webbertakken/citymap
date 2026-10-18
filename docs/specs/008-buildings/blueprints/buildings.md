@@ -360,15 +360,25 @@ interface Report {
 - `lotTable(order, buildings, colourBy, theme)` → `Float32Array` of `4 × DATA_COLUMNS × rows`: per lot `floors`, the lit
   share (−1 unknown), the colour packed as `r · 65536 + g · 256 + b` (exact in a float), and flags (1: size unknown).
   Uploaded as an RGBA float `DataTexture` of `DATA_COLUMNS` 1,024 columns.
-- The shader (`ShaderMaterial`, GLSL 3): a vertex reads its lot's texel (`texelFetch`), its height is `LOT_HEIGHT` in
-  plan view and `floors · FLOOR_HEIGHT` in the Buildings view (`uniform uBuildings`), on top of the lots' base height. A
-  roof is the lot's colour; in the Buildings view a roof of unknown size is hatched (stripes `HATCH` 0.2 u wide, 30 %
-  darker). A wall is the colour shaded by its facing (the screen-space normal from `dFdx`/`dFdy`, lit from the north
-  west: 0.72 to 0.95), with a dark seam at its ends (`SEAM` 0.03 u); in the Buildings view its windows: floors of
-  `FLOOR_HEIGHT` 0.25 u, columns every `WINDOW_PITCH` 0.25 u (at least one per wall), each window the middle 50 % of its
-  column and 30 % to 80 % of its floor. Window `k` (row by row from the ground, `k = floor · columns + column`) is lit
-  when `floor((k + 1) · s + ε) > floor(k · s + ε)`; lit windows are `WINDOW_LIT` (warm), unlit the wall's colour at 40
-  %, unknown (`s < 0`) `windowUnknown(theme)` (a neutral grey of the theme).
+- The viewer's buildings (`apps/web/src/view/buildings.ts`), made by the city's worker (see the
+  [viewer blueprint](../../004-interface-design/blueprints/viewer.md), Laying and reading):
+  `tableFor(refs, buildings, colourBy, theme)` the whole city's lot table (`lotTable` over `lookOf`), per colour and
+  theme; `cityFloors(refs, buildings)` each building's floors (`Uint8Array`, the same in every colour and theme), once
+  per city; `placeTable(table, span)` a town's rows of the whole city's table, which equal its own, as a building's look
+  depends only on its lot, its building and the city's scales; `cityRoofs(city, buildings)` every roof's name, from its
+  files (`view/roofs.ts`). The main thread keeps the measures and the scales (`CityScales`, `{ measures, scales }`, what
+  the legend reads) and builds no `Building` but the one a card asks for.
+- The shader (`ShaderMaterial`, GLSL 3, one material per mesh, kept for its life: the table, the view, the theme's
+  unknown windows and the fog are uniforms, so its program is linked once): a vertex reads its lot's texel
+  (`texelFetch`), its height is `LOT_HEIGHT` in plan view and `floors · FLOOR_HEIGHT` in the Buildings view
+  (`uniform uBuildings`), on top of the lots' base height. A roof is the lot's colour; in the Buildings view a roof of
+  unknown size is hatched (stripes `HATCH` 0.2 u wide, 30 % darker). A wall is the colour shaded by its facing (the
+  screen-space normal from `dFdx`/`dFdy`, lit from the north west: 0.72 to 0.95), with a dark seam at its ends (`SEAM`
+  0.03 u); in the Buildings view its windows: floors of `FLOOR_HEIGHT` 0.25 u, columns every `WINDOW_PITCH` 0.25 u (at
+  least one per wall), each window the middle 50 % of its column and 30 % to 80 % of its floor. Window `k` (row by row
+  from the ground, `k = floor · columns + column`) is lit when `floor((k + 1) · s + ε) > floor(k · s + ε)`; lit windows
+  are `WINDOW_LIT` (warm), unlit the wall's colour at 40 %, unknown (`s < 0`) `windowUnknown(theme)` (a neutral grey of
+  the theme).
 - Picking in the Buildings view (`hitAt`): from the height of the tallest building down to 0, in steps of `RAY_STEP` 0.1
   u of height, the ray's ground point is picked; the first lot hit whose height reaches the step's height is the hit;
   below every building, the ground pick at height 0 answers. Plan view picks the ground as before.
@@ -477,8 +487,9 @@ interface Report {
 ## Performance and limits
 
 - linux: 75,123 buildings, about 1.5 million vertices in one mesh (as the plinths were); the lot table is 75 rows of
-  1,024 texels, 1.2 MB; a colour change rewrites and uploads it (under 20 ms on a desktop). Picking walks at most
-  `ceil(12 · FLOOR_HEIGHT / RAY_STEP)` = 30 steps.
+  1,024 texels, 1.2 MB; a colour change is made in the city's worker and uploaded on arrival; the floors are 75 kB. Each
+  building's height for picking is read from the floors, by the `building` index the pick grid gives each lot, so no map
+  of lots is built on the main thread. Picking walks at most `ceil(12 · FLOOR_HEIGHT / RAY_STEP)` = 30 steps.
 - CLI: one `ls-tree` and one `cat-file --batch` over held blobs; each distinct blob counted once. History tracking keeps
   one record per identity and one integer per author per identity. The mailmap is one blob, read once and parsed in one
   pass; each commit's author costs one or two map lookups.
@@ -517,8 +528,12 @@ interface Report {
 - Viewer state gains `mode` (`plan` at first, on every visit), `colourBy` (`folder` at first) and the shown city's
   `measures` (or null). A new city keeps the mode and the colour by; a colour by the new city cannot give falls back to
   `folder`. Drilling into a town keeps both.
-- The lot table depends on the scene, the measures, the colour by and the theme; it is rebuilt only when one changes.
-  The mesh depends on the scene only.
+- The lot table depends on the measures, the colour by and the theme: the city's worker makes the whole city's once per
+  colour and theme asked for, and a town shown alone draws its rows of it; the map keeps the table it draws until the
+  one asked for arrives. The floors depend on the measures only. The mesh depends on the scene only.
+- A card's measure rows aggregate its own lot when asked (`lotBuilding(measures, townKey, key)`, own keys only), and a
+  walk's building reads its lot's files (`filesOn(measures, townKey, key)`); the roofs' names and the legend's scales
+  come from the worker.
 
 ## Security and trust
 
@@ -547,8 +562,8 @@ interface Report {
 ## Web experience
 
 - The buildings add no request and no layout shift: the legend and the view switch keep their boxes; the legend's scale
-  area has a fixed height per choice. Switching the view or the colour changes uniforms or one texture within a frame
-  (INP under 200 ms on a 4x slowed phone, linux included).
+  area has a fixed height per choice. Switching the view changes a uniform, and a colour one texture made off the main
+  thread, within a frame (INP under 200 ms on a 4x slowed phone, linux included).
 
 ## Constants and configuration
 

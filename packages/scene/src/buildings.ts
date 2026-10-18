@@ -1,7 +1,7 @@
 // Every lot's building as one mesh: a roof and a wall per edge, each vertex knowing its lot, whether it stands at the
 // foot or the top, and where along its wall it lies. Heights, colours and lit windows come from the lot table, a float
 // texture the shader reads, so the plan and the Buildings view share the mesh and a new colour rewrites one texture.
-import { UNIT, type LandUse, type Pt } from "@citymap/ground-plan";
+import { UNIT, type City, type LandUse, type Lot, type Pt } from "@citymap/ground-plan";
 import { triangulate } from "./triangulate";
 
 /** One building's lot: its town, its key, its folder's tint seed and its land use. */
@@ -24,6 +24,35 @@ export interface Buildings {
   /** How many of the indices draw roofs: plan view draws only these, as no wall shows from straight above. */
   readonly roofIndices: number;
   readonly order: readonly LotRef[];
+}
+
+/** True when a lot stands a building: it holds files and has a polygon (at least three corners). */
+export const hasBuilding = (lot: Pick<Lot, "vacant" | "pts">): boolean => !lot.vacant && lot.pts.length >= 3;
+
+/** Every building's lot, in the order the whole city's scene draws them: per town, its lots that stand a building. */
+export const lotRefs = (city: City): LotRef[] =>
+  city.towns.flatMap((town) =>
+    town.lots
+      .filter(hasBuilding)
+      .map((lot) => ({ town: town.key, key: lot.key, district: lot.district, use: lot.use })),
+  );
+
+/** Where a town's buildings lie in the whole city's order: the first one's index, and how many follow. */
+export interface Span {
+  readonly first: number;
+  readonly count: number;
+}
+
+/** Each town's span of the whole city's buildings, by town key: the town alone draws exactly these, in order. */
+export function buildingSpans(city: City): ReadonlyMap<string, Span> {
+  const spans = new Map<string, Span>();
+  let first = 0;
+  for (const town of city.towns) {
+    const count = town.lots.filter(hasBuilding).length;
+    spans.set(town.key, { first, count });
+    first += count;
+  }
+  return spans;
 }
 
 /** A floor's height, in street widths: twelve floors are three street widths, a lot's depth. */
@@ -115,7 +144,7 @@ export interface LotLook {
 export const packColour = (hex: string) => Number.parseInt(hex.slice(1, 7), 16);
 
 /** The lot table: four floats per lot, in rows of `DATA_COLUMNS`, padded to whole rows. */
-export function lotTable(order: readonly LotRef[], lookOf: (ref: LotRef) => LotLook): Float32Array {
+export function lotTable(order: readonly LotRef[], lookOf: (ref: LotRef) => LotLook): Float32Array<ArrayBuffer> {
   const rows = Math.max(1, Math.ceil(order.length / DATA_COLUMNS));
   const table = new Float32Array(rows * DATA_COLUMNS * LOT_FLOATS);
   order.forEach((ref, i) => {

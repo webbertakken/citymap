@@ -2,6 +2,7 @@
 // Opening a repository on the person's machine: the folder dialog (Chromium) or the folder input (Firefox), the read,
 // the lay, and the remembered folder. The city, its status and the notice stay the viewer's.
 import type { Separation, Snapshot, Toggle } from "@citymap/ground-plan";
+import type { ColourBy } from "@citymap/scene";
 import type { ThemeName } from "@citymap/themes";
 import {
   useEffect,
@@ -36,8 +37,10 @@ export const LOCAL_STATUS = "local, single state, not folded";
 export interface LocalOptions {
   readonly ports?: LocalPorts;
   readonly lay: Lay;
-  /** The map theme the worker builds the scene in. */
+  /** The map theme the worker makes the first look in. */
   readonly theme: ThemeName;
+  /** The colour the first look is asked in. */
+  readonly colourBy: ColourBy;
   /** The layout toggles a folder is laid with. */
   readonly toggles: readonly Toggle[];
   /** The separations a folder is laid with. */
@@ -73,6 +76,7 @@ export function useLocalRepository({
   ports = browserPorts,
   lay,
   theme,
+  colourBy,
   toggles,
   separate,
   begin,
@@ -130,6 +134,7 @@ export function useLocalRepository({
         signal: job.signal,
         onProgress: job.step,
         theme,
+        colourBy,
         toggles,
         separate,
         facts,

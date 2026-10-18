@@ -1,8 +1,8 @@
 import { THEMES } from "@citymap/themes";
-import { Group, Vector3 } from "three";
-import { describe, expect, it } from "vitest";
-import { bicycle, car, paletteOf } from "./procedural";
-import { PROCEDURAL_RIGS, RIGS, poseVehicle, type Pose, type Rig } from "./rig";
+import { Group, Quaternion, Vector3 } from "three";
+import { describe, expect, it, vi } from "vitest";
+import { bicycle, car, helicopter, paletteOf } from "./procedural";
+import { PROCEDURAL_RIGS, RIGS, poseHelicopter, poseVehicle, type Pose, type Rig } from "./rig";
 
 const p = paletteOf(THEMES["paper-atlas"]);
 
@@ -19,7 +19,7 @@ function rigged(rig: Rig) {
 }
 
 /** A pose: rolled so far, the rest still. */
-const still: Pose = { rolled: 0, steer: 0, lean: 0, pitch: 0, crank: 0 };
+const still: Pose = { rolled: 0, steer: 0, lean: 0, pitch: 0, crank: 0, stand: 0 };
 
 /** Where a part's own +y ends up: its top, after its turn. */
 const topOf = (model: Group, name: string) => new Vector3(0, 1, 0).applyEuler(model.getObjectByName(name)!.rotation);
@@ -98,5 +98,64 @@ describe("poseVehicle", () => {
     poseVehicle(plain, { wheels: [], radius: 1, front: 0.5, roll: { axis: "x", sign: 1 } }, { ...still, pitch: -0.4 });
     plain.updateMatrixWorld(true);
     expect(new Vector3(-0.5, 0, 0).applyMatrix4(plain.matrix).y).toBeCloseTo(0, 9);
+  });
+
+  it("folds a kickstand from down by as far as it is up, and leans the machine onto it as far as it is down", () => {
+    const model = rigged(RIGS.bicycle);
+    const stand = new Group();
+    stand.name = RIGS.bicycle.kickstand;
+    stand.userData = { folded: [0, 0, Math.sin(0.5), Math.cos(0.5)], lean: 0.14 };
+    model.add(stand);
+    poseVehicle(model, RIGS.bicycle, { ...still, stand: 1 });
+    expect(stand.quaternion.w).toBe(1);
+    expect(model.rotation.x).toBeCloseTo(-0.14, 9);
+    poseVehicle(model, RIGS.bicycle, { ...still, stand: 0.5 });
+    expect(stand.quaternion.angleTo(new Quaternion())).toBeCloseTo(0.5, 6);
+    expect(model.rotation.x).toBeCloseTo(-0.07, 9);
+  });
+
+  it("says once of a kickstand whose extras it cannot read, and leans the machine only by its own lean", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const model = rigged(RIGS.bicycle);
+    const stand = new Group();
+    stand.name = RIGS.bicycle.kickstand;
+    model.add(stand);
+    poseVehicle(model, RIGS.bicycle, { ...still, stand: 1, lean: 0.1 });
+    poseVehicle(model, RIGS.bicycle, { ...still, stand: 1, lean: 0.1 });
+    expect(model.rotation.x).toBeCloseTo(-0.1, 9);
+    expect(stand.quaternion.w).toBe(1);
+    expect(error.mock.calls.map(([line]) => String(line))).toEqual([
+      "explore/kickstand-unreadable name=bicycle_red_kickstand",
+    ]);
+    error.mockRestore();
+  });
+});
+
+describe("poseHelicopter", () => {
+  it("spins the AS350's main rotor about its upright, clockwise from above, and its tail rotor about its axle", () => {
+    const rig = RIGS.helicopter;
+    const model = new Group();
+    for (const name of [rig.rotors.main, rig.rotors.tail]) {
+      const part = new Group();
+      part.name = name;
+      model.add(part);
+    }
+    poseHelicopter(model, rig, { blades: 0.5, tail: 1.25 });
+    expect(model.getObjectByName(rig.rotors.main)!.rotation.y).toBeCloseTo(-0.5, 9);
+    expect(model.getObjectByName(rig.rotors.tail)!.rotation.x).toBeCloseTo(1.25, 9);
+    // Its mast stands over the group's origin, where the walk keeps the helicopter's feet.
+    expect(model.position.x).toBeCloseTo(-rig.rotors.hub, 9);
+  });
+
+  it("spins the stand-in's rotors by its own names and axes, and leaves a model without them as it is", () => {
+    const model = helicopter(p);
+    const rig = PROCEDURAL_RIGS.helicopter;
+    poseHelicopter(model, rig, { blades: 0.5, tail: 1.25 });
+    expect(model.getObjectByName("rotor-main")!.rotation.y).toBeCloseTo(-0.5, 9);
+    expect(model.getObjectByName("rotor-tail")!.rotation.z).toBeCloseTo(1.25, 9);
+    expect(model.position.x).toBeCloseTo(-rig.rotors.hub, 9);
+    const bare = new Group();
+    poseHelicopter(bare, rig, { blades: 0.5, tail: 1.25 });
+    expect(bare.children).toHaveLength(0);
   });
 });

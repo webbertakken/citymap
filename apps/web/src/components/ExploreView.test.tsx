@@ -1,7 +1,7 @@
 import { buildScene } from "@citymap/scene";
 import type { Hit } from "@citymap/scene";
 import { THEMES } from "@citymap/themes";
-import { GROUND, type Footprint, type Walls } from "@citymap/world";
+import { GROUND, cityWalls, type Footprint, type Walls } from "@citymap/world";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { flushSync } from "react-dom";
@@ -13,7 +13,7 @@ import type { Landing } from "../explore/landing";
 import type { Garage } from "../explore/physics/garage";
 import { roadGrid } from "../explore/signs";
 import { METRE } from "../explore/street";
-import { parkedBy } from "../explore/vehicles";
+import { parkedBy, standing, type Vehicle } from "../explore/vehicles";
 import {
   ExploreView,
   STICK_REACH,
@@ -133,6 +133,8 @@ const show = (
     walls?: Walls;
     garage?: Garage | null;
     arcade?: ArcadeWhy | null;
+    parked?: readonly Vehicle[];
+    engine?: string;
   } = {},
 ) => {
   render(
@@ -146,8 +148,8 @@ const show = (
       roads={roadGrid([])}
       inspect={sights.inspect ?? (() => ({ hit: null, files: [] }))}
       landing={landing}
-      parked={parkedBy(landing, sights.walls ?? open)}
-      engine="Rapier"
+      parked={[...parkedBy(landing, sights.walls ?? open), ...(sights.parked ?? [])]}
+      engine={sights.engine ?? "Rapier"}
       garage={sights.garage ?? null}
       arcade={sights.arcade ?? null}
       Canvas={StubCanvas}
@@ -179,6 +181,15 @@ const walk = (seconds = 0.1): ExploreFrame => {
   });
   return now!;
 };
+
+/** The helicopter parked beside the landing (10 m east, 20 m south), its cabin's door within reach, facing east. */
+const helicopterAt = (y: number) => standing("helicopter", "helicopter", { x: 10, y, z: 22.3 }, 0);
+/** Frames of a tenth of a second until the log says what is wanted, at most so many. */
+const until = (lines: () => readonly string[], wanted: string, most: number) => {
+  for (let i = 0; i < most && !lines().some((l) => l.startsWith(wanted)); i++) walk();
+};
+const press = (button: HTMLElement, down: boolean) =>
+  down ? fireEvent.pointerDown(button) : fireEvent.pointerUp(button);
 
 /** The bicycle's HUD, while it shows. */
 const hud = () => document.querySelector<HTMLElement>(".explore-hud")!;
@@ -655,10 +666,27 @@ describe("ExploreView", () => {
     expect(walk().riding).toBeNull();
   });
 
+  it("names Rapier on foot while the walker walks on the garage, and the walls' engine without one", () => {
+    const garage: Garage = {
+      follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+      walls: open,
+      drive: (vehicles) => vehicles,
+      keepingUp: () => true,
+      load: () => 0,
+      dispose: () => undefined,
+    };
+    show(undefined, { garage, engine: "bespoke 2.5D" });
+    expect(screen.getByRole("region", { name: "On foot" }).textContent).toContain("Physics prototype: Rapier");
+    cleanup();
+    show(undefined, { engine: "bespoke 2.5D" });
+    expect(screen.getByRole("region", { name: "On foot" }).textContent).toContain("Physics prototype: bespoke 2.5D");
+  });
+
   it("drives the car on the garage, keeps the streets round it each frame, and shows its gear and engine", () => {
     const follow = vi.fn<Garage["follow"]>(() => ({ standing: 4, waiting: 0, nearest: Infinity }));
     const garage: Garage = {
       follow,
+      walls: open,
       drive: (vehicles, drivers) =>
         vehicles.map((v) =>
           v.kind === "car" && drivers.has(v.id)
@@ -700,6 +728,7 @@ describe("ExploreView", () => {
     const drive = vi.fn<Garage["drive"]>((vehicles) => vehicles);
     const garage: Garage = {
       follow: () => ({ standing: 0, waiting: 0, nearest: Infinity }),
+      walls: open,
       drive,
       keepingUp: () => false,
       load: () => 0.73,
@@ -748,5 +777,89 @@ describe("ExploreView", () => {
     const lines = info.mock.calls.map(([line]) => String(line));
     expect(lines.find((l) => l.startsWith("explore/thrown"))).toMatch(/^explore\/thrown cause=hit speed=\d+\.\d$/);
     expect(lines).toContain("explore/up");
+  });
+
+  it("gets in the helicopter on a low roof, lifts it by the Up button, lands it back by Down, and says so", () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const lines = () => info.mock.calls.map(([line]) => String(line));
+    const roof: Footprint = { lot: 1, corners: [], top: 1.5 };
+    const walls = cityWalls([
+      {
+        ...roof,
+        corners: [
+          { x: 0, z: 21.5 },
+          { x: 30, z: 21.5 },
+          { x: 30, z: 40 },
+          { x: 0, z: 40 },
+        ],
+      },
+    ]);
+    show(undefined, { walls, parked: [helicopterAt(1.5)] });
+    walk();
+    fireEvent.click(screen.getByRole("button", { name: "Get in the helicopter" }));
+    expect(walk().riding).toBe("helicopter");
+    walk();
+    const card = screen.getByRole("region", { name: "In the helicopter" });
+    expect(card.textContent).toContain("Space climbs");
+    expect(view().dataset.riding).toBe("helicopter");
+    expect(document.querySelector(".explore-dock")!.getAttribute("data-pad")).toBe("helicopter");
+    const gauges = screen.getByRole("region", { name: "Altitude, climb, speed and rotor" });
+    expect(gauges.dataset.landed).toBe("true");
+    expect(gauges.dataset.over).toBe("roof");
+    expect(gauges.textContent).toContain("Altitude1 m");
+    const up = screen.getByRole("button", { name: "Up" });
+    press(up, true);
+    until(lines, "explore/heli-lifted", 80);
+    for (let i = 0; i < 10; i++) walk();
+    press(up, false);
+    expect(lines()).toContain("explore/heli-lifted");
+    expect(hud().dataset.landed).toBe("false");
+    expect(screen.getByRole("button", { name: "Land to get out of the helicopter" })).toHaveProperty("disabled", true);
+    const down = screen.getByRole("button", { name: "Down" });
+    press(down, true);
+    until(lines, "explore/heli-landed", 200);
+    press(down, false);
+    expect(lines()).toContain("explore/heli-landed on=roof y=1.5");
+    walk();
+    fireEvent.click(screen.getByRole("button", { name: "Get out of the helicopter" }));
+    walk();
+    expect(screen.getByRole("region", { name: "On foot" })).toBeTruthy();
+  });
+
+  it("flies the helicopter by its keys into a tower, says the hit, and lands it on the street", () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const lines = () => info.mock.calls.map(([line]) => String(line));
+    const walls = cityWalls([
+      {
+        lot: 1,
+        corners: [
+          { x: 60, z: -100 },
+          { x: 80, z: -100 },
+          { x: 80, z: 100 },
+          { x: 60, z: 100 },
+        ],
+        top: 100,
+      },
+    ]);
+    show(undefined, { walls, parked: [helicopterAt(GROUND)] });
+    walk();
+    fireEvent.keyDown(window, { code: "KeyE" });
+    expect(walk().riding).toBe("helicopter");
+    fireEvent.keyDown(window, { code: "Space" });
+    until(lines, "explore/heli-lifted", 80);
+    hold("Space", 20);
+    fireEvent.keyDown(window, { code: "KeyW" });
+    until(lines, "explore/heli-hit", 200);
+    fireEvent.keyUp(window, { code: "KeyW" });
+    expect(lines().find((l) => l.startsWith("explore/heli-hit"))).toMatch(/^explore\/heli-hit lost=\d+\.\d$/);
+    fireEvent.keyDown(window, { code: "KeyC" });
+    until(lines, "explore/heli-landed", 400);
+    fireEvent.keyUp(window, { code: "KeyC" });
+    expect(lines().find((l) => l.startsWith("explore/heli-landed"))).toBe("explore/heli-landed on=street y=0.3");
+    fireEvent.keyDown(window, { code: "KeyE" });
+    expect(walk().riding).toBeNull();
+    // Back on foot, the HUD is gone; the helicopter, left, spins down.
+    walk();
+    expect(document.querySelector(".explore-hud")).toBeNull();
   });
 });

@@ -5,7 +5,13 @@ const keys = (...codes: string[]) => new Set(codes);
 
 describe("intentsOf", () => {
   it("walks by WASD and the arrows, by the keys' places", () => {
-    expect(intentsOf(keys("KeyW"), null, false)).toEqual({ forward: 1, right: 0, run: false, jump: false });
+    expect(intentsOf(keys("KeyW"), null, false)).toEqual({
+      forward: 1,
+      right: 0,
+      run: false,
+      jump: false,
+      sink: false,
+    });
     expect(intentsOf(keys("ArrowDown", "ArrowLeft"), null, false)).toMatchObject({ forward: -1, right: -1 });
     expect(intentsOf(keys("KeyD"), null, false).right).toBe(1);
     // Opposite keys cancel.
@@ -24,14 +30,23 @@ describe("intentsOf", () => {
       right: 0.3,
       run: false,
       jump: false,
+      sink: false,
     });
     expect(intentsOf(keys(), { x: 0, y: RUN_PUSH }, false).run).toBe(true);
     // A stick at rest leaves the keys in charge.
     expect(intentsOf(keys("KeyW"), { x: 0, y: 0 }, false).forward).toBe(1);
   });
 
-  it("knows every key it answers to", () => {
-    for (const code of ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ShiftLeft", "Space"])
+  it("sinks with C, either Control or either Shift, the Down button, or a pad's B", () => {
+    for (const code of ["KeyC", "ControlLeft", "ControlRight", "ShiftLeft", "ShiftRight"])
+      expect(intentsOf(keys(code), null, false).sink).toBe(true);
+    expect(intentsOf(keys(), null, false, null, true).sink).toBe(true);
+    expect(intentsOf(keys(), null, false, { stick: { x: 0, y: 0 }, jump: false, sink: true }).sink).toBe(true);
+    expect(intentsOf(keys("KeyW"), null, false).sink).toBe(false);
+  });
+
+  it("knows every key it answers to, sinking's too", () => {
+    for (const code of ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ShiftLeft", "Space", "KeyC", "ControlLeft"])
       expect(WALK_KEYS.has(code)).toBe(true);
     expect(WALK_KEYS.has("Escape")).toBe(false);
   });
@@ -76,16 +91,18 @@ describe("padOf", () => {
     expect(padOf(pad({ 1: -1 }, { 7: 1 }), NONE, 1 / 60)!.pad.stick.y).toBe(1);
   });
 
-  it("jumps while A is held, and looks by the right stick, as far as the frame lasts", () => {
+  it("jumps (or rises) while A is held, sinks while B is, and looks by the right stick, as far as the frame lasts", () => {
     const read = padOf(pad({ 2: 1, 3: -0.5 }, { 0: 1 }), NONE, 0.5)!;
     expect(read.pad.jump).toBe(true);
+    expect(read.pad.sink).toBe(false);
+    expect(padOf(pad({}, { 1: 1 }), NONE, 0.5)!.pad.sink).toBe(true);
     expect(read.look.dx).toBeCloseTo(PAD_LOOK * 0.5, 9);
     expect(read.look.dy).toBeCloseTo(-PAD_LOOK * 0.5 * ((0.5 - DEAD_ZONE) / (1 - DEAD_ZONE)), 9);
   });
 
   it("reads a pad with fewer axes and buttons as at rest where it has none", () => {
     const bare = padOf({ mapping: "standard", axes: [], buttons: [] }, NONE, 1 / 60)!;
-    expect(bare.pad).toEqual({ stick: { x: 0, y: 0 }, jump: false });
+    expect(bare.pad).toEqual({ stick: { x: 0, y: 0 }, jump: false, sink: false });
     expect(bare.look).toEqual({ dx: 0, dy: 0 });
     expect(bare.presses).toEqual({ use: false, ring: false, fly: false, gears: 0 });
   });
@@ -101,12 +118,15 @@ describe("padOf", () => {
 
 describe("intentsOf with a pad", () => {
   it("takes the touch stick first, else the pad's, and jumps on either", () => {
-    expect(intentsOf(new Set(), null, false, { stick: { x: 0.5, y: 0 }, jump: true })).toEqual({
+    expect(intentsOf(new Set(), null, false, { stick: { x: 0.5, y: 0 }, jump: true, sink: false })).toEqual({
       forward: 0,
       right: 0.5,
       run: false,
       jump: true,
+      sink: false,
     });
-    expect(intentsOf(new Set(), { x: 0, y: 1 }, false, { stick: { x: 0.5, y: 0 }, jump: false }).forward).toBe(1);
+    expect(
+      intentsOf(new Set(), { x: 0, y: 1 }, false, { stick: { x: 0.5, y: 0 }, jump: false, sink: false }).forward,
+    ).toBe(1);
   });
 });

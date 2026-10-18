@@ -426,6 +426,8 @@ describe("Viewer log", () => {
     const lines = info.mock.calls.map(([line]) => String(line));
     expect(lines.filter((l) => !l.startsWith("viewer/load-")).map((l) => l.replace(/ ms=\d+$/, ""))).toEqual([
       "viewer/index cities=2",
+      // The city's work makes every town's scene ahead, after the opening's own look.
+      "viewer/city-scene theme=paper-atlas town=alpha",
       // Before the city shows, its folders and files are listed for search, in slices.
       "viewer/search-index entries=3 slices=1",
       "viewer/measures-none name=alpha",

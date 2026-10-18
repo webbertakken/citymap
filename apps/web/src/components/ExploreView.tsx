@@ -1,12 +1,12 @@
 "use client";
 // On foot in the city: the ground-level canvas, the devices that move the walker (keys, a drag to look, a touch stick
 // and buttons, a gamepad), getting on and off vehicles (E, or the prompt's button), each ride's HUD, the bicycle's
-// bell, the cars' garage of nearby streets kept round the player (and the arcade cars when it cannot keep up), and a
-// card that says how, with the way back to the map.
+// bell, the cars' garage of nearby streets kept round the player (and the arcade cars when it cannot keep up), the
+// helicopter's landings and hits in the log, and a card that says how, with the way back to the map.
 import type { Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
 import { GROUND, cityHits, type Footprint, type Vec3, type Walls } from "@citymap/world";
-import { Bike, Car, Footprints, Motorbike, Video, X } from "lucide-react";
+import { Bike, Car, Footprints, Helicopter, Motorbike, Video, X } from "lucide-react";
 import {
   useEffectEvent,
   useLayoutEffect,
@@ -43,7 +43,7 @@ import {
 import { sightOf, windowRows, type Sight } from "../explore/sight";
 import { signName, type RoadGrid } from "../explore/signs";
 import { METRE } from "../explore/street";
-import { VEHICLES, arcadeOf, type Vehicle, type VehicleKind } from "../explore/vehicles";
+import { VEHICLES, arcadeOf, roomToLand, type Vehicle, type VehicleKind } from "../explore/vehicles";
 import { log } from "../log";
 import { CardBody } from "./CardBody";
 import { useMeasureRows } from "./MeasureRows";
@@ -154,6 +154,10 @@ function RideHud({ ride }: { readonly ride: Ride }) {
       aria-label={ride.label}
       data-foot={ride.foot ?? undefined}
       data-fallen={ride.fallen || undefined}
+      data-over={ride.flight?.over}
+      data-landed={ride.flight ? ride.flight.landed : undefined}
+      data-heading={ride.flight?.heading}
+      data-room={ride.flight ? ride.flight.room : undefined}
     >
       <dl>
         {ride.rows.map(([term, value]) => (
@@ -168,14 +172,23 @@ function RideHud({ ride }: { readonly ride: Ride }) {
 }
 
 /** What the touch buttons are for now: the ride's, or flying's. */
-type Pad = "foot" | "bicycle" | "motorbike" | "car" | "flying";
+type Pad = "foot" | "bicycle" | "motorbike" | "car" | "helicopter" | "flying";
 /** The main button under the right thumb, by what it is for. */
 const PRIMARY: Readonly<Record<Pad, string>> = {
   foot: "Jump",
   bicycle: "Brake",
   motorbike: "Brake",
   car: "Handbrake",
+  helicopter: "Up",
   flying: "Up",
+};
+
+/** Each ride's icon on the walk's card. */
+const RIDE_ICONS: Readonly<Record<VehicleKind, typeof Car>> = {
+  bicycle: Bike,
+  motorbike: Motorbike,
+  car: Car,
+  helicopter: Helicopter,
 };
 
 /** Walking: the canvas fills the map; keys, drags, the stick and the jump button move the walker. */
@@ -216,6 +229,8 @@ export function ExploreView({
   const [ride, setRide] = useState<Ride | null>(null);
   const hudSince = useRef(HUD_EVERY);
   const wasDown = useRef(false);
+  // The helicopter's last landing state and hard hits seen, for the log.
+  const flown = useRef<{ readonly id: string; readonly landed: boolean; readonly hits: number } | null>(null);
   // The gamepad's buttons last frame, to press each once; whether one was ever seen, to say so once.
   const padPressed = useRef<readonly boolean[]>([]);
   const padSeen = useRef(false);
@@ -251,14 +266,35 @@ export function ExploreView({
     controls.current.gears += read.presses.gears;
     if (read.presses.ring) ringIfRiding();
   };
+  /** The helicopter's take-offs, landings (on a roof or the street) and hard hits, each said once in the log. */
+  const logFlight = (vehicle: Vehicle) => {
+    if (vehicle.kind !== "helicopter") {
+      flown.current = null;
+      return;
+    }
+    const { grounded: landed, hits: struck, hit } = vehicle.heli;
+    const was = flown.current?.id === vehicle.id ? flown.current : { id: vehicle.id, landed, hits: struck };
+    if (landed && !was.landed)
+      log.info("explore/heli-landed", {
+        on: vehicle.feet.y > GROUND + 0.01 ? "roof" : "street",
+        y: vehicle.feet.y.toFixed(1),
+      });
+    if (!landed && was.landed) log.info("explore/heli-lifted");
+    if (struck > was.hits) log.info("explore/heli-hit", { lost: hit.toFixed(1) });
+    flown.current = { id: vehicle.id, landed, hits: struck };
+  };
+  /** The height of what lies under a point: the first roof below it, or the street. */
+  const underOf = (feet: Vec3) => feet.y - walls.clearance(feet, { x: feet.x, y: GROUND - 1, z: feet.z });
   /** The ride's HUD and its rider's falls, from the frame's ridden vehicle. */
   const showRide = (vehicle: Vehicle | null, seconds: number) => {
     if (!vehicle) {
       hudSince.current = HUD_EVERY;
       wasDown.current = false;
+      flown.current = null;
       if (ride) setRide(null);
       return;
     }
+    logFlight(vehicle);
     const fall =
       vehicle.kind === "bicycle" ? vehicle.cycle.fall : vehicle.kind === "motorbike" ? vehicle.moto.fall : null;
     if (fall && !wasDown.current) log.info("explore/thrown", { cause: fall.cause, speed: fall.speed.toFixed(1) });
@@ -267,7 +303,9 @@ export function ExploreView({
     hudSince.current += seconds;
     if (hudSince.current < HUD_EVERY) return;
     hudSince.current = 0;
-    const now = hudOfRide(vehicle, cars.current !== null);
+    const under = underOf(vehicle.feet);
+    const room = vehicle.kind !== "helicopter" || roomToLand(vehicle.feet, under, walls);
+    const now = hudOfRide(vehicle, cars.current !== null, under, room);
     if (JSON.stringify(now) !== JSON.stringify(ride)) setRide(now);
   };
   /**
@@ -465,19 +503,12 @@ export function ExploreView({
     controls.current.stick = null;
   };
   const title = flying ? "Flying" : riding ? VEHICLES[riding].riding : "On foot";
-  // The physics of what the person is on: a car drives on the garage's Rapier, or as an arcade car once without it; all
-  // else on the walls' engine.
-  const physics = riding === "car" ? (garage !== null && simply === null ? "Rapier car" : "arcade car") : engine;
+  // The physics of what the person is on: a car drives on the garage's Rapier, or as an arcade car once without it; on
+  // foot the walker walks on the garage's Rapier while it keeps up; all else on the walls' engine.
+  const onRapier = garage !== null && simply === null;
+  const physics = riding === "car" ? (onRapier ? "Rapier car" : "arcade car") : !riding && onRapier ? "Rapier" : engine;
   const pad: Pad = flying ? "flying" : (riding ?? "foot");
-  const Icon = flying
-    ? Video
-    : riding === "car"
-      ? Car
-      : riding === "motorbike"
-        ? Motorbike
-        : riding === "bicycle"
-          ? Bike
-          : Footprints;
+  const Icon = flying ? Video : riding ? RIDE_ICONS[riding] : Footprints;
   const sink = (held: boolean) => (event: PointerEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     controls.current.sink = held;
@@ -494,7 +525,7 @@ export function ExploreView({
       data-signs={signCount}
       data-riding={riding ?? undefined}
       role="application"
-      aria-label={`Walking in ${name}. W A S D or the arrow keys walk, Shift runs, Space jumps, E gets on or off, F flies the camera freely and lands it, the wheel sets its speed, click or drag to look around, Escape goes back to the map. On the bicycle, W pedals, S brakes the back wheel and Space the front, Q and R change gear, B rings the bell. On the motorbike, W opens the throttle, S brakes the back wheel and Space the front. In the car, W accelerates, S brakes then reverses, Space is the handbrake. A gamepad walks and rides too.`}
+      aria-label={`Walking in ${name}. W A S D or the arrow keys walk, Shift runs, Space jumps, E gets on or off, F flies the camera freely and lands it, the wheel sets its speed, click or drag to look around, Escape goes back to the map. On the bicycle, W pedals, S brakes the back wheel and Space the front, Q and R change gear, B rings the bell. On the motorbike, W opens the throttle, S brakes the back wheel and Space the front. In the car, W accelerates, S brakes then reverses, Space is the handbrake. In the helicopter, W and S tilt it ahead and back, A and D turn it, Space climbs and Shift or C sinks; let go, it holds its height and slows to a hover. A gamepad walks and rides too.`}
       tabIndex={0}
       onPointerDown={press}
       onPointerMove={drag}
@@ -577,7 +608,7 @@ export function ExploreView({
             >
               {PRIMARY[pad]}
             </button>
-            {flying && (
+            {(flying || pad === "helicopter") && (
               <button
                 type="button"
                 className="glass explore-sink"

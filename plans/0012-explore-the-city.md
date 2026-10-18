@@ -121,7 +121,8 @@ The showpiece: a bicycle that rides like one.
 - [x] Bell, HUD (speed, gear, cadence), controls on keyboard, touch and gamepad
 - [x] E2E: ride, shift, brake, stop with a foot down; gate, commit, local build
 - [x] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
-- [ ] Webber tests on desktop and phone; feedback folded in
+- [x] Webber tests on desktop and phone; feedback folded in (the rider on the grips, saddle and pedals; the kickstand;
+      true wheels: PR #63)
 
 ## Phase 6: motorbike and car
 
@@ -140,13 +141,20 @@ The showpiece: a bicycle that rides like one.
       step, brought forward); the walk no longer dimmed while the loading card holds
 - [x] E2E; gate, commit, local build
 - [x] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
-- [ ] Webber tests on desktop and phone (the 30 fps on a real phone's GPU too); feedback folded in
+- [x] Webber tests on desktop and phone (the 30 fps on a real phone's GPU too); feedback folded in (the rider on the
+      grips, seat and pegs: PR #63)
 
 ## Phase 7: helicopter
 
-- [ ] Flight model: collective, cyclic, tail rotor, ground effect, rotor spin-up; lands on ground and roofs
-- [ ] Collision with buildings at any height; altitude and vertical speed in the HUD
-- [ ] E2E; gate, commit, local build; Webber tests; feedback folded in
+- [x] The AS350 B2 built from Sketchfab (token optional, the glb committed), 107 KB; parked on open ground along the
+      landing's road, boarded with E
+- [x] Flight model: collective, cyclic, tail rotor, ground effect, rotor spin-up; lands on ground and roofs (tests
+      first)
+- [x] Collision with buildings at any height; altitude and vertical speed in the HUD
+- [x] Controls on keyboard, touch (nothing overlapping at 412 × 915 and on its side) and gamepad; a camera for flying
+- [x] E2E: board, spin up, lift, fly, land on a roof, get out; gate, commit, local build
+- [ ] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
+- [ ] Webber tests on desktop and phone; feedback folded in
 
 ## Phase 8: phones, gamepads and the hosted site
 
@@ -157,6 +165,18 @@ The showpiece: a bicycle that rides like one.
 - [ ] Accessibility: every mode reachable and leavable by keyboard; reduced motion turns off camera sway and shake;
       contrast of crosshair, HUD and cards light and dark; axe
 - [ ] Pages build and deploy; tried on the hosted site from a desktop and a phone
+
+## Phase 8b: walking on Rapier, and a natural run
+
+Webber's feedback: walk on Rapier too; the walk looks good, the run still looks uncanny.
+
+- [x] The walker on Rapier's character controller in the garage's nearby streets, the walk unchanged (tests first); the
+      card says Rapier on foot; spec and blueprint
+- [x] Proven: the walk on Rapier beside the walk on the city's walls, step by step on three cities; e2e; gate; PR #64
+- [ ] Running gait researched against cited reference footage: cadence and stride by speed, forward lean, arm swing,
+      foot plant, the blend between walk and run; spec and blueprint
+- [ ] Running gait built (tests first on the maths), checked frame by frame against the reference; e2e; gate; PR
+- [ ] Webber tests on desktop and phone; feedback folded in
 
 ## Phase 9: fold-back
 

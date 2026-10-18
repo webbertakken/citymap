@@ -2,6 +2,7 @@ export {
   LOTS_BASE,
   LOT_HEIGHT,
   buildScene,
+  focusOn,
   flatLayer,
   roadRibbon,
   shortTownName,
@@ -17,11 +18,15 @@ export {
   LOT_FLOATS,
   UNKNOWN_SIZE,
   WINDOW_PITCH,
+  buildingSpans,
+  hasBuilding,
+  lotRefs,
   lotTable,
   packColour,
   type Buildings,
   type LotLook,
   type LotRef,
+  type Span,
 } from "./buildings";
 export {
   COLOUR_BY,
@@ -38,6 +43,7 @@ export {
   type RampMeasure,
 } from "./colour-by";
 export {
+  buildingAt,
   folderHit,
   onlyTown,
   pick,

@@ -1,7 +1,7 @@
 import type { City, Pt } from "@citymap/ground-plan";
 import { pickIndex } from "@citymap/scene";
 import { describe, expect, it } from "vitest";
-import { hitAt } from "./hover";
+import { heightOf, heightsOf, hitAt } from "./hover";
 import { project, type View } from "./view";
 
 const box = (x0: number, y0: number, x1: number, y1: number): Pt[] => [
@@ -61,17 +61,28 @@ describe("hitAt in the Buildings view", () => {
   const roof = project(view, viewport, { x: 1440 / 64, y: 3, z: -1440 / 64 }, "buildings");
 
   it("hits a building at its top, where the ground under that point is something else", () => {
-    const tall = { top: 3.05, of: (town: string, key: string) => (town === "demo" && key === "a" ? 3.05 : null) };
+    const tall = heightsOf(Uint8Array.of(12), { first: 0, count: 1 });
+    expect(tall.top).toBe(heightOf(12));
     expect(hitAt(index, view, viewport, roof, "buildings", tall)).toMatchObject({ kind: "lot", key: "a" });
     // The same point with a low building: the ray passes over it and meets the ground beyond.
-    const low = { top: 0.3, of: () => 0.3 };
+    const low = heightsOf(Uint8Array.of(1), { first: 0, count: 1 });
     expect(hitAt(index, view, viewport, roof, "buildings", low)?.kind).not.toBe("lot");
     // Without heights, the ground answers.
     expect(hitAt(index, view, viewport, roof, "buildings")?.kind).not.toBe("lot");
   });
 
-  it("passes over a lot the heights do not know", () => {
-    const unknown = { top: 3.05, of: () => null };
-    expect(hitAt(index, view, viewport, roof, "buildings", unknown)?.kind).not.toBe("lot");
+  it("reads a building's height from the floors, by its index in the whole city's order", () => {
+    // The tallest top is another building's; this one is one floor high, so the ray passes over it.
+    const tallElsewhere = { top: heightOf(12), floors: Uint8Array.of(1, 12) };
+    expect(hitAt(index, view, viewport, roof, "buildings", tallElsewhere)?.kind).not.toBe("lot");
+  });
+});
+
+describe("heightsOf", () => {
+  it("takes the tallest top of a place's span, and 0 for a place without buildings", () => {
+    const floors = Uint8Array.of(3, 12, 5, 1);
+    expect(heightsOf(floors, { first: 2, count: 2 })).toEqual({ top: heightOf(5), floors });
+    expect(heightsOf(floors, { first: 0, count: 4 }).top).toBe(heightOf(12));
+    expect(heightsOf(floors, { first: 4, count: 0 }).top).toBe(0);
   });
 });

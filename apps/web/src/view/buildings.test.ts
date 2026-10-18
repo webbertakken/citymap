@@ -1,11 +1,31 @@
 import { initialState, layCity, stateSnapshot } from "@citymap/ground-plan";
 import type { Measures } from "@citymap/measures";
-import { DATA_COLUMNS, FLOOR_HEIGHT, LOTS_BASE, LOT_FLOATS, buildScene } from "@citymap/scene";
+import {
+  DATA_COLUMNS,
+  LOT_FLOATS,
+  buildScene,
+  buildingSpans,
+  focusOn,
+  lookOf,
+  lotRefs,
+  lotTable,
+} from "@citymap/scene";
 import { THEMES } from "@citymap/themes";
 import { describe, expect, it } from "vitest";
 import { liveOptions } from "../lay/lay";
 import { liveMeasures } from "../measures/live";
-import { buildingOf, cityBuildings, colourChoices, colourFor, floorEnds, rampEnds, tableFor } from "./buildings";
+import {
+  cityBuildings,
+  cityFloors,
+  colourChoices,
+  colourFor,
+  filesOn,
+  floorEnds,
+  lotBuilding,
+  placeTable,
+  rampEnds,
+  tableFor,
+} from "./buildings";
 
 const snapshot = stateSnapshot(
   "demo",
@@ -30,7 +50,7 @@ describe("cityBuildings", () => {
   it("gathers each lot's building and the city's scales, and nothing without measures", () => {
     const buildings = cityBuildings(measures);
     const first = scene.buildings.order[0]!;
-    expect(buildingOf(buildings, first.town, first.key)?.files).toHaveLength(1);
+    expect(buildings.buildings.get(first.town)?.get(first.key)?.files).toHaveLength(1);
     expect(buildings.scales.size).toEqual({ low: 20, high: 400 });
     const none = cityBuildings(null);
     expect(none.buildings.size).toBe(0);
@@ -38,17 +58,49 @@ describe("cityBuildings", () => {
   });
 });
 
-describe("tableFor", () => {
-  it("writes a lot table for the scene, and how tall each building stands", () => {
-    const { table, heights } = tableFor(scene, cityBuildings(measures), "size", THEMES["paper-atlas"]);
-    expect(table.length).toBe(DATA_COLUMNS * LOT_FLOATS);
+describe("lotBuilding and filesOn", () => {
+  it("aggregate one lot's measures when asked, and name its files, by its own keys only", () => {
     const first = scene.buildings.order[0]!;
-    expect(heights.of(first.town, first.key)).toBe(LOTS_BASE + table[0]! * FLOOR_HEIGHT);
-    expect(heights.top).toBe(LOTS_BASE + 12 * FLOOR_HEIGHT);
-    expect(heights.of(first.town, "nothing")).toBeNull();
+    const whole = cityBuildings(measures).buildings.get(first.town)!.get(first.key)!;
+    expect(lotBuilding(measures, first.town, first.key)).toEqual(whole);
+    expect(filesOn(measures, first.town, first.key)).toEqual(whole.files);
+    expect(lotBuilding(measures, first.town, "nothing")).toBeUndefined();
+    expect(lotBuilding(measures, "constructor", "toString")).toBeUndefined();
+    expect(filesOn(measures, first.town, "constructor")).toBeUndefined();
+    expect(lotBuilding(null, first.town, first.key)).toBeUndefined();
+    expect(filesOn(null, first.town, first.key)).toBeUndefined();
   });
 });
 
+describe("tableFor and cityFloors", () => {
+  it("write the whole city's lot table and each building's floors, in the scene's order", () => {
+    const refs = lotRefs(city);
+    const buildings = cityBuildings(measures);
+    const table = tableFor(refs, buildings, "size", THEMES["paper-atlas"]);
+    expect(table.length).toBe(DATA_COLUMNS * LOT_FLOATS);
+    expect(table).toEqual(
+      lotTable(refs, (ref) =>
+        lookOf(ref, buildings.buildings.get(ref.town)?.get(ref.key), buildings.scales, "size", THEMES["paper-atlas"]),
+      ),
+    );
+    const floors = cityFloors(refs, buildings);
+    expect(Array.from(floors)).toEqual(refs.map((_, i) => table[i * LOT_FLOATS]));
+    expect(Math.max(...floors)).toBe(12);
+    expect(Math.min(...floors)).toBe(1);
+    expect(Array.from(cityFloors(refs, cityBuildings(null)))).toEqual(refs.map(() => 1));
+  });
+});
+
+describe("placeTable", () => {
+  it("gives a town alone the rows of its buildings, as its own table would be", () => {
+    // The laid town, and a copy of it beside it under another key, without measures of its own.
+    const two = { ...city, towns: [city.towns[0]!, { ...city.towns[0]!, key: "demo/copy" }] };
+    const buildings = cityBuildings(measures);
+    const whole = tableFor(lotRefs(two), buildings, "size", THEMES.dracula);
+    for (const [key, span] of buildingSpans(two))
+      expect(placeTable(whole, span)).toEqual(tableFor(lotRefs(focusOn(two, key)), buildings, "size", THEMES.dracula));
+  });
+});
 describe("colourChoices and colourFor", () => {
   it("offers folder and kind always, the rest as the measures allow, with their reasons", () => {
     expect(colourChoices(measures)).toEqual([

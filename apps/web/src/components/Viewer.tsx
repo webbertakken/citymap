@@ -2,8 +2,6 @@
 import {
   DEFAULT_SEPARATIONS,
   DEFAULT_TOGGLES,
-  UNIT,
-  centroid,
   separationList,
   toggleList,
   type City,
@@ -14,6 +12,7 @@ import {
 import type { Measures } from "@citymap/measures";
 import {
   buildScene,
+  focusOn,
   folderHit,
   onlyTown,
   pick,
@@ -42,17 +41,19 @@ import type { ArcadeWhy, GoDown } from "../explore/descent";
 import { footprintsOf } from "../explore/footprints";
 import { inspector } from "../explore/inspect";
 import { landingOf, type Landing } from "../explore/landing";
-import { parkedIn } from "../explore/parking";
+import { helipadBy, parkedIn } from "../explore/parking";
 import type { Garage } from "../explore/physics/garage";
-import { roadGrid, roadSegments, signName, type RoadGrid } from "../explore/signs";
+import { roadGrid, roadSegments, type RoadGrid } from "../explore/signs";
 import { METRE } from "../explore/street";
 import { parkedBy, type Vehicle } from "../explore/vehicles";
 import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
 import { readRepository, type Fetcher } from "../github/read";
 import { parseRepository } from "../github/repository";
+import { Atlas } from "../lay/atlas";
 import { layInWorker, readInWorker } from "../lay/browser";
 import type { Laid, Lay, Read } from "../lay/lay";
+import type { CityPort } from "../lay/port";
 import { afterPaint } from "../load/paint";
 import { loadingStatus, useLoading, type Job } from "../load/useLoading";
 import type { LocalPorts } from "../local/ports";
@@ -60,9 +61,11 @@ import { log, reasonOf } from "../log";
 import type { LiveFacts } from "../measures/live";
 import type { SearchEntry, SearchIndex } from "../search/search";
 import { searchIndexInSlices } from "../search/slices";
-import { buildingOf, cityBuildings, colourFor, tableFor } from "../view/buildings";
+import { NO_SCALES, colourFor, lotBuilding, placeTable } from "../view/buildings";
 import { FLY_MS, between, ease, flyTo } from "../view/fly";
+import { heightsOf } from "../view/hover";
 import { insetsFor } from "../view/insets";
+import { roofsNear, type RoofsNear } from "../view/roofs";
 import { ELEVATION, YAW, fit, onKey, type Mode, type View, type Viewport } from "../view/view";
 import { Drawer } from "./Drawer";
 import { ExploreView, type ExploreCanvasProps } from "./ExploreView";
@@ -164,12 +167,12 @@ const githubFacts = (sizes: ReadonlyMap<string, number>): LiveFacts => ({
   coverage: new Map(),
 });
 
-/** The city with only the town of that key, and no highways. */
-export const focusOn = (city: City, key: string): City => ({
-  ...city,
-  towns: city.towns.filter((t) => t.key === key),
-  highways: [],
-});
+/** A town's scene built on the main thread, before its worker has made it: timed, for the log. */
+function sceneHere(town: City, theme: ThemeName) {
+  const started = performance.now();
+  const scene = buildScene(town, THEMES[theme]);
+  return { scene, key: town.towns.map((t) => t.key).join(","), ms: Math.round(performance.now() - started) };
+}
 
 /** A GitHub repository, named "owner/name", at a commit. */
 const sourceOf = (name: string, commit: string): GitHubSource => {
@@ -232,19 +235,55 @@ export function Viewer({
   const [fitted, setFitted] = useState(true);
   // Drill down: the key of the one town shown, or null for the whole city.
   const [focus, setFocus] = useState<string | null>(null);
-  // The whole city's scene and index stay built while a town is shown, so going back costs nothing.
-  // A scene the layout worker built with the city, used while the map's theme is the one it was built in.
-  const [drawn, setDrawn] = useState<{ city: City; theme: ThemeName; scene: Scene } | null>(null);
-  const wholeScene = useMemo(
-    () =>
-      city ? (drawn?.city === city && drawn.theme === theme ? drawn.scene : buildScene(city, THEMES[theme])) : null,
-    [city, theme, drawn],
+  // What the city's worker has made for the city shown: its scenes by theme, each town's made ahead, and its tables.
+  // The map draws the look asked for once it is at hand, and until then the last one, so the menus answer at once.
+  const [atlas, setAtlas] = useState<Atlas | null>(null);
+  const held = atlas?.city === city ? atlas : null;
+  const colourBy = colourFor(colourAsked, measures);
+  const look = held ? Atlas.look(held, { theme, colourBy }) : null;
+  const drawnTheme: ThemeName = look?.theme ?? theme;
+  const wholeScene = look?.whole ?? null;
+  // The city's worker, kept while its city is shown; ended when another replaces it, and when the viewer goes.
+  const cityPort = useRef<CityPort | null>(null);
+  useEffect(
+    () => () => {
+      if (!cityPort.current) return;
+      cityPort.current.end();
+      log.info("viewer/city-worker-ended", { why: "left" });
+    },
+    [],
   );
+  // What the look asked for lacks, asked of the city's worker: another theme's scenes, or another colour's table.
+  const port = held?.port ?? null;
+  const askFor = useEffectEvent((asked: { theme: ThemeName; colourBy: ColourBy }) => {
+    // Asked only while a port is held, so the atlas is there.
+    const wanted = Atlas.wants(held!, { ...asked, town: focus });
+    if (!wanted) return;
+    log.info("viewer/city-ask", {
+      ask: wanted.ask,
+      theme: wanted.theme,
+      by: wanted.colourBy,
+      first: wanted.ask === "look" ? (wanted.first ?? "") : "",
+    });
+    held!.port.ask(wanted);
+  });
+  useEffect(() => {
+    if (port) askFor({ theme, colourBy });
+  }, [port, theme, colourBy]);
   // The pick index the opening built with the city, off the main thread.
   const [wholePick, setWholePick] = useState<PickIndex | null>(null);
   const wholeIndex = wholePick?.city === city ? wholePick : null;
   const town = useMemo(() => (city && focus !== null ? focusOn(city, focus) : null), [city, focus]);
-  const townScene = useMemo(() => (town ? buildScene(town, THEMES[theme]) : null), [town, theme]);
+  // A town shown alone draws the scene its worker made ahead; before it is made, it is built here, so it shows at once.
+  const madeTown = held && focus !== null ? Atlas.town(held, drawnTheme, focus) : null;
+  const builtHere = useMemo(
+    () => (town && !madeTown ? sceneHere(town, drawnTheme) : null),
+    [town, madeTown, drawnTheme],
+  );
+  useEffect(() => {
+    if (builtHere) log.info("viewer/town-scene-here", { key: builtHere.key, ms: builtHere.ms });
+  }, [builtHere]);
+  const townScene = madeTown ?? builtHere?.scene ?? null;
   // A town shown alone picks from the whole city's index, restricted to that town: nothing is built on a drill.
   const townIndex = useMemo(
     () => (wholeIndex && focus !== null ? onlyTown(wholeIndex, focus) : null),
@@ -260,40 +299,31 @@ export function Viewer({
     () => (fitted && scene ? fit(scene.bounds, viewport, insets, mode, moved) : moved),
     [fitted, scene, viewport, insets, moved, mode],
   );
-  // Each lot's measures together, the lot table the buildings are drawn from, and the cards' measure rows.
-  const buildings = useMemo(() => cityBuildings(measures), [measures]);
-  const colourBy = colourFor(colourAsked, measures);
-  const drawnTable = useMemo(
-    () => (scene ? tableFor(scene, buildings, colourBy, THEMES[theme]) : null),
-    [scene, buildings, colourBy, theme],
+  // The lot table the buildings are drawn from (a town's rows of the whole city's), how tall each stands, the legend's
+  // scales, and the cards' measure rows, each card aggregating its own lot.
+  const floors = held?.floors ?? null;
+  const span = held ? Atlas.span(held, focus) : null;
+  const wholeTable = look?.table ?? null;
+  const table = useMemo(
+    () => (wholeTable && span && focus !== null ? placeTable(wholeTable, span) : wholeTable),
+    [wholeTable, span, focus],
   );
+  const heights = useMemo(() => (floors && span ? heightsOf(floors, span) : null), [floors, span]);
+  const scales = held?.scales ?? NO_SCALES;
+  const legendCity = useMemo(() => ({ measures, scales }), [measures, scales]);
   const rowsOf: RowsOf = useCallback(
     (hit: Hit) =>
       hit.kind === "lot" && !hit.vacant
-        ? measureRows(buildingOf(buildings, hit.townKey, hit.key), buildings.measures, Date.now())
+        ? measureRows(lotBuilding(measures, hit.townKey, hit.key), measures, Date.now())
         : [],
-    [buildings],
+    [measures],
   );
-  // Every building's name over its roof, for the Buildings view close up: its files from its measures, else its path.
-  const roofs = useMemo(
-    () =>
-      shown && drawnTable
-        ? shown.towns.flatMap((place) =>
-            place.lots
-              .filter((lot) => !lot.vacant && lot.path !== "")
-              .map((lot) => {
-                const middle = centroid(lot.pts);
-                return {
-                  text: signName(buildingOf(buildings, place.key, lot.key)?.files ?? [lot.path]),
-                  x: middle.x / UNIT,
-                  // Every built lot of the city shown is in its own lot table.
-                  y: drawnTable.heights.of(place.key, lot.key)!,
-                  z: -middle.y / UNIT,
-                };
-              }),
-          )
-        : [],
-    [shown, drawnTable, buildings],
+  // Every building's name over its roof, made by the city's worker: the map reads those near its centre.
+  // Kept while the city and the place shown stay, so an answer of the city's worker does not redraw the map's names.
+  const cityRoofs = held?.roofs ?? null;
+  const roofs = useMemo<RoofsNear | null>(
+    () => cityRoofs && floors && span && ((centre, reach) => roofsNear(cityRoofs, floors, span, centre, reach)),
+    [cityRoofs, floors, span],
   );
   const uses = useMemo(() => [...new Set(scene?.buildings.order.map((ref) => ref.use))], [scene]);
   const [picked, setPickedHit] = useState<Hit | null>(null);
@@ -387,18 +417,34 @@ export function Viewer({
   const draw = useCallback(
     async (job: Job, laid: Laid, how: Shown) => {
       const { name, file, origin: from, title = name, relaid = false } = how;
-      const { city: next, scene: prebuilt, measures: opened } = laid;
-      job.step({ phase: "draw" });
-      await afterPaint();
-      // The city's folders and files are listed for search in slices that yield to input, so the city shows with them.
+      const { city: next, measures: opened, port: made } = laid;
+      // The city's folders and files are listed for search in slices that yield to input, so the city shows with them;
+      // an opening that ends meanwhile ends its worker too.
       const listing = performance.now();
-      const { index: listedIndex, slices } = await searchIndexInSlices(next, { signal: job.signal });
+      const searchable = await (async () => {
+        job.step({ phase: "draw" });
+        await afterPaint();
+        return searchIndexInSlices(next, { signal: job.signal });
+      })().catch((failure: unknown) => {
+        made.end();
+        log.info("viewer/city-worker-ended", { why: "cancelled" });
+        throw failure;
+      });
+      const { index: listedIndex, slices } = searchable;
       log.info("viewer/search-index", {
         entries: listedIndex.entries.length,
         slices,
         ms: Math.round(performance.now() - listing),
       });
-      setDrawn(prebuilt && { city: next, ...prebuilt });
+      // The city shown before ends its worker; this city's worker is heard from now on.
+      if (cityPort.current) {
+        cityPort.current.end();
+        log.info("viewer/city-worker-ended", { why: "replaced" });
+      }
+      cityPort.current = made;
+      setAtlas(Atlas.open(laid));
+      // An ended port tells nothing more, so every answer heard is this city's.
+      made.listen((answer) => setAtlas((was) => Atlas.received(was!, answer)));
       setWholePick(laid.pick);
       setListed({ city: next, index: listedIndex });
       setMeasures(opened);
@@ -425,7 +471,13 @@ export function Viewer({
       const job = begin("bundled", entry.name);
       try {
         const text = await loadCity(fetcher, entry, layout, basePath, { signal: job.signal, onStep: job.step });
-        const laid = await read(text, { signal: job.signal, onProgress: job.step, theme });
+        const laid = await read(text, {
+          signal: job.signal,
+          onProgress: job.step,
+          theme,
+          colourBy: colourAsked,
+          town: relaid ? focus : null,
+        });
         await draw(job, laid, { name: entry.name, file: entry.name, relaid, origin: { kind: "bundled", entry } });
       } catch (failure) {
         if (isAbort(failure)) return;
@@ -437,7 +489,7 @@ export function Viewer({
         setError(describeFailure(failure));
       }
     },
-    [basePath, begin, draw, fetcher, read, theme],
+    [basePath, begin, draw, fetcher, read, theme, colourAsked, focus],
   );
   // A public GitHub repository's single state, read and laid in the browser.
   const openRepository = useCallback(
@@ -464,6 +516,7 @@ export function Viewer({
           signal: load.signal,
           onProgress: load.step,
           theme,
+          colourBy: colourAsked,
           toggles,
           separate,
           facts,
@@ -485,13 +538,14 @@ export function Viewer({
         setError(describeFailure(failure));
       }
     },
-    [begin, draw, github, lay, separate, theme, toggles],
+    [begin, draw, github, lay, separate, theme, colourAsked, toggles],
   );
   // A repository on the person's machine, read and laid in the browser; nothing about it leaves the page.
   const local = useLocalRepository({
     ...(folders ? { ports: folders } : {}),
     lay,
     theme,
+    colourBy: colourAsked,
     toggles,
     separate,
     begin,
@@ -518,7 +572,15 @@ export function Viewer({
     const job = begin(via, name);
     try {
       job.step({ phase: "lay", files: snapshot.files.length });
-      const laid = await lay(snapshot, { signal: job.signal, onProgress: job.step, theme, ...layout, facts });
+      const laid = await lay(snapshot, {
+        signal: job.signal,
+        onProgress: job.step,
+        theme,
+        colourBy: colourAsked,
+        town: focus,
+        ...layout,
+        facts,
+      });
       await draw(job, laid, { name, file: "", title, relaid: true, origin: live });
       setStatus((done) => `${done} · ${note}`);
     } catch (failure) {
@@ -570,7 +632,7 @@ export function Viewer({
     const job = begin("file", file.name);
     try {
       const text = await readCityFile(file, { signal: job.signal, onStep: job.step });
-      const laid = await read(text, { signal: job.signal, onProgress: job.step, theme });
+      const laid = await read(text, { signal: job.signal, onProgress: job.step, theme, colourBy: colourAsked });
       await draw(job, laid, { name: file.name, file: "", origin: { kind: "file" } });
     } catch (failure) {
       if (isAbort(failure)) return;
@@ -597,7 +659,8 @@ export function Viewer({
   }, []);
   // The repository and commit a city laid from GitHub came from, so its files and folders can be opened there.
   const source = origin?.kind === "live" && origin.via === "github" && city ? sourceOf(origin.name, city.commit) : null;
-  const colours = THEMES[theme];
+  // The map, its background, its names and the legend are in the look's theme: the one asked for once it has arrived.
+  const colours = THEMES[drawnTheme];
   // While something opens, the status names it and its phase; the last city's status comes back if it is cancelled.
   const statusLine = loading.progress ? loadingStatus(loading.progress) : status;
   const { cancellable, cancel } = loading;
@@ -642,12 +705,17 @@ export function Viewer({
         x: landing.at.x.toFixed(3),
         z: landing.at.z.toFixed(3),
       });
-      // The landing's pair at the kerb ahead, then the city's own, worked out from its plan.
-      const parked = [...parkedBy(landing, walls), ...parkedIn(into.city, landing, walls)];
+      // The landing's three at the kerbs, then the city's own, worked out from its plan; and its helicopter on open
+      // ground along the landing's road.
+      const kerbs = [...parkedBy(landing, walls), ...parkedIn(into.city, landing, walls)];
+      const helicopter = helipadBy(landing, walls, kerbs);
+      const parked = helicopter ? [...kerbs, helicopter] : kerbs;
       log.info("explore/parked", {
         bicycles: parked.filter((v) => v.kind === "bicycle").length,
         cars: parked.filter((v) => v.kind === "car").length,
       });
+      if (helicopter) log.info("explore/helipad", { x: helicopter.feet.x.toFixed(1), z: helicopter.feet.z.toFixed(1) });
+      else log.info("explore/no-helipad");
       setWalk({
         city: into.city,
         walls,
@@ -681,22 +749,22 @@ export function Viewer({
     <main
       className="viewer"
       style={{ background: colours.country }}
-      data-theme={theme}
+      data-theme={drawnTheme}
       data-loading={loading.shown}
       data-mode={mode}
       data-walking={walking !== null}
     >
       <MeasureRows value={rowsOf}>
-        {walking && explore && city && scene && index && drawnTable ? (
+        {walking && explore && city && scene && index && table ? (
           <ExploreView
             name={city.repository}
             scene={scene}
-            table={drawnTable.table}
+            table={table}
             theme={colours}
             walls={walking.walls}
             footprints={walking.footprints}
             roads={walking.roads}
-            inspect={inspector(scene, walking.footprints, index, buildings)}
+            inspect={inspector(scene, walking.footprints, index, measures)}
             landing={walking.landing}
             parked={walking.parked}
             garage={walking.garage}
@@ -705,7 +773,7 @@ export function Viewer({
             Canvas={explore.Canvas}
             onLeave={leaveWalk}
           />
-        ) : scene && city && index && drawnTable ? (
+        ) : scene && city && index && table && roofs ? (
           <MapView
             name={city.repository}
             scene={scene}
@@ -721,8 +789,8 @@ export function Viewer({
             marker={marker}
             theme={colours}
             mode={mode}
-            table={drawnTable.table}
-            heights={drawnTable.heights}
+            table={table}
+            heights={heights}
             roofs={roofs}
             focused={focus !== null}
             github={source !== null}
@@ -778,11 +846,9 @@ export function Viewer({
                 walk: {
                   walking: walking !== null,
                   onWalk:
-                    shown && scene && drawnTable
+                    shown && scene && table
                       ? () =>
-                          walking
-                            ? leaveWalk(null)
-                            : void startWalk(explore.goDown, { city: shown, scene, table: drawnTable.table })
+                          walking ? leaveWalk(null) : void startWalk(explore.goDown, { city: shown, scene, table })
                       : null,
                 },
               }
@@ -821,9 +887,9 @@ export function Viewer({
           <Legend
             theme={colours}
             mode={mode}
-            colourBy={colourBy}
+            colourBy={look?.colourBy ?? colourBy}
             onColourBy={changeColour}
-            city={buildings}
+            city={legendCity}
             uses={uses}
           />
         )}
