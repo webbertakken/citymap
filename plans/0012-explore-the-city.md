@@ -48,7 +48,10 @@ The design each phase builds on; the spec and blueprint record it, this list onl
 - [x] Rapier prototype on the viewer: Walk button, loading card (engine, then walls, counted), a walker by keys, drag,
       touch stick and jump, follow camera, back to the map where the walk ended; physics behind a `Walls` port
 - [ ] Webber's choice of model style, from the lab's captures
-- [ ] Webber's verdict on the Rapier prototype, tried locally on desktop and phone
+- [x] Webber's verdict on the Rapier prototype: one physics game everywhere; our walls for walking and the bicycle,
+      Rapier for cars and other vehicles on every device, arcade cars as the fallback (DECISIONS.md)
+- [x] Rapier's walker held to the ground by the adapter, not a city-wide box (32-bit precision); measured per frame,
+      wall raising and memory against the bespoke walls
 - [ ] Research: single-track bicycle dynamics fit for 120 Hz in a browser (Whipple-derived, self-stability from trail),
       arcade-real car tyre models, helicopter flight models in web games, third-person spring-arm cameras, SDF text
       pooling in three.js, touch controls in mobile web games, pointer lock and gamepad support per browser
@@ -116,8 +119,14 @@ The showpiece: a bicycle that rides like one.
 
 ## Phase 6: motorbike and car
 
-- [ ] Motorbike on the single-track core: engine torque curve, gearbox, throttle, both brakes, wheelie limit
-- [ ] Car: single-track model with tyre slip, engine, automatic gearbox, handbrake; follow camera tuned for it
+- [ ] Nearby streets for Rapier: only buildings within a window round the player, added and removed as it moves, in a
+      frame centred near the player (no 32-bit drift); memory and raising time measured at linux's size (tests first)
+- [ ] Rapier loaded on getting into a car, behind the loading card; falls back to the arcade car (logged) where it
+      cannot load (no WebAssembly) or cannot keep up (frame time), saying so once
+- [ ] Car on Rapier's ray-cast vehicle controller: suspension, tyre grip, drift, crashes and roll-overs, getting it back
+      on its wheels; engine, automatic gearbox, handbrake; follow camera tuned for it
+- [ ] Measured on a 4x slowed phone: the car and 20 other Rapier cars at 30 fps, memory within budget
+- [ ] Motorbike on the single-track core (our own): engine torque curve, gearbox, throttle, both brakes, wheelie limit
 - [ ] HUD per ride; getting off leaves the vehicle parked where it stopped
 - [ ] E2E; gate, commit, local build; Webber tests; feedback folded in
 
