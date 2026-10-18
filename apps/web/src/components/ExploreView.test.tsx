@@ -317,6 +317,19 @@ describe("ExploreView", () => {
     expect(sight().textContent).toContain("Lit");
   });
 
+  it("lets a finger scroll the panel without turning the camera, and a click on it capture no mouse", () => {
+    show(undefined, { footprints: [facing], inspect: inspectAhead });
+    walk(0);
+    const lock = vi.fn<() => Promise<void>>(async () => undefined);
+    view().requestPointerLock = lock;
+    fireEvent.pointerDown(sight(), { pointerId: 9, pointerType: "touch", clientX: 0, clientY: 300 });
+    fireEvent.pointerMove(sight(), { pointerId: 9, pointerType: "touch", clientX: 0, clientY: 200 });
+    fireEvent.pointerUp(sight(), { pointerId: 9, pointerType: "touch" });
+    fireEvent.pointerDown(sight(), { pointerId: 1, pointerType: "mouse" });
+    expect(walk(0).session.orbit.pitch).toBeCloseTo(0.25, 9);
+    expect(lock).not.toHaveBeenCalled();
+  });
+
   it("shows nothing in sight with nothing in line, or a building it cannot name", () => {
     show(undefined, { footprints: [facing], inspect: () => ({ hit: null, files: [] }) });
     walk(0);

@@ -7,7 +7,6 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Suspense, use, useMemo, useRef } from "react";
 import type { Object3D } from "three";
 import { Animator } from "../explore/models/animator";
-import { boundOf, runShare, settle } from "../explore/models/bound";
 import { GLTF_MODELS, loadModel, type Loaded, type ModelFile } from "../explore/models/gltf";
 import { motionOf, paceOf } from "../explore/models/motion";
 import { bicycle, car, figure, paletteOf } from "../explore/models/procedural";
@@ -71,11 +70,8 @@ function Walk({
   );
   const placed = useRef<Object3D>(null);
   const groups = useRef(new Map<string, Object3D>());
-  // How far each vehicle has rolled, for its wheels; and how much the walker bounds, eased.
+  // How far each vehicle has rolled, for its wheels.
   const rolled = useRef(new Map<string, { x: number; z: number; rolled: number }>());
-  const bounding = useRef(0);
-  // Where motion is unwelcome, a run does not bound.
-  const still = useMemo(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false, []);
   useFrame((state, seconds) => {
     const walker = placed.current;
     if (!walker) return;
@@ -107,14 +103,10 @@ function Walk({
     } else {
       // Drawn between its last two steps, so it moves as smoothly as the frames come.
       const { feet, heading, walked } = now.shown;
-      bounding.current = settle(bounding.current, body.grounded && !still ? runShare(speed) : 0, seconds);
-      const bound = boundOf(walked, bounding.current);
-      walker.position.set(feet.x * METRE, (feet.y + bound.lift) * METRE, feet.z * METRE);
+      walker.position.set(feet.x * METRE, feet.y * METRE, feet.z * METRE);
       walker.rotation.order = "XYZ";
-      walker.rotation.set(0, heading, -bound.lean);
-      // Squashed or stretched, its volume kept.
-      const across = METRE / Math.sqrt(bound.stretch);
-      walker.scale.set(across, METRE * bound.stretch, across);
+      walker.rotation.set(0, heading, 0);
+      walker.scale.setScalar(METRE);
       if (animator) {
         const motion = motionOf(speed, body.grounded, body.rise);
         animator.play(motion, paceOf(motion, speed), seconds);

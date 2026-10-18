@@ -1,7 +1,6 @@
 // How an animated figure moves: which of its clips plays for the walker's pace and footing, and how fast, so its feet
 // keep pace with the ground.
 import { RUN_SPEED, WALK_SPEED } from "../walker";
-import { LEAP } from "./bound";
 
 /** What a figure does: "drive" sits a rider on a vehicle. */
 export type Motion = "idle" | "walk" | "sprint" | "jump" | "fall" | "drive";
@@ -18,14 +17,12 @@ export const CLIP_OF: Readonly<Record<Motion, string>> = {
 
 /** Below this pace, in metres a second, a figure stands. */
 export const STANDING = 0.2;
-/** The library's sprint takes this long for a stride, both legs forward once (Sprint_Loop: 0.667 s). */
-export const SPRINT_CLIP_SECONDS = 0.667;
 /**
- * At normal speed the library's walk covers this many metres a second (measured by build-models.ts from the planted
- * foot: 0.98); a bounding run strides once every two leaps.
+ * At normal speed the library's walk and sprint cover this many metres a second, measured by build-models.ts from the
+ * planted foot (0.98 and 2.56).
  */
 export const WALK_CLIP_SPEED = 1;
-export const SPRINT_CLIP_SPEED = (2 * LEAP) / SPRINT_CLIP_SECONDS;
+export const SPRINT_CLIP_SPEED = 2.56;
 /** A clip plays no slower than this share of its speed and no faster than twice it. */
 export const SLOWEST = 0.4;
 export const FASTEST = 2;

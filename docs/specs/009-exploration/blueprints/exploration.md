@@ -25,7 +25,7 @@ build).
 | parking   | `parkedBy(landing, walls)`                                | the bicycle and the car at the kerb ahead of the landing                           |
 | prompt    | `Prompt`, `promptOf`, `promptWords`                       | what E does now, and its words                                                     |
 | motion    | `Motion`, `CLIP_OF`, `motionOf`, `paceOf`                 | idle, walk, sprint, jump, fall, drive; their clips and paces                       |
-| bound     | `boundOf`, `runShare`, `settle`                           | the running leap: lift, stretch, lean                                              |
+| sight     | `cityHits`, `sightOf`, `windowRows`, `inspector`          | what the crosshair meets: a roof, a wall, a window and its file                    |
 | rig       | `Rig`, `RIGS`, `PROCEDURAL_RIGS`, `poseVehicle`, `leanOf` | a model's moving parts and axes; a vehicle posed by them                           |
 | model     | `ModelFile`, `GLTF_MODELS`, `loadModel`, `Loaded`         | a model file, its size and facing; a loaded model's copies, clips and original     |
 | retarget  | `retargetClip`, `WOBBLE_FROM_UAL`, `QUATERNIUS_FROM_UAL`  | a clip carried onto another skeleton by turns from rest                            |
@@ -98,8 +98,22 @@ build).
   precisely as posed by its skeleton. `original` is the file's own scene, to retarget against.
 - `Animator`: one action per clip; a motion's clip by `CLIP_OF`, cross-faded over `BLEND` 0.15 s; a missing clip logs
   `explore/clip-missing motion` once and keeps the last.
-- Paces: walk at `speed / WALK_CLIP_SPEED` (1 m/s, measured 0.98), sprint one stride per two leaps
-  (`SPRINT_CLIP_SECONDS` 0.667), each within `SLOWEST` 0.4 and `FASTEST` 2.
+- Paces: walk at `speed / WALK_CLIP_SPEED` (1 m/s, measured 0.98), sprint at `speed / SPRINT_CLIP_SPEED` (2.56 m/s,
+  measured), each within `SLOWEST` 0.4 and `FASTEST` 2.
+
+## The crosshair
+
+- `cityHits(footprints).hit(from, to)`: the first prism the segment enters; a roof when its height limits the entry last
+  going down, else a wall named in the footprint's own corner order (`edge`, `along` from its first corner, `length`),
+  as the building shader names it.
+- `sightOf(hit, look, files)`: on a wall, floor `floor((y − BASE) / FLOOR)` (`BASE` 0.3 m, `FLOOR` 2.5 m), columns
+  `max(1, floor(length / PITCH))` (`PITCH` 2.5 m); a window within 30 % to 80 % of its floor and the middle half of its
+  column, below the top floor; lit by the shader's rule over `row · columns + column`, unknown when the lit share is
+  negative; its file `floor(row · files / floors)`. Anything else is the building.
+- The view casts from the camera's eye through its target, `SIGHT_REACH` 150 m, every frame, and shows the card only
+  when what is in sight changes. `inspector` picks the building's card at its footprint's middle (null when another
+  thing is there) and its files from its measures, else the card's one file.
+- The camera's target is `SHOULDER_SIDE` 0.6 m to the right of the walker's head, short of a wall there by `WALL_GAP`.
 
 ## Presentation and UX
 

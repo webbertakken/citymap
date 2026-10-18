@@ -12,7 +12,8 @@ One row per value the exploration spec leaves silent or qualitative.
 | Ground                  | 0.25 m                                   | the roads' surface in the scene (0.025 street widths)                  | fixed          |
 | Walk, run, jump         | 1.6, 4.5, 3.5 m/s                        | a brisk walk, an easy run, a 0.6 m jump                                | ±30 %          |
 | Turn rate               | 10 rad/s                                 | a person turns to face a new way in about a third of a second          | 5 to 20 rad/s  |
-| Leap                    | 2.4 m long, 0.5 m high, squash 0.12      | Webber: bigger, funny jumps when running                               | taste          |
+| Shoulder side           | 0.6 m                                    | the crosshair passes beside the walker's head, not through it          | 0.4 to 0.8 m   |
+| Crosshair reach         | 150 m                                    | a few blocks: what a person can read across a street or a square       | 50 to 400 m    |
 | Camera orbit            | 4.5 m back, 1.55 m up, pitch 0.25        | over the shoulder, the walker a third of the screen high               | taste          |
 | Wall gap, nearest       | 0.25 m, 0.4 m                            | short of a wall without clipping it; never inside the head             | fixed          |
 | Reach ease              | 0.3 s                                    | in at once (never through a wall), out without popping                 | 0.15 to 0.6 s  |

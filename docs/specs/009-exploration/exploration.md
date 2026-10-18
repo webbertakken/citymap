@@ -39,8 +39,7 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 
 - W A S D or the arrow keys walk where the camera looks; Shift runs; Space jumps. On a touch screen, a stick under the
   left thumb walks (pushed nearly all the way, it runs) and a Jump button sits under the right.
-- A walk is about 1.6 m a second and a run 4.5. Running, the walker bounds in long, playful leaps (2.4 m, half a metre
-  high), squashing as it lands; the ground, the walls and the camera stay level.
+- A walk is about 1.6 m a second and a run 4.5; the figure's walk and sprint keep pace with the ground.
 - Buildings and parked vehicles stop the walker, who slides along them; kerbs and plinths up to 45 cm are stepped up
   onto, and roofs are stood on.
 - Dragging turns the camera, which follows over the walker's shoulder and pulls in at once short of a wall behind,
@@ -73,8 +72,10 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 ## Reading the city
 
 - Each building's name is on its wall facing the street, for the nearest buildings; from above, on its roof.
-- The crosshair, in the middle of the view, reads what it points at: a window names its file and what its light means; a
-  wall or a roof names the building. The card uses the hover card's words and measures.
+- The crosshair, in the middle of the view (the camera looks past the walker's right shoulder), reads what it points at:
+  a window names its file and what its light means; a wall or a roof names the building. The card uses the hover card's
+  words and measures; it sits at the right under the controls (above the stick on touch), and a finger scrolls it
+  without turning the camera.
 
 ## Cameras
 
@@ -93,4 +94,4 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 
 - Every control has a keyboard way, a pointer way and a touch way. Prompts and cards meet the viewer's design rules and
   WCAG 2.2 AA, light and dark; the walk has an accessible name that says how to move.
-- Reduced motion turns off the camera's sway and the running bounce.
+- Reduced motion turns off the camera's sway.

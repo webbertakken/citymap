@@ -1326,7 +1326,9 @@ mark {
   max-height: calc(100% - 2 * var(--gap) - var(--control) - 16px - 160px);
   padding: 12px 16px;
   overflow: auto;
-  pointer-events: none;
+  /* A finger scrolls it up and down, and the scroll stays inside it. */
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 .explore-sight .hit-rows {
   margin: 8px 0 0;

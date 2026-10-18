@@ -110,6 +110,8 @@ describe("Viewer walking", () => {
     await show(async () => walls);
     fireEvent.click(walkButton());
     await screen.findByTestId("explore-canvas");
+    // Ready once the walk holds the keyboard: its focusing would otherwise close More as it opens.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("application")));
     fromMore(/^beta/);
     await screen.findByRole("heading", { level: 1, name: "beta" });
     expect(screen.queryByTestId("explore-canvas")).toBeNull();

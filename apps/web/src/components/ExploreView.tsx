@@ -75,7 +75,10 @@ export interface ExploreViewProps {
   readonly onLeave: (at: { readonly x: number; readonly z: number }) => void;
 }
 
-/** What the crosshair is on, under it: the building's card, with a window's file and light. */
+/** A pointer event on a panel stays there, out of the walk's hands. */
+const keep = (event: PointerEvent<HTMLElement>) => event.stopPropagation();
+
+/** What the crosshair is on: the building's card, with a window's file and light. */
 function SightCard({ sight, inspect }: { readonly sight: Sight; readonly inspect: Inspect }) {
   const rowsOf = useMeasureRows();
   const { hit, files } = inspect(sight.lot);
@@ -84,7 +87,15 @@ function SightCard({ sight, inspect }: { readonly sight: Sight; readonly inspect
   const card = describeHit(hit, [...(sight.kind === "window" ? windowRows(sight, files.length) : []), ...rowsOf(hit)]);
   const title = file ? file.slice(file.lastIndexOf("/") + 1) : card.title;
   return (
-    <section className="glass explore-sight" aria-label="In sight" data-kind={sight.kind}>
+    // The panel is its own: a finger scrolls it, and neither that nor a click on it turns the camera or captures the mouse.
+    <section
+      className="glass explore-sight"
+      aria-label="In sight"
+      data-kind={sight.kind}
+      onPointerDown={keep}
+      onPointerMove={keep}
+      onPointerUp={keep}
+    >
       <CardBody card={{ ...card, title }} />
     </section>
   );
