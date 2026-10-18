@@ -39,8 +39,16 @@ The design each phase builds on; the spec and blueprint record it, this list onl
 
 ## Phase 1: decisions, spec and blueprint
 
-- [ ] Webber's answers to the open forks (AMBIGUITIES.md § Exploring): what a window is, RTS beside or instead of the
-      Buildings view, how a ride is chosen, models, physics, bicycle feel, where one lands
+- [x] Webber's answers to the open forks (DECISIONS.md § Exploring): a window is a file; the Buildings view gains rotate
+      and tilt instead of a separate RTS camera; rides are parked vehicles to walk up to; physics is bespoke 2.5D, with
+      a Rapier prototype on the same code to compare; the bicycle balances assisted; landing is before the selected
+      building, else on the road nearest the view's centre
+- [x] Model lab (`/lab/models`): procedural, glTF (Kenney CC0, poly.pizza) and mixed, captured on a real street, light
+      and dark, for Webber to choose
+- [x] Rapier prototype on the viewer: Walk button, loading card (engine, then walls, counted), a walker by keys, drag,
+      touch stick and jump, follow camera, back to the map where the walk ended; physics behind a `Walls` port
+- [ ] Webber's choice of model style, from the lab's captures
+- [ ] Webber's verdict on the Rapier prototype, tried locally on desktop and phone
 - [ ] Research: single-track bicycle dynamics fit for 120 Hz in a browser (Whipple-derived, self-stability from trail),
       arcade-real car tyre models, helicopter flight models in web games, third-person spring-arm cameras, SDF text
       pooling in three.js, touch controls in mobile web games, pointer lock and gamepad support per browser
@@ -56,15 +64,20 @@ The design each phase builds on; the spec and blueprint record it, this list onl
 
 The thinnest path through every layer: world, one mover, intents, camera, renderer, UI.
 
-- [ ] `packages/world`: prisms from the scene and lot table, spatial grid, circle collision with sliding, ground query
-      (tests first, property tests: never inside a building)
-- [ ] On-foot mover: walk, run, jump, turn; steps up onto plinths and kerbs (tests first)
-- [ ] Intents from keyboard and mouse (pointer lock) and touch (stick and drag), pure and tested
-- [ ] Third-person follow camera that never enters a building; perspective renderer with fog, frame loop only while
-      exploring
-- [ ] Explore UI: "On foot" enters at the chosen landing place, Escape or Plan leaves; a simple placeholder figure
-- [ ] Logs: mode changes, landing place, world built (lots, cells, ms), pointer lock granted or refused
-- [ ] E2E: enter on foot, move by keyboard and by touch, never pass a wall, leave; dark mode; phone viewport
+- [ ] `packages/world`: the bespoke `Walls`: prisms from the footprints, spatial grid, capsule collision with sliding
+      and stepping up, ground query, rays (tests first, property tests: never inside a building); the Rapier walls stay
+      behind a switch until Webber retires them
+- [x] On-foot mover: walk, run, jump, turn (`explore/walker.ts`, tests first)
+- [x] Intents from keyboard and touch (stick, drag to look, jump button), pure and tested (`explore/input.ts`)
+- [ ] Pointer lock for mouse look on desktop, granted or refused in the log
+- [x] Third-person follow camera that pulls in short of walls (`explore/camera.ts`); perspective renderer, frame loop
+      only while walking
+- [ ] Fog in the building shader, so the far city fades instead of ending at the far plane
+- [x] Explore UI: Walk enters at the landing place (`explore/landing.ts`), Escape, the card or a view leaves; a
+      procedural placeholder figure with a stride
+- [x] Logs: `explore/walls`, `explore/enter`, `explore/leave`, `explore/failed`, `explore/no-roads`
+- [x] E2E: enter on foot, move by keyboard and by touch, leave; axe light and dark; phone viewport
+- [ ] E2E: never pass a wall
 - [ ] Gate (`bun run check`), commit, local build served for Webber
 - [ ] Webber tests on desktop and phone; feedback folded into the spec
 
@@ -77,14 +90,17 @@ The thinnest path through every layer: world, one mover, intents, camera, render
 - [ ] E2E: aim at a known building and window, read the card; signs never more than the pool
 - [ ] Gate, commit, local build; Webber tests; feedback folded in
 
-## Phase 4: cameras, RTS and free
+## Phase 4: cameras, the Buildings view turned and free
 
-- [ ] RTS camera: tilt, rotate, zoom to the cursor, drag and edge pan, touch gestures (tests first on the maths)
+- [ ] Buildings view gains rotate and tilt (perspective), zoom to the cursor, drag and edge pan, touch gestures (tests
+      first on the maths)
 - [ ] Free camera: fly in six directions, speed by wheel, no collision
-- [ ] View switch: Plan, RTS, Free; the view's centre carries across every switch
+- [ ] View switch: Plan, Buildings, Free; the view's centre carries across every switch
 - [ ] E2E and vitals in each view; gate, commit, local build; Webber tests; feedback folded in
 
-## Phase 5: the bicycle
+## Phase 5: parked vehicles and the bicycle
+
+- [ ] Parked vehicles: where they stand in a city (deterministic from the plan), walking up to one, getting on and off
 
 The showpiece: a bicycle that rides like one.
 
@@ -102,7 +118,7 @@ The showpiece: a bicycle that rides like one.
 
 - [ ] Motorbike on the single-track core: engine torque curve, gearbox, throttle, both brakes, wheelie limit
 - [ ] Car: single-track model with tyre slip, engine, automatic gearbox, handbrake; follow camera tuned for it
-- [ ] HUD per ride; switching rides in place keeps position and heading
+- [ ] HUD per ride; getting off leaves the vehicle parked where it stopped
 - [ ] E2E; gate, commit, local build; Webber tests; feedback folded in
 
 ## Phase 7: helicopter
