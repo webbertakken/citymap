@@ -21,6 +21,7 @@
     "rust:lint": "cargo fmt --manifest-path rust/Cargo.toml --all --check && cargo clippy --manifest-path rust/Cargo.toml --all-targets --locked --quiet -- -D warnings",
     "rust:lint:mimalloc": "cargo clippy --manifest-path rust/Cargo.toml -p citymap-cli --features mimalloc --all-targets --locked --quiet -- -D warnings",
     "bundle": "bun scripts/bundle-cities.ts",
+    "cert": "bun scripts/loopback-cert.ts",
     "rust:check": "bun run rust:lint && cargo test --manifest-path rust/Cargo.toml --locked --quiet",
     "bench": "bun scripts/bench.ts",
     "parity": "bun scripts/parity.ts",
@@ -40,8 +41,8 @@
     "@vitest/coverage-v8": "5.0.4",
     "husky": "9.1.7",
     "lint-staged": "17.6.0",
-    "oxfmt": "0.72.0",
-    "oxlint": "1.87.0",
+    "oxfmt": "0.73.0",
+    "oxlint": "1.88.0",
     "oxlint-tsgolint": "7.0.2004",
     "typescript": "7.0.2",
     "vitest": "5.0.4"

@@ -76,12 +76,37 @@ describe("Viewer while loading", () => {
     await github.release();
     await wait(200);
     expect(screen.getByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
-    // Shown, the card holds 400 ms; the bar is full meanwhile.
+    // Shown, the card holds 400 ms; the bar is full meanwhile, and Escape is the map's again: nothing is cancelled.
     expect(within(card()!).getByRole("progressbar").getAttribute("value")).toBe("100");
+    fireEvent.keyDown(screen.getByRole("application"), { key: "Escape" });
+    expect(card()).not.toBeNull();
+    const lines = vi.mocked(console.info).mock.calls.map(([line]) => String(line));
+    expect(lines.some((l) => l.startsWith("viewer/load-cancelled"))).toBe(false);
     await wait(HOLD_MS - 200);
     expect(card()).toBeNull();
     expect(document.querySelector("main")?.getAttribute("data-loading")).toBe("false");
     expect(screen.getByText("1 towns · 12 lots · single state, not folded")).toBeTruthy();
+  });
+
+  it("lets Escape reach the map while a finished load's card holds", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const github = await layingWidgets();
+    await wait(SHOW_AFTER_MS);
+    await github.release();
+    await wait(50);
+    expect(card()).not.toBeNull();
+    const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    const map = screen.getByRole("application");
+    let reached = false;
+    map.addEventListener("keydown", () => {
+      reached = true;
+    });
+    map.dispatchEvent(escape);
+    expect(reached).toBe(true);
+    expect(info.mock.calls.map(([line]) => String(line)).some((l) => l.startsWith("viewer/load-cancelled"))).toBe(
+      false,
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "widgets" })).toBeTruthy();
   });
 
   it("cancels with its button and keeps the last city, the address and no error", async () => {

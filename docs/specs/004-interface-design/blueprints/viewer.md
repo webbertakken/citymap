@@ -72,8 +72,10 @@ in `BufferGeometry`.
 - Camera: a `Mode`, `plan` (the default, on every visit) or `buildings`. Plan looks straight down with `up = (0, 0, −1)`
   (`basis("plan")`: eye `(0, 1, 0)`, screen right `(1, 0, 0)`, screen up `(0, 0, −1)`); the Buildings view from
   `ELEVATION` 30° and `YAW` 45° (`basis("buildings")`: eye `(cos30·sin45, sin30, cos30·cos45)`, `up = (0, 1, 0)`). A
-  `View` is `{ centre, zoom }`; `project`, `pan`, `fit`, `framed`, `onKey`, `declutter` and `unproject` take the mode,
-  plan by default, so switching keeps the centre and the zoom. Zoom fits the bounds' four corners on load and on `0`.
+  `View` is `{ centre, zoom, yaw?, tilt? }`: the Buildings view's turn (default `YAW`, `ELEVATION`;
+  `basis(mode, turn)`), ignored in plan view; `project`, `pan`, `fit`, `framed`, `onKey`, `declutter` and `unproject`
+  take the mode, plan by default, so switching keeps the centre and the zoom. Zoom fits the bounds' four corners on load
+  and on `0`.
 - Hover: `hitAt(index, view, viewport, pointer, mode, heights)` picks the ground in plan view (a lot's top lies over its
   footprint); in the Buildings view it walks the view ray down from the tallest top in steps of `RAY_STEP` 0.1 u and
   answers the first lot whose building reaches that height, else the ground. The hover card is described under Hover
@@ -177,10 +179,12 @@ in `BufferGeometry`.
   under 5 s, "about {n} s left" (whole seconds; to 5 s from 20 s) under 60 s, "about {n} min left" above.
 - `useLoading()` (`load/useLoading.ts`): one load at a time. `begin(source, name)` ends any load in flight (logged
   `why=replaced`) and returns a `Job`, `{ signal, step, done, failed }`; `cancel()` ends the current one (`why=cancel`).
-  It holds `progress` (null when idle), `shown`, and `now`: the card shows `SHOW_AFTER_MS` 300 ms after `begin` if still
-  loading, and once shown stays at least `HOLD_MS` 400 ms (the bar full meanwhile); a load done before 300 ms shows
-  nothing; a failure removes it at once. A clock ticks every `TICK_MS` 250 ms while the card shows. A job's reports
-  after it ended change nothing; leaving the page aborts the load in flight.
+  It holds `progress` (null when idle), `shown`, and `cancellable` (shown and still running): the card shows
+  `SHOW_AFTER_MS` 300 ms after `begin` if still loading, and once shown stays at least `HOLD_MS` 400 ms (the bar full
+  meanwhile); a load done before 300 ms shows nothing; a failure removes it at once. A finished load cannot be
+  cancelled: `cancel()` then does nothing and logs nothing, and Escape is left to the map. The card keeps its own clock,
+  ticking every `TICK_MS` 250 ms while it is mounted, so a tick re-renders the card alone, never the viewer. A job's
+  reports after it ended change nothing; leaving the page aborts the load in flight.
 - The viewer's loads report through it: the index's first city and More
   (`loadCity(fetcher, entry, base, { signal, onStep })`: the body read as a stream, `content-length` the total unless
   `content-encoding` is set, then `parseCity`), a city file (`readCityFile(file, { signal, onStep })`, read in
@@ -547,9 +551,14 @@ Every tuning number is named where it is used and listed in `DEFAULTS.md`: `PAN_
   pick index, built only once the city is.
 - INP under 200 ms on a phone: the view while fitted is derived from the scene (`fit(scene.bounds, viewport, insets)`),
   never built twice; the whole city's scene and pick index stay built while one town is shown, so going back costs
-  nothing. Measured on a Pixel 7 profile with the processor slowed fourfold (CDP `Emulation.setCPUThrottlingRate`), over
-  taps, keys, a theme change, a search and a drill. A theme change is a transition (`startTransition`): the menu closes
-  in the next frame and the scene is rebuilt in its new colours after it, so the tap answers within the budget.
+  nothing. Measured on a Pixel 7 profile with the processor slowed to a phone four times slower than the reference
+  workstation (`e2e/phone.ts`: a fixed piece of work is timed on the machine at hand, its median against `REFERENCE_MS`
+  45 ms sets the CDP `Emulation.setCPUThrottlingRate`, never below 1, and is reported with the test), so a CI runner and
+  the workstation stand in for the same phone. Where Chromium draws in software on fewer than `SOFTWARE_DRAWING_CORES` 8
+  cores (a CI runner: no GPU, 4 cores), drawing cannot stand for a phone's GPU, so `cannotTimeAPhone` skips this budget
+  there with its reason; it gates in the local run before every merge. Measured over taps, keys, a theme change, a
+  search and a drill. A theme change is a transition (`startTransition`): the menu closes in the next frame and the
+  scene is rebuilt in its new colours after it, so the tap answers within the budget.
 - Laying a large repository: the worker lays and builds the scene, so on that phone profile linux's longest main-thread
   task fell from 2.25 s to 0.83 s, most of it the pick index (which appends to its cells rather than copying them: about
   100 ms for linux on a desktop) and the search index 0.09 s (both still on the main thread, after the card says

@@ -2,6 +2,8 @@
 import {
   DEFAULT_SEPARATIONS,
   DEFAULT_TOGGLES,
+  UNIT,
+  centroid,
   separationList,
   toggleList,
   type City,
@@ -12,6 +14,7 @@ import {
 import type { Measures } from "@citymap/measures";
 import { buildScene, folderHit, pick, pickIndex, type ColourBy, type Hit, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
+import type { Footprint, Walls } from "@citymap/world";
 import {
   startTransition,
   useCallback,
@@ -26,6 +29,15 @@ import {
 import type { GitHubSource } from "../card/github";
 import { measureRows } from "../card/measures";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry, type Layout } from "../cities";
+import type { ArcadeWhy, GoDown } from "../explore/descent";
+import { footprintsOf } from "../explore/footprints";
+import { inspector } from "../explore/inspect";
+import { landingOf, type Landing } from "../explore/landing";
+import { parkedIn } from "../explore/parking";
+import type { Garage } from "../explore/physics/garage";
+import { roadGrid, roadSegments, signName, type RoadGrid } from "../explore/signs";
+import { METRE } from "../explore/street";
+import { parkedBy, type Vehicle } from "../explore/vehicles";
 import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
 import { readRepository, type Fetcher } from "../github/read";
@@ -41,8 +53,9 @@ import { searchIndex, type SearchEntry } from "../search/search";
 import { buildingOf, cityBuildings, colourFor, tableFor } from "../view/buildings";
 import { FLY_MS, between, ease, flyTo } from "../view/fly";
 import { insetsFor } from "../view/insets";
-import { fit, onKey, type Mode, type View, type Viewport } from "../view/view";
+import { ELEVATION, YAW, fit, onKey, type Mode, type View, type Viewport } from "../view/view";
 import { Drawer } from "./Drawer";
+import { ExploreView, type ExploreCanvasProps } from "./ExploreView";
 import { Legend } from "./Legend";
 import { LoadingCard } from "./LoadingCard";
 import { LocalButton } from "./LocalButton";
@@ -55,8 +68,20 @@ import { LOCAL_STATUS, LOCAL_TITLE, useLocalRepository } from "./useLocalReposit
 import { ViewControls } from "./ViewControls";
 import { ZoomControls } from "./ZoomControls";
 
+/**
+ * Going down into the city: the ground-level canvas, the walls' physics engine by name, and how everything the walk
+ * needs is loaded behind the loading card.
+ */
+export interface Explore {
+  readonly Canvas: ComponentType<ExploreCanvasProps>;
+  readonly engine: string;
+  readonly goDown: GoDown;
+}
+
 export interface ViewerProps {
   readonly Canvas: ComponentType<CanvasProps>;
+  /** Walking in the city; without it, the map has no Walk button. */
+  readonly explore?: Explore;
   readonly fetcher?: Fetcher;
   /** How a snapshot becomes a city: in a Web Worker in the browser, on the calling thread in tests. */
   readonly lay?: Lay;
@@ -143,8 +168,30 @@ const sourceOf = (name: string, commit: string): GitHubSource => {
   return { owner: name.slice(0, slash), name: name.slice(slash + 1), commit };
 };
 
+/**
+ * A walk under way: the city (or town) it walks in, its walls and the cars' garage (null for arcade cars, and why),
+ * where it began, and the vehicles parked about.
+ */
+interface Walking {
+  readonly city: City;
+  readonly walls: Walls;
+  readonly garage: Garage | null;
+  readonly arcade: ArcadeWhy | null;
+  readonly footprints: readonly Footprint[];
+  readonly roads: RoadGrid;
+  readonly landing: Landing;
+  readonly parked: readonly Vehicle[];
+}
+
 /** The viewer: one city at a time, its theme, its view and its layout toggles. */
-export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, basePath = "", folders }: ViewerProps) {
+export function Viewer({
+  Canvas,
+  explore,
+  fetcher = browserFetch,
+  lay = layInWorker,
+  basePath = "",
+  folders,
+}: ViewerProps) {
   const loading = useLoading();
   // GitHub's hourly allowance, heard from every API answer, shared by laying and the suggestions.
   const [allowance, setAllowance] = useState<Allowance | null>(null);
@@ -170,7 +217,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const theme: ThemeName = chosen ?? (dark ? "night-atlas" : "paper-atlas");
   const [viewport, setViewport] = useState<Viewport>({ width: 800, height: 600 });
   // The view the person moved to; while `fitted`, the view is derived instead, fitting what is shown to the map.
-  const [moved, setMoved] = useState<View>({ centre: { x: 0, z: 0 }, zoom: 1 });
+  const [moved, setMoved] = useState<View>({ centre: { x: 0, z: 0 }, zoom: 1, yaw: YAW, tilt: ELEVATION });
   // A newly opened city or town stays fitted to the map, whatever size the map turns out to be, until the person moves it.
   const [fitted, setFitted] = useState(true);
   // Drill down: the key of the one town shown, or null for the whole city.
@@ -193,7 +240,8 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const [drawer, setDrawer] = useState<boolean | null>(null);
   const insets = useMemo(() => insetsFor(viewport, drawer), [viewport, drawer]);
   const view = useMemo(
-    () => (fitted && scene ? fit(scene.bounds, viewport, insets, mode) : moved),
+    // The Buildings view's turn is the person's, held by the view they moved to and kept when fitting.
+    () => (fitted && scene ? fit(scene.bounds, viewport, insets, mode, moved) : moved),
     [fitted, scene, viewport, insets, moved, mode],
   );
   // Each lot's measures together, the lot table the buildings are drawn from, and the cards' measure rows.
@@ -210,8 +258,41 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
         : [],
     [buildings],
   );
+  // Every building's name over its roof, for the Buildings view close up: its files from its measures, else its path.
+  const roofs = useMemo(
+    () =>
+      shown && drawnTable
+        ? shown.towns.flatMap((place) =>
+            place.lots
+              .filter((lot) => !lot.vacant && lot.path !== "")
+              .map((lot) => {
+                const middle = centroid(lot.pts);
+                return {
+                  text: signName(buildingOf(buildings, place.key, lot.key)?.files ?? [lot.path]),
+                  x: middle.x / UNIT,
+                  // Every built lot of the city shown is in its own lot table.
+                  y: drawnTable.heights.of(place.key, lot.key)!,
+                  z: -middle.y / UNIT,
+                };
+              }),
+          )
+        : [],
+    [shown, drawnTable, buildings],
+  );
   const uses = useMemo(() => [...new Set(scene?.buildings.order.map((ref) => ref.use))], [scene]);
   const [picked, setPickedHit] = useState<Hit | null>(null);
+  // A walk in the city or town shown: showing another ends it (a new theme draws the same city, and keeps it).
+  const [walk, setWalk] = useState<Walking | null>(null);
+  if (walk && walk.city !== shown) setWalk(null);
+  const walking = walk?.city === shown ? walk : null;
+  // A walk's walls are freed once it is over: ended, replaced, or the viewer gone.
+  useEffect(
+    () => () => {
+      walk?.walls.dispose();
+      walk?.garage?.dispose();
+    },
+    [walk],
+  );
   // Where a search took the person: a marker over the map, until the selection changes.
   const [marker, setMarker] = useState<{ x: number; z: number } | null>(null);
   const setPicked = (hit: Hit | null) => {
@@ -262,7 +343,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const goTo = (entry: SearchEntry, { bounds, picking }: NonNullable<typeof finder>) => {
     const leaving = focus !== null && focus !== entry.townKey;
     if (leaving) setFocus(null);
-    const whole = fit(bounds, viewport, insets, mode);
+    const whole = fit(bounds, viewport, insets, mode, moved);
     const from = leaving ? whole : view;
     flyView(from, flyTo(viewport, entry, whole, insets, mode));
     const hit: Hit | null =
@@ -512,8 +593,9 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
   const colours = THEMES[theme];
   // While something opens, the status names it and its phase; the last city's status comes back if it is cancelled.
   const statusLine = loading.progress ? loadingStatus(loading.progress) : status;
-  const { shown: carded, cancel } = loading;
-  // Escape cancels a load the card shows, unless the search or an open menu takes it first.
+  const { cancellable, cancel } = loading;
+  // Escape cancels a running load the card shows, unless the search or an open menu takes it first; once the load is
+  // done the card only holds, and Escape is the map's again.
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -521,13 +603,68 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
       event.stopPropagation();
       cancel();
     };
-    if (carded) window.addEventListener("keydown", escape, { capture: true });
+    if (cancellable) window.addEventListener("keydown", escape, { capture: true });
     return () => window.removeEventListener("keydown", escape, { capture: true });
-  }, [carded, cancel]);
+  }, [cancellable, cancel]);
   const changeMode = (next: Mode) => {
     log.info("viewer/mode", { mode: next });
     cancelAnimationFrame(flight.current);
+    if (walking) leaveWalk(null);
     setMode(next);
+  };
+  // Going down into the city: before the selected building, else on the road nearest the map's middle; the walls rise
+  // under the loading card.
+  const startWalk = async (
+    goDown: GoDown,
+    into: { readonly city: City; readonly scene: Scene; table: Float32Array },
+  ) => {
+    const landing = landingOf(into.city, picked, view.centre);
+    if (!landing) {
+      log.info("explore/no-roads", { name: into.city.repository });
+      setError("This city has no roads to walk on.");
+      return;
+    }
+    const job = begin("explore", into.city.repository);
+    try {
+      const footprints = footprintsOf(into.scene.buildings, into.table);
+      const landed = { x: landing.at.x / METRE, z: landing.at.z / METRE };
+      const { walls, garage, arcade } = await goDown(footprints, landed, { onStep: job.step, signal: job.signal });
+      log.info("explore/enter", {
+        landing: landing.kind,
+        buildings: footprints.length,
+        x: landing.at.x.toFixed(3),
+        z: landing.at.z.toFixed(3),
+      });
+      // The landing's pair at the kerb ahead, then the city's own, worked out from its plan.
+      const parked = [...parkedBy(landing, walls), ...parkedIn(into.city, landing, walls)];
+      log.info("explore/parked", {
+        bicycles: parked.filter((v) => v.kind === "bicycle").length,
+        cars: parked.filter((v) => v.kind === "car").length,
+      });
+      setWalk({
+        city: into.city,
+        walls,
+        garage,
+        arcade,
+        footprints,
+        roads: roadGrid(roadSegments(into.city)),
+        landing,
+        parked,
+      });
+      job.done();
+    } catch (failure) {
+      if (isAbort(failure)) return;
+      job.failed();
+      log.error("explore/failed", { reason: reasonOf(failure) });
+      setError("Walking could not start: the city’s walls did not rise.");
+    }
+  };
+  // Back to the map: centred where the walk ended, when it ended on foot.
+  const leaveWalk = (at: { readonly x: number; readonly z: number } | null) => {
+    // To the centimetre (a thousandth of a street width): where the walk ended, to check it never ended in a wall.
+    log.info("explore/leave", at ? { x: at.x.toFixed(3), z: at.z.toFixed(3) } : {});
+    setWalk(null);
+    if (at) settle({ ...view, centre: at });
   };
   const changeColour = (next: ColourBy) => {
     log.info("viewer/colour-by", { by: next });
@@ -540,9 +677,28 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
       data-theme={theme}
       data-loading={loading.shown}
       data-mode={mode}
+      data-walking={walking !== null}
     >
       <MeasureRows value={rowsOf}>
-        {scene && city && index && drawnTable ? (
+        {walking && explore && city && scene && index && drawnTable ? (
+          <ExploreView
+            name={city.repository}
+            scene={scene}
+            table={drawnTable.table}
+            theme={colours}
+            walls={walking.walls}
+            footprints={walking.footprints}
+            roads={walking.roads}
+            inspect={inspector(scene, walking.footprints, index, buildings)}
+            landing={walking.landing}
+            parked={walking.parked}
+            garage={walking.garage}
+            arcade={walking.arcade}
+            engine={explore.engine}
+            Canvas={explore.Canvas}
+            onLeave={leaveWalk}
+          />
+        ) : scene && city && index && drawnTable ? (
           <MapView
             name={city.repository}
             scene={scene}
@@ -560,6 +716,7 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
             mode={mode}
             table={drawnTable.table}
             heights={drawnTable.heights}
+            roofs={roofs}
             focused={focus !== null}
             github={source !== null}
             Canvas={Canvas}
@@ -575,19 +732,21 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
           town={town?.towns[0]!.name ?? null}
           onWhole={() => drill(null)}
         />
-        <div className="finder">
-          <SearchBox
-            index={finder?.search ?? null}
-            // Matches come only from `finder`'s index, so `finder` is there whenever one is picked.
-            onPick={(entry) => goTo(entry, finder!)}
-            onRepository={(name) => void openRepository(name)}
-            suggester={suggester}
-            allowance={allowance}
-          />
-          <LocalButton local={local} />
-        </div>
+        {!walking && (
+          <div className="finder">
+            <SearchBox
+              index={finder?.search ?? null}
+              // Matches come only from `finder`'s index, so `finder` is there whenever one is picked.
+              onPick={(entry) => goTo(entry, finder!)}
+              onRepository={(name) => void openRepository(name)}
+              suggester={suggester}
+              allowance={allowance}
+            />
+            <LocalButton local={local} />
+          </div>
+        )}
         {loading.shown && loading.progress && (
-          <LoadingCard progress={loading.progress} now={loading.now} onCancel={loading.cancel} />
+          <LoadingCard progress={loading.progress} cancellable={loading.cancellable} onCancel={loading.cancel} />
         )}
         <ViewControls
           mode={mode}
@@ -607,23 +766,39 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
           separable={city?.separable ?? []}
           declared={city?.declared === true}
           onSeparate={separation}
+          {...(explore
+            ? {
+                walk: {
+                  walking: walking !== null,
+                  onWalk:
+                    shown && scene && drawnTable
+                      ? () =>
+                          walking
+                            ? leaveWalk(null)
+                            : void startWalk(explore.goDown, { city: shown, scene, table: drawnTable.table })
+                      : null,
+                },
+              }
+            : {})}
         />
         {local.input}
-        <Drawer
-          city={shown}
-          settled={statusLine === ""}
-          selected={picked}
-          focused={focus !== null}
-          open={drawer}
-          onOpen={(next) => {
-            log.info("viewer/drawer", { open: next ? "open" : "closed" });
-            setDrawer(next);
-          }}
-          onDrill={drill}
-          github={source}
-          onFailure={setError}
-        />
-        {scene && (
+        {!walking && (
+          <Drawer
+            city={shown}
+            settled={statusLine === ""}
+            selected={picked}
+            focused={focus !== null}
+            open={drawer}
+            onOpen={(next) => {
+              log.info("viewer/drawer", { open: next ? "open" : "closed" });
+              setDrawer(next);
+            }}
+            onDrill={drill}
+            github={source}
+            onFailure={setError}
+          />
+        )}
+        {scene && !walking && (
           <ZoomControls
             onKey={(key) => {
               if (key === "0") {
@@ -635,14 +810,16 @@ export function Viewer({ Canvas, fetcher = browserFetch, lay = layInWorker, base
             }}
           />
         )}
-        <Legend
-          theme={colours}
-          mode={mode}
-          colourBy={colourBy}
-          onColourBy={changeColour}
-          city={buildings}
-          uses={uses}
-        />
+        {!walking && (
+          <Legend
+            theme={colours}
+            mode={mode}
+            colourBy={colourBy}
+            onColourBy={changeColour}
+            city={buildings}
+            uses={uses}
+          />
+        )}
         {error && <Notice message={error} onDismiss={() => setError("")} />}
       </MeasureRows>
     </main>

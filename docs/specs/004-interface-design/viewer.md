@@ -30,8 +30,10 @@ stays clear for the city.
 - **Top centre, the search box**: finds folders and files of the city shown, and lays a GitHub repository when the text
   is `owner/name` or a GitHub URL. `/` puts the cursor in it from anywhere. Right beside it, the button that opens a
   local repository, where the browser can (see [local repositories](../007-local-repositories/local-repositories.md)).
-- **Top right, four controls**: the view switch (Plan, Buildings), the theme menu, the settings cog (the layout
-  toggles), and More (the bundled cities, opening a city file, opening the last local repository again).
+- **Top right, five controls**: the view switch (Plan, Buildings), Walk (going down into the city, see
+  [exploration](../009-exploration/exploration.md); on a phone at the bottom in the middle), the theme menu, the
+  settings cog (the layout toggles), and More (the bundled cities, opening a city file, opening the last local
+  repository again).
 - **Right, the drawer**: what is selected, then the towns (seven, then "Show all"), each with "Show only this town". It
   can be closed to give the map the whole page. On a phone it becomes a sheet at the bottom, closed at first.
 - **Bottom right, zoom**: in, out, and fit.
@@ -145,6 +147,8 @@ Under the toggles, the same popover holds a second group, "Separate towns": a sw
 - "Cancel" (and Escape, anywhere but in the search box or an open menu) stops the work: requests are aborted, the layout
   worker ends, and the last city stays as it was. Opening something else while one load runs replaces it. The last city
   stays visible, dimmed, under the card while the next one loads; search, the menus and the drawer stay usable.
+- Once the load is done the card holds a moment with its bar full and Cancel gone from view (keeping its place); nothing
+  is left to cancel, so Escape is the map's again.
 - A failure removes the card and says why in the notice, as elsewhere.
 - The card floats: it moves nothing (CLS 0), and its progress is a `progressbar` with its value and phase as text; only
   phase changes are announced, not every step.
@@ -193,7 +197,8 @@ Every control meets measurable rules:
   says. Switching keeps the centre and the zoom; the map's names stay readable in both.
 - In the Buildings view the city stays responsive on a phone with linux's 75,000 buildings: windows are drawn on the
   facades, not built one by one.
-- Pan by dragging or the arrow keys; zoom by the wheel, a pinch, or `+` and `-`; `0` fits the city to the window.
+- Pan by dragging or the arrow keys; zoom by the wheel or a pinch about the point under the pointer, or `+` and `-`; `0`
+  fits the city to the window. The Buildings view turns and tilts (see the exploration spec's Cameras).
 - Town names and the largest district names float over the map as text, never as images, and never overlap. A town whose
   name is a path (`packages/react-reconciler`) is labelled by its last folder (`REACT-RECONCILER`); the drawer and the
   breadcrumb keep the whole path, as two towns may share a last folder. A name shown once is not repeated nearby,

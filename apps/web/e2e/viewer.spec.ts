@@ -163,10 +163,19 @@ const CARDS = [
   ".legend-button",
   ".drawer",
   ".details-button",
+  ".walk",
 ];
 
-/** Every pair of visible cards whose boxes meet. */
+/** Every pair of visible cards whose boxes meet; a card inside another (Walk among the controls) is part of it. */
 async function overlapping(page: Page): Promise<string[]> {
+  const nested = await page.evaluate((selectors) => {
+    const pairs: string[] = [];
+    for (const outer of selectors)
+      for (const inner of selectors)
+        if (outer !== inner && document.querySelector(outer)?.contains(document.querySelector(inner)))
+          pairs.push(`${outer} ${inner}`);
+    return pairs;
+  }, CARDS);
   const measured = await Promise.all(
     CARDS.map(async (selector) => {
       const card = page.locator(selector);
@@ -184,6 +193,7 @@ async function overlapping(page: Page): Promise<string[]> {
           a.box.y < b.box.y + b.box.height &&
           b.box.y < a.box.y + a.box.height,
       )
+      .filter((b) => !nested.includes(`${a.selector} ${b.selector}`) && !nested.includes(`${b.selector} ${a.selector}`))
       .map((b) => `${a.selector} × ${b.selector}`),
   );
 }

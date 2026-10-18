@@ -39,4 +39,4 @@ Spec: [local repositories](../docs/specs/007-local-repositories/local-repositori
 
 - [x] README: opening a local repository, with pictures
 - [x] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
-- [ ] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`
+- [x] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`

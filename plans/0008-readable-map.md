@@ -49,4 +49,4 @@ Plan view only, hover cards that say what things are and never cut their text, a
 ## Phase 7: ship
 
 - [x] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
-- [ ] PR with before and after pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`
+- [x] PR with before and after pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`

@@ -20,6 +20,8 @@ The first deliverable is the **ground plan**: the city without buildings, as def
 - **Local repositories**: a repository's folder on the person's machine, laid in the viewer as its single state, with
   nothing installed and nothing sent ([local repositories](../007-local-repositories/local-repositories.md)).
 - **Rust CLI**: a second implementation of the command line, byte for byte the same output, many times faster.
+- **Exploration**: going down into the city on foot and by bicycle, motorbike, car and helicopter, with building names
+  and a crosshair that reads buildings and windows ([exploration](../009-exploration/exploration.md)).
 - **Morphometrics**: the generator measures its own output (orientation entropy, node degree, dead-end share, block
   shape factor, built share) and asserts them per archetype.
 
@@ -33,8 +35,8 @@ These shape today's design but are not part of the first deliverable.
 - History playback: animating the city through its history and exporting it as a video.
 - Private repositories, connected by their owner.
 - A local, offline build for any folder on disk, and a fold service, on the Rust CLI.
-- Statistics overlays, a 3D walk camera, a Monopoly-like game played in a chosen town (apps, packages, tools), and
-  strangler-pattern detection (old versus new areas).
+- Statistics overlays, a Monopoly-like game played in a chosen town (apps, packages, tools), and strangler-pattern
+  detection (old versus new areas).
 - Dependency overlays: bridges between workspace islands, tram lines within packages.
 
 ## Non-goals

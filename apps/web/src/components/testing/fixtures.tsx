@@ -156,7 +156,13 @@ export const currentView = (): View => {
 
 export function StubCanvas({ view, theme, mode, table }: CanvasProps) {
   return (
-    <p data-testid="canvas" data-mode={mode} data-colours={Array.from(table.filter((_, i) => i % 4 === 2)).join(",")}>
+    <p
+      data-testid="canvas"
+      data-mode={mode}
+      data-yaw={view.yaw}
+      data-tilt={view.tilt}
+      data-colours={Array.from(table.filter((_, i) => i % 4 === 2)).join(",")}
+    >
       {view.zoom} {view.centre.x},{view.centre.z} {theme.label}
     </p>
   );

@@ -53,4 +53,4 @@ A progress card over the map while anything loads, and repository suggestions af
 ## Phase 6: ship
 
 - [x] Fold-back: spec and blueprint match what shipped; every symbol and reference verified
-- [ ] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`
+- [x] PR with pictures, CI green, squash-merge, Pages verified, `~/PR_RESULTS.md`

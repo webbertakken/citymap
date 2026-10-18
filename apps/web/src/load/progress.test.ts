@@ -8,12 +8,13 @@ import {
   estimateWords,
   finish,
   phaseWords,
+  titleWords,
   spentWords,
   startProgress,
   type Source,
 } from "./progress";
 
-const SOURCES: readonly Source[] = ["github", "bundled", "file", "local"];
+const SOURCES: readonly Source[] = ["github", "bundled", "file", "local", "explore"];
 /** A load begun at 0 that has come this far. */
 const at = (fraction: number) => ({ ...startProgress("github", "a/b", 0), fraction });
 
@@ -60,6 +61,13 @@ describe("advance", () => {
   });
 });
 
+describe("titleWords", () => {
+  it("opens what a load opens, and goes down into the city to explore it", () => {
+    expect(titleWords(startProgress("github", "a/b", 0))).toBe("Opening a/b");
+    expect(titleWords(startProgress("explore", "takken.io", 0))).toBe("Going down into takken.io");
+  });
+});
+
 describe("phaseWords", () => {
   it("names each phase in words a person knows", () => {
     const github = startProgress("github", "a/b", 0);
@@ -79,6 +87,9 @@ describe("phaseWords", () => {
     const local = startProgress("local", "widgets", 0);
     expect(phaseWords(local)).toBe("Reading the git index");
     expect(phaseWords(advance(local, { phase: "folder", done: 0 }))).toBe("Reading the folder");
+    const explore = startProgress("explore", "On foot", 0);
+    expect(phaseWords(explore)).toBe("Loading the physics engine");
+    expect(phaseWords(advance(explore, { phase: "walls" }))).toBe("Raising the city’s walls");
   });
 });
 
@@ -108,6 +119,9 @@ describe("countWords", () => {
     expect(countWords(advance(local, { phase: "folder", done: 1 }))).toBe("1 file found");
     expect(countWords(advance(local, { phase: "contents", done: 120, of: 4_096 }))).toBe("120 of 4,096 files");
     expect(countWords(advance(local, { phase: "contents" }))).toBeNull();
+    const explore = startProgress("explore", "On foot", 0);
+    expect(countWords(advance(explore, { phase: "walls", done: 1_500, of: 75_663 }))).toBe("1,500 of 75,663 buildings");
+    expect(countWords(advance(explore, { phase: "walls" }))).toBeNull();
     // A folder with git skips the walk: the bar jumps past it.
     expect(advance(local, { phase: "manifests" }).fraction).toBeCloseTo(0.25, 9);
   });

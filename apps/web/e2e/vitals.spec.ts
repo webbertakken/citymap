@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { cannotTimeAPhone, slowToPhone } from "./phone";
 
 // Core Web Vitals as the viewer spec sets them: the largest paint is text painted before the scene loads, nothing
 // shifts, and every interaction answers within 200 ms on a phone (here with its processor slowed fourfold).
@@ -39,7 +40,11 @@ async function record(page: Page) {
       for (const e of list.getEntries()) {
         if (!Reflect.get(e, "interactionId")) continue;
         const target: unknown = Reflect.get(e, "target");
-        const label = target instanceof Element ? (target.getAttribute("aria-label") ?? target.textContent ?? "") : "";
+        // An element by its label or text, else by its tag, so every slow answer names what it answered.
+        const label =
+          target instanceof Element
+            ? target.getAttribute("aria-label") || target.textContent || `<${target.tagName.toLowerCase()}>`
+            : "";
         seen.events.push({ name: e.name, target: label.slice(0, 40), duration: e.duration });
       }
     }).observe(events);
@@ -71,11 +76,13 @@ test("answers every interaction within 200 ms on a slowed phone", async ({ page,
   test.skip(!isMobile, "the phone budget");
   await record(page);
   await page.goto("/");
+  const why = await cannotTimeAPhone(page);
+  test.skip(why !== null, why ?? "");
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("button", { name: /^livediagram/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("livediagram");
   const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: await slowToPhone(page) });
   const map = page.getByRole("application");
   const box = (await map.boundingBox())!;
   await map.tap({ position: { x: box.width / 2, y: box.height / 2 } });
@@ -133,7 +140,7 @@ test("shifts nothing as the loading card comes, and answers its Cancel within 20
   expect((await vitals(page)).shift).toBe(0);
   if (isMobile) {
     const cdp = await page.context().newCDPSession(page);
-    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: await slowToPhone(page) });
   }
   await card.getByRole("button", { name: "Cancel" }).click();
   await expect(card).toHaveCount(0);

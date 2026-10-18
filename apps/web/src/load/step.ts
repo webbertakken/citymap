@@ -12,7 +12,11 @@ export type Phase =
   | "lay"
   | "download"
   | "parse"
-  | "draw";
+  | "draw"
+  | "engine"
+  | "models"
+  | "walls"
+  | "streets";
 
 /**
  * One report: the phase, `done` of `of` in the phase's unit where known, and the API requests so far. `count` is what the

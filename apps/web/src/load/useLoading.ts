@@ -8,7 +8,7 @@ import type { Step } from "./step";
 export const SHOW_AFTER_MS = 300;
 /** Once shown, the card stays at least this long, so it never flickers. */
 export const HOLD_MS = 400;
-/** The card's clock, for the time spent and the time left. */
+/** The card's clock ticks this often, for the time spent and the time left (the card keeps it). */
 export const TICK_MS = 250;
 
 /** A load in flight: its signal, and how it reports, ends or fails. */
@@ -26,8 +26,8 @@ export interface Loading {
   readonly progress: Progress | null;
   /** True while the card shows. */
   readonly shown: boolean;
-  /** The card's clock: `performance.now()` at its last tick. */
-  readonly now: number;
+  /** True while the load the card shows is still running; a finished load holds its card but cannot be cancelled. */
+  readonly cancellable: boolean;
   /** Begins a load, aborting any load in flight. */
   readonly begin: (source: Source, name: string) => Job;
   /** Stops the load in flight: its requests abort, and nothing it was opening arrives. */
@@ -39,6 +39,7 @@ interface Current {
   progress: Progress;
   shownAt: number | null;
   timer: ReturnType<typeof setTimeout> | undefined;
+  finished: boolean;
 }
 
 const fields = (progress: Progress, now: number) => ({
@@ -51,7 +52,7 @@ const fields = (progress: Progress, now: number) => ({
 export function useLoading(): Loading {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [shown, setShown] = useState(false);
-  const [now, setNow] = useState(0);
+  const [running, setRunning] = useState(false);
   const current = useRef<Current | null>(null);
 
   // Ends the load the card shows, if it is still the current one.
@@ -61,13 +62,15 @@ export function useLoading(): Loading {
     current.current = null;
     setProgress(null);
     setShown(false);
+    setRunning(false);
   }, []);
 
   // Ends the load in flight: by the person, or replaced by the next one.
   const end = useCallback(
     (why: "cancel" | "replaced") => {
       const load = current.current;
-      if (!load) return;
+      // A finished load is only holding its card: there is nothing left to cancel.
+      if (!load || load.finished) return;
       log.info("viewer/load-cancelled", { ...fields(load.progress, performance.now()), why });
       load.controller.abort();
       clear(load);
@@ -85,14 +88,14 @@ export function useLoading(): Loading {
         progress: startProgress(source, name, started),
         shownAt: null,
         timer: undefined,
+        finished: false,
       };
       current.current = load;
       setProgress(load.progress);
-      setNow(started);
+      setRunning(true);
       log.info("viewer/load-phase", fields(load.progress, started));
       load.timer = setTimeout(() => {
         load.shownAt = performance.now();
-        setNow(load.shownAt);
         setShown(true);
       }, SHOW_AFTER_MS);
       return {
@@ -109,6 +112,8 @@ export function useLoading(): Loading {
           const ended = performance.now();
           log.info("viewer/load-done", { source, name, ms: Math.round(ended - started) });
           load.progress = finish(load.progress);
+          load.finished = true;
+          setRunning(false);
           setProgress(load.progress);
           clearTimeout(load.timer);
           const left = load.shownAt === null ? 0 : load.shownAt + HOLD_MS - ended;
@@ -121,12 +126,6 @@ export function useLoading(): Loading {
     [clear, end],
   );
 
-  // The clock ticks only while the card shows.
-  useEffect(() => {
-    const tick = shown ? setInterval(() => setNow(performance.now()), TICK_MS) : undefined;
-    return () => clearInterval(tick);
-  }, [shown]);
-
   // Leaving the page ends whatever was loading.
   useEffect(
     () => () => {
@@ -137,7 +136,7 @@ export function useLoading(): Loading {
     [],
   );
 
-  return { progress, shown, now, begin, cancel };
+  return { progress, shown, cancellable: shown && running, begin, cancel };
 }
 
 /** The status line's words for a load: "{name}: {phase}". */

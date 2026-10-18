@@ -130,6 +130,11 @@ button {
   font-size: 11px;
   font-weight: 600;
 }
+/* A building's name over its roof, close up in the Buildings view. */
+.label.roof {
+  font-size: 11px;
+  font-weight: 600;
+}
 /* Under the names, so it rings a place without hiding what it is called. */
 .marker {
   position: absolute;
@@ -977,8 +982,8 @@ mark {
 .loading .cancel:hover {
   background: var(--hover);
 }
-/* The last city stays under the card, dimmed, and stays live. */
-.viewer[data-loading="true"] .map {
+/* The last city stays under the card, dimmed, and stays live; a walk that has begun is never dimmed. */
+.viewer[data-loading="true"] .map:not(.explore) {
   opacity: 0.45;
   transition: opacity var(--motion);
 }
@@ -1215,6 +1220,17 @@ mark {
   .viewer:has(.drawer[data-open="true"]) .legend {
     display: none;
   }
+  /* On a phone, Walk waits at the bottom in the middle, under the thumb; not over the open sheet, nor while walking. */
+  .walk {
+    position: fixed;
+    bottom: var(--gap);
+    left: 50%;
+    translate: -50% 0;
+  }
+  .viewer:has(.drawer[data-open="true"]) .walk,
+  .viewer[data-walking="true"] .walk {
+    display: none;
+  }
   /* On a phone the Buildings button alone switches between the views. */
   .segmented button:first-of-type {
     display: none;
@@ -1226,6 +1242,341 @@ mark {
     box-shadow: none;
   }
 }
+
+/* Walking: the Walk button pressed in the accent, like the view switch. */
+.icon-button[aria-pressed="true"] {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.icon-button[aria-pressed="true"]:hover {
+  background: var(--accent);
+}
+/* On foot: the canvas takes drags to look round; a card at the bottom says how to walk and leads back to the map. */
+.explore {
+  touch-action: none;
+  cursor: grab;
+}
+.explore:active {
+  cursor: grabbing;
+}
+.explore-card {
+  position: absolute;
+  bottom: var(--gap);
+  left: 50%;
+  z-index: 20;
+  display: grid;
+  gap: 4px;
+  width: min(420px, calc(100% - 2 * var(--gap)));
+  padding: 12px 16px;
+  translate: -50% 0;
+  cursor: auto;
+}
+.explore-card h2 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  font-size: 15px;
+}
+.explore-card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.explore-card .text-button {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-self: start;
+}
+/* What E does now: getting on or off a vehicle, at the top in the middle, where the search is while on the map. */
+.explore-use {
+  position: absolute;
+  top: var(--gap);
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: var(--control);
+  padding: 0 16px;
+  font-weight: 600;
+  color: var(--ink);
+  translate: -50% 0;
+  border-radius: var(--radius-control);
+}
+.explore-use:disabled {
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.explore-use kbd {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid var(--glass-line);
+  border-radius: 6px;
+}
+/* The crosshair, where the camera looks: a small cross in white, outlined in near-black for 3:1 on any ground. */
+.explore-crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 15;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+  translate: -50% -50%;
+}
+.explore-crosshair::before,
+.explore-crosshair::after {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  content: "";
+  background: #ffffff;
+  outline: 1px solid rgb(10 12 16 / 0.85);
+}
+.explore-crosshair::before {
+  width: 2px;
+  height: 18px;
+}
+.explore-crosshair::after {
+  width: 18px;
+  height: 2px;
+}
+/* What the crosshair is on: a panel at the right, under the controls, clear of the walker and the walk's card. */
+.explore-sight {
+  position: absolute;
+  top: calc(var(--gap) + var(--control) + 16px);
+  right: var(--gap);
+  z-index: 15;
+  width: min(320px, calc(100% - 2 * var(--gap)));
+  max-height: calc(100% - 2 * var(--gap) - var(--control) - 16px - 160px);
+  padding: 12px 16px;
+  overflow: auto;
+  /* A finger scrolls it up and down, and the scroll stays inside it. */
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+.explore-sight .hit-rows {
+  margin: 8px 0 0;
+}
+/* The bicycle's numbers: speed, gear and cadence, in a row in the walk's card. */
+.explore-hud dl {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+}
+.explore-hud dt {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.explore-hud dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* The card's one sentence when cars fall back to their arcade handling. */
+.explore-note {
+  color: var(--ink);
+}
+/*
+ * Touch only: the stick under the left thumb, the ride's buttons under the right, the prompt and the panel in sight
+ * above them, all in one flow along the bottom (the dock), so nothing overlaps whatever the ride. Elsewhere the dock
+ * and its rows are not boxes at all, and the prompt and the panel keep their own places.
+ */
+.explore-dock,
+.explore-controls,
+.explore-pad {
+  display: contents;
+}
+.explore-stick,
+.explore-pad button {
+  display: none;
+}
+@media (pointer: coarse) {
+  .explore-keys,
+  .explore-use kbd {
+    display: none;
+  }
+  .explore-card {
+    bottom: auto;
+    top: calc(var(--gap) + 82px + 8px);
+  }
+  .explore-dock {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    padding: 0 calc(var(--gap) + 12px) calc(var(--gap) + 12px);
+    /* The dock's empty space is the walk's: a drag there still looks round. */
+    pointer-events: none;
+  }
+  .explore-dock > *,
+  .explore-controls > *,
+  .explore-pad > * {
+    pointer-events: auto;
+  }
+  .explore-sight {
+    position: static;
+    width: min(320px, 100%);
+    max-height: 28vh;
+    translate: none;
+  }
+  /* Upright: the prompt on its own line above the stick and the buttons. */
+  .explore-controls {
+    display: grid;
+    grid-template-areas:
+      "prompt prompt prompt"
+      "stick . pad";
+    grid-template-columns: auto 1fr auto;
+    row-gap: 12px;
+    align-items: end;
+    width: 100%;
+    pointer-events: none;
+  }
+  .explore-use {
+    position: static;
+    grid-area: prompt;
+    justify-self: center;
+    max-width: 100%;
+    white-space: nowrap;
+    translate: none;
+  }
+  .explore-stick {
+    grid-area: stick;
+    display: block;
+    width: 144px;
+    height: 144px;
+    background: color-mix(in srgb, var(--glass) 60%, transparent);
+    border: 2px solid var(--glass-line);
+    border-radius: 50%;
+    touch-action: none;
+  }
+  /* The ride's buttons, by what each is for: the main one at the bottom right, Fly above it, the rest beside. */
+  .explore-pad {
+    grid-area: pad;
+    display: grid;
+    grid-template-areas:
+      "fly"
+      "primary";
+    gap: 10px;
+    place-items: center;
+    pointer-events: none;
+  }
+  .explore-dock[data-pad="bicycle"] .explore-pad {
+    grid-template-areas:
+      "ring fly"
+      "up primary"
+      "down primary";
+  }
+  .explore-dock[data-pad="flying"] .explore-pad {
+    grid-template-areas:
+      ". fly"
+      "sink primary";
+  }
+  .explore-pad button {
+    display: grid;
+    place-items: center;
+    font-weight: 600;
+    touch-action: none;
+  }
+  .explore-jump,
+  .explore-sink {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+  }
+  .explore-jump {
+    grid-area: primary;
+  }
+  .explore-dock[data-pad="car"] .explore-jump {
+    font-size: 12px;
+  }
+  .explore-sink {
+    grid-area: sink;
+  }
+  .explore-fly {
+    grid-area: fly;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+  }
+  .explore-fly[aria-pressed="true"] {
+    color: var(--accent-ink);
+    background: var(--accent);
+  }
+  .explore-ring,
+  .explore-gear-up,
+  .explore-gear-down {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0 12px;
+    border-radius: var(--radius-control);
+  }
+  .explore-ring {
+    grid-area: ring;
+  }
+  .explore-gear-up {
+    grid-area: up;
+  }
+  .explore-gear-down {
+    grid-area: down;
+  }
+}
+/* On a touch screen on its side: the card at the left under the title, its prompt between the stick and the buttons,
+   the panel in sight at the right above them. */
+@media (pointer: coarse) and (orientation: landscape) {
+  /* Under the title card (94 px tall on its side), its way back on the title's row, so it ends above the stick. */
+  .explore-card {
+    top: calc(var(--gap) + 94px + 8px);
+    left: var(--gap);
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    width: min(360px, calc(50% - var(--gap)));
+    translate: none;
+  }
+  .explore-card > * {
+    grid-column: 1 / -1;
+  }
+  .explore-card h2 {
+    grid-column: 1;
+  }
+  .explore-card .text-button {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .explore-engine {
+    display: none;
+  }
+  .explore-controls {
+    grid-template-areas: "stick prompt pad";
+  }
+  .explore-use {
+    align-self: end;
+  }
+  .explore-sight {
+    position: absolute;
+    top: calc(var(--gap) + var(--control) + 16px);
+    right: var(--gap);
+    width: min(300px, calc(50% - 2 * var(--gap)));
+    max-height: calc(100% - var(--gap) - var(--control) - 16px - 220px);
+  }
+}
+/* A finished load holds its card for a moment; its Cancel has nothing left to stop, so it keeps its place unseen. */
+.cancel[data-held="true"] {
+  visibility: hidden;
+}
+
 /* A narrow window on a fine pointer may open a local repository: the search leaves the button its room. */
 @media (max-width: 760px) and (pointer: fine) {
   .finder {
