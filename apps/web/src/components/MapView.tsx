@@ -4,6 +4,7 @@ import type { Theme } from "@citymap/themes";
 import { useEffectEvent, useLayoutEffect, useRef, useState, type ComponentType } from "react";
 import { gesture } from "../view/gesture";
 import { hitAt, type Heights } from "../view/hover";
+import type { RoofsNear } from "../view/roofs";
 import {
   NO_INSETS,
   declutter,
@@ -16,7 +17,6 @@ import {
   zoomAt,
   type Insets,
   type Mode,
-  type Roof,
   type View,
   type Viewport,
 } from "../view/view";
@@ -48,8 +48,8 @@ export interface MapViewProps {
   /** The lot table the buildings are drawn from, and how tall each stands, for picking at their tops. */
   readonly table: Float32Array;
   readonly heights?: Heights | null;
-  /** Each building's name over its roof, for the Buildings view close up. */
-  readonly roofs?: readonly Roof[];
+  /** The buildings' names over their roofs near a point, for the Buildings view close up. */
+  readonly roofs: RoofsNear;
   /** One town is shown alone; the hover card's hint then offers no town. */
   readonly focused?: boolean;
   /** The city came from GitHub; the hover card's hint offers opening a file or folder there. */
@@ -65,9 +65,6 @@ const sizeOf = (element: HTMLElement): Viewport => ({
   width: element.clientWidth || 800,
   height: element.clientHeight || 600,
 });
-
-/** No roofs to name: a city without buildings. */
-const NO_ROOFS: readonly Roof[] = [];
 
 /** A press that moves less than this many pixels is a click or a tap. */
 const CLICK_SLOP = 4;
@@ -86,7 +83,7 @@ export function MapView({
   mode = "plan",
   table,
   heights = null,
-  roofs = NO_ROOFS,
+  roofs,
   focused = false,
   github = false,
   Canvas,

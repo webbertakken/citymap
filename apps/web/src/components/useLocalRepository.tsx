@@ -2,6 +2,7 @@
 // Opening a repository on the person's machine: the folder dialog (Chromium) or the folder input (Firefox), the read,
 // the lay, and the remembered folder. The city, its status and the notice stay the viewer's.
 import type { Snapshot, Toggle } from "@citymap/ground-plan";
+import type { ColourBy } from "@citymap/scene";
 import type { ThemeName } from "@citymap/themes";
 import {
   useEffect,
@@ -36,8 +37,10 @@ export const LOCAL_STATUS = "local, single state, not folded";
 export interface LocalOptions {
   readonly ports?: LocalPorts;
   readonly lay: Lay;
-  /** The map theme the worker builds the scene in. */
+  /** The map theme the worker makes the first look in. */
   readonly theme: ThemeName;
+  /** The colour the first look is asked in. */
+  readonly colourBy: ColourBy;
   /** The layout toggles a folder is laid with. */
   readonly toggles: readonly Toggle[];
   /** Begins a load on the loading card, ending any other. */
@@ -71,6 +74,7 @@ export function useLocalRepository({
   ports = browserPorts,
   lay,
   theme,
+  colourBy,
   toggles,
   begin,
   status,
@@ -121,7 +125,14 @@ export function useLocalRepository({
       const facts = await localFacts(folder, read, (phase) => job.step(localStep(phase)));
       job.signal.throwIfAborted();
       job.step({ phase: "lay", files });
-      const laid = await lay(read.snapshot, { signal: job.signal, onProgress: job.step, theme, toggles, facts });
+      const laid = await lay(read.snapshot, {
+        signal: job.signal,
+        onProgress: job.step,
+        theme,
+        colourBy,
+        toggles,
+        facts,
+      });
       await present(job, laid, name, read.snapshot, facts);
       // Nothing about a local repository goes in the address; a GitHub repository named there before goes.
       window.history.replaceState(null, "", window.location.pathname);

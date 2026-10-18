@@ -1,8 +1,12 @@
 // The shown city's buildings as the viewer draws them: each lot's measures together, the city's scales, the lot table
-// the shader reads, how tall each building stands for picking, and what the colour can mean.
+// the shader reads, each building's floors for picking, and what the colour can mean. The city's worker makes the
+// buildings, the tables and the floors; the main thread keeps the measures and the scales, and aggregates a lot only
+// when a card asks for it.
 import {
+  aggregate,
   buildingsOf,
   cityScales,
+  floorsOf,
   unavailableReason,
   type Building,
   type Measure,
@@ -12,26 +16,30 @@ import {
 } from "@citymap/measures";
 import {
   COLOUR_BY,
-  FLOOR_HEIGHT,
-  LOTS_BASE,
+  DATA_COLUMNS,
+  LOT_FLOATS,
   lookOf,
   lotTable,
   type ColourBy,
   type LotRef,
-  type Scene,
+  type Span,
 } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
 import { bytesText } from "../card/measures";
-import type { Heights } from "./hover";
 
-export interface CityBuildings {
+/** What the legend reads of a city's buildings: its measures and its scales. */
+export interface CityScales {
   readonly measures: Measures | null;
-  /** Town key, then lot key. */
-  readonly buildings: ReadonlyMap<string, ReadonlyMap<string, Building>>;
   readonly scales: Scales;
 }
 
-const NO_SCALES: Scales = { size: null, churn: null, authors: null, recency: null };
+/** Every building of a city, with its scales: what the city's worker keeps. */
+export interface CityBuildings extends CityScales {
+  /** Town key, then lot key. */
+  readonly buildings: ReadonlyMap<string, ReadonlyMap<string, Building>>;
+}
+
+export const NO_SCALES: Scales = { size: null, churn: null, authors: null, recency: null };
 
 /** A city's buildings and scales from its measures; a city without measures has none. */
 export function cityBuildings(measures: Measures | null): CityBuildings {
@@ -44,26 +52,44 @@ export function cityBuildings(measures: Measures | null): CityBuildings {
   };
 }
 
-export const buildingOf = (city: CityBuildings, townKey: string, key: string): Building | undefined =>
-  city.buildings.get(townKey)?.get(key);
+/** One lot's measures, by its town's key and its own, reading own keys only; undefined when the city has none. */
+function lotMeasures(measures: Measures | null, townKey: string, key: string) {
+  const town = measures && Object.hasOwn(measures.lots, townKey) ? measures.lots[townKey]! : null;
+  return town && Object.hasOwn(town, key) ? town[key]! : undefined;
+}
 
-/** The lot table for the scene's buildings, and how tall each stands, for the colour chosen. */
-export function tableFor(
-  scene: Scene,
+/** One lot's building, aggregated when asked: what a card shows, without building the city's every building. */
+export function lotBuilding(measures: Measures | null, townKey: string, key: string): Building | undefined {
+  const lot = lotMeasures(measures, townKey, key);
+  return lot && measures ? aggregate(lot, measures) : undefined;
+}
+
+/** The paths of one lot's files, from its measures; undefined when the city has none for it. */
+export const filesOn = (measures: Measures | null, townKey: string, key: string): readonly string[] | undefined =>
+  lotMeasures(measures, townKey, key)?.files.map((f) => f.path);
+
+/** How the building of a lot looks in a colour and theme. */
+const looks = (city: CityBuildings, by: ColourBy, theme: Theme) => (ref: LotRef) =>
+  lookOf(ref, city.buildings.get(ref.town)?.get(ref.key), city.scales, by, theme);
+
+/** The lot table for a city's buildings (`lotRefs`), in a colour and a theme. */
+export const tableFor = (
+  refs: readonly LotRef[],
   city: CityBuildings,
   by: ColourBy,
   theme: Theme,
-): { readonly table: Float32Array; readonly heights: Heights } {
-  const tops = new Map<string, number>();
-  let top = 0;
-  const table = lotTable(scene.buildings.order, (ref: LotRef) => {
-    const look = lookOf(ref, buildingOf(city, ref.town, ref.key), city.scales, by, theme);
-    const height = LOTS_BASE + look.floors * FLOOR_HEIGHT;
-    tops.set(`${ref.town}\u0000${ref.key}`, height);
-    top = Math.max(top, height);
-    return look;
-  });
-  return { table, heights: { top, of: (townKey, key) => tops.get(`${townKey}\u0000${key}`) ?? null } };
+): Float32Array<ArrayBuffer> => lotTable(refs, looks(city, by, theme));
+
+/** Each building's floors, in the order of its refs: the same in every colour and theme. */
+export const cityFloors = (refs: readonly LotRef[], city: CityBuildings): Uint8Array<ArrayBuffer> =>
+  Uint8Array.from(refs, (ref) => floorsOf(city.buildings.get(ref.town)?.get(ref.key)?.size ?? null, city.scales.size));
+
+/** A town's rows of the whole city's lot table, padded to whole rows: the town's own table, copied, not built. */
+export function placeTable(table: Float32Array, { first, count }: Span): Float32Array<ArrayBuffer> {
+  const rows = Math.max(1, Math.ceil(count / DATA_COLUMNS));
+  const own = new Float32Array(rows * DATA_COLUMNS * LOT_FLOATS);
+  own.set(table.subarray(first * LOT_FLOATS, (first + count) * LOT_FLOATS));
+  return own;
 }
 
 /** Each colour-by choice the measures can give, else the reason it cannot. */
@@ -88,7 +114,7 @@ const ends = (range: Range | null, say: (n: number) => string): readonly [string
 
 /** Each ramp's ends in words, from the city's scales. */
 const RAMP_ENDS: Readonly<
-  Record<Exclude<ColourBy, "folder" | "kind">, (city: CityBuildings) => readonly [string, string] | null>
+  Record<Exclude<ColourBy, "folder" | "kind">, (city: CityScales) => readonly [string, string] | null>
 > = {
   tested: () => ["0 %", "100 %"],
   size: (city) => ends(city.scales.size, (n) => (city.measures?.size === "lines" ? count(n, "line") : bytesText(n))),
@@ -100,10 +126,10 @@ const RAMP_ENDS: Readonly<
 /** The words at a ramp's two ends, for the legend; null when the city has no values to scale. */
 export const rampEnds = (
   by: Exclude<ColourBy, "folder" | "kind">,
-  city: CityBuildings,
+  city: CityScales,
 ): readonly [string, string] | null => RAMP_ENDS[by](city);
 
 /** What height means in the city's unit: one floor at or below the 5th percentile, twelve at or above the 99th. */
-export function floorEnds(city: CityBuildings): readonly [string, string] | null {
+export function floorEnds(city: CityScales): readonly [string, string] | null {
   return rampEnds("size", city);
 }

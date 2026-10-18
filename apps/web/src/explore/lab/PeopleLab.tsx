@@ -96,7 +96,7 @@ export default function PeopleLab({
       <hemisphereLight args={["#ffffff", "#8a8a8a", 1.1 * Math.PI]} />
       <directionalLight position={[3, 6, 2]} intensity={0.6 * Math.PI} />
       {scene.layers.map((layer) => (
-        <Mesh key={layer.name} layer={layer} />
+        <Mesh key={layer.name} layer={layer} bounds={scene.bounds} />
       ))}
       <Buildings buildings={scene.buildings} table={table} mode="buildings" theme={theme} />
       {cast.map(({ model, clip, along }) => {

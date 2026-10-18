@@ -314,15 +314,15 @@ const ROOF_FONT = 11;
  * screen, nearest the middle first, each kept only if clear of every one kept before, at most `ROOF_MOST`.
  */
 export function roofLabels(
-  roofs: readonly Roof[],
+  roofs: (centre: { readonly x: number; readonly z: number }, reach: number) => readonly Roof[],
   view: View,
   viewport: Viewport,
   mode: Mode,
 ): (Roof & { readonly left: number; readonly top: number })[] {
   if (mode !== "buildings" || view.zoom < ROOF_ZOOM) return [];
-  // Only roofs within the screen's reach of the centre are looked at, so a large city costs little.
+  // Only roofs within the screen's reach of the centre are asked for, so a large city costs little.
   const reach = Math.hypot(viewport.width, viewport.height) / view.zoom;
-  const near = roofs
+  const near = roofs(view.centre, reach)
     .map((roof) => ({ roof, d: Math.hypot(roof.x - view.centre.x, roof.z - view.centre.z) }))
     .filter(({ d }) => d <= reach)
     .toSorted((a, b) => a.d - b.d);

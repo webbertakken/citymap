@@ -147,8 +147,8 @@ returns `{ support, busy, pick, again, input }`, `again` being `{ name, open }` 
    city's again. `localStep` takes each phase to the card: `index` "Reading the git index", `folder` "Reading the
    folder" ("{n} files found"), `manifests` "Reading workspace manifests", `lay` "Laying out {n} files", `draw` "Drawing
    the map"; the status line says the same ("{name}: reading the git index…"). A read cannot be stopped part way: one
-   cancelled is dropped once it ends. The snapshot is laid by the viewer's `lay` (the layout worker, with the job's
-   signal, its progress and the map's theme).
+   cancelled is dropped once it ends. The snapshot is laid by the viewer's `lay` (the city's worker, with the job's
+   signal, its progress, the map's theme and the colour asked for).
 5. **Shown**: the viewer's `present(job, laid, name)` draws it as every load ends (`draw`, titled "Local repository"):
    the title card names the folder, the tab says "Local repository · citymap"; the status gains " · local, single state,
    not folded"; the bundled city selection is cleared; the address loses its query (`history.replaceState` to the bare
@@ -196,7 +196,7 @@ While a read runs, the button and More's item are disabled, so no second opening
 | `local/long-path`       | {name} holds a path longer than 4,096 bytes.                                                                            |
 | `local/empty`           | There are no files to lay in {name}.                                                                                    |
 
-- Any other failure (the layout worker's): "{name} could not be laid: {message}."; a failure before a folder is known
+- Any other failure (the city's worker's): "{name} could not be laid: {message}."; a failure before a folder is known
   names it "the folder".
 
 ## Accessibility
@@ -217,7 +217,7 @@ While a read runs, the button and More's item are disabled, so no second opening
   its place and width, so it shifts nothing (CLS 0); its tooltip floats. The menu's items exist only while More is open
   and the menu floats; the status and the notice already float.
 - Reading and decoding run on the main thread between awaits (the index of linux decodes in tens of milliseconds);
-  laying runs in the layout worker, so input stays answered (INP).
+  laying runs in the city's worker, so input stays answered (INP).
 
 ## Data and persistence
 
