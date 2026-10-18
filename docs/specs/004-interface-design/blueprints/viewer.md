@@ -144,21 +144,25 @@ in `BufferGeometry`.
 - Laying and reading (`lay/`): every opening becomes a city in the layout worker.
   `Laid = { city, measures, scene, pick }`: the city, its measures (or null), its scene in the theme asked for
   (`scene: { theme, scene }`, or null without a theme), and its pick index.
-  - `Lay = (snapshot, { signal, onProgress, theme, toggles, facts }) => Promise<Laid>`: `layHere` lays on the calling
-    thread, `layCity(snapshot, initialState(options), options, onProgress)` with the CLI's default options and the
-    chosen toggles (`liveOptions(toggles)`, the engine's defaults when none are given), builds the measures from the
-    facts, and, given a `theme`, posts a `draw` step and builds the scene there too.
-  - `Read = (text, { signal, onProgress, theme }) => Promise<Laid>`: `readHere` posts a `parse` step, reads the text
-    with `parseCityFile` (its rejections are the file's), and, given a `theme`, posts a `draw` step and builds the
-    scene.
-  - Both build the pick index (`pickIndex`). `layInWorker` and `readInWorker` (`lay/browser.ts`; the defaults where a
-    `Worker` exists, `layHere` and `readHere` in jsdom) run them in a module Web Worker (`lay/worker.ts`), one per
-    opening, sent `{ lay: { snapshot, toggles, facts }, theme }` or `{ read: text, theme }`.
-  - The worker answers `{ step }` as it goes (see Loading), then `{ text, scene, grid }`: the scene and `pickGrid(city)`
-    with their buffers transferred (`buffersOf`, `pickBuffers`), not copied; for a lay, `text` is the laid city file
-    (`serialiseCityFile`), for a read it is null, the main thread keeping the text it sent. A failure answers
-    `{ error: { code, message, detail } }` (`code` null for an error that is not a `CitymapError`), rejected on the main
-    thread as the same `CitymapError` (or an `Error` of that message), so a bad file is named as before.
+  - `Lay = (snapshot, { signal, onProgress, theme, toggles, facts }) => Promise<Laid>`: `layMade` lays,
+    `layCity(snapshot, initialState(options), options, onProgress)` with the CLI's default options and the chosen
+    toggles (`liveOptions(toggles)`, the engine's defaults when none are given), and builds the measures from the facts.
+  - `Read = (text, { signal, onProgress, theme }) => Promise<Laid>`: `readMade` posts a `parse` step and reads the text
+    with `parseCityFile` (its rejections are the file's).
+  - Both then (`finish`), given a `theme`, post a `draw` step and build the scene, and always build the pick grid
+    (`pickGrid`): a `Made`, `{ file, scene, grid }`. `laidOf(made)` attaches the grid to the city (`pickFrom`) as a
+    `Laid`. `layHere` and `readHere` do it all on the calling thread (jsdom, tests). `layInWorker` and `readInWorker`
+    (`lay/browser.ts`; the Viewer's defaults, `layHere` and `readHere` where no `Worker` exists) run `layMade` and
+    `readMade` in a module Web Worker (`lay/worker.ts`), one per opening, sent a `Request`:
+    `{ job: "lay", snapshot, theme, toggles, facts }` or `{ job: "read", text, theme }`.
+  - The worker answers `{ step }` as it goes (see Loading), then `{ text, scene, grid }`: the scene and the grid with
+    their buffers transferred (`buffersOf`, `pickBuffers`), not copied; for a lay, `text` is the laid city file as plain
+    JSON (`wireText`: the city file's keys in the engine's order, not canonical, as `serialiseCityFile` would take ten
+    times as long), for a read it is null, the main thread keeping the text it sent. A failure answers
+    `{ error: Failure }` (`failureOf`: `{ code, message, detail }`, `code` null for an error that is not a
+    `CitymapError`), rejected on the main thread by `errorOf` as the same `CitymapError` (or an `Error` of that
+    message), so a bad file is named as before. The worker logs nothing itself; `viewer/worker job ms` is logged when it
+    answers, and every failure by the opening that asked.
   - The main thread takes the city in with `trustedCityFile(text)` (`lay/lay.ts`): `JSON.parse`, the `measures` key
     split off, without validating again, as the worker has validated it or laid it; JSON is the cheapest way for a large
     city to reach the main thread (linux in Chromium: 86 ms to parse against 245 ms to receive it by structured clone),
@@ -539,8 +543,9 @@ One description of a hit feeds the hover card and the drawer's selection, so bot
   `viewer/worker job ms` (when the layout worker answers: `lay` or `read`, ms since it was asked), `viewer/drawer open`,
   `viewer/copy-path kind`, `viewer/github-open kind`, the loading and suggestion events above (to `console.info`);
   `viewer/index-failed reason`, `viewer/open-failed name reason`, `viewer/file-rejected file reason`,
-  `viewer/suggest-failed owner reason`, `viewer/copy-failed reason` (to `console.error`). A reason is the engine's code
-  (`city/bad-json`) or the error's text. Every failure also reaches the person as `role="alert"` text.
+  `viewer/suggest-failed owner reason`, `viewer/copy-failed reason`, `viewer/search-index-failed reason` (to
+  `console.error`). A reason is the engine's code (`city/bad-json`) or the error's text. Every failure also reaches the
+  person as `role="alert"` text.
 
 ## Constants
 
@@ -584,7 +589,11 @@ the tooltip's width (`.tooltip` in the stylesheet), `LOT_HEIGHT` (in `packages/s
 - Opening anything: the worker reads or lays the city, builds its scene and its pick grid, and hands their buffers over;
   the main thread parses the city file's text once, attaches the grid, draws, and builds the search index in slices. The
   card's sweep runs on the compositor meanwhile. The loading card shifts nothing and its Cancel answers within the
-  budget (`vitals.spec.ts`).
+  budget (`vitals.spec.ts`). On the slowed phone (medians of three runs, against the main thread building both indexes,
+  the scene and the city's validation itself): livediagram's longest task 79 ms (was 209 ms), its Quarters layout 57 ms
+  (was 148 ms), linux from a city file 836 ms (was 1,955 ms), linux from GitHub 484 ms (was 1,210 ms). What remains for
+  linux is parsing its 43 MB city file on the main thread (about 290 ms there) and the buildings' lot table built from
+  its measures (`cityBuildings`, `tableFor`: about 450 ms over the opening), neither of them an index.
 - `e2e/vitals-opening.spec.ts` (the vitals projects; phone only, and only where a phone can be timed) records `longtask`
   entries before the page's scripts run and reports, per opening, the longest main-thread task and the blocking time
   (the time beyond 50 ms of every task) on the slowed phone: livediagram from More, then its Quarters layout, asserted

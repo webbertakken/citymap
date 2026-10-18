@@ -34,15 +34,15 @@ live, Loading, Web experience).
 - [x] The worker reads a city file's text as well as laying a snapshot: validates, builds the scene and the pick grid,
       and answers with the city file's text (laid) and the grid's buffers, transferred; errors keep their code
 - [x] The main thread parses the city file it is handed without validating it again, and attaches the pick grid
-- [ ] Bundled cities, variants and city files open through it; the loading phases stay as they are
+- [x] Bundled cities, variants and city files open through it; the loading phases stay as they are
 - [x] The search index is built in slices that yield to input once the city shows; search waits for it
 - [x] Logs for every new decision point and failure
 
 ## Phase 5: proof
 
-- [ ] Unit tests at 100 %; `bun run check`; parity untouched
-- [ ] End-to-end: the journeys on desktop and phone; the opening spec after, against main; the phone budget run 20 times
+- [x] Unit tests at 100 %; `bun run check`; parity untouched
+- [x] End-to-end: the journeys on desktop and phone; the opening spec after, against main; the phone budget run 20 times
       against main's failure rate; linux's buildings budget
-- [ ] Screenshots before and after (dark and light): nothing visible changes
-- [ ] Fold-back: spec and blueprint reconciled to what shipped; every symbol, file and reference checked
+- [x] Screenshots before and after (dark and light): nothing visible changes
+- [x] Fold-back: spec and blueprint reconciled to what shipped; every symbol, file and reference checked
 - [ ] PR with the measurements (not merged)
