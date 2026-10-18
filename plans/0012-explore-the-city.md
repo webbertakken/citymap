@@ -1,0 +1,127 @@
+# Plan 0012: explore the city
+
+Go down into the city and move through it: on foot in third person, by bicycle, motorbike, car and helicopter, or with
+an RTS or free camera beside today's plan. Buildings carry their names, and a crosshair reads any building or window.
+Built in rounds: each phase ends on a local build that Webber tests (desktop and phone) and gives feedback on; feedback
+is folded into the spec before the next phase starts. Everything runs in the browser on the static site, phones
+included.
+
+Spec (to write in phase 1): `docs/specs/009-exploration/exploration.md`, with its blueprints in
+`docs/specs/009-exploration/blueprints/`. Touches [viewer](../docs/specs/004-interface-design/viewer.md) (Layout, Map,
+Design rules, Accessibility), [buildings](../docs/specs/008-buildings/buildings.md) (channels: names, windows) and
+[scope](../docs/specs/002-project-scope/scope.md) (the walk camera moves from Later into scope).
+
+## Components
+
+The design each phase builds on; the spec and blueprint record it, this list only names the parts.
+
+- **World** (`packages/world`, new, pure, framework free): the city as solid ground for movers. Flat ground, each
+  building a convex prism (its lot polygon, its height from the lot table), roads and land use per cell, in a uniform
+  spatial grid. Queries: collide a circle or capsule, the ground under a point, a ray to the first building with the
+  face, floor and window column it meets. Units in metres (1 street width = 10 m, so a floor is 2.5 m).
+- **Movers** (`packages/world/movers`): on foot, bicycle, motorbike, car, helicopter. Each is a pure step function
+  `step(state, intents, dt, world) → state` at a fixed 120 Hz, deterministic, rendered with interpolation. The bicycle
+  and motorbike share one single-track core (lean, steering geometry, trail, self-stability, weight transfer); the car
+  is a single-track model with tyre slip; the helicopter has collective, cyclic and tail rotor, and lands on roofs.
+- **Intents** (`apps/web/src/explore/input`): devices become intents (move, look, throttle, brake, steer, lean, jump,
+  shift gear, ring, inspect, switch). Sources: keyboard and mouse with pointer lock, touch (virtual stick, look by drag,
+  buttons), gamepad. Pure mapping, tested.
+- **Cameras**: Plan (today's orthographic), RTS (perspective, tilt, rotate, zoom to cursor, edge and drag pan), Free
+  (fly, no collision), and a third-person follow camera per mover (spring arm that never enters a building).
+- **Inspection**: the ray from the crosshair, through the world, to a window or a building; the card reuses the hover
+  card's words and measures. On touch the crosshair stays centred; a tap reads what it points at.
+- **Signs**: each building's name on its street-facing wall, in SDF text with a self-hosted font, drawn only for the
+  nearest buildings from a small pool, so linux's 75,000 cost no more than takken.io's.
+- **Explore UI**: a "Ride" switch beside the view switch (no more than seven choices each), a crosshair, a HUD per mover
+  (speed, gear, cadence, altitude), a controls sheet behind `?`, and touch controls on phones.
+- **Renderer**: a perspective camera and a running frame loop while exploring (on demand otherwise), sky and fog that
+  bound the far plane, the existing building shader unchanged in meaning.
+
+## Phase 1: decisions, spec and blueprint
+
+- [ ] Webber's answers to the open forks (AMBIGUITIES.md § Exploring): what a window is, RTS beside or instead of the
+      Buildings view, how a ride is chosen, models, physics, bicycle feel, where one lands
+- [ ] Research: single-track bicycle dynamics fit for 120 Hz in a browser (Whipple-derived, self-stability from trail),
+      arcade-real car tyre models, helicopter flight models in web games, third-person spring-arm cameras, SDF text
+      pooling in three.js, touch controls in mobile web games, pointer lock and gamepad support per browser
+- [ ] Measure the scale: lot, road and floor sizes in metres over the corpus, to confirm 1 street width = 10 m reads
+      right at eye height
+- [ ] Spec `009-exploration/exploration.md`: terms, modes and rides, controls per device, inspection, signs, HUD,
+      accessibility (motion, reduced motion, keyboard), phones; viewer, buildings and scope specs updated with the delta
+- [ ] Blueprint: world model and queries, the step function contract, each mover's equations and constants, intents and
+      bindings, cameras, inspection, signs, UI copy; defaults ledger and completeness
+- [ ] Index the new spec and blueprints in `docs/specs/README.md`
+
+## Phase 2: tracer bullet, on foot
+
+The thinnest path through every layer: world, one mover, intents, camera, renderer, UI.
+
+- [ ] `packages/world`: prisms from the scene and lot table, spatial grid, circle collision with sliding, ground query
+      (tests first, property tests: never inside a building)
+- [ ] On-foot mover: walk, run, jump, turn; steps up onto plinths and kerbs (tests first)
+- [ ] Intents from keyboard and mouse (pointer lock) and touch (stick and drag), pure and tested
+- [ ] Third-person follow camera that never enters a building; perspective renderer with fog, frame loop only while
+      exploring
+- [ ] Explore UI: "On foot" enters at the chosen landing place, Escape or Plan leaves; a simple placeholder figure
+- [ ] Logs: mode changes, landing place, world built (lots, cells, ms), pointer lock granted or refused
+- [ ] E2E: enter on foot, move by keyboard and by touch, never pass a wall, leave; dark mode; phone viewport
+- [ ] Gate (`bun run check`), commit, local build served for Webber
+- [ ] Webber tests on desktop and phone; feedback folded into the spec
+
+## Phase 3: names and the crosshair
+
+- [ ] World ray query: building, face, floor and window column (tests first)
+- [ ] Inspection: crosshair over a window or a building shows its card; a window says what it holds and whether it is
+      lit, and why
+- [ ] Signs: the nearest buildings' names on their street-facing walls, pooled, self-hosted font; roofs named in RTS
+- [ ] E2E: aim at a known building and window, read the card; signs never more than the pool
+- [ ] Gate, commit, local build; Webber tests; feedback folded in
+
+## Phase 4: cameras, RTS and free
+
+- [ ] RTS camera: tilt, rotate, zoom to the cursor, drag and edge pan, touch gestures (tests first on the maths)
+- [ ] Free camera: fly in six directions, speed by wheel, no collision
+- [ ] View switch: Plan, RTS, Free; the view's centre carries across every switch
+- [ ] E2E and vitals in each view; gate, commit, local build; Webber tests; feedback folded in
+
+## Phase 5: the bicycle
+
+The showpiece: a bicycle that rides like one.
+
+- [ ] Single-track core: lean, steering geometry with trail and self-stability, countersteer, weight transfer, tyre grip
+      limit, low-speed wobble (tests first: rides straight hands-free above its stable speed, falls below it, turns by
+      leaning)
+- [ ] Drivetrain: pedalling cadence and torque, gears up and down, freewheel, front and rear brakes (a hard front brake
+      lifts the rear), rolling resistance and air drag
+- [ ] Rider: pedals, legs and wheels turn in step with cadence and speed; foot down at a stop; a fall on a hard hit or a
+      lean past grip, then back up
+- [ ] Bell, HUD (speed, gear, cadence), controls on keyboard, touch and gamepad
+- [ ] E2E: ride, shift, brake, stop with a foot down; gate, commit, local build; Webber tests; feedback folded in
+
+## Phase 6: motorbike and car
+
+- [ ] Motorbike on the single-track core: engine torque curve, gearbox, throttle, both brakes, wheelie limit
+- [ ] Car: single-track model with tyre slip, engine, automatic gearbox, handbrake; follow camera tuned for it
+- [ ] HUD per ride; switching rides in place keeps position and heading
+- [ ] E2E; gate, commit, local build; Webber tests; feedback folded in
+
+## Phase 7: helicopter
+
+- [ ] Flight model: collective, cyclic, tail rotor, ground effect, rotor spin-up; lands on ground and roofs
+- [ ] Collision with buildings at any height; altitude and vertical speed in the HUD
+- [ ] E2E; gate, commit, local build; Webber tests; feedback folded in
+
+## Phase 8: phones, gamepads and the hosted site
+
+- [ ] Touch controls per ride, sized and spaced by the design rules; landscape and portrait
+- [ ] Gamepad bindings per ride
+- [ ] Budgets: linux at 60 fps on desktop and 30 fps on a 4x slowed phone while riding; signs and world build within
+      budget
+- [ ] Accessibility: every mode reachable and leavable by keyboard; reduced motion turns off camera sway and shake;
+      contrast of crosshair, HUD and cards light and dark; axe
+- [ ] Pages build and deploy; tried on the hosted site from a desktop and a phone
+
+## Phase 9: fold-back
+
+- [ ] Fold-back: specs (exploration, viewer, buildings, scope) reconciled to what shipped, blueprints re-derived, every
+      symbol, file and reference verified; README updated with images; AMBIGUITIES.md entries removed
