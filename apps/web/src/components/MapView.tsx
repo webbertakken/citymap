@@ -2,13 +2,17 @@
 import type { Hit, PickIndex, Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
 import { useEffectEvent, useLayoutEffect, useRef, useState, type ComponentType } from "react";
+import { gesture } from "../view/gesture";
 import { hitAt, type Heights } from "../view/hover";
 import {
   NO_INSETS,
   declutter,
   onKey,
+  DRAG_TURN,
   pan,
   project,
+  turned,
+  zoomAt,
   type Insets,
   type Mode,
   type View,
@@ -95,7 +99,7 @@ export function MapView({
     onViewport(size);
   });
   // Pointer positions within the map.
-  const local = (event: PointerEvent) => {
+  const local = (event: { readonly clientX: number; readonly clientY: number }) => {
     const rect = box.current!.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
@@ -110,7 +114,10 @@ export function MapView({
     event.preventDefault();
     onView(next);
   });
+  // A right-drag, or a drag with Shift held, turns and tilts the Buildings view instead of panning it.
+  const turning = useRef(false);
   const down = useEffectEvent((event: PointerEvent) => {
+    turning.current = mode === "buildings" && (event.button === 2 || event.shiftKey);
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     pressed.current = pointers.current.size === 1 ? { x: event.clientX, y: event.clientY } : null;
     box.current!.setPointerCapture?.(event.pointerId);
@@ -128,11 +135,14 @@ export function MapView({
     const now = { x: event.clientX, y: event.clientY };
     const other = [...pointers.current].find(([id]) => id !== event.pointerId)?.[1];
     if (other) {
-      // A pinch: the change in distance between the two pointers sets the zoom.
-      const ratio =
-        Math.hypot(now.x - other.x, now.y - other.y) / Math.max(1, Math.hypot(before.x - other.x, before.y - other.y));
-      onView({ ...view, zoom: view.zoom * ratio });
-    } else onView(pan(view, before.x - now.x, now.y - before.y, mode));
+      // Two fingers: a pinch zooms about their middle; in the Buildings view a twist turns it and moving them together
+      // up or down tilts it.
+      const rect = box.current!.getBoundingClientRect();
+      const g = gesture(before, now, other);
+      const zoomed = zoomAt(view, viewport, { x: g.middle.x - rect.left, y: g.middle.y - rect.top }, g.ratio, mode);
+      onView(mode === "buildings" ? turned(zoomed, g.twist, -g.lift * DRAG_TURN) : zoomed);
+    } else if (turning.current) onView(turned(view, (now.x - before.x) * DRAG_TURN, (before.y - now.y) * DRAG_TURN));
+    else onView(pan(view, before.x - now.x, now.y - before.y, mode));
     pointers.current.set(event.pointerId, now);
   });
   const up = useEffectEvent((event: PointerEvent) => {
@@ -146,7 +156,8 @@ export function MapView({
   const leave = useEffectEvent(() => setHover(null));
   const wheel = useEffectEvent((event: WheelEvent) => {
     event.preventDefault();
-    onView({ ...view, zoom: view.zoom * (event.deltaY < 0 ? WHEEL_ZOOM : 1 / WHEEL_ZOOM) });
+    // About the point under the pointer, which stays where it is.
+    onView(zoomAt(view, viewport, local(event), event.deltaY < 0 ? WHEEL_ZOOM : 1 / WHEEL_ZOOM, mode));
   });
 
   // Listeners attach once, in the commit that shows the map, so its first pointer event is never missed and its first
@@ -167,6 +178,9 @@ export function MapView({
     element.addEventListener("pointercancel", onUp);
     element.addEventListener("pointerleave", onLeave);
     element.addEventListener("wheel", onWheel, { passive: false });
+    // The right button turns the Buildings view: no menu over the map.
+    const noMenu = (event: Event) => event.preventDefault();
+    element.addEventListener("contextmenu", noMenu);
     window.addEventListener("resize", onResize);
     measure();
     return () => {
@@ -177,6 +191,7 @@ export function MapView({
       element.removeEventListener("pointercancel", onUp);
       element.removeEventListener("pointerleave", onLeave);
       element.removeEventListener("wheel", onWheel);
+      element.removeEventListener("contextmenu", noMenu);
       window.removeEventListener("resize", onResize);
     };
   }, []);
@@ -188,7 +203,11 @@ export function MapView({
       ref={box}
       className="map"
       role="application"
-      aria-label={`Map of ${name}. Arrow keys pan, plus and minus zoom, zero fits the city.`}
+      aria-label={
+        mode === "buildings"
+          ? `Map of ${name}. Arrow keys pan, plus and minus zoom, zero fits the city; Q and E turn it, Page Up and Page Down tilt it, or drag with the right button or Shift.`
+          : `Map of ${name}. Arrow keys pan, plus and minus zoom, zero fits the city.`
+      }
       tabIndex={0}
     >
       <Canvas scene={scene} view={view} viewport={viewport} theme={theme} mode={mode} table={table} />

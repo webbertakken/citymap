@@ -14,10 +14,21 @@ export interface Basis {
   readonly screenUp: Vec;
 }
 
-/** A view: the ground point at the centre of the screen, and pixels per street width. */
+/**
+ * A view: the ground point at the centre of the screen, and pixels per street width; in the Buildings view also how far
+ * round it looks from south (`yaw`) and how far up from the ground (`tilt`), 45° and 30° unless turned.
+ */
 export interface View {
   readonly centre: { readonly x: number; readonly z: number };
   readonly zoom: number;
+  readonly yaw?: number;
+  readonly tilt?: number;
+}
+
+/** How the Buildings view is turned: round from south, and up from the ground, in radians. */
+export interface Turn {
+  readonly yaw: number;
+  readonly tilt: number;
 }
 
 export interface Viewport {
@@ -40,19 +51,62 @@ const unit = (a: Vec): Vec => {
 export const ELEVATION = (30 * Math.PI) / 180;
 export const YAW = (45 * Math.PI) / 180;
 
+/** The Buildings view tilts no lower than this over the ground, and no higher than nearly straight down. */
+export const TILT_MIN = (15 * Math.PI) / 180;
+export const TILT_MAX = (85 * Math.PI) / 180;
+/** Q and E turn the Buildings view this far round; Page Up and Page Down tilt it this far. */
+export const KEY_TURN = (15 * Math.PI) / 180;
+export const KEY_TILT = (10 * Math.PI) / 180;
+/** A drag turns the view this many radians a pixel. */
+export const DRAG_TURN = 0.005;
+
 const PLAN: Basis = { eye: [0, 1, 0], up: [0, 0, -1], right: [1, 0, 0], screenUp: [0, 0, -1] };
-const BUILDINGS: Basis = (() => {
-  const eye: Vec = [Math.cos(ELEVATION) * Math.sin(YAW), Math.sin(ELEVATION), Math.cos(ELEVATION) * Math.cos(YAW)];
+
+/** The Buildings view's directions, looking from `tilt` up and `yaw` round from south. */
+function turnedBasis(yaw: number, tilt: number): Basis {
+  const eye: Vec = [Math.cos(tilt) * Math.sin(yaw), Math.sin(tilt), Math.cos(tilt) * Math.cos(yaw)];
   const right = unit(cross([-eye[0], -eye[1], -eye[2]], [0, 1, 0]));
   return { eye, up: [0, 1, 0], right, screenUp: cross(right, [-eye[0], -eye[1], -eye[2]]) };
-})();
+}
+const BUILDINGS = turnedBasis(YAW, ELEVATION);
 
-/** The camera's directions: plan looks straight down with north up; the Buildings view from 30° up and 45° round. */
-export const basis = (mode: Mode = "plan"): Basis => (mode === "plan" ? PLAN : BUILDINGS);
+/**
+ * The camera's directions: plan looks straight down with north up; the Buildings view from 30° up and 45° round, or as
+ * the view is turned.
+ */
+export function basis(mode: Mode = "plan", turn?: Partial<Turn>): Basis {
+  if (mode === "plan") return PLAN;
+  const yaw = turn?.yaw ?? YAW;
+  const tilt = turn?.tilt ?? ELEVATION;
+  return yaw === YAW && tilt === ELEVATION ? BUILDINGS : turnedBasis(yaw, tilt);
+}
+
+/** The view turned round by `yaw` and tilted by `tilt` (radians), the tilt kept between its limits. */
+export const turned = (view: View, yaw: number, tilt: number): View => ({
+  ...view,
+  yaw: (view.yaw ?? YAW) + yaw,
+  tilt: Math.max(TILT_MIN, Math.min(TILT_MAX, (view.tilt ?? ELEVATION) + tilt)),
+});
+
+/** The view zoomed by a factor about a point on screen, which stays under the pointer. */
+export function zoomAt(
+  view: View,
+  viewport: Viewport,
+  screen: { x: number; y: number },
+  factor: number,
+  mode: Mode = "plan",
+): View {
+  const at = unproject(view, viewport, screen, mode);
+  return {
+    ...view,
+    zoom: view.zoom * factor,
+    centre: { x: at.x + (view.centre.x - at.x) / factor, z: at.z + (view.centre.z - at.z) / factor },
+  };
+}
 
 /** A world point on screen, in pixels from the top left: in plan, east is right and south is down. */
 export function project(view: View, viewport: Viewport, p: { x: number; y: number; z: number }, mode: Mode = "plan") {
-  const b = basis(mode);
+  const b = basis(mode, view);
   const d: Vec = [p.x - view.centre.x, p.y, p.z - view.centre.z];
   return {
     x: viewport.width / 2 + dot(d, b.right) * view.zoom,
@@ -80,11 +134,17 @@ const freeOf = (viewport: Viewport, insets: Insets): Viewport => ({
 export const framed = (view: View, insets: Insets, mode: Mode = "plan"): View =>
   pan(view, (insets.right - insets.left) / 2, (insets.top - insets.bottom) / 2, mode);
 
-/** The view that centres the city in the map the cards leave free, and fills nine tenths of it. */
-export function fit(bounds: Scene["bounds"], whole: Viewport, insets: Insets = NO_INSETS, mode: Mode = "plan"): View {
+/** The view that centres the city in the map the cards leave free, and fills nine tenths of it, turned as asked. */
+export function fit(
+  bounds: Scene["bounds"],
+  whole: Viewport,
+  insets: Insets = NO_INSETS,
+  mode: Mode = "plan",
+  turn: Partial<Turn> = {},
+): View {
   const viewport = freeOf(whole, insets);
   const centre = { x: (bounds.min.x + bounds.max.x) / 2, z: (bounds.min.z + bounds.max.z) / 2 };
-  const b = basis(mode);
+  const b = basis(mode, turn);
   let wide = 0;
   let tall = 0;
   for (const x of [bounds.min.x, bounds.max.x])
@@ -97,12 +157,17 @@ export function fit(bounds: Scene["bounds"], whole: Viewport, insets: Insets = N
     wide === 0 && tall === 0
       ? 1
       : FIT_SHARE * Math.min(viewport.width / (wide || tall), viewport.height / (tall || wide));
-  return framed({ centre, zoom }, insets, mode);
+  // Only the turn is kept: a view passed as one brings its own centre and zoom, which fitting replaces.
+  const kept = {
+    ...(turn.yaw === undefined ? {} : { yaw: turn.yaw }),
+    ...(turn.tilt === undefined ? {} : { tilt: turn.tilt }),
+  };
+  return framed({ centre, zoom, ...kept }, insets, mode);
 }
 
 /** A view moved along the ground by a screen distance in pixels (right and up). */
 export function pan(view: View, dx: number, dy: number, mode: Mode = "plan"): View {
-  const b = basis(mode);
+  const b = basis(mode, view);
   const ground = unit([b.screenUp[0], 0, b.screenUp[2]]);
   // Moving the centre along the ground's up shifts the screen by this much per unit.
   const along = dot(ground, b.screenUp);
@@ -124,7 +189,10 @@ export const KEY_ZOOM = 1.25;
 /** A fitted city fills this share of the map, leaving a margin round it. */
 export const FIT_SHARE = 0.9;
 
-/** The view after a key: arrows pan by `PAN_SHARE`, + and - zoom by `KEY_ZOOM`, 0 fits; null for any other key. */
+/**
+ * The view after a key: arrows pan by `PAN_SHARE`, + and - zoom by `KEY_ZOOM`, 0 fits; in the Buildings view Q and E turn
+ * it by `KEY_TURN` and Page Up and Page Down tilt it by `KEY_TILT`; null for any other key.
+ */
 export function onKey(
   key: string,
   view: View,
@@ -148,7 +216,17 @@ export function onKey(
     case "-":
       return { ...view, zoom: view.zoom / KEY_ZOOM };
     case "0":
-      return fit(bounds, viewport, insets, mode);
+      return fit(bounds, viewport, insets, mode, view);
+    case "q":
+    case "Q":
+      return mode === "buildings" ? turned(view, -KEY_TURN, 0) : null;
+    case "e":
+    case "E":
+      return mode === "buildings" ? turned(view, KEY_TURN, 0) : null;
+    case "PageUp":
+      return mode === "buildings" ? turned(view, 0, KEY_TILT) : null;
+    case "PageDown":
+      return mode === "buildings" ? turned(view, 0, -KEY_TILT) : null;
     default:
       return null;
   }
@@ -203,7 +281,7 @@ export function unproject(
   mode: Mode = "plan",
   height = 0,
 ) {
-  const b = basis(mode);
+  const b = basis(mode, view);
   const sx = (screen.x - viewport.width / 2) / view.zoom;
   const sy = (viewport.height / 2 - screen.y) / view.zoom;
   // The point on the camera's plane through the centre, then along the view ray down to the height.

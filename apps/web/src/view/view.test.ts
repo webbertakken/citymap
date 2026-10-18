@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { basis, declutter, fit, onKey, pan, project, unproject, type View } from "./view";
+import {
+  ELEVATION,
+  KEY_TILT,
+  KEY_TURN,
+  NO_INSETS,
+  TILT_MAX,
+  TILT_MIN,
+  YAW,
+  basis,
+  declutter,
+  fit,
+  onKey,
+  pan,
+  project,
+  turned,
+  unproject,
+  zoomAt,
+  type View,
+} from "./view";
 
 const bounds = { min: { x: -50, z: -20 }, max: { x: 50, z: 20 } };
 const viewport = { width: 1000, height: 500 };
@@ -210,6 +228,89 @@ describe("unproject", () => {
       const back = unproject(view, viewport, project(view, viewport, point));
       expect(back.x).toBeCloseTo(point.x, 6);
       expect(back.z).toBeCloseTo(point.z, 6);
+    }
+  });
+});
+
+describe("turning the Buildings view", () => {
+  const screenSize = { width: 800, height: 600 };
+  const view: View = { centre: { x: 10, z: 5 }, zoom: 20 };
+
+  it("looks from its yaw and tilt, and from 45° round and 30° up unless turned", () => {
+    expect(basis("buildings", {})).toBe(basis("buildings"));
+    const b = basis("buildings", { yaw: 0, tilt: Math.PI / 4 });
+    // Round from south by nothing: the eye is to the south, up at 45°.
+    expect(b.eye[0]).toBeCloseTo(0, 9);
+    expect(b.eye[1]).toBeCloseTo(Math.SQRT1_2, 9);
+    expect(b.eye[2]).toBeCloseTo(Math.SQRT1_2, 9);
+    // Plan is never turned.
+    expect(basis("plan", { yaw: 1, tilt: 1 })).toBe(basis("plan"));
+  });
+
+  it("turns round freely and tilts within its limits", () => {
+    const once = turned(view, 0.5, 0.2);
+    expect(once.yaw).toBeCloseTo(YAW + 0.5, 9);
+    expect(once.tilt).toBeCloseTo(ELEVATION + 0.2, 9);
+    expect(turned(view, 0, 10).tilt).toBe(TILT_MAX);
+    expect(turned(view, 0, -10).tilt).toBe(TILT_MIN);
+    expect(turned(once, 0.5, 0).yaw).toBeCloseTo(YAW + 1, 9);
+  });
+
+  it("keeps the centre in the middle of the screen however it is turned", () => {
+    const at = project(turned(view, 1.2, 0.3), screenSize, { x: 10, y: 0, z: 5 }, "buildings");
+    expect(at.x).toBeCloseTo(400, 9);
+    expect(at.y).toBeCloseTo(300, 9);
+  });
+
+  it("projects and unprojects alike when turned, and pans along the turned ground", () => {
+    const turnedView = turned(view, 2, 0.4);
+    const p = { x: 14, y: 0, z: -3 };
+    const back = unproject(turnedView, screenSize, project(turnedView, screenSize, p, "buildings"), "buildings");
+    expect(back.x).toBeCloseTo(14, 9);
+    expect(back.z).toBeCloseTo(-3, 9);
+    const panned = pan(turnedView, 40, 0, "buildings");
+    // What was at the centre moves 40 px left on screen.
+    expect(project(panned, screenSize, { x: 10, y: 0, z: 5 }, "buildings").x).toBeCloseTo(360, 9);
+  });
+
+  it("turns and tilts by Q, E, Page Up and Page Down, in the Buildings view only", () => {
+    const square = { min: { x: 0, z: 0 }, max: { x: 10, z: 10 } };
+    expect(onKey("e", view, screenSize, square, NO_INSETS, "buildings")?.yaw).toBeCloseTo(YAW + KEY_TURN, 9);
+    expect(onKey("Q", view, screenSize, square, NO_INSETS, "buildings")?.yaw).toBeCloseTo(YAW - KEY_TURN, 9);
+    expect(onKey("PageUp", view, screenSize, square, NO_INSETS, "buildings")?.tilt).toBeCloseTo(
+      ELEVATION + KEY_TILT,
+      9,
+    );
+    expect(onKey("PageDown", view, screenSize, square, NO_INSETS, "buildings")?.tilt).toBeCloseTo(
+      ELEVATION - KEY_TILT,
+      9,
+    );
+    for (const key of ["q", "E", "PageUp", "PageDown"]) expect(onKey(key, view, screenSize, bounds)).toBeNull();
+  });
+
+  it("fits a turned view without losing its turn, or taking another view's centre", () => {
+    const square = { min: { x: 0, z: 0 }, max: { x: 10, z: 10 } };
+    const far = { centre: { x: 900, z: 900 }, zoom: 1, yaw: 1, tilt: 0.7 };
+    const fitted = fit(square, screenSize, NO_INSETS, "buildings", far);
+    expect(fitted).toMatchObject({ centre: { x: 5, z: 5 }, yaw: 1, tilt: 0.7 });
+    expect(fit(square, screenSize, NO_INSETS, "buildings", { yaw: 1 })).not.toHaveProperty("tilt");
+    expect(onKey("0", far, screenSize, square, NO_INSETS, "buildings")).toMatchObject({ yaw: 1, tilt: 0.7 });
+  });
+});
+
+describe("zoomAt", () => {
+  const screenSize = { width: 800, height: 600 };
+  const view: View = { centre: { x: 0, z: 0 }, zoom: 10 };
+
+  it("zooms about the point under the pointer, which stays under it", () => {
+    for (const mode of ["plan", "buildings"] as const) {
+      const pointer = { x: 600, y: 150 };
+      const under = unproject(view, screenSize, pointer, mode);
+      const zoomed = zoomAt(view, screenSize, pointer, 1.5, mode);
+      expect(zoomed.zoom).toBeCloseTo(15, 9);
+      const stays = project(zoomed, screenSize, { x: under.x, y: 0, z: under.z }, mode);
+      expect(stays.x).toBeCloseTo(600, 6);
+      expect(stays.y).toBeCloseTo(150, 6);
     }
   });
 });

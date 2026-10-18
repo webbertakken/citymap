@@ -18,7 +18,12 @@ export function flyTo(
 ): View {
   const free = Math.min(viewport.width - insets.left - insets.right, viewport.height - insets.top - insets.bottom);
   const zoom = (Math.max(1, free) * FLY_SHARE) / Math.max(place.extent, FLY_MIN_EXTENT);
-  return framed({ centre: { x: place.x, z: place.z }, zoom: Math.max(zoom, fitted.zoom) }, insets, mode);
+  // Framed as the fitted view is turned, so the flight ends where the cards leave room however the view looks.
+  const turn = {
+    ...(fitted.yaw === undefined ? {} : { yaw: fitted.yaw }),
+    ...(fitted.tilt === undefined ? {} : { tilt: fitted.tilt }),
+  };
+  return framed({ centre: { x: place.x, z: place.z }, zoom: Math.max(zoom, fitted.zoom), ...turn }, insets, mode);
 }
 
 /** Cubic ease in and out: still at both ends. */
@@ -26,6 +31,7 @@ export const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) *
 
 /** The view a share `t` of the way: the centre in step, the zoom by equal ratios, so the scale changes evenly. */
 export const between = (from: View, to: View, t: number): View => ({
+  ...to,
   centre: {
     x: from.centre.x + (to.centre.x - from.centre.x) * t,
     z: from.centre.z + (to.centre.z - from.centre.z) * t,

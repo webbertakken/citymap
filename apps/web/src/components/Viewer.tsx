@@ -38,7 +38,7 @@ import { searchIndex, type SearchEntry } from "../search/search";
 import { buildingOf, cityBuildings, colourFor, tableFor } from "../view/buildings";
 import { FLY_MS, between, ease, flyTo } from "../view/fly";
 import { insetsFor } from "../view/insets";
-import { fit, onKey, type Mode, type View, type Viewport } from "../view/view";
+import { ELEVATION, YAW, fit, onKey, type Mode, type View, type Viewport } from "../view/view";
 import { Drawer } from "./Drawer";
 import { ExploreView, type ExploreCanvasProps } from "./ExploreView";
 import { Legend } from "./Legend";
@@ -191,7 +191,7 @@ export function Viewer({
   const theme: ThemeName = chosen ?? (dark ? "night-atlas" : "paper-atlas");
   const [viewport, setViewport] = useState<Viewport>({ width: 800, height: 600 });
   // The view the person moved to; while `fitted`, the view is derived instead, fitting what is shown to the map.
-  const [moved, setMoved] = useState<View>({ centre: { x: 0, z: 0 }, zoom: 1 });
+  const [moved, setMoved] = useState<View>({ centre: { x: 0, z: 0 }, zoom: 1, yaw: YAW, tilt: ELEVATION });
   // A newly opened city or town stays fitted to the map, whatever size the map turns out to be, until the person moves it.
   const [fitted, setFitted] = useState(true);
   // Drill down: the key of the one town shown, or null for the whole city.
@@ -214,7 +214,8 @@ export function Viewer({
   const [drawer, setDrawer] = useState<boolean | null>(null);
   const insets = useMemo(() => insetsFor(viewport, drawer), [viewport, drawer]);
   const view = useMemo(
-    () => (fitted && scene ? fit(scene.bounds, viewport, insets, mode) : moved),
+    // The Buildings view's turn is the person's, held by the view they moved to and kept when fitting.
+    () => (fitted && scene ? fit(scene.bounds, viewport, insets, mode, moved) : moved),
     [fitted, scene, viewport, insets, moved, mode],
   );
   // Each lot's measures together, the lot table the buildings are drawn from, and the cards' measure rows.
@@ -289,7 +290,7 @@ export function Viewer({
   const goTo = (entry: SearchEntry, { bounds, picking }: NonNullable<typeof finder>) => {
     const leaving = focus !== null && focus !== entry.townKey;
     if (leaving) setFocus(null);
-    const whole = fit(bounds, viewport, insets, mode);
+    const whole = fit(bounds, viewport, insets, mode, moved);
     const from = leaving ? whole : view;
     flyView(from, flyTo(viewport, entry, whole, insets, mode));
     const hit: Hit | null =
