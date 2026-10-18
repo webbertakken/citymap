@@ -1,8 +1,9 @@
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-// Where the models come from: plain downloads, itch.io's free-download flow, and the entries of a zip, even one whose
-// central directory is damaged (Wobble Blocks' OpenGameArt zip). Bun only; no shell.
+// Where the models come from: plain downloads, itch.io's free-download flow, Sketchfab's download API (with a token,
+// optional), and the entries of a zip, even one whose central directory is damaged (Wobble Blocks' OpenGameArt zip).
+// Bun only; no shell.
 import { inflateSync } from "bun";
 
 /** Sources once fetched are kept here, so a rebuild fetches nothing again. */
@@ -26,6 +27,42 @@ async function fetchBytes(url: string): Promise<Uint8Array> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`models/download-failed ${url} status=${response.status}`);
   return new Uint8Array(await response.arrayBuffer());
+}
+
+/** Where a Sketchfab API token may be kept, when `SKETCHFAB_TOKEN` is not set. */
+const SKETCHFAB_TOKEN_FILE = join(homedir(), ".secrets/sketchfab-api-token");
+
+/** A Sketchfab API token, or null for none: building without one keeps the committed model. Never printed. */
+async function sketchfabToken(): Promise<string | null> {
+  const given = process.env.SKETCHFAB_TOKEN?.trim();
+  if (given) return given;
+  const file = Bun.file(SKETCHFAB_TOKEN_FILE);
+  return (await file.exists()) ? (await file.text()).trim() || null : null;
+}
+
+/** The URL in Sketchfab's download answer, `{ "glb": { "url": … } }`. */
+export function glbUrlIn(answer: unknown): string {
+  const glb = typeof answer === "object" && answer !== null && "glb" in answer ? answer.glb : null;
+  if (typeof glb === "object" && glb !== null && "url" in glb && typeof glb.url === "string") return glb.url;
+  throw new Error("models/sketchfab-no-glb");
+}
+
+/**
+ * A Sketchfab model's glb, from the cache or through Sketchfab's download API with a token (it answers a short-lived
+ * signed URL); null when it is not cached and there is no token.
+ */
+export async function sketchfab(uid: string): Promise<Uint8Array | null> {
+  const key = `https://sketchfab.com/models/${uid}#glb`;
+  if (await Bun.file(join(CACHE, encodeURIComponent(key))).exists()) return cached(key, () => fetchBytes(key));
+  const token = await sketchfabToken();
+  if (!token) return null;
+  return cached(key, async () => {
+    const response = await fetch(`https://api.sketchfab.com/v3/models/${uid}/download`, {
+      headers: { Authorization: `Token ${token}` },
+    });
+    if (!response.ok) throw new Error(`models/sketchfab-failed ${uid} status=${response.status}`);
+    return fetchBytes(glbUrlIn(await response.json()));
+  });
 }
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
