@@ -400,14 +400,17 @@ function garageIn(
   };
   /** The vehicles near the player brought in, far ones let go; a car changed outside the garage placed afresh. */
   const gather = (vehicles: readonly Vehicle[], at: Spot) => {
-    autopilot ??= new Map(
-      vehicles
-        .filter((v) => v.kind === "car")
-        .map((v) => ({ id: v.id, gap: Math.hypot(v.feet.x - at.x, v.feet.z - at.z) }))
-        .toSorted((a, b) => a.gap - b.gap)
-        .slice(1, 1 + traffic)
-        .map(({ id }, i) => [id, { forward: 0.35, right: i % 2 === 0 ? 0.4 : -0.4, run: false, jump: false }]),
-    );
+    if (!autopilot) {
+      autopilot = new Map(
+        vehicles
+          .filter((v) => v.kind === "car")
+          .map((v) => ({ id: v.id, gap: Math.hypot(v.feet.x - at.x, v.feet.z - at.z) }))
+          .toSorted((a, b) => a.gap - b.gap)
+          .slice(1, 1 + traffic)
+          .map(({ id }, i) => [id, { forward: 0.35, right: i % 2 === 0 ? 0.4 : -0.4, run: false, jump: false }]),
+      );
+      if (traffic > 0) log.info("explore/traffic", { cars: autopilot.size });
+    }
     for (const vehicle of vehicles) {
       const near = Math.hypot(vehicle.feet.x - at.x, vehicle.feet.z - at.z) <= STREETS_KEEP;
       if (vehicle.kind === "car") {

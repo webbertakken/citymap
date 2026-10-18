@@ -982,8 +982,8 @@ mark {
 .loading .cancel:hover {
   background: var(--hover);
 }
-/* The last city stays under the card, dimmed, and stays live. */
-.viewer[data-loading="true"] .map {
+/* The last city stays under the card, dimmed, and stays live; a walk that has begun is never dimmed. */
+.viewer[data-loading="true"] .map:not(.explore) {
   opacity: 0.45;
   transition: opacity var(--motion);
 }

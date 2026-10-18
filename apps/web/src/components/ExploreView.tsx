@@ -414,6 +414,9 @@ export function ExploreView({
       document.removeEventListener("pointerlockchange", lockChanged);
       document.removeEventListener("pointerlockerror", lockRefused);
       if (document.pointerLockElement) document.exitPointerLock?.();
+      // What the cars' physics cost over its last seconds of driving: its share of the time it covered.
+      const driven = cars.current;
+      if (driven) log.info("explore/garage", { load: driven.load().toFixed(3) });
     };
   }, []);
 

@@ -322,6 +322,9 @@ test("loads everything once behind the card: the engine, the models, the walls a
 }) => {
   const lines = logOf(page);
   await page.getByRole("button", { name: "Walk" }).click();
+  // Shown while the finished load still holds its card: the walk itself is never dimmed.
+  await expect(walking(page)).toBeVisible();
+  expect(await walking(page).evaluate((walk) => getComputedStyle(walk).opacity)).toBe("1");
   await drawn(page);
   const phases = lines
     .filter((l) => l.startsWith("viewer/load-phase source=explore"))

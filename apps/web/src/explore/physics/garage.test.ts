@@ -259,7 +259,8 @@ describe("the car on Rapier", () => {
     garage.follow({ x: 5000, y: GROUND, z: 0 }, { x: 0, z: 0 }, [stopped, away, moved], 5);
   });
 
-  it("drives the measuring traffic by itself", async () => {
+  it("drives the measuring traffic by itself, and says how many", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const garage = await garageOf([], { x: 0, z: 0 }, { traffic: 2 });
     const others = [car(0, 20, 0, "a"), car(0, -20, 0, "b"), car(0, 60, 0, "c")];
     const path = drive(garage, [car(), ...others], 2, () => NO_INTENTS);
@@ -267,6 +268,7 @@ describe("the car on Rapier", () => {
     expect(end[1]!.feet.x).toBeGreaterThan(1);
     expect(end[2]!.feet.x).toBeGreaterThan(1);
     expect(end[3]).toBe(others[2]);
+    expect(info.mock.calls.filter(([line]) => String(line) === "explore/traffic cars=2")).toHaveLength(1);
   });
 
   it("knows when it cannot keep up: its steps taking more than half the time they cover", async () => {

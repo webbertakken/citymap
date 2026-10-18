@@ -687,6 +687,10 @@ describe("ExploreView", () => {
     const [at, velocity] = follow.mock.calls.at(-1)!;
     expect(at.x).toBeCloseTo(after.feet.x, 9);
     expect(velocity.x).toBeGreaterThan(0);
+    // Leaving, the log says what the cars' physics cost.
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    cleanup();
+    expect(info).toHaveBeenCalledWith("explore/garage load=0.100");
   });
 
   it("hands the cars to their arcade handling when the garage cannot keep up, and says so once", () => {

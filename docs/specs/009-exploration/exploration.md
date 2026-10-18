@@ -79,7 +79,8 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
   flicked over a kerb, it rolls; lying on its side or roof, nearly still, for two seconds, it is set back on its wheels
   where it lies.
 - **The camera** chases the way it moves, so a drift shows the slide, and draws further back as it speeds up.
-- **The HUD**, while in the car: speed in km/h, the gear (R in reverse), and the engine's turns a minute.
+- **The HUD**, while in the car: speed in km/h, the gear (R in reverse), and the engine's turns a minute; an arcade car
+  shows its speed alone.
 
 ## The motorbike
 
