@@ -1,28 +1,26 @@
 // The city's walls in Rapier (a physics engine compiled to WebAssembly): a ground plane, every building a convex prism,
 // and a capsule the size of a person moved by Rapier's character controller. The engine loads on first use; the walls
 // rise in slices, reporting their progress, so the page stays responsive and the loading card can count them.
-import type { OnStep } from "../../load/step";
+import {
+  GROUND,
+  PERSON_HEIGHT,
+  PERSON_RADIUS,
+  SNAP_DOWN,
+  STEP_UP,
+  solid,
+  type Footprint,
+  type Vec3,
+  type Walls,
+} from "@citymap/world";
 import { log } from "../../log";
-import type { Footprint } from "../footprints";
-import { METRE } from "../street";
-import type { Vec3, Walls } from "../walker";
+import { breathe, type WallOptions } from "./raise";
 
 type Rapier = typeof import("@dimforge/rapier3d-compat");
 
-/** A person as a capsule: 1.7 m tall, 0.6 m across. */
-export const CAPSULE_RADIUS = 0.3;
-export const CAPSULE_HALF = 0.55;
+/** A person as Rapier's capsule: the straight part between its two half spheres. */
+export const CAPSULE_HALF = PERSON_HEIGHT / 2 - PERSON_RADIUS;
 /** The controller keeps this gap to every wall, in metres. */
 export const SKIN = 0.02;
-/** Steps up to this high (a kerb, a plinth) are climbed without a jump. */
-export const STEP_UP = 0.45;
-/** Going down, the feet keep to the ground over drops this small. */
-export const SNAP_DOWN = 0.3;
-/**
- * The ground's height, in metres: the roads' surface in the scene (0.025 street widths), where people walk; blocks and
- * parks lie a little below it.
- */
-export const GROUND = 0.25;
 /** Walls rise in slices of this many buildings between reports. */
 export const SLICE = 2000;
 
@@ -37,28 +35,7 @@ const loadRapier = (): Promise<Rapier> => {
   return engine;
 };
 
-/** Twice a footprint's area, in square scene units: zero for a line or a point. */
-const area2 = (corners: Footprint["corners"]) =>
-  Math.abs(
-    corners.reduce((sum, a, i) => {
-      const b = corners[(i + 1) % corners.length]!;
-      return sum + a.x * b.z - b.x * a.z;
-    }, 0),
-  );
-
-/** A footprint makes a wall when it encloses ground and stands above it; Rapier's hull of anything less fails. */
-export const solid = (footprint: Footprint) =>
-  footprint.corners.length >= 3 && area2(footprint.corners) > 1e-9 && footprint.top > 0;
-
-/** Lets the page paint between slices. */
-const breathe = () => new Promise((resolve) => setTimeout(resolve, 0));
-
-export interface WallOptions {
-  readonly onStep?: OnStep;
-  readonly signal?: AbortSignal;
-}
-
-/** The walls of these buildings, in metres: footprints are in scene units, ten metres to a street width. */
+/** The walls of these buildings; Rapier's hull of a footprint without area or height fails, so none is made. */
 export async function rapierWalls(footprints: readonly Footprint[], options: WallOptions = {}): Promise<Walls> {
   const { onStep, signal } = options;
   const started = performance.now();
@@ -103,7 +80,7 @@ function raise(rapier: Rapier, world: InstanceType<Rapier["World"]>, footprint: 
   if (!solid(footprint)) return false;
   const points = new Float32Array(footprint.corners.length * 6);
   footprint.corners.forEach((c, i) => {
-    points.set([c.x / METRE, 0, c.z / METRE, c.x / METRE, footprint.top / METRE, c.z / METRE], i * 6);
+    points.set([c.x, 0, c.z, c.x, footprint.top, c.z], i * 6);
   });
   const hull = rapier.ColliderDesc.convexHull(points);
   if (!hull) return false;
@@ -113,12 +90,12 @@ function raise(rapier: Rapier, world: InstanceType<Rapier["World"]>, footprint: 
 
 /** A person in the world: their capsule, moved by the character controller; and rays for the camera. */
 function walk(rapier: Rapier, world: InstanceType<Rapier["World"]>): Walls {
-  const body = world.createCollider(rapier.ColliderDesc.capsule(CAPSULE_HALF, CAPSULE_RADIUS));
+  const body = world.createCollider(rapier.ColliderDesc.capsule(CAPSULE_HALF, PERSON_RADIUS));
   const controller = world.createCharacterController(SKIN);
-  controller.enableAutostep(STEP_UP, CAPSULE_RADIUS, false);
+  controller.enableAutostep(STEP_UP, PERSON_RADIUS, false);
   controller.enableSnapToGround(SNAP_DOWN);
   controller.setApplyImpulsesToDynamicBodies(false);
-  const middle = CAPSULE_HALF + CAPSULE_RADIUS + SKIN;
+  const middle = CAPSULE_HALF + PERSON_RADIUS + SKIN;
   return {
     move: (feet: Vec3, delta: Vec3) => {
       body.setTranslation({ x: feet.x, y: feet.y + middle, z: feet.z });

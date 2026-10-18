@@ -47,6 +47,7 @@
         "@citymap/measures": "workspace:*",
         "@citymap/scene": "workspace:*",
         "@citymap/themes": "workspace:*",
+        "@citymap/world": "workspace:*",
         "@dimforge/rapier3d-compat": "0.21.0",
         "@fontsource-variable/inter": "5.3.0",
         "@react-three/drei": "10.7.9",
@@ -120,6 +121,13 @@
         "@citymap/ground-plan": "workspace:*",
       },
     },
+    "packages/world": {
+      "name": "@citymap/world",
+      "version": "0.0.0",
+      "devDependencies": {
+        "fast-check": "4.10.2",
+      },
+    },
   },
   "packages": {
     "@asamuzakjp/css-color": ["@asamuzakjp/css-color@7.1.5", "", { "dependencies": { "@csstools/css-calc": "^3.4.3", "@csstools/css-color-parser": "^4.2.6", "@csstools/css-parser-algorithms": "^4.0.2", "@csstools/css-tokenizer": "^4.0.2", "lru-cache": "^11.5.3" } }, "sha512-jCpAvj8apa7SKHZYogk0rbXB3Kb0hLFrpkWF+Ap+vBA5rirItnpv9NKyAyEuDuFizvl0qwnj6JWR70RGJ0rOlw=="],
@@ -159,6 +167,8 @@
     "@citymap/themes": ["@citymap/themes@workspace:packages/themes"],
 
     "@citymap/web": ["@citymap/web@workspace:apps/web"],
+
+    "@citymap/world": ["@citymap/world@workspace:packages/world"],
 
     "@csstools/color-helpers": ["@csstools/color-helpers@6.1.2", "", {}, "sha512-grhRy3OKmniaAEKXMjua5z/EODX0MSqBGjunw8+j/3HQjOnahs2AGhvEOIYVUWcU6ScApbhLhVrQTX8XqrMrow=="],
 

@@ -1,3 +1,4 @@
+import type { Walls } from "@citymap/world";
 import { describe, expect, it } from "vitest";
 import {
   LOOK_SPEED,
@@ -12,7 +13,6 @@ import {
   cameraOf,
   turned,
 } from "./camera";
-import type { Walls } from "./walker";
 
 const clearFor = (distance: number): Walls => ({
   move: (feet) => ({ feet, grounded: true }),

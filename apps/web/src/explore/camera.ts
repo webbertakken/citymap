@@ -1,6 +1,6 @@
 // The follow camera, as pure maths: it orbits a point above the walker's shoulder, turned by the person, and pulls in
 // when a wall stands between them so it never looks from inside a building. Metres; headings as the walker's.
-import type { Vec3, Walls } from "./walker";
+import type { Vec3, Walls } from "@citymap/world";
 
 /** Where the camera looks: a heading (as the walker's) and how far down from level, in radians. */
 export interface Orbit {

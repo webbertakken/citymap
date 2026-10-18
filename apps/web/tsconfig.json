@@ -30,6 +30,9 @@
     },
     {
       "path": "../../packages/themes"
+    },
+    {
+      "path": "../../packages/world"
     }
   ]
 }

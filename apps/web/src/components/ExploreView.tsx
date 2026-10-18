@@ -3,15 +3,14 @@
 // and a jump button), and a card that says how, with the way back to the map.
 import type { Scene } from "@citymap/scene";
 import type { Theme } from "@citymap/themes";
+import { GROUND, type Vec3, type Walls } from "@citymap/world";
 import { Footprints, X } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState, type ComponentType, type PointerEvent } from "react";
 import { cameraOf } from "../explore/camera";
 import { WALK_KEYS, stickAt } from "../explore/input";
 import type { Landing } from "../explore/landing";
-import { GROUND } from "../explore/physics/rapier";
 import { advanceSession, newControls, startSession, type Session } from "../explore/session";
 import { METRE } from "../explore/street";
-import type { Vec3, Walls } from "../explore/walker";
 
 /** One frame of the walk: the session after it, and where the camera is and looks. */
 export interface ExploreFrame {

@@ -1,14 +1,18 @@
 "use client";
-import type { Theme } from "@citymap/themes";
 // The city at eye height: a perspective camera over the walker's shoulder, the city's meshes as the map draws them, and
 // the walker, drawn every frame while the walk goes on.
+import type { Theme } from "@citymap/themes";
 import { PerspectiveCamera } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { Suspense, use, useMemo, useRef } from "react";
 import type { Object3D } from "three";
-import { paletteOf, figure } from "../explore/models/procedural";
+import { Animator } from "../explore/models/animator";
+import { GLTF_MODELS, loadModel, type Loaded } from "../explore/models/gltf";
+import { motionOf, paceOf } from "../explore/models/motion";
+import { figure, paletteOf } from "../explore/models/procedural";
 import { poseStride, swingOf } from "../explore/models/stride";
 import { METRE } from "../explore/street";
+import { log, reasonOf } from "../log";
 import { Buildings, Mesh } from "./CityMeshes";
 import type { ExploreCanvasProps, ExploreFrame } from "./ExploreView";
 
@@ -16,9 +20,19 @@ import type { ExploreCanvasProps, ExploreFrame } from "./ExploreView";
 const FAR = 400;
 const NEAR = 0.002;
 
+// The walker's figure loads with this canvas, while the walls rise; without it, the procedural figure walks instead.
+const person: Promise<Loaded | null> = loadModel(process.env.NEXT_PUBLIC_BASE_PATH ?? "", GLTF_MODELS.figure).catch(
+  (failure: unknown) => {
+    log.error("explore/model-failed", { url: GLTF_MODELS.figure.url, reason: reasonOf(failure) });
+    return null;
+  },
+);
+
 /** The walker, moved by each frame of the walk; the camera follows. */
 function Walker({ theme, frame }: { readonly theme: Theme; readonly frame: ExploreCanvasProps["frame"] }) {
-  const model = useMemo(() => figure(paletteOf(theme)), [theme]);
+  const loaded = use(person);
+  const model = useMemo(() => loaded?.make() ?? figure(paletteOf(theme)), [loaded, theme]);
+  const animator = useMemo(() => (loaded ? new Animator(model, loaded.clips) : null), [loaded, model]);
   const placed = useRef<Object3D>(null);
   const last = useRef<ExploreFrame | null>(null);
   useFrame((state, seconds) => {
@@ -30,7 +44,10 @@ function Walker({ theme, frame }: { readonly theme: Theme; readonly frame: Explo
     last.current = now;
     walker.position.set(body.feet.x * METRE, body.feet.y * METRE, body.feet.z * METRE);
     walker.rotation.y = body.heading;
-    poseStride(walker, swingOf(walked, speed));
+    if (animator) {
+      const motion = motionOf(speed, body.grounded, body.rise);
+      animator.play(motion, paceOf(motion, speed), seconds);
+    } else poseStride(walker, swingOf(walked, speed));
     const { eye, target } = now.camera;
     state.camera.position.set(eye.x * METRE, eye.y * METRE, eye.z * METRE);
     state.camera.lookAt(target.x * METRE, target.y * METRE, target.z * METRE);
@@ -50,7 +67,9 @@ export default function ExploreCanvas({ scene, table, theme, frame }: ExploreCan
         <Mesh key={layer.name} layer={layer} />
       ))}
       <Buildings buildings={scene.buildings} table={table} mode="buildings" theme={theme} />
-      <Walker theme={theme} frame={frame} />
+      <Suspense fallback={null}>
+        <Walker theme={theme} frame={frame} />
+      </Suspense>
     </Canvas>
   );
 }

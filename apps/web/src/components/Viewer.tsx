@@ -3,6 +3,7 @@ import { DEFAULT_TOGGLES, toggleList, type City, type Snapshot, type Toggle } fr
 import type { Measures } from "@citymap/measures";
 import { buildScene, folderHit, pick, pickIndex, type ColourBy, type Hit, type Scene } from "@citymap/scene";
 import { THEMES, type ThemeName } from "@citymap/themes";
+import type { Walls } from "@citymap/world";
 import {
   startTransition,
   useCallback,
@@ -17,10 +18,9 @@ import {
 import type { GitHubSource } from "../card/github";
 import { measureRows } from "../card/measures";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry } from "../cities";
-import { footprintsOf, type Footprint } from "../explore/footprints";
+import { footprintsOf } from "../explore/footprints";
 import { landingOf, type Landing } from "../explore/landing";
-import type { WallOptions } from "../explore/physics/rapier";
-import type { Walls } from "../explore/walker";
+import type { RaiseWalls } from "../explore/physics/raise";
 import { meter, type Allowance } from "../github/allowance";
 import { createSuggester } from "../github/owners";
 import { readRepository, type Fetcher } from "../github/read";
@@ -49,9 +49,6 @@ import { TitleCard } from "./TitleCard";
 import { LOCAL_STATUS, LOCAL_TITLE, useLocalRepository } from "./useLocalRepository";
 import { ViewControls } from "./ViewControls";
 import { ZoomControls } from "./ZoomControls";
-
-/** Raises a city's walls for walking: Rapier's in the browser, stand-ins in tests. */
-export type RaiseWalls = (footprints: readonly Footprint[], options: WallOptions) => Promise<Walls>;
 
 /** Going down into the city: the ground-level canvas, the physics engine by name, and how it raises the walls. */
 export interface Explore {

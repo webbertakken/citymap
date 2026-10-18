@@ -1,40 +1,26 @@
+import { GROUND, type Footprint } from "@citymap/world";
 import { ColliderDesc } from "@dimforge/rapier3d-compat";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Step } from "../../load/step";
-import type { Footprint } from "../footprints";
 import { NO_INTENTS, stepWalker, type Body } from "../walker";
-import { GROUND, SLICE, rapierWalls, solid } from "./rapier";
+import { SLICE, rapierWalls } from "./rapier";
 
-/** A square building, `size` street widths across and `top` high, with its south-west corner at (x, z). */
+/** A square building, `size` tens of metres across and `top` tens of metres high, its south-west corner at (x, z). */
 const building = (lot: number, x: number, z: number, size = 1, top = 1): Footprint => ({
   lot,
   corners: [
-    { x, z },
-    { x: x + size, z },
-    { x: x + size, z: z - size },
-    { x, z: z - size },
+    { x: 10 * x, z: 10 * z },
+    { x: 10 * (x + size), z: 10 * z },
+    { x: 10 * (x + size), z: 10 * (z - size) },
+    { x: 10 * x, z: 10 * (z - size) },
   ],
-  top,
+  top: 10 * top,
 });
 const dt = 1 / 120;
 const standing = (x: number, z: number): Body => ({ feet: { x, y: GROUND, z }, rise: 0, heading: 0, grounded: true });
 
 afterEach(() => {
   vi.restoreAllMocks();
-});
-
-describe("solid", () => {
-  it("makes walls of footprints that enclose ground and stand above it", () => {
-    expect(solid(building(0, 0, 0))).toBe(true);
-    expect(solid({ lot: 0, corners: building(0, 0, 0).corners.slice(0, 2), top: 1 })).toBe(false);
-    const line = [
-      { x: 0, z: 0 },
-      { x: 1, z: 0 },
-      { x: 2, z: 0 },
-    ];
-    expect(solid({ lot: 0, corners: line, top: 1 })).toBe(false);
-    expect(solid(building(0, 0, 0, 1, 0))).toBe(false);
-  });
 });
 
 describe("rapierWalls", () => {

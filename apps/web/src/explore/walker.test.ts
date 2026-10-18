@@ -1,3 +1,4 @@
+import type { Vec3, Walls } from "@citymap/world";
 import { describe, expect, it } from "vitest";
 import {
   GRAVITY,
@@ -10,8 +11,6 @@ import {
   stepWalker,
   turnBetween,
   type Body,
-  type Vec3,
-  type Walls,
 } from "./walker";
 
 /** Open ground at y = 0: every move is taken, and nothing sinks below the ground. */

@@ -1,12 +1,12 @@
 import { UNIT, parseCity, serialiseCity } from "@citymap/ground-plan";
+import type { Footprint, Walls } from "@citymap/world";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Footprint } from "../explore/footprints";
-import type { Walls } from "../explore/walker";
+import type { RaiseWalls } from "../explore/physics/raise";
 import type { Fetcher } from "../github/read";
 import type { ExploreCanvasProps } from "./ExploreView";
 import { StubCanvas, currentView, files, fromMore } from "./testing/fixtures";
-import { Viewer, type RaiseWalls } from "./Viewer";
+import { Viewer } from "./Viewer";
 
 afterEach(() => {
   cleanup();

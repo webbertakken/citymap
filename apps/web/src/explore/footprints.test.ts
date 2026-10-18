@@ -2,11 +2,12 @@ import { UNIT } from "@citymap/ground-plan";
 import { BuildingsBuilder, FLOOR_HEIGHT, LOTS_BASE, lotTable } from "@citymap/scene";
 import { describe, expect, it } from "vitest";
 import { footprintsOf } from "./footprints";
+import { METRE } from "./street";
 
 const ref = { town: "t", key: "a", district: 1, use: "source" } as const;
 
 describe("footprintsOf", () => {
-  it("gives each building its lot's corners on the ground and its roof's height", () => {
+  it("gives each building its lot's corners on the ground and its roof's height, in metres", () => {
     const builder = new BuildingsBuilder();
     builder.add(
       [
@@ -39,13 +40,13 @@ describe("footprintsOf", () => {
       lot: 0,
       corners: [
         { x: 0, z: 0 },
-        { x: 2, z: 0 },
-        { x: 2, z: -1 },
-        { x: 0, z: -1 },
+        { x: 20, z: 0 },
+        { x: 20, z: -10 },
+        { x: 0, z: -10 },
       ],
-      top: LOTS_BASE + 4 * FLOOR_HEIGHT,
+      top: (LOTS_BASE + 4 * FLOOR_HEIGHT) / METRE,
     });
     expect(b?.corners).toHaveLength(3);
-    expect(b?.top).toBe(LOTS_BASE + 12 * FLOOR_HEIGHT);
+    expect(b?.top).toBeCloseTo((LOTS_BASE + 12 * FLOOR_HEIGHT) / METRE, 9);
   });
 });

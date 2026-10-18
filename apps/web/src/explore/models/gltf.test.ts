@@ -50,11 +50,11 @@ const boxOf = (model: Object3D) => new Box3().setFromObject(model);
 describe("loadGltfModels", () => {
   it("asks for every model under the base", async () => {
     const asked: string[] = [];
-    await loadGltfModels("/lab/models", async (url) => {
+    await loadGltfModels("/citymap", async (url) => {
       asked.push(url);
       return read(url);
     });
-    expect(asked).toEqual(Object.values(GLTF_MODELS).map((m) => `/lab/models/${m.url}`));
+    expect(asked).toEqual(Object.values(GLTF_MODELS).map((m) => `/citymap/${m.url}`));
   });
 
   it("sizes a figure by its height and a vehicle by its length, in metres", async () => {

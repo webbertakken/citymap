@@ -42,9 +42,9 @@ test("walks on foot by the keys and comes back to the map where the walk ended",
   await page.getByRole("button", { name: "Walk" }).click();
   await expect(walking(page)).toBeVisible();
   await expect(page.getByRole("button", { name: "Walk" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("region", { name: "On foot" })).toContainText("Physics prototype: Rapier");
+  await expect(page.getByRole("region", { name: "On foot" })).toContainText("Physics prototype: bespoke 2.5D");
   // The walls rose and the walk began, both said in the log.
-  expect(lines.find((l) => l.startsWith("explore/walls"))).toMatch(/^explore\/walls engine=rapier buildings=\d+ /);
+  expect(lines.find((l) => l.startsWith("explore/walls"))).toMatch(/^explore\/walls engine=bespoke buildings=\d+ /);
   expect(lines.find((l) => l.startsWith("explore/enter"))).toMatch(/^explore\/enter landing=road buildings=\d+$/);
   await drawn(page);
   await page.screenshot({ path: info.outputPath("start.png") });
@@ -86,3 +86,20 @@ for (const scheme of ["dark", "light"] as const)
     const found = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
     expect(found.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
   });
+
+test("walks with the Rapier prototype when the address asks for it", async ({ page }) => {
+  const lines = logOf(page);
+  await page.goto("/?physics=rapier");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("takken.io");
+  await page.getByRole("button", { name: "Walk" }).click();
+  await expect(page.getByRole("region", { name: "On foot" })).toContainText("Physics prototype: Rapier");
+  expect(lines.find((l) => l.startsWith("explore/walls"))).toMatch(/^explore\/walls engine=rapier buildings=\d+ /);
+});
+
+test("walks as Kenney's figure, its model loaded with the walk", async ({ page }) => {
+  const lines = logOf(page);
+  await page.getByRole("button", { name: "Walk" }).click();
+  await drawn(page);
+  await expect.poll(() => lines.some((l) => l.startsWith("explore/model-normalised url=models/people/"))).toBe(true);
+  expect(lines.some((l) => l.startsWith("explore/model-failed"))).toBe(false);
+});

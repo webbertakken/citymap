@@ -1,5 +1,6 @@
-// Figures and vehicles from glTF files (Kenney's CC0 packs and poly.pizza), normalised to the procedural models'
-// frame: metres, facing +x, standing on y = 0, centred on their footprint.
+// Figures and vehicles from glTF files (Kenney's CC0 packs and poly.pizza), normalised to one frame: metres, facing +x,
+// standing on y = 0, centred on their footprint. People ship with the app (public/models); vehicles are in the model lab
+// (public/lab/models) until their phase brings them in. Both are fetched by scripts/fetch-models.ts.
 import {
   AnimationMixer,
   Box3,
@@ -16,7 +17,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { log } from "../../log";
 
-/** One model file: where it is, how long (or tall) it stands in metres, and the turn that points it along +x. */
+/** One model file: where it is under the site, how long (or tall) it stands in metres, and the turn to face +x. */
 export interface ModelFile {
   readonly url: string;
   /** Its size in metres along its longest ground axis, or its height for a figure. */
@@ -27,12 +28,12 @@ export interface ModelFile {
 }
 
 export const GLTF_MODELS = {
-  figure: { url: "kenney-people/character-male-a.glb", metres: 1.75, measure: "height", yaw: Math.PI / 2 },
-  walker: { url: "kenney-people/character-female-b.glb", metres: 1.68, measure: "height", yaw: Math.PI / 2 },
-  bicycle: { url: "bicycle.glb", metres: 1.75, measure: "length", yaw: 0 },
-  motorbike: { url: "motorbike.glb", metres: 2.1, measure: "length", yaw: Math.PI / 2 },
-  car: { url: "kenney-cars/hatchback-sports.glb", metres: 4.1, measure: "length", yaw: Math.PI / 2 },
-  helicopter: { url: "helicopter.glb", metres: 10, measure: "length", yaw: 0 },
+  figure: { url: "models/people/character-male-a.glb", metres: 1.75, measure: "height", yaw: Math.PI / 2 },
+  walker: { url: "models/people/character-female-b.glb", metres: 1.68, measure: "height", yaw: Math.PI / 2 },
+  bicycle: { url: "lab/models/bicycle.glb", metres: 1.75, measure: "length", yaw: 0 },
+  motorbike: { url: "lab/models/motorbike.glb", metres: 2.1, measure: "length", yaw: Math.PI / 2 },
+  car: { url: "lab/models/kenney-cars/hatchback-sports.glb", metres: 4.1, measure: "length", yaw: Math.PI / 2 },
+  helicopter: { url: "lab/models/helicopter.glb", metres: 10, measure: "length", yaw: 0 },
 } as const satisfies Record<string, ModelFile>;
 
 export type GltfName = keyof typeof GLTF_MODELS;
@@ -101,16 +102,19 @@ export type ReadGltf = (url: string) => Promise<GltfFile>;
 
 export const readGltfWithThree: ReadGltf = (url) => new GLTFLoader().loadAsync(url);
 
-/** Loads every model under `base` (the site's lab folder), once. */
+/** Loads one model from under the site's path (`base`): each `make` gives a fresh copy, sized and turned. */
+export async function loadModel(base: string, file: ModelFile, read: ReadGltf = readGltfWithThree): Promise<Loaded> {
+  const gltf = await read(`${base}/${file.url}`);
+  asAuthored(gltf.scene);
+  return { make: () => normalised(clone(gltf.scene), file), clips: gltf.animations };
+}
+
+/** Loads every model, under the site's path (`base`), for the model lab. */
 export async function loadGltfModels(
   base: string,
   read: ReadGltf = readGltfWithThree,
 ): Promise<Record<GltfName, Loaded>> {
-  const load = async (file: ModelFile): Promise<Loaded> => {
-    const gltf = await read(`${base}/${file.url}`);
-    asAuthored(gltf.scene);
-    return { make: () => normalised(clone(gltf.scene), file), clips: gltf.animations };
-  };
+  const load = (file: ModelFile) => loadModel(base, file, read);
   const m = GLTF_MODELS;
   const [figure, walker, bicycle, motorbike, car, helicopter] = await Promise.all(
     [m.figure, m.walker, m.bicycle, m.motorbike, m.car, m.helicopter].map(load),

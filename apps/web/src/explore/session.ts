@@ -1,8 +1,9 @@
+import type { Vec3, Walls } from "@citymap/world";
 // A walk through the city, frame by frame: what the devices hold, and the walker and camera they move. The walker
 // steps at a fixed rate, whatever the screen's, so a walk is the same on every device. Metres.
 import { behind, turned, type Orbit } from "./camera";
 import { intentsOf, type Stick } from "./input";
-import { facing, stepWalker, type Body, type Vec3, type Walls } from "./walker";
+import { facing, stepWalker, type Body } from "./walker";
 
 /** What the devices hold now: the view's listeners write it, each frame reads it. */
 export interface Controls {

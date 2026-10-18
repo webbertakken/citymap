@@ -55,7 +55,7 @@ async function prepare(asked: Asked): Promise<Ready> {
   const { table } = tableFor(scene, cityBuildings(file.measures), "folder", theme);
   const street = longestStreet(file.city);
   if (!street) throw new Error("lab/no-street");
-  const gltf = asked.style === "procedural" ? null : await loadGltfModels(`${base}/lab/models`);
+  const gltf = asked.style === "procedural" ? null : await loadGltfModels(base);
   log.info("lab/models-ready", { style: asked.style, city: entry.name, street: street.length.toFixed(1) });
   return { scene, table, street, gltf };
 }

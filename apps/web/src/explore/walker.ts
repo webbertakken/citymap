@@ -2,11 +2,7 @@
 // city's walls decide how much of that step they can take. Metres and seconds; y up, a heading is a turn about y from
 // +x (so a heading h faces cos h, 0, −sin h).
 
-export interface Vec3 {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-}
+import type { Vec3, Walls } from "@citymap/world";
 
 /** What the person means to do: walk forward (−1 to 1) and to the right (−1 to 1), run, jump. */
 export interface Intents {
@@ -24,15 +20,6 @@ export interface Body {
   readonly rise: number;
   readonly heading: number;
   readonly grounded: boolean;
-}
-
-/** The city as solid ground: how far a person can move, and how far a straight line runs before it meets a wall. */
-export interface Walls {
-  /** The feet moved as far along `delta` as the walls allow, stepping up kerbs, and whether they then stand on ground. */
-  readonly move: (feet: Vec3, delta: Vec3) => { readonly feet: Vec3; readonly grounded: boolean };
-  /** How far from `from` towards `to` is clear, up to their distance. */
-  readonly clearance: (from: Vec3, to: Vec3) => number;
-  readonly dispose: () => void;
 }
 
 /** A brisk walk and an easy run, in metres a second. */

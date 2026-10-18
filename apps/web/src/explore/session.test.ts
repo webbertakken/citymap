@@ -1,7 +1,8 @@
+import type { Walls } from "@citymap/world";
 import { describe, expect, it } from "vitest";
 import { LOOK_SPEED, START_PITCH } from "./camera";
 import { LONGEST_FRAME, STEP, advanceSession, newControls, placeOf, startSession } from "./session";
-import { WALK_SPEED, type Walls } from "./walker";
+import { WALK_SPEED } from "./walker";
 
 const open: Walls = {
   move: (feet, delta) => ({

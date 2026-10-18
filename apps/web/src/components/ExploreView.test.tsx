@@ -1,12 +1,11 @@
 import { buildScene } from "@citymap/scene";
 import { THEMES } from "@citymap/themes";
+import { GROUND, type Walls } from "@citymap/world";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Landing } from "../explore/landing";
-import { GROUND } from "../explore/physics/rapier";
 import { METRE } from "../explore/street";
-import type { Walls } from "../explore/walker";
 import {
   ExploreView,
   STICK_REACH,
