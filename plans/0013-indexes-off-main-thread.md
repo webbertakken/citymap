@@ -45,4 +45,4 @@ live, Loading, Web experience).
       against main's failure rate; linux's buildings budget
 - [x] Screenshots before and after (dark and light): nothing visible changes
 - [x] Fold-back: spec and blueprint reconciled to what shipped; every symbol, file and reference checked
-- [ ] PR with the measurements (not merged)
+- [x] PR with the measurements (not merged)
