@@ -304,4 +304,13 @@ describe("runWithin", () => {
     expect(await runWithin("true", [], process.env, 1000)).toEqual({ code: 0, stdout: Buffer.alloc(0), stderr: "" });
     expect(await runWithin("false", [], process.env, 1000)).toMatchObject({ code: 1, stderr: "" });
   });
+
+  it("hands a command its input, and says how one that ends without reading it ended", async () => {
+    expect(await runWithin("cat", [], process.env, 5000, "a\nb\n")).toMatchObject({
+      code: 0,
+      stdout: Buffer.from("a\nb\n"),
+    });
+    // More than a pipe holds, to a command that never reads it: the write fails, and the exit still answers.
+    expect(await runWithin("true", [], process.env, 5000, "x".repeat(1 << 20))).toMatchObject({ code: 0 });
+  });
 });
