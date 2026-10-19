@@ -43,7 +43,12 @@ pub struct Snapshot {
     pub workspaces: Option<Arc<Vec<String>>>,
     /// The submodules' folders (gitlinks), read or not, when the tree holds any; sorted.
     pub submodules: Option<Arc<Vec<String>>>,
+    /// `Some(UNFETCHABLE)` when a partial clone could not fetch the root manifests of the commits it lays.
+    pub manifests: Option<&'static str>,
 }
+
+/// What `Snapshot.manifests` and `City.manifests` say of root manifests a partial clone could not fetch.
+pub const UNFETCHABLE: &str = "unfetchable";
 
 impl Snapshot {
     /// The first index a folder held a file, or 0 when it is not known.

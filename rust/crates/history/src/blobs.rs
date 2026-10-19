@@ -70,6 +70,11 @@ fn held_blobs(dir: &Path, git_data: bool) -> Result<Held> {
         // No such setting, or no repository: not a partial clone; the batch reports whatever is missing.
         return Ok(Held::All);
     }
+    Ok(Held::Only(list_held(dir, git_data)?))
+}
+
+/// Every blob the repository (or, with `git_data`, the git data at `dir`) holds, asking nobody.
+pub fn list_held(dir: &Path, git_data: bool) -> Result<HashSet<String>> {
     let listing = blob_git(
         dir,
         git_data,
@@ -98,13 +103,11 @@ fn held_blobs(dir: &Path, git_data: bool) -> Result<Held> {
             ),
         ));
     }
-    Ok(Held::Only(
-        String::from_utf8_lossy(&listing.stdout)
-            .split('\n')
-            .filter_map(|line| line.strip_prefix("blob "))
-            .map(str::to_owned)
-            .collect(),
-    ))
+    Ok(String::from_utf8_lossy(&listing.stdout)
+        .split('\n')
+        .filter_map(|line| line.strip_prefix("blob "))
+        .map(str::to_owned)
+        .collect())
 }
 
 fn start(dir: &Path, git_data: bool) -> Option<Batch> {

@@ -14,23 +14,23 @@ Branch `fix/partial-clone-manifests`, from main after #37.
 
 ## Phase 0: specification
 
-- [ ] Answers from Webber (fetch the root manifests as the `.mailmap` is fetched; unread submodules as one folder with
+- [x] Answers from Webber (fetch the root manifests as the `.mailmap` is fetched; unread submodules as one folder with
       the reason on its card; a failed fetch said in the city; parity's partial mode matching the full clone's towns)
 - [x] Spec: ground plan (input, submodules), buildings (the fetches), viewer (the group's line, the cards)
 - [x] Blueprints: fold (the manifests' prefetch, its event), model (`Snapshot.manifests`, `City.manifests`), viewer (the
       line, the submodule rows), Rust; DEFAULTS rows
-- [ ] Commit
+- [x] Commit
 
 ## Phase 1: history, both CLIs
 
-- [ ] Laid commits' root manifest blobs from their root trees (`git log --format=%T`, `git cat-file --batch`),
+- [x] Laid commits' root manifest blobs from their root trees (`git log --format=%T`, `git cat-file --batch`),
       test-first
-- [ ] Missing ones fetched in one batch from the promisor remotes (`git fetch --stdin`, noop negotiation, blob filter),
+- [x] Missing ones fetched in one batch from the promisor remotes (`git fetch --stdin`, noop negotiation, blob filter),
       within `MANIFESTS_FETCH_TIMEOUT`; `history/manifests` event; nothing asked of a full clone
-- [ ] The fold and the single state fetch before reading; `manifests: "unfetchable"` on every snapshot when it fails
-- [ ] Engine: `City.manifests` recorded from the snapshot; city schema, `parseCity`, Rust city and city file writers
-- [ ] Rust port, case for case; `bun run rust:check`
-- [ ] Commit
+- [x] The fold and the single state fetch before reading; `manifests: "unfetchable"` on every snapshot when it fails
+- [x] Engine: `City.manifests` recorded from the snapshot; city schema, `parseCity`, Rust city and city file writers
+- [x] Rust port, case for case; `bun run rust:check`
+- [x] Commit
 
 ## Phase 2: viewer
 
