@@ -579,6 +579,7 @@ pub fn current_city(state: &mut FoldState, options: &Options) -> Result<City> {
         highways,
         separable: (!offered.is_empty()).then_some(offered),
         declared: declares_workspaces(snapshot).then_some(true),
+        manifests: snapshot.manifests.map(str::to_owned),
     })
 }
 
@@ -1235,6 +1236,16 @@ mod tests {
             Some(vec![Separation::Workspaces, Separation::Apps, Separation::Packages])
         );
         assert_eq!(city.declared, Some(true));
+    }
+
+    #[test]
+    fn records_on_the_city_that_its_manifests_could_not_be_fetched() {
+        let unfetched = Snapshot {
+            manifests: Some(crate::snapshot::UNFETCHABLE),
+            ..declared()
+        };
+        assert_eq!(laid(&unfetched, &options()).manifests.as_deref(), Some("unfetchable"));
+        assert_eq!(laid(&declared(), &options()).manifests, None);
     }
 
     #[test]

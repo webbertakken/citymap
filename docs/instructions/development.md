@@ -51,10 +51,13 @@ The Rust implementation of the CLI lives in `rust/`: see
    each on its own shared clone (so no lock lands in the cache), and compares city, SVG, lockfile and log byte for byte.
    The `resume` mode also resumes each fold from a lock saved part way, and must match the uninterrupted fold. The
    `checkout` mode folds a clone with a checkout whose working tree `.mailmap` (and `mailmap.file`) merges its authors,
-   and must match the fold of the clone without one. `--long` adds next.js (minutes on TypeScript); `--repos=a,b` and
-   `--modes=state,fold,resume,checkout,coverage` narrow it; `--features=mimalloc` builds the Rust CLI with mimalloc;
-   `--toggles=a,b` lays both CLIs with those toggles, `--separate=a,b` with those separations. Prove a change to a
-   toggle's rules with the defaults, each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`); a
+   and must match the fold of the clone without one. The `partial` mode folds a blob-less clone, which fetches its laid
+   commits' root manifests and `.mailmap`, and must lay the fold's layout with its people; as the cached repositories
+   are themselves blob-less clones, it first lets each fetch every commit's root manifests from GitHub
+   (`parity/manifests`), so the fold reads them too. `--long` adds next.js (minutes on TypeScript); `--repos=a,b` and
+   `--modes=state,fold,resume,checkout,partial,coverage` narrow it; `--features=mimalloc` builds the Rust CLI with
+   mimalloc; `--toggles=a,b` lays both CLIs with those toggles, `--separate=a,b` with those separations. Prove a change
+   to a toggle's rules with the defaults, each toggle alone (`--toggles=corridor` and so on) and none (`--toggles=`); a
    change to a separation's rules the same way with `--separate=`.
 7. A `parity/differs` line is a bug in one of the two implementations. Both runs' outputs stay in
    `/tmp/citymap-parity-<repo>`: find the first differing byte, then the rule behind it. A `parity/resume-differs` line

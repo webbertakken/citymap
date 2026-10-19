@@ -21,6 +21,8 @@ export interface Snapshot {
   readonly workspaces?: readonly string[];
   /** The submodules' folders (gitlinks), read or not, when the tree holds any; sorted. */
   readonly submodules?: readonly string[];
+  /** Present when a partial clone could not fetch the root manifests of the commits it lays. */
+  readonly manifests?: "unfetchable";
 }
 
 export const MAX_FILES = 2_000_000;
@@ -58,7 +60,7 @@ function parseFile(value: unknown, at: number): FileEntry {
 /** Validates untrusted input as a snapshot, or rejects it with a named code. */
 export function parseSnapshot(input: unknown): Snapshot {
   if (!isRecord(input)) return reject("snapshot/bad-shape", "a snapshot is an object");
-  const { repository, commit, index, files, folderFirstSeen, workspaces, submodules } = input;
+  const { repository, commit, index, files, folderFirstSeen, workspaces, submodules, manifests } = input;
   if (typeof repository !== "string" || repository.length === 0)
     return reject("snapshot/bad-shape", "a snapshot names its repository");
   if (typeof commit !== "string" || !COMMIT.test(commit))
@@ -90,12 +92,15 @@ export function parseSnapshot(input: unknown): Snapshot {
     !(Array.isArray(submodules) && submodules.every((m): m is string => typeof m === "string" && validPath(m)))
   )
     return reject("snapshot/bad-shape", "a snapshot's submodules are folder paths");
+  if (manifests !== undefined && manifests !== "unfetchable")
+    return reject("snapshot/bad-shape", "a snapshot's manifests are unfetchable or not said");
   return {
     repository,
     commit,
     index,
     ...(workspaces === undefined ? {} : { workspaces: workspaces.toSorted(compareKeys) }),
     ...(submodules === undefined ? {} : { submodules: submodules.toSorted(compareKeys) }),
+    ...(manifests === undefined ? {} : { manifests }),
     files: parsed,
     folderFirstSeen: folders,
   };

@@ -190,6 +190,7 @@ mod tests {
     #[test]
     fn reads_an_old_towns_members_skips_vacant_lots_and_falls_back_to_a_lots_own_path() {
         let city = City {
+            manifests: None,
             commit: "worktree".into(),
             declared: None,
             highways: vec![],

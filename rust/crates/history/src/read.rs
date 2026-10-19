@@ -10,12 +10,13 @@ use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::thread::JoinHandle;
 
 use citymap_ground_plan::fixed::compare_keys;
-use citymap_ground_plan::snapshot::{FileEntry, MAX_PATH_BYTES, Snapshot, folder_of};
+use citymap_ground_plan::snapshot::{FileEntry, MAX_PATH_BYTES, Snapshot, UNFETCHABLE, folder_of};
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
 
 use crate::ancestry::{count_commits, resolve_commit};
 use crate::blobs::BlobReader;
 use crate::env::git_command;
+use crate::fetch_manifests::{MANIFESTS_FETCH_TIMEOUT, ManifestsStatus, fetch_manifests, root_trees};
 use crate::file_history::FileHistory;
 use crate::mailmap::{Author, Mailmap, MailmapStatus, read_mailmap};
 use crate::schedule::{FOLD_STRIDES, Strides, fold_schedule, is_laid, laid_count};
@@ -38,6 +39,15 @@ pub enum HistoryEvent {
     Submodule { path: String, index: i64, files: usize },
     /// A root manifest's blob could not be read (a blob-less clone never fetches).
     ManifestUnavailable { path: String, index: i64 },
+    /// A partial clone's root manifests of the commits it lays: what became of them, how many there are, how many were
+    /// fetched, and for unfetchable ones why (`timeout` or `exit-<code>`) and git's first line of complaint.
+    Manifests {
+        status: ManifestsStatus,
+        blobs: usize,
+        fetched: usize,
+        reason: Option<String>,
+        error: Option<String>,
+    },
     /// The target's `.mailmap`, read for a file history: what was found, how many commit emails it has lines for, and
     /// for an unfetchable one why (`timeout` or `exit-<code>`) and git's first line of complaint.
     Mailmap {
@@ -63,6 +73,7 @@ impl HistoryEvent {
             Self::SubmoduleUnavailable { .. } => "history/submodule-unavailable",
             Self::Submodule { .. } => "history/submodule",
             Self::ManifestUnavailable { .. } => "history/manifest-unavailable",
+            Self::Manifests { .. } => "history/manifests",
             Self::Mailmap { .. } => "history/mailmap",
             Self::Schedule { .. } => "history/schedule",
         }
@@ -80,6 +91,21 @@ impl HistoryEvent {
             }
             Self::ManifestUnavailable { path, index } => {
                 format!("{} path={path} index={index}", self.code())
+            }
+            Self::Manifests {
+                status,
+                blobs,
+                fetched,
+                reason,
+                error,
+            } => {
+                let reason = reason.as_ref().map_or_else(String::new, |r| format!(" reason={r}"));
+                let error = error.as_ref().map_or_else(String::new, |e| format!(" error={e}"));
+                format!(
+                    "{} status={} blobs={blobs} fetched={fetched}{reason}{error}",
+                    self.code(),
+                    status.as_str()
+                )
             }
             Self::Mailmap {
                 status,
@@ -448,6 +474,31 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
     if send.send(Ok(HistoryItem::Event(chosen))).is_err() {
         return Ok(());
     }
+    // A partial clone fetches the root manifests of the commits it lays, before any blob is read.
+    let manifests = fetch_manifests(
+        dir,
+        || {
+            Ok(root_trees(dir, &head)?
+                .into_iter()
+                .enumerate()
+                .filter(|(at, _)| laid(i64::try_from(*at).unwrap_or(i64::MAX)))
+                .map(|(_, tree)| tree)
+                .collect())
+        },
+        MANIFESTS_FETCH_TIMEOUT,
+    )?;
+    let unfetched = matches!(
+        manifests,
+        Some(HistoryEvent::Manifests {
+            status: ManifestsStatus::Unfetchable,
+            ..
+        })
+    );
+    if let Some(event) = manifests
+        && send.send(Ok(HistoryItem::Event(event))).is_err()
+    {
+        return Ok(());
+    }
     let mut blobs = BlobReader::new(dir);
     // The target's own .mailmap names the people, so the history alone decides who they are. Read before the log starts.
     let mut mailmap = Mailmap::default();
@@ -574,6 +625,7 @@ fn read(dir: &Path, repository: &str, options: &ReadOptions, send: &SyncSender<R
                 folder_first_seen: tree.folder_map(),
                 workspaces,
                 submodules: tree.pins.submodules(),
+                manifests: unfetched.then_some(UNFETCHABLE),
             })
         } else {
             None

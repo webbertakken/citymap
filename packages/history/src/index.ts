@@ -24,6 +24,15 @@ export {
 export { isManifest, patternsOf, resolveWorkspaces, type Patterns } from "./manifests";
 export { gitEnvironment } from "./env";
 export { readTree, type TreeOptions } from "./tree";
+export {
+  MANIFESTS_FETCH_TIMEOUT,
+  fetchManifests,
+  laidManifests,
+  promisorRemotes,
+  rootTrees,
+  type ManifestsRead,
+  type ManifestsStatus,
+} from "./fetch-manifests";
 export { FileHistory, type FileFacts } from "./file-history";
 export {
   MAILMAP_FETCH_TIMEOUT,

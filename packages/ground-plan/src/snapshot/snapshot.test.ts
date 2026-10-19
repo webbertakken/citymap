@@ -32,6 +32,9 @@ describe("parseSnapshot", () => {
     expect(parseSnapshot(valid()).submodules).toBeUndefined();
     expect(() => parseSnapshot({ ...valid(), submodules: "ext" })).toThrow("snapshot/bad-shape");
     expect(() => parseSnapshot({ ...valid(), submodules: ["/ext"] })).toThrow("snapshot/bad-shape");
+    expect(parseSnapshot({ ...valid(), manifests: "unfetchable" }).manifests).toBe("unfetchable");
+    expect(parseSnapshot(valid())).not.toHaveProperty("manifests");
+    expect(() => parseSnapshot({ ...valid(), manifests: "read" })).toThrow("snapshot/bad-shape");
   });
 
   it("accepts the working tree as a commit", () => {

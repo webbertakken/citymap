@@ -727,10 +727,14 @@ fn logs_a_manifest_it_cannot_read_and_keeps_what_it_knew() {
         .output()
         .expect("git runs");
     assert!(cloned.status.success(), "{}", String::from_utf8_lossy(&cloned.stderr));
+    offline(&clone);
     // Only the first manifest is put back.
     clone.write("first.json", r#"{"workspaces":["apps/*"]}"#);
     clone.git(&["hash-object", "-w", "first.json"]);
     let (snaps, events) = collect(clone.path(), 0);
+    let (fetches, events) = without_manifests(events);
+    assert!(fetches[0].starts_with("history/manifests status=unfetchable blobs=2 fetched=0 reason=exit-128 error="));
+    assert!(snaps.iter().all(|s| s.manifests == Some("unfetchable")));
     assert_eq!(
         snaps.iter().map(members).collect::<Vec<_>>(),
         [list(&["apps/web"]), list(&["apps/web"])]
@@ -756,6 +760,9 @@ fn logs_a_manifest_it_cannot_read_and_keeps_what_it_knew() {
     let head = clone.git(&["rev-parse", "HEAD"]);
     let tree = read_tree(clone.path(), &head, None, &mut |e| seen.push(e)).expect("a tree");
     assert_eq!(members(&tree), None);
+    assert_eq!(tree.manifests, Some("unfetchable"));
+    let (fetches, seen) = without_manifests(seen);
+    assert!(fetches[0].starts_with("history/manifests status=unfetchable blobs=1 fetched=0 reason=exit-128"));
     assert_eq!(
         seen,
         [HistoryEvent::ManifestUnavailable {
@@ -765,7 +772,19 @@ fn logs_a_manifest_it_cannot_read_and_keeps_what_it_knew() {
     );
 }
 
-/// A blob-less clone of `source` with no checkout: it holds no blobs at all, and never fetches one.
+/// Takes a clone offline: its remote is gone, so it cannot fetch.
+fn offline(clone: &Repo) {
+    let gone = clone.path().join("gone");
+    clone.git(&["remote", "set-url", "origin", &gone.display().to_string()]);
+}
+
+/// A read's events without its manifests' fetch, and that fetch's lines.
+fn without_manifests(events: Vec<HistoryEvent>) -> (Vec<String>, Vec<HistoryEvent>) {
+    let (fetches, rest): (Vec<_>, Vec<_>) = events.into_iter().partition(|e| e.code() == "history/manifests");
+    (fetches.iter().map(HistoryEvent::line).collect(), rest)
+}
+
+/// A blob-less clone of `source` with no checkout, offline: it holds no blobs at all, and cannot fetch one.
 fn blobless(source: &Repo) -> Repo {
     source.git(&["config", "uploadpack.allowFilter", "true"]);
     let clone = Repo::new();
@@ -778,6 +797,7 @@ fn blobless(source: &Repo) -> Repo {
         .output()
         .expect("git runs");
     assert!(cloned.status.success(), "{}", String::from_utf8_lossy(&cloned.stderr));
+    offline(&clone);
     clone
 }
 

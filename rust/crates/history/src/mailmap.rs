@@ -1,7 +1,7 @@
 //! Who an author is, as the laid commit's `.mailmap` says: read from the commit, never from the working tree or git's
 //! mailmap settings, so the same history always counts the same people. Lines are read as git's `mailmap.c` reads them.
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -173,9 +173,19 @@ pub enum Ended {
 /// Runs a command, killed after `timeout`; answers at once on a timeout. A process git starts in turn may hold the pipes
 /// open after git is killed: they are let go, not waited for.
 #[must_use]
-pub fn run_within(mut command: Command, timeout: Duration) -> Ended {
+pub fn run_within(command: Command, timeout: Duration) -> Ended {
+    run_feeding(command, timeout, &[])
+}
+
+/// Runs a command as `run_within` does, `input` on its standard input.
+#[must_use]
+pub fn run_feeding(mut command: Command, timeout: Duration, input: &[u8]) -> Ended {
     command
-        .stdin(Stdio::null())
+        .stdin(if input.is_empty() {
+            Stdio::null()
+        } else {
+            Stdio::piped()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = match command.spawn() {
@@ -188,6 +198,13 @@ pub fn run_within(mut command: Command, timeout: Duration) -> Ended {
             };
         }
     };
+    if let Some(mut stdin) = child.stdin.take() {
+        let input = input.to_vec();
+        // A process that ends before it reads its input fails the write; its exit says why.
+        std::thread::spawn(move || {
+            let _ = stdin.write_all(&input);
+        });
+    }
     let drain = |mut pipe: Box<dyn Read + Send>| {
         std::thread::spawn(move || {
             let mut bytes = Vec::new();

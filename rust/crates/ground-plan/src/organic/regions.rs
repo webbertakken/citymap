@@ -232,6 +232,7 @@ mod tests {
 
     fn city(towns: Vec<Arc<Town>>) -> City {
         City {
+            manifests: None,
             repository: "demo".into(),
             commit: "c".into(),
             highways: vec![],

@@ -31,6 +31,8 @@ export interface ViewControlsProps {
   readonly separate: readonly Separation[];
   readonly separable: readonly Separation[];
   readonly declared: boolean;
+  /** Whether the city shown could not fetch its workspace manifests (a partial clone, offline). */
+  readonly unfetched: boolean;
   readonly onSeparate: (separation: Separation, on: boolean) => void;
   /**
    * Walking in the city: whether a walk is under way, and going down into the city or back to the map; null while no
@@ -110,6 +112,7 @@ export function ViewControls(props: ViewControlsProps) {
             separate={props.separate}
             separable={props.separable}
             declared={props.declared}
+            unfetched={props.unfetched}
             onSeparate={props.onSeparate}
           />
         )}

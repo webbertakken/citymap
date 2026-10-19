@@ -14,6 +14,7 @@ interface Snapshot {
   readonly folderFirstSeen: ReadonlyMap<string, number>; // folder path -> first commit index holding it
   readonly workspaces?: readonly string[]; // member folders declared by the root workspace manifests, when read
   readonly submodules?: readonly string[]; // submodule folders (gitlinks), sorted, when the tree holds any
+  readonly manifests?: "unfetchable"; // a partial clone could not fetch the root manifests of the commits it lays
 }
 interface FileEntry {
   readonly path: string; // repo-relative, "/" separated, no leading "./"

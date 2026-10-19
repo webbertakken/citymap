@@ -6,6 +6,7 @@ import { CitymapError, MAX_PATH_BYTES, compareKeys, type FileEntry, type Snapsho
 import { countCommits, resolveCommit } from "./ancestry";
 import { BlobReader } from "./blobs";
 import { gitEnvironment } from "./env";
+import { fetchManifests, rootTrees, type ManifestsRead } from "./fetch-manifests";
 import type { FileHistory } from "./file-history";
 import { emailOf, readMailmap, type Author, type Mailmap, type MailmapRead } from "./mailmap";
 import { foldSchedule, isLaid, laidCount, type Strides } from "./schedule";
@@ -40,7 +41,13 @@ export interface ScheduleChosen {
   };
 }
 
-export type HistoryEvent = SubmoduleUnavailable | SubmoduleRead | ManifestUnavailable | MailmapRead | ScheduleChosen;
+export type HistoryEvent =
+  | SubmoduleUnavailable
+  | SubmoduleRead
+  | ManifestUnavailable
+  | ManifestsRead
+  | MailmapRead
+  | ScheduleChosen;
 
 /**
  * A commit's header, "<sha>\x02<time>\x02<email>\x02<name>" after its \x01 mark: the name is the rest, so one holding a
@@ -169,6 +176,7 @@ function snapshotOf(
   folders: ReadonlyMap<string, number>,
   workspaces: readonly string[] | undefined,
   submodules: readonly string[],
+  unfetched: boolean,
 ): Snapshot {
   return {
     repository,
@@ -178,6 +186,7 @@ function snapshotOf(
     folderFirstSeen: folders,
     ...(workspaces === undefined ? {} : { workspaces }),
     ...(submodules.length === 0 ? {} : { submodules }),
+    ...(unfetched ? { manifests: "unfetchable" as const } : {}),
   };
 }
 
@@ -243,6 +252,10 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
       laid: laidCount(schedule, from),
     },
   });
+  // A partial clone fetches the root manifests of the commits it lays, before any blob is read.
+  const manifests = await fetchManifests(dir, async () => (await rootTrees(dir, head)).filter((_tree, at) => laid(at)));
+  if (manifests) onEvent(manifests);
+  const unfetched = manifests?.detail.status === "unfetchable";
   const blobs = new BlobReader(dir);
   // The target's own .mailmap names the people, so the history alone decides who they are. Read before the log starts:
   // a listing that fails leaves no process behind, as it fails before any blob is asked for.
@@ -323,7 +336,7 @@ export async function* readHistory(repoDir: string, options: ReadOptions = {}): 
         files ??= filesOf(state);
         folderMap ??= new Map(folders);
         const declared = workspaces.resolve(texts, index, onEvent);
-        yield snapshotOf(repository, commit.sha, index, files, folderMap, declared, pins.submodules);
+        yield snapshotOf(repository, commit.sha, index, files, folderMap, declared, pins.submodules, unfetched);
       }
       index++;
     }

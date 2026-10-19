@@ -486,6 +486,7 @@ mod tests {
     fn lay(mut entries: Vec<FileEntry>, repository: &str) -> City {
         entries.sort_by(|a, b| compare_keys(&a.path, &b.path));
         let snapshot = Snapshot {
+            manifests: None,
             repository: repository.into(),
             commit: "worktree".into(),
             index: 0,
@@ -571,6 +572,7 @@ mod tests {
         city.towns.push(Arc::new(old));
         assert!(render(&city, "t", "s", Camera::Plan, false).contains("stroke-dasharray"));
         let empty = City {
+            manifests: None,
             repository: "x".into(),
             commit: "worktree".into(),
             towns: vec![],

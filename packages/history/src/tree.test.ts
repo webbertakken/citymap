@@ -94,10 +94,19 @@ describe("readTree", () => {
     execFileSync("git", ["clone", "-q", "--filter=blob:none", "--no-checkout", `file://${source}`, clone], {
       env: gitEnvironment(),
     });
+    // Offline: the manifest cannot be fetched either.
+    git(clone, "remote", "set-url", "origin", join(clone, "gone"));
     const events: HistoryEvent[] = [];
     const snapshot = await readTree(clone, sha, { onEvent: (e) => events.push(e) });
     expect(snapshot.workspaces).toBeUndefined();
-    expect(events).toEqual([{ code: "history/manifest-unavailable", detail: { path: "package.json", index: 0 } }]);
+    expect(snapshot.manifests).toBe("unfetchable");
+    expect(events).toEqual([
+      {
+        code: "history/manifests",
+        detail: { status: "unfetchable", blobs: 1, fetched: 0, reason: "exit-128", error: expect.any(String) },
+      },
+      { code: "history/manifest-unavailable", detail: { path: "package.json", index: 0 } },
+    ]);
     const long = repo();
     const blob = execFileSync("git", ["-C", long, "hash-object", "-w", "--stdin"], {
       input: "x",

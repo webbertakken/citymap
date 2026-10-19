@@ -119,6 +119,9 @@ pub struct City {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub declared: Option<bool>,
     pub highways: Vec<Road>,
+    /// Present ("unfetchable") when a partial clone could not fetch its root manifests: its workspaces are not known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifests: Option<String>,
     pub repository: String,
     /// The separations that would change this city's layout, in `SEPARATIONS` order; absent when none would.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -161,6 +164,15 @@ fn check_separations(value: &serde_json::Value) -> Result<()> {
     {
         return Err(bad_shape("/declared", "a city declares workspaces with true"));
     }
+    if object
+        .get("manifests")
+        .is_some_and(|m| m.as_str() != Some(crate::snapshot::UNFETCHABLE))
+    {
+        return Err(bad_shape(
+            "/manifests",
+            "a city's manifests are unfetchable or not said",
+        ));
+    }
     Ok(())
 }
 
@@ -186,6 +198,7 @@ mod tests {
             commit: "0".repeat(40),
             declared: None,
             highways: vec![],
+            manifests: None,
             repository: "demo".into(),
             separable: None,
             towns: vec![],
@@ -197,9 +210,11 @@ mod tests {
         let recorded = City {
             separable: Some(vec![Separation::Workspaces, Separation::Plugins]),
             declared: Some(true),
+            manifests: Some(crate::snapshot::UNFETCHABLE.to_owned()),
             ..city()
         };
         let text = serialise_city(&recorded).expect("json");
+        assert!(text.contains("\"highways\":[],\"manifests\":\"unfetchable\",\"repository\""));
         assert!(text.starts_with(&format!("{{\"commit\":\"{}\",\"declared\":true,", "0".repeat(40))));
         assert!(text.contains("\"separable\":[\"workspaces\",\"plugins\"]"));
         assert_eq!(parse_city(&text).expect("a city"), recorded);
@@ -224,5 +239,6 @@ mod tests {
             assert!(with("separable", separable).starts_with("city/bad-shape: /separable"));
         }
         assert!(with("declared", serde_json::json!(false)).starts_with("city/bad-shape: /declared"));
+        assert!(with("manifests", serde_json::json!("held")).starts_with("city/bad-shape: /manifests"));
     }
 }

@@ -32,6 +32,7 @@ pub fn snapshot_with(entries: &[FileEntry], folders: &[(&str, i64)], repository:
     let mut sorted = entries.to_vec();
     sorted.sort_by(|a, b| compare_keys(&a.path, &b.path));
     Snapshot {
+        manifests: None,
         repository: repository.to_owned(),
         commit: "worktree".to_owned(),
         index: 0,

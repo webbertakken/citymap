@@ -4,11 +4,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 use citymap_ground_plan::fixed::compare_keys;
-use citymap_ground_plan::snapshot::{FileEntry, MAX_PATH_BYTES, Snapshot, folder_of};
+use citymap_ground_plan::snapshot::{FileEntry, MAX_PATH_BYTES, Snapshot, UNFETCHABLE, folder_of};
 use citymap_ground_plan::{CitymapError, ErrorCode, Result};
 
 use crate::blobs::BlobReader;
 use crate::env::git_command;
+use crate::fetch_manifests::{MANIFESTS_FETCH_TIMEOUT, ManifestsStatus, fetch_manifests};
 use crate::manifests::{Patterns, is_manifest, patterns_of, resolve_workspaces};
 use crate::read::{HistoryEvent, locate};
 use crate::submodules::{GITLINK_MODE, SubmoduleReader};
@@ -49,7 +50,18 @@ pub fn read_tree(
             files.push((path.to_owned(), blob.to_owned()));
         }
     }
-    // The root manifests' and .gitmodules' texts, read in one pass.
+    // A partial clone fetches the commit's root manifests first; then they and .gitmodules are read in one pass.
+    let fetched = fetch_manifests(&dir, || Ok(vec![format!("{commit}^{{tree}}")]), MANIFESTS_FETCH_TIMEOUT)?;
+    let unfetched = matches!(
+        fetched,
+        Some(HistoryEvent::Manifests {
+            status: ManifestsStatus::Unfetchable,
+            ..
+        })
+    );
+    if let Some(event) = fetched {
+        on_event(event);
+    }
     let manifests: Vec<(String, String)> = files.iter().filter(|(path, _)| is_manifest(path)).cloned().collect();
     let gitmodules = files
         .iter()
@@ -141,5 +153,6 @@ pub fn read_tree(
             submodules.sort_by(|a, b| compare_keys(a, b));
             Arc::new(submodules)
         }),
+        manifests: unfetched.then_some(UNFETCHABLE),
     })
 }

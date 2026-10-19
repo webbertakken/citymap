@@ -107,15 +107,22 @@ export interface Ran {
   readonly stderr: string;
 }
 
-/** Runs a command with an argument list (never a shell), killed after `timeoutMs`; resolves at once on a timeout. */
+/**
+ * Runs a command with an argument list (never a shell), `input` on its standard input, killed after `timeoutMs`;
+ * resolves at once on a timeout.
+ */
 export function runWithin(
   command: string,
   args: readonly string[],
   env: NodeJS.ProcessEnv,
   timeoutMs: number,
+  input = "",
 ): Promise<Ran | "timeout"> {
   return new Promise((done) => {
-    const child = spawn(command, args, { env, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(command, args, { env, stdio: ["pipe", "pipe", "pipe"] });
+    // A process that ends before it reads its input fails the write; its exit says why.
+    child.stdin.on("error", () => {});
+    child.stdin.end(input);
     const out: Buffer[] = [];
     let stderr = "";
     child.stdout.on("data", (chunk: Buffer) => out.push(chunk));

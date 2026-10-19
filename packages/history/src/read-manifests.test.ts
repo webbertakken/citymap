@@ -107,21 +107,20 @@ describe("readHistory workspaces", () => {
     write(source, "package.json", JSON.stringify({ workspaces: ["apps/*", "packages/*"] }));
     write(source, "packages/p/index.ts", "p");
     commit(source, "packages");
-    // A blob-less clone with no checkout holds no blobs at all, and never fetches one.
-    const clone = mkdtempSync(join(tmpdir(), "citymap-manifests-clone-"));
-    repos.push(clone);
-    git(source, "config", "uploadpack.allowFilter", "true");
-    execFileSync("git", ["clone", "-q", "--filter=blob:none", "--no-checkout", `file://${source}`, clone], {
-      env: gitEnvironment(),
-    });
+    const clone = blobless(source);
     // Only the first manifest is put back.
     write(clone, "first.json", JSON.stringify({ workspaces: ["apps/*"] }));
     git(clone, "hash-object", "-w", "first.json");
     const events: HistoryEvent[] = [];
     const snaps = await collect(clone, events);
     expect(snaps.map((s) => s.workspaces)).toEqual([["apps/web"], ["apps/web"]]);
+    expect(snaps.map((s) => s.manifests)).toEqual(["unfetchable", "unfetchable"]);
     expect(events).toEqual([
       { code: "history/schedule", detail: { commits: 2, coarse: 0, tail: 0, from: 0, laid: 2 } },
+      {
+        code: "history/manifests",
+        detail: { status: "unfetchable", blobs: 2, fetched: 0, reason: "exit-128", error: expect.any(String) },
+      },
       { code: "history/manifest-unavailable", detail: { path: "package.json", index: 1 } },
     ]);
   });
@@ -180,7 +179,7 @@ describe("readHistory workspaces", () => {
   });
 });
 
-/** A blob-less clone of `source` with no checkout: it holds no blobs at all, and never fetches one. */
+/** A blob-less clone of `source` with no checkout, offline: it holds no blobs at all, and cannot fetch one. */
 function blobless(source: string): string {
   const clone = mkdtempSync(join(tmpdir(), "citymap-manifests-clone-"));
   repos.push(clone);
@@ -188,5 +187,6 @@ function blobless(source: string): string {
   execFileSync("git", ["clone", "-q", "--filter=blob:none", "--no-checkout", `file://${source}`, clone], {
     env: gitEnvironment(),
   });
+  git(clone, "remote", "set-url", "origin", join(clone, "gone"));
   return clone;
 }

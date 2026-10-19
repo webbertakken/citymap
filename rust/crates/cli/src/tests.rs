@@ -563,7 +563,7 @@ fn rejects_a_named_report_that_is_missing_unreadable_or_too_large() {
 }
 
 #[test]
-fn measures_a_partial_clone_without_fetching() {
+fn measures_a_partial_clone_fetching_its_root_manifests_alone() {
     let source = measured();
     git(&source.0, &["config", "uploadpack.allowFilter", "true"]);
     let n = NEXT.fetch_add(1, Ordering::SeqCst);
@@ -580,7 +580,16 @@ fn measures_a_partial_clone_without_fetching() {
     run_lay(&command(&clone.0, &["--out=city.json"]), &mut io, 1000, FOLD_STRIDES).expect("a city");
     assert_eq!(
         io.lines[io.lines.len() - 2],
-        "measures/done source=cli size=lines tested=name lots=5 files=5 read=0 unread=6"
+        "measures/done source=cli size=lines tested=name lots=5 files=5 read=1 unread=5"
+    );
+    assert!(
+        io.lines
+            .contains(&"history/manifests status=fetched blobs=1 fetched=1".to_owned())
+    );
+    let manifest = file_of(&io.files[Path::new("city.json")], "package.json");
+    assert_eq!(
+        (manifest["bytes"].clone(), manifest["lines"].clone()),
+        (3.into(), 1.into())
     );
     let a = file_of(&io.files[Path::new("city.json")], "src/a.ts");
     assert_eq!(

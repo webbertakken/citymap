@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { CitymapError, MAX_PATH_BYTES, compareKeys, stateSnapshot, type Snapshot } from "@citymap/ground-plan";
 import { BlobReader } from "./blobs";
 import { gitEnvironment } from "./env";
+import { fetchManifests } from "./fetch-manifests";
 import { isManifest, patternsOf, resolveWorkspaces, type Patterns } from "./manifests";
 import type { HistoryEvent } from "./read";
 import { GITLINK_MODE, SubmoduleReader } from "./submodules";
@@ -34,7 +35,9 @@ export async function readTree(repoDir: string, commit: string, options: TreeOpt
     if (mode === GITLINK_MODE) gitlinks.set(path, blob!);
     else files.push({ path, blob: blob! });
   }
-  // The root manifests' and .gitmodules' texts, read in one pass.
+  // A partial clone fetches the commit's root manifests first; then they and .gitmodules are read in one pass.
+  const fetched = await fetchManifests(dir, async () => [`${commit}^{tree}`]);
+  if (fetched) onEvent(fetched);
   const manifests = files.filter((f) => isManifest(f.path));
   const gitmodules = files.find((f) => f.path === ".gitmodules");
   const reader = new BlobReader(dir);
@@ -84,5 +87,6 @@ export async function readTree(repoDir: string, commit: string, options: TreeOpt
           [...folders].filter((f) => f !== ""),
         )
       : undefined;
-  return stateSnapshot(options.repository ?? basename(dir), commit, paths, members, submodules);
+  const snapshot = stateSnapshot(options.repository ?? basename(dir), commit, paths, members, submodules);
+  return fetched?.detail.status === "unfetchable" ? { ...snapshot, manifests: "unfetchable" } : snapshot;
 }

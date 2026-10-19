@@ -188,6 +188,11 @@ export function authorsOf(text: string): string {
   return JSON.stringify({ authors: Array.isArray(available) && available.includes("authors"), lots });
 }
 
+/** A city file's layout: everything but its measures, as written. A blob-less clone lays what a full clone lays. */
+export function layoutOf(text: string): string {
+  return JSON.stringify(Object.fromEntries([...fieldsOf(JSON.parse(text))].filter(([key]) => key !== "measures")));
+}
+
 /** How many of a history's authors the checkout mode's working tree `.mailmap` merges into one. */
 export const CHECKOUT_AUTHORS = 200;
 

@@ -52,6 +52,7 @@ mod parity {
             .expect("snapshots")
             .iter()
             .map(|s| Snapshot {
+                manifests: None,
                 repository: s["repository"].as_str().expect("repository").to_owned(),
                 commit: s["commit"].as_str().expect("commit").to_owned(),
                 index: s["index"].as_i64().expect("index"),
@@ -212,6 +213,7 @@ mod resume {
             let mut files: Vec<FileEntry> = live.values().cloned().collect();
             files.sort_by(|a, b| compare_keys(&a.path, &b.path));
             out.push(Snapshot {
+                manifests: None,
                 repository: "demo".into(),
                 commit: "worktree".into(),
                 index: i64::try_from(c).expect("an index"),

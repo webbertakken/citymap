@@ -85,12 +85,15 @@ interface City {
   readonly highways: readonly Road[];
   readonly separable?: readonly Separation[]; // present when not empty, SEPARATIONS order
   readonly declared?: true; // present when the snapshot declares workspaces
+  readonly manifests?: "unfetchable"; // present when the snapshot's manifests could not be fetched (a partial clone)
 }
 ```
 
 - Serialised as canonical JSON (keys sorted, as every field of the city); `parseCity` checks `separable` (known names,
-  `SEPARATIONS` order, no repeats, not empty) and `declared` (`true` only), rejecting with `city/bad-shape` at
-  `/separable` or `/declared`.
+  `SEPARATIONS` order, no repeats, not empty), `declared` (`true` only) and `manifests` (`"unfetchable"` only),
+  rejecting with `city/bad-shape` at `/separable`, `/declared` or `/manifests`. `recordOf(snapshot)` copies
+  `snapshot.manifests` to the city; the Rust city file writer (`serialise_city_file`, which lists the city's keys)
+  writes it in byte order, between `highways` and `measures`.
 - A city file written before carries neither: the viewer shows no "Separate towns" group for it.
 
 ## Setting key

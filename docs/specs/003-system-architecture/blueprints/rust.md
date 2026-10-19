@@ -56,6 +56,8 @@ history reader hands the files' history over as its last item (`HistoryItem::Fil
 (`contents.rs`) gives each file a `Store` (`Repository`, `GitData(path)` for a submodule's, `Nowhere` for an unread
 submodule's `.gitlink`), where TypeScript's `TreeFile.store` is absent, a path or null; `read_blobs` reads each store
 through `BlobReader::new` or `BlobReader::on_git_data`, as `new BlobReader(dir, { gitData })`.
+`packages/history/src/fetch-manifests.ts` maps to `fetch_manifests.rs`: `laid_manifests`, `promisor_remotes`,
+`fetch_blobs` and `HistoryEvent::Manifests`.
 
 ## Types
 
@@ -243,11 +245,15 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   LCOV and Istanbul by absolute CI paths, Cobertura by a source root, JaCoCo by package, and one path no repository
   holds), so the parsers and the path matching are compared byte for byte too.
 - The `partial` mode folds a blob-less `--no-checkout` clone (`--filter=blob:none` over `file://`, its upload-pack
-  allowing filters and any object by id, as a promisor remote serves them), so each CLI fetches the laid commit's
-  `.mailmap` when it has one. The CLIs' outputs are compared with each other, and each CLI's authors (`authorsOf`:
+  allowing filters and any object by id, as a promisor remote serves them), so each CLI fetches the root manifests of
+  the commits it lays and the laid commit's `.mailmap` when it has one. The CLIs' outputs are compared with each other,
+  and each CLI's layout (`layoutOf`: the city file without its measures; the SVG; the lock) and authors (`authorsOf`:
   `available` and every file's and lot's `authors`) with its own `fold` outputs: `parity/partial repo=… same` or
-  `parity/partial-differs repo=… files=<side>:authors,…` (exit 1). `cloneArgs` names each mode's clone, and
-  `UPLOAD_PACK` the upload-pack the partial clone and its later fetch use.
+  `parity/partial-differs repo=… files=<side>:<layout|city.svg|citymap.lock.json|authors>,…` (exit 1). `cloneArgs` names
+  each mode's clone, and `UPLOAD_PACK` the upload-pack the partial clone and its later fetch use. Before the modes,
+  `holdManifests` lets a cached repository that is itself a partial clone fetch every commit's root manifests from its
+  own remote (`fetchManifests` over `rootTrees`, `parity/manifests repo=… status=…`; an unfetchable one stops the run),
+  so the fold of it reads them and the partial clone can fetch them from it.
 - The `checkout` mode folds a clone made with a checkout, whose working tree `.mailmap` (and `mailmap.file`, pointed at
   the same text) maps up to `CHECKOUT_AUTHORS` 200 of its authors' emails to one (`checkoutMailmap`), so a CLI that read
   the working tree would count fewer authors. Each such clone logs `parity/checkout-mailmap clone=… lines=…`. The CLIs'

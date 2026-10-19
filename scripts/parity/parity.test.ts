@@ -3,6 +3,7 @@ import {
   CHECKOUT_AUTHORS,
   UPLOAD_PACK,
   authorsOf,
+  layoutOf,
   cloneArgs,
   LONG,
   PARITY,
@@ -243,6 +244,19 @@ const cityWith = (authors: boolean, bytes: number) =>
       lots: { t: { a: { files: [{ path: "x", bytes, ...(authors ? { authors: 2 } : {}) }], authors: 2 } } },
     },
   });
+
+/** A city file of `lots` lots whose one file measures `size` bytes. */
+const measuredCity = (lots: number, size: number) =>
+  JSON.stringify({ commit: "c", towns: [{ lots }], measures: { lots: { t: { a: { files: [{ bytes: size }] } } } } });
+
+describe("layoutOf", () => {
+  it("keeps a city file's layout, whatever its measures say", () => {
+    const city = measuredCity;
+    expect(layoutOf(city(1, 10))).toBe(layoutOf(city(1, 99)));
+    expect(layoutOf(city(1, 10))).toBe(JSON.stringify({ commit: "c", towns: [{ lots: 1 }] }));
+    expect(layoutOf(city(2, 10))).not.toBe(layoutOf(city(1, 10)));
+  });
+});
 
 describe("authorsOf", () => {
   it("keeps a city's people only: whether it has authors, and every lot's and file's count", () => {

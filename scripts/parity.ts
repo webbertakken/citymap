@@ -4,16 +4,19 @@
 // lockfile and log byte for byte. The resume mode folds from a lock saved part way, and its city, SVG and lock must also
 // match the uninterrupted fold of the same CLI. The checkout mode folds a clone with a checkout whose working tree
 // .mailmap (and mailmap.file) merges its authors, and its city, SVG, lock and log must match the fold of the clone
-// without one. The partial mode folds a blob-less clone, which fetches the laid commit's .mailmap, and its authors must
-// match the fold's. Run it under PM2: folds take minutes.
+// without one. The partial mode folds a blob-less clone, which fetches the root manifests of the commits it lays and
+// the laid commit's .mailmap, and its layout (city without measures, SVG, lock) and authors must match the fold's. Run
+// it under PM2: folds take minutes.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fetchManifests, rootTrees } from "@citymap/history";
 import {
   OUTPUTS,
   SAME_AS_FOLD,
   UPLOAD_PACK,
   authorsOf,
+  layoutOf,
   cloneArgs,
   buildArgs,
   checkoutMailmap,
@@ -53,6 +56,8 @@ console.log(`parity/built rust/target/release/citymap features=${settings.featur
 
 /** The lockfile a fold writes at the clone's root. */
 const LOCK = "citymap.lock.json";
+/** How long a cached repository's manifests may take to arrive from its remote: every commit's, once. */
+const MANIFESTS_HOLD_TIMEOUT = 600_000;
 const results: Result[] = [];
 let foldDiffers = false;
 for (const repo of settings.repos) {
@@ -61,6 +66,9 @@ for (const repo of settings.repos) {
     console.log(`parity/skipped repo=${repo} reason=no-repository`);
     continue;
   }
+  // One repository at a time: its manifests are fetched before its clones are made.
+  // oxlint-disable-next-line no-await-in-loop
+  if (settings.modes.includes("partial")) await holdManifests(repo, source);
   const scratch = mkdtempSync(join(tmpdir(), "citymap-parity-"));
   try {
     const failed = settings.modes.map((mode) => {
@@ -162,13 +170,36 @@ function mergeAuthorsInWorkingTree(clone: string, elsewhere: string): void {
   console.log(`parity/checkout-mailmap clone=${clone} lines=${text.split("\n").length - 1}`);
 }
 
-/** A blob-less clone's fold against the fold of a full clone, per CLI: the same people. True when they differ. */
+/**
+ * Lets a cached repository that is itself a partial clone hold the root manifests of every commit, fetched from its own
+ * remote, as a full clone does: the fold reads them from it, and the partial mode's clone fetches them from it, so the
+ * two can be compared. Fetching only adds what the repository's history names.
+ */
+async function holdManifests(repo: string, source: string): Promise<void> {
+  const read = await fetchManifests(source, () => rootTrees(source, "HEAD"), MANIFESTS_HOLD_TIMEOUT);
+  const detail = read ? Object.entries(read.detail).map(([key, value]) => `${key}=${String(value)}`) : ["status=full"];
+  console.log(`parity/manifests repo=${repo} ${detail.join(" ")}`);
+  if (read?.detail.status === "unfetchable") throw new Error(`parity/manifests-unfetchable repo=${repo}`);
+}
+
+/**
+ * A blob-less clone's fold against the fold of a full clone, per CLI: the same layout (the city without its measures,
+ * the SVG and the lock), as it fetched the manifests it lays, and the same people. True when they differ.
+ */
 function checkPartial(repo: string, scratch: string): boolean {
-  const people = (mode: Mode, side: string) =>
-    authorsOf(readFileSync(join(scratch, mode, `${side}-out`, "city.json"), "utf8"));
-  const differs = Object.keys(sides)
-    .filter((side) => people("fold", side) !== people("partial", side))
-    .map((side) => `${side}:authors`);
+  const text = (mode: Mode, side: string, file: string) =>
+    readFileSync(join(scratch, mode, `${side}-out`, file), "utf8");
+  const same = (side: string, file: string, view: (text: string) => string = (t) => t) =>
+    view(text("fold", side, file)) === view(text("partial", side, file));
+  const checks = [
+    ["layout", "city.json", layoutOf],
+    ["city.svg", "city.svg", undefined],
+    [LOCK, LOCK, undefined],
+    ["authors", "city.json", authorsOf],
+  ] as const;
+  const differs: string[] = [];
+  for (const side of Object.keys(sides))
+    for (const [name, file, view] of checks) if (!same(side, file, view)) differs.push(`${side}:${name}`);
   console.log(sameVerdict("partial", repo, differs));
   return differs.length > 0;
 }

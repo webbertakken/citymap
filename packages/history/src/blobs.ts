@@ -77,13 +77,18 @@ export class BlobReader {
 
 /** The blobs a partial clone holds, or null when the repository is not one (or git cannot say). */
 async function heldBlobs(at: readonly string[]): Promise<ReadonlySet<string> | null> {
-  const git = (...args: string[]) => run("git", [...at, ...args], { env: ENV, maxBuffer: 1 << 30 });
   try {
-    await git("config", "--get-regexp", PARTIAL_CLONE);
+    await run("git", [...at, "config", "--get-regexp", PARTIAL_CLONE], { env: ENV });
   } catch {
     // No such setting, or no repository: not a partial clone; the batch reports whatever is missing.
     return null;
   }
+  return listHeld(at);
+}
+
+/** Every blob the repository holds, asking nobody. */
+export async function listHeld(at: readonly string[]): Promise<ReadonlySet<string>> {
+  const git = (...args: string[]) => run("git", [...at, ...args], { env: ENV, maxBuffer: 1 << 30 });
   const listing = "--batch-check=%(objecttype) %(objectname)";
   const { stdout } = await git("cat-file", listing, "--batch-all-objects", "--unordered");
   return new Set(

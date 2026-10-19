@@ -110,6 +110,8 @@ struct CityFile<'a> {
     declared: Option<bool>,
     highways: &'a [Road],
     #[serde(skip_serializing_if = "Option::is_none")]
+    manifests: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     measures: Option<&'a Measures>,
     repository: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -123,6 +125,7 @@ pub fn serialise_city_file(city: &City, measures: Option<&Measures>) -> Result<S
         commit: &city.commit,
         declared: city.declared,
         highways: &city.highways,
+        manifests: city.manifests.as_deref(),
         measures,
         repository: &city.repository,
         separable: city.separable.as_deref(),
@@ -167,6 +170,7 @@ mod tests {
     #[test]
     fn keeps_what_a_city_records_of_its_separations() {
         let city = City {
+            manifests: None,
             commit: "worktree".into(),
             declared: Some(true),
             highways: vec![],
@@ -183,6 +187,7 @@ mod tests {
     #[test]
     fn writes_a_city_without_measures_as_the_city_alone_and_with_them_beside_it() {
         let city = City {
+            manifests: None,
             commit: "worktree".into(),
             declared: None,
             highways: vec![],

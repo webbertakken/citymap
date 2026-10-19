@@ -4,6 +4,7 @@ pub mod ancestry;
 pub mod blobs;
 pub mod contents;
 pub mod env;
+pub mod fetch_manifests;
 pub mod file_history;
 pub mod gitmodules;
 pub mod mailmap;
