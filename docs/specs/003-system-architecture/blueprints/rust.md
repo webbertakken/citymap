@@ -250,7 +250,10 @@ fold defers is pure. Folding with and without the caches gives the same bytes (t
   and each CLI's layout (`layoutOf`: the city file without its measures; the SVG; the lock) and authors (`authorsOf`:
   `available` and every file's and lot's `authors`) with its own `fold` outputs: `parity/partial repo=… same` or
   `parity/partial-differs repo=… files=<side>:<layout|city.svg|citymap.lock.json|authors>,…` (exit 1). `cloneArgs` names
-  each mode's clone, and `UPLOAD_PACK` the upload-pack the partial clone and its later fetch use.
+  each mode's clone, and `UPLOAD_PACK` the upload-pack the partial clone and its later fetch use. Before the modes,
+  `holdManifests` lets a cached repository that is itself a partial clone fetch every commit's root manifests from its
+  own remote (`fetchManifests` over `rootTrees`, `parity/manifests repo=… status=…`; an unfetchable one stops the run),
+  so the fold of it reads them and the partial clone can fetch them from it.
 - The `checkout` mode folds a clone made with a checkout, whose working tree `.mailmap` (and `mailmap.file`, pointed at
   the same text) maps up to `CHECKOUT_AUTHORS` 200 of its authors' emails to one (`checkoutMailmap`), so a CLI that read
   the working tree would count fewer authors. Each such clone logs `parity/checkout-mailmap clone=… lines=…`. The CLIs'

@@ -10,6 +10,7 @@
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fetchManifests, rootTrees } from "@citymap/history";
 import {
   OUTPUTS,
   SAME_AS_FOLD,
@@ -55,6 +56,8 @@ console.log(`parity/built rust/target/release/citymap features=${settings.featur
 
 /** The lockfile a fold writes at the clone's root. */
 const LOCK = "citymap.lock.json";
+/** How long a cached repository's manifests may take to arrive from its remote: every commit's, once. */
+const MANIFESTS_HOLD_TIMEOUT = 600_000;
 const results: Result[] = [];
 let foldDiffers = false;
 for (const repo of settings.repos) {
@@ -63,6 +66,9 @@ for (const repo of settings.repos) {
     console.log(`parity/skipped repo=${repo} reason=no-repository`);
     continue;
   }
+  // One repository at a time: its manifests are fetched before its clones are made.
+  // oxlint-disable-next-line no-await-in-loop
+  if (settings.modes.includes("partial")) await holdManifests(repo, source);
   const scratch = mkdtempSync(join(tmpdir(), "citymap-parity-"));
   try {
     const failed = settings.modes.map((mode) => {
@@ -162,6 +168,18 @@ function mergeAuthorsInWorkingTree(clone: string, elsewhere: string): void {
   const configured = run(["git", "-C", clone, "config", "mailmap.file", elsewhere]);
   if (configured.code !== 0) throw new Error(`parity/config-failed ${configured.stderr.split("\n", 1)[0]}`);
   console.log(`parity/checkout-mailmap clone=${clone} lines=${text.split("\n").length - 1}`);
+}
+
+/**
+ * Lets a cached repository that is itself a partial clone hold the root manifests of every commit, fetched from its own
+ * remote, as a full clone does: the fold reads them from it, and the partial mode's clone fetches them from it, so the
+ * two can be compared. Fetching only adds what the repository's history names.
+ */
+async function holdManifests(repo: string, source: string): Promise<void> {
+  const read = await fetchManifests(source, () => rootTrees(source, "HEAD"), MANIFESTS_HOLD_TIMEOUT);
+  const detail = read ? Object.entries(read.detail).map(([key, value]) => `${key}=${String(value)}`) : ["status=full"];
+  console.log(`parity/manifests repo=${repo} ${detail.join(" ")}`);
+  if (read?.detail.status === "unfetchable") throw new Error(`parity/manifests-unfetchable repo=${repo}`);
 }
 
 /**
