@@ -9,6 +9,7 @@ import { GROUND, PERSON_RADIUS, type Vec3, type Walls } from "@citymap/world";
 import { HARD_HIT, resting, rideCycle, thrown, type Cycle } from "./bicycle";
 import {
   BODY_RADIUS,
+  HUB_AHEAD,
   MAST,
   ROTOR_RADIUS,
   flyHeli,
@@ -57,9 +58,6 @@ export interface VehicleSpec {
     readonly chase?: number;
   };
 }
-
-/** The helicopter's middle lies this far behind its mast: measured from the AS350's mesh (its hub 1.99 m ahead). */
-export const HUB_AHEAD = 1.99;
 
 /** An arcade handling: how a car speeds up, brakes, coasts and turns. */
 export interface Handling {

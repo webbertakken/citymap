@@ -80,21 +80,23 @@ One row per value the exploration spec leaves silent or qualitative.
 | Measuring traffic        | ?traffic=n, throttle 0.35, steering ±0.4         | slow circles near the player, for the phone measure                       | a measuring aid           |
 | Load phases              | engine 0.35, models 0.15, walls 0.3, streets 0.2 | the engine and linux's walls the longest (takken.io: 159, 68, 7, 6 ms)    | taste                     |
 | Helicopter build         | 2,250 kg, rotor 5.35 m, mast 3.06 m              | the AS350 B2's most at take-off, rotor and mesh                           | fixed by the model        |
-| Most thrust              | 1.5 of its weight                                | climbs briskly; lifts at 73 % rotor on the ground                         | 1.3 to 2                  |
+| Most thrust              | 2 of its weight                                  | arcade: 8 m/s of climb within a second; lifts at 64 % rotor on the ground | 1.3 to 2.5                |
 | Rotor spin               | up 0.2 a second, down 0.08                       | five seconds to fly, as GTA's; a slower wind-down                         | taste                     |
 | Climb and sink           | 8 and 6 m/s, 1.5 m/s within 1.5 s of below       | brisk on a keyboard; touches down under 1 m/s                             | taste                     |
 | Ceiling                  | 500 m                                            | the city's tallest are well under; fog bounds the far plane at 4 km       | 200 to 1,000 m            |
-| Cyclic                   | 0.3 rad, spring 5 rad/s                          | about 200 km/h flat out, under the Écureuil's 287 km/h                    | 0.2 to 0.4 rad            |
-| Hover assist             | 0.04 per m/s, at most 0.2 rad                    | slows itself to a hover, never nose up past 11°                           | taste                     |
+| Cyclic                   | 0.5 rad, spring 10 rad/s                         | arcade: moves off within 0.3 s, 0 to 50 km/h in under 3 s                 | 0.3 to 0.6 rad            |
+| Hover assist             | 0.15 per m/s, at most the cyclic's 0.5 rad       | let go at 50 km/h, it hovers within about 25 m, coasting on 0.2 s         | taste                     |
+| Climb assist             | gain 4 a second; height held at 0.5 a second     | a climb within a second; a gentle hold, so ground effect's cushion shows  | 2 to 6; 0.3 to 1          |
 | Bank                     | at most 0.6 rad, coordinated                     | a turn at speed follows its nose                                          | 0.4 to 0.8 rad            |
 | Tail rotor               | 1.2 rad/s, gain 5, most 4 rad/s²                 | a hover turns round in five seconds; heading held in a climb              | taste                     |
-| Drag areas               | 3.5 m² ahead, 12 m² aside                        | top speed about 200 km/h; drift dies sideways                             | taste                     |
+| Drag areas               | 6.5 m² ahead, 12 m² aside                        | top speed about 200 km/h at the cyclic's most; drift dies sideways        | taste                     |
+| Helicopter shadow        | 0.45 dark on its skids, gone 80 m up, 11 × 2.6 m | its height reads at a glance; the city casts no other shadow              | 0.3 to 0.6; 40 to 150 m   |
 | Hard hit                 | 5 m/s lost; rotor −4 % per m/s, at most half     | a brush slides; a crash nearly brings it down                             | 3 to 8 m/s                |
 | Perch slide              | probe 0.6 m, eased at 4 m/s²                     | past a step's climb (0.45 m); off the edge in a second or two             | taste                     |
 | Helipad                  | 24 to 400 m on, every 2 m, 0.5 m margin          | in sight of the landing, clear of the kerbs' vehicles                     | taste                     |
 | Level                    | 2 m                                              | a walker and a vehicle further apart in height are on different levels    | 1 to 3 m                  |
 | Helicopter camera        | 15 m, 4 m up, +0.1 s · v to 22 m, chase 0.6 s    | the rotor and the city ahead in view                                      | taste                     |
-| Helicopter model         | albedo 512 px WebP, meshopt                      | 107 KB, inside the 500 KB budget                                          | 256 to 1,024 px           |
+| Helicopter model         | albedo 512 px WebP, meshopt                      | 108 KB, inside the 500 KB budget                                          | 256 to 1,024 px           |
 | Arms' hold on the bars   | 0.9 of full reach                                | elbows a little bent, as riders hold bars                                 | 0.8 to 1                  |
 | Grip in the hand         | 0.6 from wrist to knuckles                       | the bar across the palm, short of the fingers                             | 0.4 to 0.8                |
 | Fingers round a grip     | 0.9 rad a joint, thumb 0.5                       | three joints close about 150° round a bar                                 | 0.6 to 1.1 rad            |

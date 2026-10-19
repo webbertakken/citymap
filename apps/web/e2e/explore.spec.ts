@@ -528,62 +528,80 @@ async function flyUntil(page: Page, keys: readonly string[], wanted: (now: Gauge
   await Promise.all(keys.map((key) => page.keyboard.up(key)));
 }
 
-/** Within this many metres of a marked roof's middle, sinking sets it down there: well inside the landing assist's 10 m. */
-const OVER_THE_MARK = 6;
-/** Letting go slows it at about this, in m/s² (the hover assist's 2, less its lag): the approach never outruns it. */
-const LETTING_GO = 1.5;
-/** The fastest it approaches at, km/h; and the slowest, so it never stalls short. */
-const APPROACH_MOST = 50;
-const APPROACH_LEAST = 5;
-/** Arrived: this slow, within `OVER_THE_MARK`. */
-const ARRIVED = 10;
-
-/** From a hover, turns on the spot (A or D) until the nearest marked roof is within a few degrees of the nose. */
-async function faceTheMark(page: Page) {
-  await flyUntil(page, [], (now) => now.speed <= 2, 1000);
-  const bearing = (await gauges(page)).landing!.bearing;
-  await flyUntil(page, [bearing > 0 ? "KeyA" : "KeyD"], (now) => Math.abs(now.landing!.bearing) <= 8, 2000);
-  await flyUntil(page, [], (now) => now.speed <= 2, 1000);
-}
+/**
+ * How the pilot flies over the nearest marked roof: within `over` metres of its middle, sinking sets it down there (well
+ * inside the landing assist's 10 m), once no faster than `arrived` km/h. It flies at the mark no faster than letting go
+ * can stop it short (`lettingGo` m/s², the hover assist's 4 or so less its lag), between `least` and `most` km/h;
+ * off the nose by more than `offTheNose` degrees it is turned first; flying, it keeps the nose within `onTheNose` from
+ * further than `steerFrom` metres (close by, a metre's drift swings the bearing wildly). At most `frames` frames.
+ */
+const PILOT = {
+  over: 6,
+  arrived: 10,
+  lettingGo: 3,
+  least: 5,
+  most: 50,
+  offTheNose: 25,
+  onTheNose: 4,
+  steerFrom: 8,
+  frames: 20_000,
+};
 
 /**
- * Over the nearest marked roof: faced, then flown at, slower the nearer it is, its nose kept on it from afar, until
- * within `OVER_THE_MARK`; whenever it slips off the nose, let go to a hover and faced afresh. W is the only key that
- * flies it along: the HUD's speed has no sign, so slowing is always letting go (the hover assist stops any drift).
- * Let go there, for sinking to set it down.
+ * Over the nearest marked roof, by a pilot in the page: each frame it reads the HUD and holds W, A and D as a person
+ * would (key events on the window, as the keyboard sends them), so the keys follow the flight frame by frame however
+ * slowly the runner draws, where a test reading the HUD across the wire would see it late and overshoot every turn.
+ * Off the nose, W is let go and A or D turns it to the mark (on the spot once slow); on the nose, W flies it at the mark,
+ * slower the nearer it is. W is the only key that flies it along: the HUD's speed has no sign, so slowing is always
+ * letting go (the hover assist stops any drift). It lets go of every key there, for sinking to set it down.
  */
 async function overTheMark(page: Page) {
-  await faceTheMark(page);
-  const keys = { KeyW: false, KeyA: false, KeyD: false };
-  const press = async (code: keyof typeof keys, want: boolean) => {
-    if (keys[code] !== want) await (want ? page.keyboard.down(code) : page.keyboard.up(code));
-    keys[code] = want;
-  };
-  const letGo = () => Promise.all((["KeyW", "KeyA", "KeyD"] as const).map((held) => press(held, false)));
-  const on = async (left: number): Promise<void> => {
-    const { landing, speed } = await gauges(page);
-    expect(landing, "a marked roof within reach").not.toBeNull();
-    if (left <= 0 || (landing!.distance <= OVER_THE_MARK && speed <= ARRIVED)) return;
-    if (Math.abs(landing!.bearing) > 60) {
-      // Off the nose (overshot, or drifted): let go to a hover and face it again.
-      await letGo();
-      await faceTheMark(page);
-    } else {
-      // As fast as letting go can stop it in the distance left, short of the mark by a few metres.
-      const stoppable = Math.sqrt(2 * LETTING_GO * Math.max(0, landing!.distance - 4)) * 3.6;
-      const kmh = Math.max(APPROACH_LEAST, Math.min(APPROACH_MOST, stoppable));
-      await press("KeyW", speed < kmh);
-      // Steered only from afar: close by, a metre's drift swings the bearing wildly.
-      await press("KeyA", landing!.distance > 8 && landing!.bearing > 4);
-      await press("KeyD", landing!.distance > 8 && landing!.bearing < -4);
-      await frames(page, 2);
-    }
-    await on(left - 1);
-  };
-  await on(3000);
-  await letGo();
-  const over = await gauges(page);
-  expect(over.landing!.distance, JSON.stringify(over)).toBeLessThanOrEqual(OVER_THE_MARK);
+  const flown = await page.evaluate(
+    (pilot) =>
+      new Promise<{ distance: number; speed: number; looks: number } | null>((resolve) => {
+        const held = new Set<string>();
+        const hold = (code: string, want: boolean) => {
+          if (held.has(code) === want) return;
+          if (want) held.add(code);
+          else held.delete(code);
+          window.dispatchEvent(new KeyboardEvent(want ? "keydown" : "keyup", { code, bubbles: true }));
+        };
+        const letGo = () => ["KeyW", "KeyA", "KeyD"].forEach((code) => hold(code, false));
+        let looks = 0;
+        const tick = () => {
+          looks += 1;
+          const hud = document.querySelector<HTMLElement>(".explore-hud");
+          const speedText = [...(hud?.querySelectorAll("dl > div") ?? [])]
+            .find((row) => row.querySelector("dt")?.textContent === "Speed")
+            ?.querySelector("dd")?.textContent;
+          const speed = Number(speedText?.replace(/[^\d.]/g, "") ?? Number.NaN);
+          const landing = hud?.dataset.landing;
+          if (landing === undefined) {
+            letGo();
+            resolve(null);
+            return;
+          }
+          const [distance = Number.NaN, bearing = Number.NaN] = landing.split(" ").map(Number);
+          if (looks > pilot.frames || (distance <= pilot.over && speed <= pilot.arrived)) {
+            letGo();
+            resolve({ distance, speed, looks });
+            return;
+          }
+          const offTheNose = Math.abs(bearing) > pilot.offTheNose;
+          // As fast as letting go can stop it in the distance left, short of the mark by a few metres.
+          const stoppable = Math.sqrt(2 * pilot.lettingGo * Math.max(0, distance - 4)) * 3.6;
+          hold("KeyW", !offTheNose && speed < Math.max(pilot.least, Math.min(pilot.most, stoppable)));
+          const steering = distance > pilot.steerFrom || offTheNose;
+          hold("KeyA", steering && bearing > pilot.onTheNose);
+          hold("KeyD", steering && bearing < -pilot.onTheNose);
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    PILOT,
+  );
+  expect(flown, "a marked roof within reach").not.toBeNull();
+  expect(flown!.distance, JSON.stringify(flown)).toBeLessThanOrEqual(PILOT.over);
 }
 
 test("flies the helicopter: in, spun up, lifted, onto a marked roof, set down there, and out", async ({

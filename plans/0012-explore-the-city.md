@@ -154,7 +154,9 @@ The showpiece: a bicycle that rides like one.
 - [x] Controls on keyboard, touch (nothing overlapping at 412 × 915 and on its side) and gamepad; a camera for flying
 - [x] E2E: board, spin up, lift, fly, land on a roof, get out; gate, commit, local build
 - [x] Released (Webber's standing approval): PR, CI, squash-merge, the live site checked on desktop and phone
-- [ ] Webber tests on desktop and phone; feedback folded in
+- [x] Webber tests on desktop and phone; feedback folded in (#67: the rotor turned about its hub, a shadow and the
+      altitude above what lies below, arcade climb, sink, acceleration and stop, the e2e flight flown by an in-page
+      pilot)
 
 ## Phase 8: phones, gamepads and the hosted site
 

@@ -9,7 +9,15 @@ import type { Theme } from "@citymap/themes";
 import { PerspectiveCamera } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Suspense, use, useEffect, useMemo, useRef } from "react";
-import { CanvasTexture, LinearFilter, Mesh as ThreeMesh, MeshBasicMaterial, PlaneGeometry, type Object3D } from "three";
+import {
+  CanvasTexture,
+  Group,
+  LinearFilter,
+  Mesh as ThreeMesh,
+  MeshBasicMaterial,
+  PlaneGeometry,
+  type Object3D,
+} from "three";
 import { Animator } from "../explore/models/animator";
 import { GLTF_MODELS, loadModel, type Loaded, type ModelFile } from "../explore/models/gltf";
 import { standAfter } from "../explore/models/kickstand";
@@ -22,10 +30,10 @@ import { ROOFTOP_MOST } from "../explore/rooftops";
 import { BASE, FLOOR } from "../explore/sight";
 import { SIGN_POOL, middleOf, nearestLots, wallFacing, type Wall } from "../explore/signs";
 import { METRE } from "../explore/street";
-import { MODEL_KINDS, VEHICLE_POOL, modelOf, nearestOf, type ModelKind } from "../explore/vehicles";
+import { MODEL_KINDS, VEHICLES, VEHICLE_POOL, modelOf, nearestOf, type ModelKind } from "../explore/vehicles";
 import { log, reasonOf } from "../log";
 import { Buildings, Mesh } from "./CityMeshes";
-import type { ExploreCanvasProps, Signage } from "./ExploreView";
+import type { ExploreCanvasProps, ExploreFrame, Signage } from "./ExploreView";
 
 /** The camera sees this far, in street widths (four kilometres), and no nearer than a few centimetres. */
 const FAR = 400;
@@ -272,6 +280,57 @@ interface Showing {
 const stillness = () =>
   typeof window.matchMedia !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/** The helicopter's shadow's texture this many pixels across: a soft disc, darkest in its middle. */
+const SHADOW_PIXELS = 64;
+
+/** The shadow: the group laid and turned each frame, and the material whose opacity says how dark. */
+interface Shadow {
+  readonly turned: Group;
+  readonly material: MeshBasicMaterial;
+}
+
+/**
+ * The helicopter's shadow: a soft ellipse as long and wide as its outline, lying flat, drawn over what lies under it
+ * (never hidden in it), turned as the helicopter faces. No light casts it: it is the one cue to how high it flies.
+ */
+function shadowMesh(): Shadow {
+  const canvas = document.createElement("canvas");
+  canvas.width = SHADOW_PIXELS;
+  canvas.height = SHADOW_PIXELS;
+  const draw = canvas.getContext("2d");
+  const half = SHADOW_PIXELS / 2;
+  const fade = draw?.createRadialGradient(half, half, 0, half, half, half);
+  fade?.addColorStop(0, "rgba(0, 0, 0, 1)");
+  fade?.addColorStop(0.6, "rgba(0, 0, 0, 0.8)");
+  fade?.addColorStop(1, "rgba(0, 0, 0, 0)");
+  if (draw && fade) {
+    draw.fillStyle = fade;
+    draw.fillRect(0, 0, SHADOW_PIXELS, SHADOW_PIXELS);
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.minFilter = LinearFilter;
+  const material = new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false });
+  material.polygonOffset = true;
+  material.polygonOffsetFactor = -4;
+  const flat = new ThreeMesh(new PlaneGeometry(VEHICLES.helicopter.length, VEHICLES.helicopter.width), material);
+  flat.rotation.x = -Math.PI / 2;
+  flat.renderOrder = 1;
+  const turned = new Group();
+  turned.add(flat);
+  turned.visible = false;
+  return { turned, material };
+}
+
+/** Lays the helicopter's shadow where the frame says, as dark as it says; hidden with none, or too high to see. */
+function layShadow({ turned, material }: Shadow, frame: ExploreFrame) {
+  const now = frame.shadow;
+  turned.visible = now !== null && now.opacity > 0;
+  if (!now) return;
+  turned.position.set(now.at.x * METRE, now.at.y * METRE, now.at.z * METRE);
+  turned.rotation.set(0, now.heading, 0);
+  material.opacity = now.opacity;
+}
+
 /** The walker and the nearest vehicles, moved by each frame of the walk; the camera follows. */
 function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: ExploreCanvasProps["frame"] }) {
   const files = modelsNow();
@@ -284,6 +343,7 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
   const model = useMemo(() => loaded?.make() ?? figure(paletteOf(theme)), [loaded, theme]);
   const animator = useMemo(() => (loaded ? new Animator(model, loaded.clips) : null), [loaded, model]);
   const rider = useMemo(() => figureOf(model), [model]);
+  const shadow = useMemo(() => shadowMesh(), []);
   // The pool: so many models of each kind, the PSX ones with their rigs, or the procedural stand-ins (with their own)
   // when a file could not load. Each is drawn inside a group that places and turns it, so its own pose stays its own.
   const slots = useMemo<Slot[]>(() => {
@@ -322,6 +382,7 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
     const now = frame(seconds);
     const { body, speed, riding } = now.session;
     const byId = new Map(now.vehicles.map((v) => [v.id, v]));
+    layShadow(shadow, now);
     const shows = slots.map((_, i) => (showing.current[i] ??= { group: null, id: null }));
     // The pool goes to the nearest vehicles now and then; the one ridden keeps its model throughout.
     since.current += seconds;
@@ -400,6 +461,7 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
       {marks.map((mark) => (
         <primitive key={mark.uuid} object={mark} />
       ))}
+      <primitive object={shadow.turned} scale={METRE} />
       {slots.map((slot, i) => (
         <group key={slot.model.uuid} ref={keep(i)} scale={METRE} visible={false}>
           <primitive object={slot.model} />

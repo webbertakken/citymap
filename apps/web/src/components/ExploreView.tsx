@@ -21,6 +21,7 @@ import { audioSpeaker, bellRinger } from "../explore/bell";
 import { cameraOf, easeReach, reachOf } from "../explore/camera";
 import { ARCADE_WORDS, type ArcadeWhy } from "../explore/descent";
 import { flyingCamera } from "../explore/flyer";
+import { heliShadow, type HeliShadow } from "../explore/helicopter";
 import { OPEN, hudOfRide, type RideHud as Ride } from "../explore/hud";
 import { WALK_KEYS, padOf, stickAt, type PadState } from "../explore/input";
 import type { Inspect } from "../explore/inspect";
@@ -61,6 +62,8 @@ export interface ExploreFrame {
   readonly camera: { readonly eye: Vec3; readonly target: Vec3 };
   /** The roofs with room for the helicopter near it, to mark, while in it; else none. */
   readonly rooftops: readonly Rooftop[];
+  /** The helicopter's shadow on what lies under it, the cue to how high it flies; null with no helicopter. */
+  readonly shadow: HeliShadow | null;
 }
 
 /** What the ground-level canvas draws: the city, and each frame's walk, which it asks for as time passes. */
@@ -372,7 +375,10 @@ export function ExploreView({
       ? flyingCamera(next.flyer, next.orbit)
       : cameraOf(shown.feet, next.orbit, walls, follow, reach.current);
     readSight(camera);
-    return { session: next, shown, vehicles: shownVehicles(next), riding: kind, camera, rooftops: marked.current };
+    const vehicles = shownVehicles(next);
+    const heli = vehicles.find((v) => v.kind === "helicopter");
+    const shadow = heli ? heliShadow(heli.feet, heli.heading, underOf(heli.feet)) : null;
+    return { session: next, shown, vehicles, riding: kind, camera, rooftops: marked.current, shadow };
   };
   // The crosshair, in the middle of the view, looks along the camera's line through its target.
   const readSight = (camera: { readonly eye: Vec3; readonly target: Vec3 }) => {

@@ -8,6 +8,7 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ArcadeWhy } from "../explore/descent";
+import { SHADOW_DARKEST, SHADOW_LIFT } from "../explore/helicopter";
 import type { Inspect } from "../explore/inspect";
 import type { Landing } from "../explore/landing";
 import type { Garage } from "../explore/physics/garage";
@@ -807,7 +808,11 @@ describe("ExploreView", () => {
     const gauges = screen.getByRole("region", { name: "Altitude, climb, speed and rotor" });
     expect(gauges.dataset.landed).toBe("true");
     expect(gauges.dataset.over).toBe("roof");
-    expect(gauges.textContent).toContain("Altitude1 m");
+    // Standing on the roof: no height above it; its shadow, on the roof, as dark as it gets.
+    expect(gauges.textContent).toContain("Altitude0 m");
+    const standingShadow = walk().shadow!;
+    expect(standingShadow.at.y).toBeCloseTo(1.5 + SHADOW_LIFT, 6);
+    expect(standingShadow.opacity).toBeCloseTo(SHADOW_DARKEST, 6);
     // The roof it stands on has room: marked, its middle (15 m, 30.75 m) 9.8 m off, 59° to the right of its nose.
     expect(walk().rooftops.map((marked) => marked.lot)).toEqual([1]);
     expect(gauges.dataset.landing).toBe("10 -59");
@@ -818,6 +823,10 @@ describe("ExploreView", () => {
     press(up, false);
     expect(lines()).toContain("explore/heli-lifted");
     expect(hud().dataset.landed).toBe("false");
+    // Up off the roof, its shadow stays on it, paler.
+    const flyingShadow = walk().shadow!;
+    expect(flyingShadow.at.y).toBeCloseTo(1.5 + SHADOW_LIFT, 6);
+    expect(flyingShadow.opacity).toBeLessThan(SHADOW_DARKEST);
     expect(screen.getByRole("button", { name: "Land to get out of the helicopter" })).toHaveProperty("disabled", true);
     const down = screen.getByRole("button", { name: "Down" });
     press(down, true);
