@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { RUN_SPEED, WALK_SPEED } from "../walker";
-import { FASTEST, SLOWEST, SPRINT_CLIP_SPEED, STANDING, WALK_CLIP_SPEED, motionOf, paceOf } from "./motion";
+import { gaitAt } from "./gait";
+import { FASTEST, SLOWEST, SPRINT_CLIP_CADENCE, STANDING, WALK_CLIP_SPEED, motionOf, paceOf } from "./motion";
 
 describe("motionOf", () => {
   it("stands, walks and sprints on the ground by pace", () => {
@@ -21,11 +22,12 @@ describe("paceOf", () => {
   it("plays a walk as fast as the ground goes by, within its limits", () => {
     expect(paceOf("walk", WALK_CLIP_SPEED)).toBe(1);
     expect(paceOf("walk", 0)).toBe(SLOWEST);
-    expect(paceOf("sprint", 100)).toBe(FASTEST);
+    expect(paceOf("walk", 100)).toBe(FASTEST);
   });
 
-  it("plays a sprint as fast as the ground goes by", () => {
-    expect(paceOf("sprint", RUN_SPEED)).toBeCloseTo(RUN_SPEED / SPRINT_CLIP_SPEED, 9);
+  it("plays a run at the gait's own steps a second, whose legs the gait sets: not as fast as the ground goes by", () => {
+    expect(paceOf("sprint", RUN_SPEED)).toBeCloseTo(gaitAt(RUN_SPEED).cadence / SPRINT_CLIP_CADENCE, 9);
+    expect(paceOf("sprint", RUN_SPEED)).toBeLessThan(1);
   });
 
   it("plays standing, jumping and falling at their own speed", () => {

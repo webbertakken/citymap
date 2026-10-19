@@ -1,6 +1,7 @@
 // How an animated figure moves: which of its clips plays for the walker's pace and footing, and how fast, so its feet
 // keep pace with the ground.
 import { RUN_SPEED, WALK_SPEED } from "../walker";
+import { gaitAt } from "./gait";
 
 /** What a figure does: "drive" sits a rider on a vehicle. */
 export type Motion = "idle" | "walk" | "sprint" | "jump" | "fall" | "drive";
@@ -17,12 +18,13 @@ export const CLIP_OF: Readonly<Record<Motion, string>> = {
 
 /** Below this pace, in metres a second, a figure stands. */
 export const STANDING = 0.2;
-/**
- * At normal speed the library's walk and sprint cover this many metres a second, measured by build-models.ts from the
- * planted foot (0.98 and 2.56).
- */
+/** At normal speed the library's walk covers this many metres a second, measured by build-models.ts (0.98). */
 export const WALK_CLIP_SPEED = 1;
-export const SPRINT_CLIP_SPEED = 2.56;
+/**
+ * At normal speed the library's sprint takes this many steps a second (two in its 0.667 s). Its own steps are short
+ * (2.56 m/s at that rate), so at a run the gait sets the legs and arms, and the clip keeps the gait's step rate.
+ */
+export const SPRINT_CLIP_CADENCE = 3;
 /** A clip plays no slower than this share of its speed and no faster than twice it. */
 export const SLOWEST = 0.4;
 export const FASTEST = 2;
@@ -36,9 +38,12 @@ export function motionOf(speed: number, grounded: boolean, rise: number): Motion
   return speed > (WALK_SPEED + RUN_SPEED) / 2 ? "sprint" : "walk";
 }
 
-/** How fast a clip plays for a pace: walking and sprinting keep pace with the ground; the rest at their own speed. */
+/**
+ * How fast a clip plays for a pace: a walk keeps pace with the ground; a run at the gait's steps a second; the rest at
+ * their own speed.
+ */
 export function paceOf(motion: Motion, speed: number): number {
-  const natural = motion === "walk" ? WALK_CLIP_SPEED : motion === "sprint" ? SPRINT_CLIP_SPEED : 0;
-  if (natural === 0) return 1;
-  return Math.max(SLOWEST, Math.min(FASTEST, speed / natural));
+  if (motion === "sprint") return gaitAt(speed).cadence / SPRINT_CLIP_CADENCE;
+  if (motion !== "walk") return 1;
+  return Math.max(SLOWEST, Math.min(FASTEST, speed / WALK_CLIP_SPEED));
 }

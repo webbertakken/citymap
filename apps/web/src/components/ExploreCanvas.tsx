@@ -19,10 +19,12 @@ import {
   type Object3D,
 } from "three";
 import { Animator } from "../explore/models/animator";
+import { NOT_RUNNING, SLOWEST_GAIT, gaitAt, runAfter, type Running } from "../explore/models/gait";
 import { GLTF_MODELS, loadModel, type Loaded, type ModelFile } from "../explore/models/gltf";
 import { standAfter } from "../explore/models/kickstand";
 import { motionOf, paceOf } from "../explore/models/motion";
 import { figure, paletteOf } from "../explore/models/procedural";
+import { poseRun } from "../explore/models/run";
 import { figureOf, placeVehicle, release, seat, slotOf, type Rolled, type Slot } from "../explore/models/seat";
 import { poseStride, swingOf } from "../explore/models/stride";
 import { assignPool } from "../explore/pool";
@@ -363,6 +365,8 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
   const rolled = useRef<Rolled>(new Map());
   // How far down each two-wheeler's kickstand is (1 down): down while it stands parked, folded while ridden.
   const stands = useRef(new Map<string, number>());
+  // Where the walker is in its run: its stride's phase and how far into the run it is drawn.
+  const running = useRef<Running>(NOT_RUNNING);
   const since = useRef(POOL_EVERY);
   // The roof markings, one for each roof the walk may mark at once; freed with the walk.
   const marks = useMemo(() => Array.from({ length: ROOFTOP_MOST }, helipadMark), []);
@@ -439,6 +443,14 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
       if (animator) {
         const motion = motionOf(speed, body.grounded, body.rise);
         animator.play(motion, paceOf(motion, speed), seconds);
+        // At a run the gait sets the legs, arms and trunk over the clip, its feet planted as the walker covers ground.
+        const how = motion === "sprint" ? "run" : motion === "jump" || motion === "fall" ? "air" : "ground";
+        running.current = runAfter(running.current, how, speed, walked, seconds);
+        if (rider) {
+          walker.updateMatrixWorld(true);
+          const { phase, weight } = running.current;
+          poseRun(walker, rider, gaitAt(Math.max(SLOWEST_GAIT, speed)), phase, weight);
+        }
       } else poseStride(walker, swingOf(walked, speed));
     }
     marks.forEach((mark, i) => {

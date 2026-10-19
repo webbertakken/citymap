@@ -99,7 +99,7 @@ export function placeVehicle(slot: Slot, group: Object3D, vehicle: Vehicle, roll
 type Finger = readonly [Object3D, Object3D, Object3D];
 
 /** One side of a rider: the arm and the leg, the knuckles a grip is measured to, the ball of the foot, the fingers. */
-interface Side {
+export interface Side {
   readonly arm: Arm;
   readonly leg: Leg;
   readonly knuckles: Object3D;
@@ -123,6 +123,9 @@ export interface Figure {
   readonly seat: number;
   readonly sole: number;
   readonly standing: number;
+  /** Its ankle's height standing, and the way from its ankle to the ball of its foot (metres, its own frame). */
+  readonly ankle: number;
+  readonly toe: Vector3;
 }
 
 /** The bones a figure needs to ride, beyond its limbs. */
@@ -134,7 +137,7 @@ const position = (part: Object3D) => part.getWorldPosition(new Vector3());
  * A rigged figure measured to ride (null for one without the bones), as made, before any clip moves it: in that rest
  * pose, the hips' height above
  * the lowest point of its pelvis (the thighs' tops beside it, where it sits), the ball of its foot above its sole (it
- * stands on y = 0), and its hips' height.
+ * stands on y = 0), its hips' height, and its ankle's height and the way from it to the ball of the foot.
  */
 export function figureOf(person: Object3D): Figure | null {
   const arms = armsOf(person);
@@ -184,6 +187,8 @@ export function figureOf(person: Object3D): Figure | null {
     seat: seated,
     sole,
     standing: hipsAt.y,
+    ankle: local(left.leg.foot).y,
+    toe: local(left.ball).sub(local(left.leg.foot)),
   };
 }
 
@@ -242,10 +247,13 @@ function reachWith(
   }
 }
 
-/** Closes a hand's fingers round a bar along `bar` (a unit direction to the rider's right), base joints first. */
-function grip(side: Side, bar: Vector3) {
-  for (const finger of side.fingers) for (const joint of finger) turnAbout(joint, bar, -CURL);
-  for (const joint of side.thumb) turnAbout(joint, bar, -THUMB_CURL);
+/**
+ * Closes a hand's fingers about a line `across` (a unit direction to the figure's right), base joints first, by
+ * `share` of the full curl: round a bar, or into a runner's loose fist.
+ */
+export function grip(side: Side, across: Vector3, share = 1) {
+  for (const finger of side.fingers) for (const joint of finger) turnAbout(joint, across, -CURL * share);
+  for (const joint of side.thumb) turnAbout(joint, across, -THUMB_CURL * share);
 }
 
 /**

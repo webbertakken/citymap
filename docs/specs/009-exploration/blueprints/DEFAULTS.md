@@ -114,3 +114,8 @@ One row per value the exploration spec leaves silent or qualitative.
 | Landing assist           | within 10 m, gain 2, damping 2.8                 | a keyboard pilot lands on a marking from near it                          | 5 to 15 m                 |
 | Centring                 | within 0.4 m, else no faster than 1.5 m/s        | it centres before a rotor reaches a neighbour                             | 0.2 to 0.5 m              |
 | Roof marking             | 7 m across, amber H in a ring                    | a helipad's marking, readable from 30 m up                                | taste                     |
+| Run's steps              | 2.45 + 0.1 · v a second, 0.72 m contact          | 174 a minute, 1.55 m, 0.16 s down at 4.5 m/s (Weyand 2000)                | measured                  |
+| Run's foot               | lands 0.38 ahead, trails 0.3 m, heel 0.1 · v     | Novacheck 1998's angles; Muybridge plate 60's trailing leg                | taste                     |
+| Runner's body            | hips 0.94 of the leg, ±3 cm, lean 0.12 rad       | an upright runner bouncing 6 cm                                           | taste                     |
+| Runner's arms            | 0.45 rad about 0.2 back, elbows 90°, fist 0.6    | Muybridge's runner: hands at the waist, loosely closed                    | taste                     |
+| Run blend                | 0.2 s; at once into the air                      | no leg reaches for the ground mid-jump                                    | 0.1 to 0.4 s              |

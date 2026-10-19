@@ -496,8 +496,32 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   alike and posed. `original` is the file's own scene, to retarget against.
 - `Animator`: one action per clip; a motion's clip by `CLIP_OF`, cross-faded over `BLEND` 0.15 s; a missing clip logs
   `explore/clip-missing motion` once and keeps the last.
-- Paces: walk at `speed / WALK_CLIP_SPEED` (1 m/s, measured 0.98), sprint at `speed / SPRINT_CLIP_SPEED` (2.56 m/s,
-  measured), each within `SLOWEST` 0.4 and `FASTEST` 2.
+- Paces: walk at `speed / WALK_CLIP_SPEED` (1 m/s, measured 0.98) within `SLOWEST` 0.4 and `FASTEST` 2; sprint at the
+  gait's `cadence / SPRINT_CLIP_CADENCE` (3 steps a second, two in its 0.667 s): its own steps are short (2.56 m/s), so
+  it once ran at 1.76 times its pace, about 316 steps a minute.
+- The gait (`models/gait.ts`, pure): `gaitAt(v)`: `cadence` `STEP_RATE_AT_REST` 2.45 + `STEP_RATE_PER_SPEED` 0.1 · v
+  steps a second (Weyand et al. 2000; Cavanagh & Kram 1989), `step` v / cadence, `contact` min(`CONTACT_LENGTH` 0.72 /
+  v, 1 / cadence), `flight` 1 / cadence − contact, `swing` min(`SWING_MOST` 0.5, `SWING_PER_SPEED` 0.1 · v): at 4.5 m/s
+  2.9 steps a second (174 a minute), 1.55 m, 0.16 s down, 0.185 s in flight, the heel 0.45 m up. A stride is two steps,
+  its phase 0 to 1 from the left foot landing, the right half a stride on. `footAt(gait, phase, side)`, from the ground
+  under the hip: planted for `contact · cadence / 2` of the stride, the ankle from `LANDING_AHEAD` 0.38 of the contact
+  length ahead back at v, the heel rising `HEEL_RISE` 0.06 m · max(0, 2u − 1)² over the stance's second half; swung,
+  forward the contact length by (1 − cos πu) / 2 less a trail of `TRAIL` 0.3 m · sin(π · min(1, u / `TRAIL_SHARE` 0.4))
+  (the foot trailing on behind after toe-off, as Muybridge's runner's does), up the larger of the pushed-off heel easing
+  out and `swing · sin(π u^HEEL_EARLY)` (0.45: highest early, behind the hip). `bounceAt`: `−BOUNCE` 0.03 · cos(4π(phase
+  − mid-stance)). `armAt(phase, side)`: `−ARM_BACK` 0.2 − `ARM_SWING` 0.45 · cos(2π · the side's phase) radians from
+  hanging. `phaseAfter(phase, ground, gait)` on by ground / (2 step). `runAfter(running, how, v, walked, dt)`: the gait
+  at max(`SLOWEST_GAIT` 1, v), the phase on by the ground walked (never back), the weight towards 1 running and 0 on the
+  ground over `RUN_BLEND` 0.2 s, 0 at once in the air.
+- `poseRun(walker, figure, gait, phase, weight)` (`models/run.ts`), after the clip: the hip joints at the ankle's
+  standing height + `RUN_HEIGHT` 0.94 of the leg + the bounce (the walker lifted, the ground kept where its y = 0 was);
+  the trunk (hips to head) turned about the spine to `LEAN` 0.12 rad forward in three passes, the head back as far; each
+  ankle put by `reachFor` at `footAt` from its hip, `FEET_IN` 0.5 of the hip's width out, knees ahead; the foot turned
+  so, planted, the ball stays on the ground as the heel rises, swung, the toes point `TOE_DOWN` 0.6 rad down at the top;
+  each upper arm swung by `armAt`, `ARM_OUT` 0.15 out, the forearm `ELBOW` 90° up from it, `HAND_IN` 0.25 in, the hand
+  closed `FIST` 0.6 of a grip (`grip`, shared with the rider) times the weight; then every bone slerped from the clip by
+  `weight`. The canvas keeps the walker's `Running` (from `NOT_RUNNING`) and poses it each frame on foot (released
+  first, so a walker's hands open). Figures gain `ankle` (the Foot bone's standing height) and `toe` (ankle to ball).
 - `poseVehicle(model, rig, { rolled, steer, lean, pitch, crank, stand })`: wheels by `rolled / radius`, the crank by
   `crank` (the bicycle's own, so it freewheels), fork and front wheels by `steer`; a kickstand (`Rig.kickstand`) turned
   from down towards its `folded` turn by `1 − stand` (slerp); the model leans about its length by
@@ -756,24 +780,28 @@ uneven frame times), camera, input, vehicles, models, retargeting (rest frames, 
 and the Animator; the bicycle: hands-free self-stability within 4.3 to 6 m/s and falling below, turning by leaning,
 countersteering, tracking the aim at every speed, the low-speed wobble, weight transfer and the back wheel lifting, the
 grip limit, cadence and freewheel, gears, resistance, foot down, falls and getting back up; parking from the plan; the
-pool; the pad; the walker on the garage's Rapier walls (on the ground exactly, stopped and slid at a wall, a jump, a
-plinth stepped up and walked off, through vehicles, pressing on a wall through a re-centring, the camera's line) and the
-session walking on them; the leg reaching its pedal; the bell with a stand-in context. The rider on the walk's own
-models (`seat.test.ts`, the files read from `public/models` without their textures by `testing/models.ts`): hips on the
-saddle, palms on the grips and the feet's balls on the pedals within 2 cm round the crank, steered and leaning either
-way, on the motorbike's seat, grips and pegs, the knees bent ahead, fingers closed and released, a foot on the ground at
-a stop, thrown, a figure without bones, a missing contact said once. Each wheel of each ride and stand-in true over a
-full turn (`wheels.test.ts`: hub held within 1 mm, axle within 0.002 rad of across, 24 steps; the pack's leaning bicycle
-fails it by 0.14 rad); the contacts marked; the kickstand on the ground parked, the bicycle leaning 8°, and folded clear
-of it ridden; the measuring functions (`contacts.test.ts`); the stand's swing and lean (`kickstand.test.ts`). The core:
-the benchmark's matrices from its parameters, the middle, the loads, the wheel lifting and coming down to exactly 0. The
-motorbike: the wheelie held in first until the red line, 0 to 100 km/h, top speed, the throttle's rate, changing down,
-both brakes, paddling back, a slide under braking leaned, tracking the lean at 6 to 40 m/s, riding straight, the foot,
-falls, the HUD. The engine and gearbox. The nearby streets: reach, ties, cells below zero, the plan, re-centring. The
-garage against real Rapier: counted opening, cancelling, a hull it cannot make, the budget, re-centring by a wall 600 m
-off, pulling away through the gears, braking then reversing, the handbrake's slide, a crash, righting, pushing a parked
-car, two-wheelers in the way, letting go and bringing back, traffic, keeping up. The descent's order and every failure;
-the HUD of each ride. The helicopter: spin-up to full in five seconds, staying down with the collective down, spin-down
+pool; the pad; the run's gait (174 steps a minute at 4.5 m/s, contact and flight, a foot planted and swung, the bounce,
+the arms, the phase, the blend) and the figure posed by it on the walk's own man (`run.test.ts`: a planted ankle held
+within 1 cm, both feet up in flight, knee 5 to 25° landing and 35 to 55° loaded, hip −25 to −5° behind and 45 to 65°
+ahead, knee 90 to 120° in the swing, Novacheck 1998; a 7° lean, square elbows, arms against legs, the blend); the walker
+on the garage's Rapier walls (on the ground exactly, stopped and slid at a wall, a jump, a plinth stepped up and walked
+off, through vehicles, pressing on a wall through a re-centring, the camera's line) and the session walking on them; the
+leg reaching its pedal; the bell with a stand-in context. The rider on the walk's own models (`seat.test.ts`, the files
+read from `public/models` without their textures by `testing/models.ts`): hips on the saddle, palms on the grips and the
+feet's balls on the pedals within 2 cm round the crank, steered and leaning either way, on the motorbike's seat, grips
+and pegs, the knees bent ahead, fingers closed and released, a foot on the ground at a stop, thrown, a figure without
+bones, a missing contact said once. Each wheel of each ride and stand-in true over a full turn (`wheels.test.ts`: hub
+held within 1 mm, axle within 0.002 rad of across, 24 steps; the pack's leaning bicycle fails it by 0.14 rad); the
+contacts marked; the kickstand on the ground parked, the bicycle leaning 8°, and folded clear of it ridden; the
+measuring functions (`contacts.test.ts`); the stand's swing and lean (`kickstand.test.ts`). The core: the benchmark's
+matrices from its parameters, the middle, the loads, the wheel lifting and coming down to exactly 0. The motorbike: the
+wheelie held in first until the red line, 0 to 100 km/h, top speed, the throttle's rate, changing down, both brakes,
+paddling back, a slide under braking leaned, tracking the lean at 6 to 40 m/s, riding straight, the foot, falls, the
+HUD. The engine and gearbox. The nearby streets: reach, ties, cells below zero, the plan, re-centring. The garage
+against real Rapier: counted opening, cancelling, a hull it cannot make, the budget, re-centring by a wall 600 m off,
+pulling away through the gears, braking then reversing, the handbrake's slide, a crash, righting, pushing a parked car,
+two-wheelers in the way, letting go and bringing back, traffic, keeping up. The descent's order and every failure; the
+HUD of each ride. The helicopter: spin-up to full in five seconds, staying down with the collective down, spin-down
 slower, blades turning with the rotor, no lift below `hoverShare`; ground effect's cushion and its fade; height held let
 go, the most climb and sink, a soft landing, the ceiling, height kept flying ahead; the cyclic's tilt, about 200 km/h,
 backwards, levelling to a hover; the tail rotor turning on the spot, holding its heading, a banked turn and its
@@ -793,7 +821,12 @@ with nothing overlapping, upright and on its side. End to end (`e2e/explore.spec
 loading log, getting on the bicycle and off, riding it (pedal, shift, brake, stop with a foot down, the HUD), the Rapier
 prototype, Wobble Blocks loaded, axe light and dark.
 
-By eye: the ride lab (`/lab/ride?ride=…&pose=parked|stopped|riding|steering&view=side|front|above|behind|grip|pedal`,
-with `theme`, `rolled`, `crank` and `marks=1` dotting the contacts; not linked) seats a rider as the walk does, on a
-plain ground; `apps/web/scripts/ride-shots.ts <origin> <dir> [wheel]` captures each ride, pose and view in a light and a
-dark theme, or the bicycle's wheel turning an eighth of a metre a frame.
+By eye: the run lab (`/lab/run?gait=before|after&phase=…&theme=…`, not linked) shows the figure side on at a phase of
+its stride before a wall lined every 10 cm, with ground marks every half metre;
+`apps/web/scripts/run-shots.ts <origin> <dir> [frames]` captures a stride before and after in ten frames, light and
+dark, beside Muybridge's plate 60 (public domain:
+https://commons.wikimedia.org/wiki/File:Man_in_pelvis_cloth_running_at_a_half-mile_gait_(rbm-QP301M8-1887-060).jpg). The
+ride lab (`/lab/ride?ride=…&pose=parked|stopped|riding|steering&view=side|front|above|behind|grip|pedal`, with `theme`,
+`rolled`, `crank` and `marks=1` dotting the contacts; not linked) seats a rider as the walk does, on a plain ground;
+`apps/web/scripts/ride-shots.ts <origin> <dir> [wheel]` captures each ride, pose and view in a light and a dark theme,
+or the bicycle's wheel turning an eighth of a metre a frame.
