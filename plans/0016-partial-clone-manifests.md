@@ -43,4 +43,4 @@ Branch `fix/partial-clone-manifests`, from main after #37.
 
 - [x] Parity's partial mode: the blob-less clone's layout (city without measures, SVG, lock) and people match the fold's
 - [x] `bun run check`; `bun run parity` (every mode on the six cities, rust and deno); end to end on port 5198
-- [ ] PR; fold-back
+- [x] PR (#68); fold-back
