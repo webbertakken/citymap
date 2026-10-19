@@ -34,13 +34,13 @@ Branch `fix/partial-clone-manifests`, from main after #37.
 
 ## Phase 2: viewer
 
-- [ ] Separate towns group: the line when the city's manifests could not be fetched, the group shown for it alone
-- [ ] Cards: an unread submodule's lot, folder and town say "This submodule's files are not in this clone" (GitHub:
+- [x] Separate towns group: the line when the city's manifests could not be fetched, the group shown for it alone
+- [x] Cards: an unread submodule's lot, folder and town say "This submodule's files are not in this clone" (GitHub:
       "This submodule's files could not be read from GitHub")
-- [ ] Commit
+- [x] Commit
 
 ## Phase 3: parity and verification
 
-- [ ] Parity's partial mode: the blob-less clone's layout (city without measures, SVG, lock) and people match the fold's
+- [x] Parity's partial mode: the blob-less clone's layout (city without measures, SVG, lock) and people match the fold's
 - [ ] `bun run check`; `bun run parity` (every mode on the six cities, rust and deno); end to end on port 5198
 - [ ] PR; fold-back

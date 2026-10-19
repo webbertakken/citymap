@@ -517,8 +517,9 @@ interface Report {
   into the clone at a usual path in each of the four formats. Its `checkout` mode folds a clone with a checkout whose
   working tree `.mailmap` and `mailmap.file` merge many authors into one, and must match the `fold` mode's
   `--no-checkout` clone byte for byte, in each CLI. Its `partial` mode folds a blob-less `--no-checkout` clone, which
-  fetches the `.mailmap` when its laid commit has one, and its authors (`available`, every file's and lot's `authors`)
-  must match the `fold` mode's, in each CLI.
+  fetches its laid commits' root manifests and the `.mailmap` when its laid commit has one, and its layout (the city
+  without measures, the SVG, the lock) and authors (`available`, every file's and lot's `authors`) must match the `fold`
+  mode's, in each CLI.
 - End to end: the view switch, colour by from the keyboard, unavailable measures (a city without authors: the switch's
   reason and the card's row), a picked fixture folder with an LCOV report, the cards, axe in light and dark, no card
   overlap at every width, and the vitals.

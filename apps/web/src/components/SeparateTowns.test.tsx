@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Fetcher } from "../github/read";
 import { layHere, type Lay } from "../lay/lay";
 import { StubCanvas, entryOf, fetcher, files, towns, variantCity } from "./testing/fixtures";
-import { DECIDED_NOTE, SEPARATION_TOOLTIPS } from "./Toggles";
+import { DECIDED_NOTE, SEPARATION_TOOLTIPS, UNFETCHED_NOTE } from "./Toggles";
 import { Viewer } from "./Viewer";
 
 afterEach(() => {
@@ -152,5 +152,22 @@ describe("the separate towns", () => {
     expect(switchFor("Plugins")).toHaveProperty("disabled", true);
     expect(within(group()).queryByText(DECIDED_NOTE)).toBeNull();
     expect(files["/cities/index.json"]).toBeTruthy();
+  });
+
+  it("says when the city's workspace manifests could not be fetched, with nothing to separate too", async () => {
+    render(<Viewer Canvas={StubCanvas} fetcher={fetcher} />);
+    await screen.findByRole("heading", { level: 1, name: "alpha" });
+    openLayout();
+    expect(screen.queryByText(UNFETCHED_NOTE)).toBeNull();
+    // The same button closes it again.
+    openLayout();
+    const unfetched = serialiseCity({ ...variantCity("epsilon", []), manifests: "unfetchable" });
+    const file = new File([unfetched], "epsilon.json", { type: "application/json" });
+    fireEvent.change(screen.getByLabelText("City file"), { target: { files: [file] } });
+    await screen.findByRole("heading", { level: 1, name: "epsilon" });
+    openLayout();
+    expect(within(group()).getByText(UNFETCHED_NOTE)).toBeTruthy();
+    expect(within(group()).queryAllByRole("switch")).toEqual([]);
+    expect(UNFETCHED_NOTE).toBe("This clone's workspace manifests could not be fetched: its workspaces are not known.");
   });
 });

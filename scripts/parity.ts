@@ -4,8 +4,9 @@
 // lockfile and log byte for byte. The resume mode folds from a lock saved part way, and its city, SVG and lock must also
 // match the uninterrupted fold of the same CLI. The checkout mode folds a clone with a checkout whose working tree
 // .mailmap (and mailmap.file) merges its authors, and its city, SVG, lock and log must match the fold of the clone
-// without one. The partial mode folds a blob-less clone, which fetches the laid commit's .mailmap, and its authors must
-// match the fold's. Run it under PM2: folds take minutes.
+// without one. The partial mode folds a blob-less clone, which fetches the root manifests of the commits it lays and
+// the laid commit's .mailmap, and its layout (city without measures, SVG, lock) and authors must match the fold's. Run
+// it under PM2: folds take minutes.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -14,6 +15,7 @@ import {
   SAME_AS_FOLD,
   UPLOAD_PACK,
   authorsOf,
+  layoutOf,
   cloneArgs,
   buildArgs,
   checkoutMailmap,
@@ -162,13 +164,24 @@ function mergeAuthorsInWorkingTree(clone: string, elsewhere: string): void {
   console.log(`parity/checkout-mailmap clone=${clone} lines=${text.split("\n").length - 1}`);
 }
 
-/** A blob-less clone's fold against the fold of a full clone, per CLI: the same people. True when they differ. */
+/**
+ * A blob-less clone's fold against the fold of a full clone, per CLI: the same layout (the city without its measures,
+ * the SVG and the lock), as it fetched the manifests it lays, and the same people. True when they differ.
+ */
 function checkPartial(repo: string, scratch: string): boolean {
-  const people = (mode: Mode, side: string) =>
-    authorsOf(readFileSync(join(scratch, mode, `${side}-out`, "city.json"), "utf8"));
-  const differs = Object.keys(sides)
-    .filter((side) => people("fold", side) !== people("partial", side))
-    .map((side) => `${side}:authors`);
+  const text = (mode: Mode, side: string, file: string) =>
+    readFileSync(join(scratch, mode, `${side}-out`, file), "utf8");
+  const same = (side: string, file: string, view: (text: string) => string = (t) => t) =>
+    view(text("fold", side, file)) === view(text("partial", side, file));
+  const checks = [
+    ["layout", "city.json", layoutOf],
+    ["city.svg", "city.svg", undefined],
+    [LOCK, LOCK, undefined],
+    ["authors", "city.json", authorsOf],
+  ] as const;
+  const differs: string[] = [];
+  for (const side of Object.keys(sides))
+    for (const [name, file, view] of checks) if (!same(side, file, view)) differs.push(`${side}:${name}`);
   console.log(sameVerdict("partial", repo, differs));
   return differs.length > 0;
 }

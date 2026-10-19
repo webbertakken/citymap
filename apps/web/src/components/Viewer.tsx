@@ -36,6 +36,7 @@ import {
 } from "react";
 import type { GitHubSource } from "../card/github";
 import { measureRows } from "../card/measures";
+import { submoduleRows, unreadFolders } from "../card/submodule";
 import { describeFailure, loadCity, loadIndex, readCityFile, type CityEntry, type Layout } from "../cities";
 import type { ArcadeWhy, GoDown } from "../explore/descent";
 import { footprintsOf } from "../explore/footprints";
@@ -107,6 +108,9 @@ export interface ViewerProps {
 }
 
 const browserFetch: Fetcher = (url, init) => fetch(url, init);
+/** No folder holds an unread submodule. */
+const NO_FOLDERS: ReadonlySet<string> = new Set();
+
 /** What the status adds once a GitHub repository is shown. */
 const GITHUB_STATUS = "single state, not folded";
 /** The time of day, in epoch milliseconds: what kept suggestions age by. */
@@ -311,12 +315,17 @@ export function Viewer({
   const heights = useMemo(() => (floors && span ? heightsOf(floors, span) : null), [floors, span]);
   const scales = held?.scales ?? NO_SCALES;
   const legendCity = useMemo(() => ({ measures, scales }), [measures, scales]);
+  // The submodules laid as one folder, their files not read, and where the city came from: their cards say why.
+  const unread = useMemo(() => (city ? unreadFolders(city) : NO_FOLDERS), [city]);
+  const readVia = origin?.kind === "live" && origin.via === "github" ? "github" : "clone";
   const rowsOf: RowsOf = useCallback(
-    (hit: Hit) =>
-      hit.kind === "lot" && !hit.vacant
+    (hit: Hit) => [
+      ...submoduleRows(hit, unread, readVia),
+      ...(hit.kind === "lot" && !hit.vacant
         ? measureRows(lotBuilding(measures, hit.townKey, hit.key), measures, Date.now())
-        : [],
-    [measures],
+        : []),
+    ],
+    [measures, unread, readVia],
   );
   // Every building's name over its roof, made by the city's worker: the map reads those near its centre.
   // Kept while the city and the place shown stay, so an answer of the city's worker does not redraw the map's names.
@@ -840,6 +849,7 @@ export function Viewer({
           separate={separate}
           separable={city?.separable ?? []}
           declared={city?.declared === true}
+          unfetched={city?.manifests === "unfetchable"}
           onSeparate={separation}
           {...(explore
             ? {

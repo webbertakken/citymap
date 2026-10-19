@@ -51,6 +51,9 @@ export const SEPARATION_TOOLTIPS: Readonly<Record<Separation, string>> = {
   plugins: "each folder in any plugins/ folder is a town of its own.",
 };
 
+/** The line shown when the city shown could not fetch its workspace manifests. */
+export const UNFETCHED_NOTE = "This clone's workspace manifests could not be fetched: its workspaces are not known.";
+
 /** The line shown while declared workspaces decide apps and packages. */
 export const DECIDED_NOTE = "Declared workspaces decide; turn Workspaces off to choose.";
 
@@ -66,6 +69,8 @@ export interface TogglesProps {
   readonly separable: readonly Separation[];
   /** Whether the city shown declares workspaces, which then decide apps and packages. */
   readonly declared: boolean;
+  /** Whether the city shown could not fetch its workspace manifests: the group says so, whatever it offers. */
+  readonly unfetched: boolean;
   readonly onSeparate: (separation: Separation, on: boolean) => void;
 }
 
@@ -116,7 +121,7 @@ function Switch({ id, label, tooltip, on, disabled, shown, onChange, onTip }: Sw
 
 /** The layout toggles, then the separations the city records: a switch each, its tooltip beside it. */
 export function Toggles(props: TogglesProps) {
-  const { toggles, fixed, onToggle, separate, separable, declared, onSeparate } = props;
+  const { toggles, fixed, onToggle, separate, separable, declared, unfetched, onSeparate } = props;
   const id = useId();
   // The switch whose tooltip shows: the one hovered, or the one with focus, until Escape hides it.
   const [tip, setTip] = useState<string | null>(null);
@@ -144,9 +149,10 @@ export function Toggles(props: TogglesProps) {
           ))}
         </ul>
       </fieldset>
-      {offered.length > 0 && (
+      {(offered.length > 0 || unfetched) && (
         <fieldset className="choices toggles" disabled={fixed}>
           <legend>Separate towns</legend>
+          {unfetched && <p className="toggles-note">{UNFETCHED_NOTE}</p>}
           {decided && !fixed && <p className="toggles-note">{DECIDED_NOTE}</p>}
           <ul>
             {offered.map((s) => (
