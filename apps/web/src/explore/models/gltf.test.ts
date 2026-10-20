@@ -20,8 +20,17 @@ import {
   VectorKeyframeTrack,
   type Object3D,
 } from "three";
-import { describe, expect, it } from "vitest";
-import { GLTF_MODELS, loadGltfModels, pose, readGltfWithThree, type GltfFile, type ModelFile } from "./gltf";
+import { describe, expect, it, vi } from "vitest";
+import {
+  GLTF_MODELS,
+  SEE_THROUGH_ORDER,
+  loadGltfModels,
+  loadModel,
+  pose,
+  readGltfWithThree,
+  type GltfFile,
+  type ModelFile,
+} from "./gltf";
 
 /** A stand-in file: one box of the given size (x, y, z), textured, lit, with a clip that moves it. */
 function fileOf(size: readonly [number, number, number]): GltfFile {
@@ -202,5 +211,32 @@ describe("readGltfWithThree", () => {
     const url = `data:model/gltf+json;base64,${btoa(JSON.stringify(json))}`;
     const gltf = await readGltfWithThree(url);
     expect(gltf.scene.getObjectByName("only")).toBeDefined();
+  });
+});
+
+describe("see-through parts", () => {
+  it("draws a model's glass after the city's own see-through things, and says so once a file", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const file = fileOf([0.6, 0.5, 2]);
+    const pane = new Mesh(new BoxGeometry(0.1, 0.1, 0.1), new MeshStandardMaterial({ transparent: true }));
+    pane.name = "pane";
+    file.scene.add(pane);
+    const loaded = await loadModel("", GLTF_MODELS.helicopter, async () => file);
+    const [one, two] = [loaded.make(), loaded.make()];
+    for (const copy of [one, two]) {
+      expect(copy.getObjectByName("pane")!.renderOrder).toBe(SEE_THROUGH_ORDER);
+      expect(copy.getObjectByName("box")!.renderOrder).toBe(0);
+    }
+    const said = info.mock.calls.map(([line]) => String(line)).filter((line) => line.includes("explore/model-glass"));
+    expect(said).toHaveLength(1);
+    expect(said[0]).toContain("meshes=1");
+    info.mockRestore();
+  });
+
+  it("says nothing of glass for a model without any", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    await loadModel("", GLTF_MODELS.car, async () => fileOf([0.6, 0.5, 2]));
+    expect(info.mock.calls.some(([line]) => String(line).includes("explore/model-glass"))).toBe(false);
+    info.mockRestore();
   });
 });

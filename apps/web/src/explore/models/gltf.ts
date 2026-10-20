@@ -136,6 +136,24 @@ function asAuthored(scene: Object3D) {
   });
 }
 
+/**
+ * A model's see-through parts (glass) draw after the city's own see-through things: its signs and roof markings (0) and
+ * the helicopter's shadow (1). So whatever lies behind glass is drawn before it, and shows through. Glass writes no
+ * depth (three.js's loader gives a blended material none), so it never hides what lies behind it.
+ */
+export const SEE_THROUGH_ORDER = 2;
+
+/** Gives every see-through mesh of a file's scene its order, said once a file with how many there are. */
+function seeThrough(scene: Object3D, url: string) {
+  let meshes = 0;
+  scene.traverse((node) => {
+    if (!(node instanceof Mesh) || ![node.material].flat().some((m) => m.transparent)) return;
+    node.renderOrder = SEE_THROUGH_ORDER;
+    meshes++;
+  });
+  if (meshes > 0) log.info("explore/model-glass", { url, meshes });
+}
+
 /** What a glTF file gives: its scene and its animations. */
 export interface GltfFile {
   readonly scene: Object3D;
@@ -152,6 +170,7 @@ export const readGltfWithThree: ReadGltf = (url) => new GLTFLoader().setMeshoptD
 export async function loadModel(base: string, file: ModelFile, read: ReadGltf = readGltfWithThree): Promise<Loaded> {
   const gltf = await read(`${base}/${file.url}`);
   asAuthored(gltf.scene);
+  seeThrough(gltf.scene, file.url);
   const framing = framingOf(gltf.scene, file);
   return { make: () => framed(clone(gltf.scene), file, framing), clips: gltf.animations, original: gltf.scene };
 }

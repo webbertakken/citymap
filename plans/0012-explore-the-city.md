@@ -173,7 +173,7 @@ rider is on a two-wheeler (#63). Branch `feat/helicopter-glass`.
 - [x] The build: the panes cut from the hull as `helicopter_glass` (a light tint, blended, both sides), the hull
       one-sided with an inward `helicopter_lining`, the seat, cyclic, collective and pedals as named nodes; the glb
       rebuilt and its size logged
-- [ ] The viewer: see-through parts drawn after the city's own (`renderOrder`), logged once a model
+- [x] The viewer: see-through parts drawn after the city's own (`renderOrder`), logged once a model
 - [ ] The pilot (`seat.ts`, tests first): hips on the seat, right hand on the cyclic, left on the collective, feet on
       the pedals; nothing of the figure outside the hull at any pitch, roll or yaw; still controls (the model has none)
 - [ ] The canvas seats the pilot in the helicopter (hidden in the stand-in, which has no cabin); in and out on E as
