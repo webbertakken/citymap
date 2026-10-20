@@ -65,16 +65,15 @@ the engine sees it; the [ground plan](../006-ground-plan/ground-plan.md) then la
 
 ## The projection
 
-- An instruction is a folder of its pages, named by its path without `.md`, with a trailing `README` or `RULES` dropped
-  (`rules/git/RULES.md` is `rules/git`); a child's name drops its parent's name where it begins with it (`git` under
-  `rules`).
+- An instruction is a folder of its pages, named by its path without `.md`, with a trailing `README` dropped
+  (`guides/style/README.md` is `guides/style`); a child's name drops its parent's name where it begins with it (`style`
+  under `guides`).
 - Within always and on demand, each instruction's folder sits inside its place's previous instruction, so districts
   follow the references; an entry's own pages sit beside its children, not around them. An on-demand instruction whose
   place passes through always instructions sits under their names in the on-demand town.
 - Within unreached, instructions are grouped by the folder they sit in.
-- A page holds 40 estimated tokens (`TOKENS_PER_PAGE`; 3 lines of the reference corpus, at about 13 tokens a line, the
-  smallest share at which a corpus of 50 instructions lays districts rather than one neighbourhood; safe from 20 to
-  200). An instruction has at least one page.
+- A page holds 40 estimated tokens (`TOKENS_PER_PAGE`; about 3 lines of prose, small enough that a few dozen
+  instructions lay districts rather than one neighbourhood; safe from 20 to 200). An instruction has at least one page.
 - A name the engine reads as a land use of its own (`docs`, `tests`, `testing`, `specs`, `examples`, `samples`,
   `fixtures`, `vendor`, `generated` and the like) is suffixed so that every page is source land; an instruction city has
   no parks and nothing off the map.
