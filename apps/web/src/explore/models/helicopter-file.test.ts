@@ -98,3 +98,104 @@ describe("the committed helicopter through the test reader", () => {
     expect(box.getSize(new Vector3()).x).toBeCloseTo(GLTF_MODELS.helicopter.metres, 1);
   });
 });
+
+/** Every vertex of a node's mesh's primitives in the file's frame (its node's translation and scale applied). */
+function pointsOf(node: Node, which = 0) {
+  const [ox, oy, oz] = node.getTranslation();
+  const [sx, sy, sz] = node.getScale();
+  const position = node.getMesh()!.listPrimitives()[which]!.getAttribute("POSITION")!;
+  const p = [0, 0, 0];
+  return Array.from({ length: position.getCount() }, () => new Vector3()).map((v, i) => {
+    position.getElement(i, p);
+    return v.set(p[0]! * sx + ox, p[1]! * sy + oy, p[2]! * sz + oz);
+  });
+}
+
+describe("the committed helicopter's glass, lining and cockpit", () => {
+  it("has its panes cut from the hull as glass of their own: blended, both sides, untextured", async () => {
+    const doc = await helicopterFile();
+    const glass = doc
+      .getRoot()
+      .listNodes()
+      .find((n) => n.getName() === "helicopter_glass")!;
+    expect(glass.getParentNode()).toBeNull();
+    const [pane, ...more] = glass.getMesh()!.listPrimitives();
+    expect(more).toHaveLength(0);
+    const triangles = pane!.getIndices()!.getCount() / 3;
+    expect(triangles).toBeGreaterThan(250);
+    expect(triangles).toBeLessThan(350);
+    expect(pane!.getAttribute("TEXCOORD_0")).toBeNull();
+    const material = pane!.getMaterial()!;
+    expect(material.getName()).toBe("helicopter_glass");
+    expect(material.getAlphaMode()).toBe("BLEND");
+    expect(material.getDoubleSided()).toBe(true);
+    expect(material.getBaseColorTexture()).toBeNull();
+    expect(material.getAlpha()).toBeGreaterThan(0.2);
+    expect(material.getAlpha()).toBeLessThan(0.5);
+  });
+
+  it("paints its hull on one side and lines it inside, dark, on the same triangles turned in", async () => {
+    const doc = await helicopterFile();
+    const body = doc
+      .getRoot()
+      .listNodes()
+      .find((n) => n.getName() === "helicopter_body")!;
+    const [paint, lining, ...more] = body.getMesh()!.listPrimitives();
+    expect(more).toHaveLength(0);
+    expect(paint!.getMaterial()!.getName()).toBe("helicopter_paint");
+    expect(paint!.getMaterial()!.getDoubleSided()).toBe(false);
+    expect(paint!.getMaterial()!.getBaseColorTexture()).not.toBeNull();
+    expect(lining!.getMaterial()!.getName()).toBe("helicopter_lining");
+    expect(lining!.getMaterial()!.getDoubleSided()).toBe(false);
+    expect(lining!.getMaterial()!.getAlphaMode()).toBe("OPAQUE");
+    expect(Math.max(...lining!.getMaterial()!.getBaseColorFactor().slice(0, 3))).toBeLessThan(0.1);
+    expect(lining!.getIndices()!.getCount()).toBe(paint!.getIndices()!.getCount());
+    // Facing out, the paint's normals lean away from the hull's middle; the lining's towards it.
+    const outward = (which: number) => {
+      const points = pointsOf(body, which);
+      const middle = points.reduce((sum, p) => sum.add(p), new Vector3()).divideScalar(points.length);
+      const normals = body.getMesh()!.listPrimitives()[which]!.getAttribute("NORMAL")!;
+      const n = [0, 0, 0];
+      return points.reduce((sum, p, i) => {
+        normals.getElement(i, n);
+        return sum + Math.sign(new Vector3(n[0], n[1], n[2]).dot(p.clone().sub(middle)));
+      }, 0);
+    };
+    expect(outward(0)).toBeGreaterThan(0);
+    expect(outward(1)).toBeLessThan(0);
+  });
+
+  it("marks the pilot's seat, cyclic, collective and pedals inside the cabin, on its right", async () => {
+    const doc = await helicopterFile();
+    const nodes = doc.getRoot().listNodes();
+    const at = (name: string) => {
+      const node = nodes.find((n) => n.getName() === name)!;
+      expect(node.getMesh()).toBeNull();
+      return new Vector3(...node.getTranslation());
+    };
+    const pilot = RIGS.helicopter.pilot;
+    const [seat, cyclic, collective, left, right] = [
+      pilot.seat,
+      pilot.cyclic,
+      pilot.collective,
+      pilot.pedals.left,
+      pilot.pedals.right,
+    ].map(at);
+    const glass = boxOf(nodes.find((n) => n.getName() === "helicopter_glass")!);
+    const body = boxOf(nodes.find((n) => n.getName() === "helicopter_body")!);
+    for (const contact of [seat, cyclic, collective, left, right]) {
+      // Within the glazed cabin's length and width, above the belly, below the roof.
+      expect(contact!.z).toBeGreaterThan(glass.min.z);
+      expect(contact!.z).toBeLessThan(glass.max.z);
+      expect(Math.abs(contact!.x - body.middle.x)).toBeLessThan(glass.max.x - body.middle.x);
+      expect(contact!.y).toBeGreaterThan(body.min.y);
+      expect(contact!.y).toBeLessThan(glass.max.y);
+    }
+    // Ahead is −z in the file, the pilot's right +x.
+    expect(seat!.x).toBeGreaterThan(body.middle.x + 0.2);
+    expect(cyclic!.z).toBeLessThan(seat!.z);
+    expect(collective!.x).toBeLessThan(seat!.x);
+    expect(left!.z).toBeLessThan(cyclic!.z);
+    expect(left!.x).toBeLessThan(right!.x);
+  });
+});

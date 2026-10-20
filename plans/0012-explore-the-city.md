@@ -170,7 +170,7 @@ rider is on a two-wheeler (#63). Branch `feat/helicopter-glass`.
 - [x] The test reader decodes meshopt, so tests read the committed helicopter (tests first)
 - [x] Measuring (`models/contacts.ts`, tests first): the panes by the atlas's colour under each triangle, the floor
       under a point, the cockpit's contacts from the pilot's door pane and the floor
-- [ ] The build: the panes cut from the hull as `helicopter_glass` (a light tint, blended, both sides), the hull
+- [x] The build: the panes cut from the hull as `helicopter_glass` (a light tint, blended, both sides), the hull
       one-sided with an inward `helicopter_lining`, the seat, cyclic, collective and pedals as named nodes; the glb
       rebuilt and its size logged
 - [ ] The viewer: see-through parts drawn after the city's own (`renderOrder`), logged once a model

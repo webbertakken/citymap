@@ -23,6 +23,8 @@ export interface Rig {
   readonly back?: number;
   /** A two-wheeler's rider: the nodes marking where they meet it. */
   readonly rider?: Rider;
+  /** A helicopter's pilot: the nodes marking where they meet it. */
+  readonly pilot?: Pilot;
   /** A two-wheeler's kickstand: the part that folds, its folded turn and parked lean in its extras. */
   readonly kickstand?: string;
   /**
@@ -46,6 +48,17 @@ export interface Rider {
   readonly saddle: string;
   readonly grips: Sides;
   readonly feet: Sides;
+}
+
+/**
+ * Where a pilot meets a helicopter, as nodes of its model: the top of the seat, the cyclic's grip (in the right hand),
+ * the collective's grip (in the left) and the pedals' faces. They never move: the model has no controls of its own.
+ */
+export interface Pilot {
+  readonly seat: string;
+  readonly cyclic: string;
+  readonly collective: string;
+  readonly pedals: Sides;
 }
 
 /** A left and a right node, by name. */
@@ -104,14 +117,20 @@ export const RIGS = {
     back: 0.816,
     rider: { saddle: "motorbike_seat", grips: sides("motorbike", "grip"), feet: sides("motorbike", "peg") },
   },
-  // ArcheoteryxFr's AS350 B2, rigged by the model build (its rotors hung from their hubs), in metres: the mast 1.99 m
-  // ahead of the model's middle, the tail rotor turning about the file's x.
+  // ArcheoteryxFr's AS350 B2, rigged by the model build (its rotors hung from their hubs, its pilot's seat, controls
+  // and pedals marked), in metres: the mast 1.99 m ahead of the model's middle, the tail rotor turning about the file's x.
   helicopter: {
     wheels: [],
     radius: 1,
     roll: { axis: "x", sign: 1 },
     front: 0,
     rotors: { main: "helicopter_rotor", tail: "helicopter_tail_rotor", tailAxis: "x", hub: 1.99 },
+    pilot: {
+      seat: "helicopter_seat",
+      cyclic: "helicopter_cyclic",
+      collective: "helicopter_collective",
+      pedals: sides("helicopter", "pedal"),
+    },
   },
 } as const satisfies Record<string, Rig>;
 
