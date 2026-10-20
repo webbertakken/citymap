@@ -7,6 +7,7 @@ import {
   partsOf,
   rotated,
   seatOf,
+  surfaceBottomAt,
   surfaceTopAt,
   topOf,
   turnBetween,
@@ -175,6 +176,15 @@ describe("surfaceTopAt", () => {
     expect(surfaceTopAt(positions, indices, -0.3, 0.1)).toBeCloseTo(0.5, 9);
     expect(surfaceTopAt(positions, indices, 3, 0)).toBeNull();
     expect(surfaceTopAt([0, 0, 0, 0, 1, 0, 1, 1, 0], [0, 1, 2], 0.5, 0)).toBeNull();
+  });
+});
+
+describe("surfaceBottomAt", () => {
+  it("finds the lowest surface straight under a point (a cabin's floor below its roof), and none off the mesh", () => {
+    const { positions, indices } = joined(square(0, 0, 2.4, 2), square(0, 0, 0.6, 2), square(0.5, 0, 0.8, 0.4));
+    expect(surfaceBottomAt(positions, indices, -0.5, 0)).toBeCloseTo(0.6, 9);
+    expect(surfaceBottomAt(positions, indices, 0.5, 0.1)).toBeCloseTo(0.6, 9);
+    expect(surfaceBottomAt(positions, indices, 3, 0)).toBeNull();
   });
 });
 

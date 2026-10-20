@@ -168,7 +168,7 @@ rider is on a two-wheeler (#63). Branch `feat/helicopter-glass`.
 - [x] Spec: the glass, the cabin's lining and the pilot (exploration.md § The helicopter, § Vehicles); blueprint derived
       (Models: the build's glazing, lining and cockpit contacts; the rig's pilot; the canvas); defaults and completeness
 - [x] The test reader decodes meshopt, so tests read the committed helicopter (tests first)
-- [ ] Measuring (`models/contacts.ts`, tests first): the panes by the atlas's colour under each triangle, the floor
+- [x] Measuring (`models/contacts.ts`, tests first): the panes by the atlas's colour under each triangle, the floor
       under a point, the cockpit's contacts from the pilot's door pane and the floor
 - [ ] The build: the panes cut from the hull as `helicopter_glass` (a light tint, blended, both sides), the hull
       one-sided with an inward `helicopter_lining`, the seat, cyclic, collective and pedals as named nodes; the glb
