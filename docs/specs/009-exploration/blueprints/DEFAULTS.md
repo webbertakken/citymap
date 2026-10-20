@@ -96,7 +96,7 @@ One row per value the exploration spec leaves silent or qualitative.
 | Helipad                  | 24 to 400 m on, every 2 m, 0.5 m margin          | in sight of the landing, clear of the kerbs' vehicles                     | taste                     |
 | Level                    | 2 m                                              | a walker and a vehicle further apart in height are on different levels    | 1 to 3 m                  |
 | Helicopter camera        | 15 m, 4 m up, +0.1 s · v to 22 m, chase 0.6 s    | the rotor and the city ahead in view                                      | taste                     |
-| Helicopter model         | albedo 512 px WebP, meshopt                      | 108 KB, inside the 500 KB budget                                          | 256 to 1,024 px           |
+| Helicopter model         | albedo 512 px WebP, meshopt                      | 129 KB with glass and lining, inside the 500 KB budget                    | 256 to 1,024 px           |
 | Arms' hold on the bars   | 0.9 of full reach                                | elbows a little bent, as riders hold bars                                 | 0.8 to 1                  |
 | Grip in the hand         | 0.6 from wrist to knuckles                       | the bar across the palm, short of the fingers                             | 0.4 to 0.8                |
 | Fingers round a grip     | 0.9 rad a joint, thumb 0.5                       | three joints close about 150° round a bar                                 | 0.6 to 1.1 rad            |
@@ -123,7 +123,7 @@ One row per value the exploration spec leaves silent or qualitative.
 | Cabin lining             | (0.035, 0.04, 0.045) linear, about #353a3e       | a dark cabin, as real ones are, so the glass reads as glass               | taste                     |
 | Glass by its paint       | blue over red by 30, blue at least 90 (of 255)   | the panes' (60, 120, 150) against the hull's red, white, greys and frames | 20 to 60; 70 to 120       |
 | Pilot's door window      | faces across 0.7, at least 0.45 m tall           | the door windows (0.57 to 0.63 m) over the lower door and chin windows    | 0.4 to 0.55 m             |
-| Pilot's seat             | 0.38 m above the floor, halfway to the side      | a light helicopter's seat cushion; the right of two front seats           | 0.3 to 0.45 m             |
+| Pilot's seat             | 0.5 m above the belly, halfway to the side       | the head in the door window, the knees below the hips, nothing through    | 0.45 to 0.55 m            |
 | Pedals                   | where the floor rises 0.1 m, 0.26 m apart, +5 cm | the toe board in the nose, a pedal's face                                 | 0.05 to 0.2 m             |
 | Cyclic                   | 0.4 m ahead of the seat, 0.3 m above it          | the model has none: between the knees, as a light helicopter's            | taste                     |
 | Collective               | 0.3 m in, 0.15 m ahead, 0.12 m above the seat    | the model has none: beside the left hip, as a light helicopter's          | taste                     |

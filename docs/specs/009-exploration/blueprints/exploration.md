@@ -476,8 +476,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
     `helicopter_tail_rotor` likewise at its own middle (`hangAt`); a pivot carries no mesh, so meshopt's quantisation,
     which moves a mesh's node to its box, leaves it on the hub (the three blades' box is 1.23 m off it); the body named
     `helicopter_body`; normal, metallic, occlusion and emissive maps dropped, the albedo 512 px WebP (quality 85);
-    welded and meshopt-compressed (`EXT_meshopt_compression`, `meshoptimizer`): 108 KB, 5,740 triangles. Without a token
-    and with nothing cached, the committed file is kept as it is (said in the build's output).
+    welded and meshopt-compressed (`EXT_meshopt_compression`, `meshoptimizer`): 129 KB, 8,218 triangles (its lining
+    2,479 of them). Without a token and with nothing cached, the committed file is kept as it is (said in the build's
+    output).
   - The helicopter glazed and seated (`glazeHelicopter`), before compression, in the file's frame (metres, ahead −z, the
     pilot's right +x): the body's triangles painted as glass (`panesOf`, its albedo read at full size by sharp) split
     off (`splitOff`, pivot at the origin) and moved to the scene as `helicopter_glass` (a sibling: quantisation moves
@@ -487,8 +488,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
     double-sided one), and gains a second primitive, its lining: the hull's triangles wound the other way, normals
     turned in, no UVs, material `helicopter_lining` (`LINING`, opaque, one-sided), so from inside the cabin is dark and
     no face lies against its own back. The cockpit (`cockpitOf`) marked as empty nodes in the scene (never under a mesh,
-    so quantisation leaves them): `helicopter_seat`, `helicopter_cyclic`, `helicopter_collective`,
-    `helicopter_pedal_left` and `_right`; a cockpit it cannot measure throws `models/no-cockpit reason`. Logged:
+    so quantisation leaves them; the source's empty nodes are pruned before, and the last prune keeps leaves):
+    `helicopter_seat`, `helicopter_cyclic`, `helicopter_collective`, `helicopter_pedal_left` and `_right`; a cockpit it
+    cannot measure throws `models/no-cockpit reason`. Logged:
     `[models] helicopter glass of N triangles in P panes; seat …, cyclic …, collective …, pedals … …`.
   - `CREDITS.md`: one line per source, as their licences ask (the motorbike's: Duhgless, CC0 1.0, its page; the
     helicopter's: ArcheoteryxFr, CC BY 4.0, its page, and that it was cut down).
@@ -563,22 +565,24 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   `seatOf(positions, indices, { from, to, step })` the lowest of those tops along z = 0, or null;
   `partsOf(positions, indices)` triangles joined by shared vertices or places (to 0.1 mm), in first-triangle order;
   `turnBetween`, `rotated`, `meanOf`.
-- The cockpit (`models/cockpit.ts`, pure, the file's frame). `isGlass([r, g, b])`: `b ≥ r + GLASS_BLUER` 30 and
-  `b ≥ GLASS_BLUE` 90 (the panes' paint is about (60, 120, 150); the hull's red, white, greys and near-black frames
-  fail). `panesOf(uvs, indices, paint)`: the triangles whose paint at their UVs' middle (each wrapped into [0, 1))
-  `isGlass`; `paint(u, v)` the texel there. `cockpitOf(positions, hull, glass)` (the hull's and the glass's index lists
-  into the same positions) answers `{ cockpit }` or `{ missing }` (`door`, `floor` or `pedals`): the hull's middle
-  across `mx` (its box's); the panes `partsOf` the glass; a side pane faces across (its triangles' area-weighted mean
-  `|n.x|` ≥ `SIDE_FACING` 0.7); the pilot's door window the frontmost (least middle z) side pane on the pilot's side
-  (middle x
-  > `mx`) at least `DOOR_TALL` 0.45 m tall (the lower door and chin windows are 0.32 to 0.43 m); the seat at the door's
-  > middle z, halfway from `mx` to the door's middle x, `SEAT_HEIGHT` 0.38 m above the floor there (`surfaceBottomAt`:
-  > the hull's lowest triangle over a point); the pedals where the floor along the seat's line, looked for every
-  > `PEDAL_STEP` 0.02 m ahead, has risen `PEDAL_RISE` 0.1 m into the nose, `PEDAL_APART` 0.26 m apart about the seat's
-  > line, each `PEDAL_UP` 0.05 m above the floor under it (left −x); the model has no controls, so the cyclic is
-  > `CYCLIC_AHEAD` 0.4 m ahead of the seat and `CYCLIC_UP` 0.3 m above it, between the knees, and the collective
-  > `COLLECTIVE_IN` 0.3 m to its left (towards the middle), `COLLECTIVE_AHEAD` 0.15 m ahead and `COLLECTIVE_UP` 0.12 m
-  > above. `surfaceTopAt` and `surfaceBottomAt` share `surfacesAt` (every height of a mesh's surface over a point).
+- The cockpit (`models/cockpit.ts`, pure, the file's frame: metres, ahead −z, the pilot's right +x).
+  `isGlass([r, g, b])`: blue at least `GLASS_PAINT.bluer` 30 over red and at least `GLASS_PAINT.blue` 90 (the panes'
+  paint is about (60, 120, 150); the hull's red, white, greys and near-black frames fail).
+  `panesOf(uvs, indices, paint)`: the triangles whose paint at their UVs' middle (each wrapped into [0, 1)) `isGlass`;
+  `paint(u, v)` the texel there. `cockpitOf(positions, hull, glass)` (the hull's and the glass's index lists into the
+  same positions) answers `{ cockpit }` or `{ missing }` (`door`, `floor` or `pedals`), by `COCKPIT`: the hull's middle
+  across (its box's); the panes `partsOf` the glass; a side pane faces across (its triangles' area-weighted mean `|n.x|`
+  at least `sideFacing` 0.7); the pilot's door window is the frontmost (least middle z) side pane whose middle lies
+  right of the hull's and which is at least `doorTall` 0.45 m tall (the lower door and chin windows are 0.32 to 0.43 m);
+  the seat at the door's middle z, halfway from the hull's middle to the door's middle x, `seatHeight` 0.5 m above the
+  hull's bottom there (`surfaceBottomAt`: the hull's lowest triangle over a point; its belly, under the cabin's floor);
+  the pedals where that bottom along the seat's line, looked for every `pedalStep` 0.02 m ahead, has risen `pedalRise`
+  0.1 m into the nose, `pedalApart` 0.26 m apart about the seat's line, each `pedalUp` 0.05 m above the bottom under it
+  (left −x); the model has no controls, so the cyclic is `cyclicAhead` 0.4 m ahead of the seat and `cyclicUp` 0.3 m
+  above it, between the knees, and the collective `collectiveIn` 0.3 m to its left (towards the middle),
+  `collectiveAhead` 0.15 m ahead and `collectiveUp` 0.12 m above. Measured on the AS350: 297 triangles in 12 panes; the
+  seat (0.513, 1.148, −3.576), the pedals at z −4.316. `surfaceTopAt` and `surfaceBottomAt` share `surfacesAt` (every
+  height of a mesh's surface over a point).
 - The rider (`models/seat.ts`). `figureOf(person)`, as made (before any clip): its `Hips`, `Spine`, `Head`, each side's
   arm and leg (`armsOf`, `legsOf`), `Middle1` (knuckles), `ToeBase` (the foot's ball), the `Thumb`, `Index` and `Middle`
   joints 1 to 3 and their rest turns (no clip moves them); `seat` the hips above the lower hip joint plus a tenth of the
@@ -812,8 +816,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   limbs' reach, once a frame for the one ridden. Rapier's chunk: 1.6 MB gzipped, now loaded on every walk behind the
   card.
 - The helicopter (Bun, desktop): a flown step through 10,000 buildings 3.2 µs (its four wall moves and the ray down),
-  0.04 % of the time at 120 Hz. Its model 107 KB. Marked roofs among the same 10,000: the first ask works out the 1,100
-  within 300 m in 7.5 ms (once, on the first HUD refresh in the helicopter); each refresh after 0.44 ms.
+  0.04 % of the time at 120 Hz. Its model 129 KB, its glass and lining within it. Marked roofs among the same 10,000:
+  the first ask works out the 1,100 within 300 m in 7.5 ms (once, on the first HUD refresh in the helicopter); each
+  refresh after 0.44 ms.
 - Parking: `parkedIn` 1.8 ms for takken.io (115 kept) and 2.9 ms for livediagram (4,135 lots, 200 kept); at most
   `PARKED_MOST` 200 vehicles in the session (each step's `clearOfVehicles` and `reachable` skip a vehicle by its box
   first), and the canvas draws at most 16 models.
