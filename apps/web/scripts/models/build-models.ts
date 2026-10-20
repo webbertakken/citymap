@@ -7,11 +7,19 @@ import { join, resolve } from "node:path";
 //   vehicles: heyheythere's PSX Vehicles Free (CC BY 4.0): bicycle, sedan and pickup, with the pack's atlas attached,
 //             the bicycle stood upright with its kickstand its own part; Duhgless' Another PSX Style Low-poly Bike
 //             (CC0): the motorbike, its parts rigged to steer and roll; ArcheoteryxFr's AS350 B2 (CC BY 4.0, Sketchfab):
-//             the helicopter, its rotors hung from their hubs. Each two-wheeler marks where its rider meets it.
+//             the helicopter, its rotors hung from their hubs, its panes glass, its cabin lined. Each two-wheeler marks
+//             where its rider meets it, and the helicopter where its pilot does.
 // Usage: bun scripts/models/build-models.ts   (writes public/models and its CREDITS.md; prints each clip's ground speed)
 // The helicopter comes through Sketchfab's API, which needs a token (SKETCHFAB_TOKEN, or ~/.secrets/sketchfab-api-token);
 // without one, and with nothing cached, the committed helicopter is kept as it is.
-import { Document, NodeIO, type Node as GltfNode, type mat4 } from "@gltf-transform/core";
+import {
+  Document,
+  NodeIO,
+  type Material,
+  type Node as GltfNode,
+  type Primitive,
+  type mat4,
+} from "@gltf-transform/core";
 import { EXTMeshoptCompression, EXTTextureWebP, KHRONOS_EXTENSIONS } from "@gltf-transform/extensions";
 import {
   clearNodeTransform,
@@ -39,6 +47,7 @@ import {
   type Object3D,
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { cockpitOf, panesOf, type Paint } from "../../src/explore/models/cockpit";
 import {
   endsOf,
   hubOf,
@@ -551,6 +560,98 @@ function hangAt(doc: Document, node: GltfNode, at: readonly [number, number, num
   node.setName(`${name}_mesh`);
 }
 
+/** The helicopter's glass: a light sky-grey tint (linear), this opaque. */
+const GLASS_TINT = [0.45, 0.62, 0.72, 0.35] as const;
+/** The cabin's lining: a dark grey (linear, about #353a3e as drawn), as a cabin's inside is. */
+const LINING = [0.035, 0.04, 0.045, 1] as const;
+
+/** A material's base colour texture's texels, read at full size, as the colour at a point (u, v in [0, 1)). */
+async function paintOf(material: Material): Promise<Paint> {
+  const image = material.getBaseColorTexture()?.getImage();
+  if (!image) throw new Error(`models/no-albedo ${material.getName()}`);
+  const { data, info } = await sharp(image).raw().toBuffer({ resolveWithObject: true });
+  return (u, v) => {
+    const x = Math.min(info.width - 1, Math.floor(u * info.width));
+    const y = Math.min(info.height - 1, Math.floor(v * info.height));
+    const at = (y * info.width + x) * info.channels;
+    return [data[at]!, data[at + 1]!, data[at + 2]!];
+  };
+}
+
+/**
+ * The helicopter glazed and its cockpit marked, in the file's frame (metres, ahead −z, the pilot's right +x): the body's
+ * triangles painted as glass split off as `helicopter_glass`, a sibling in the scene (quantisation would move the mesh
+ * of a node with children onto a new unnamed child), with a light tint of its own, blended and seen from both sides;
+ * the hull painted on its outside alone and lined inside, dark, by its own triangles turned in; the pilot's seat,
+ * controls and pedals as empty nodes in the scene. The model has no controls, so `cockpitOf` sets them from the seat.
+ */
+async function glazeHelicopter(doc: Document, body: GltfNode) {
+  const [hull, ...more] = body.getMesh()?.listPrimitives() ?? [];
+  const positions = hull?.getAttribute("POSITION")?.getArray();
+  const uvs = hull?.getAttribute("TEXCOORD_0")?.getArray();
+  const normals = hull?.getAttribute("NORMAL");
+  const indices = hull?.getIndices()?.getArray();
+  const source = hull?.getMaterial();
+  if (!hull || more.length > 0 || !positions || !uvs || !normals || !indices || !source)
+    throw new Error("models/not-one-primitive helicopter_body");
+  const glass = panesOf(uvs, indices, await paintOf(source));
+  const taken = new Set(glass);
+  const of = (keep: boolean) =>
+    Array.from({ length: indices.length / 3 }, (_, t) =>
+      taken.has(t) === keep ? [indices[t * 3]!, indices[t * 3 + 1]!, indices[t * 3 + 2]!] : [],
+    ).flat();
+  const measured = cockpitOf(positions, of(false), of(true));
+  if ("missing" in measured) throw new Error(`models/no-cockpit ${measured.missing}`);
+  const { cockpit } = measured;
+  const scene = doc.getRoot().getDefaultScene() ?? doc.getRoot().listScenes()[0]!;
+  const panes = splitOff(doc, body, glass, "helicopter_glass", [0, 0, 0]);
+  scene.addChild(panes);
+  const tint = doc
+    .createMaterial("helicopter_glass")
+    .setBaseColorFactor([...GLASS_TINT])
+    .setAlphaMode("BLEND")
+    .setDoubleSided(true)
+    .setMetallicFactor(0)
+    .setRoughnessFactor(1);
+  for (const pane of panes.getMesh()!.listPrimitives())
+    pane.setAttribute("TEXCOORD_0", null).setAttribute("TANGENT", null).setMaterial(tint);
+  hull.setMaterial(source.clone().setName("helicopter_paint").setDoubleSided(false));
+  body.getMesh()!.addPrimitive(liningOf(doc, hull));
+  for (const [name, at] of [
+    ["helicopter_seat", cockpit.seat],
+    ["helicopter_cyclic", cockpit.cyclic],
+    ["helicopter_collective", cockpit.collective],
+    ["helicopter_pedal_left", cockpit.pedals.left],
+    ["helicopter_pedal_right", cockpit.pedals.right],
+  ] as const)
+    scene.addChild(doc.createNode(name).setTranslation([...at]));
+  const [pane] = panes.getMesh()!.listPrimitives();
+  const count = partsOf(pane!.getAttribute("POSITION")!.getArray()!, pane!.getIndices()!.getArray()!).length;
+  console.log(
+    `[models] helicopter glass of ${glass.length} triangles in ${count} panes; seat ${shown(cockpit.seat)}, cyclic ${shown(cockpit.cyclic)}, collective ${shown(cockpit.collective)}, pedals ${shown(cockpit.pedals.left)} ${shown(cockpit.pedals.right)}`,
+  );
+}
+
+/** A hull's lining: its triangles wound the other way and their normals turned in, dark, untextured, one-sided. */
+function liningOf(doc: Document, hull: Primitive): Primitive {
+  const buffer = doc.getRoot().listBuffers()[0]!;
+  const indices = Array.from(hull.getIndices()!.getArray()!);
+  const turned = indices.map((_, i) => indices[i - (i % 3) + (2 - (i % 3))]!);
+  const normals = Array.from(hull.getAttribute("NORMAL")!.getArray()!, (n) => -n);
+  return doc
+    .createPrimitive()
+    .setAttribute("POSITION", hull.getAttribute("POSITION"))
+    .setAttribute("NORMAL", doc.createAccessor().setType("VEC3").setArray(new Float32Array(normals)).setBuffer(buffer))
+    .setIndices(doc.createAccessor().setType("SCALAR").setArray(new Uint32Array(turned)).setBuffer(buffer))
+    .setMaterial(
+      doc
+        .createMaterial("helicopter_lining")
+        .setBaseColorFactor([...LINING])
+        .setMetallicFactor(0)
+        .setRoughnessFactor(1),
+    );
+}
+
 /**
  * ArcheoteryxFr's AS350 B2, rigged as the walk poses it: the file's centimetre scale dropped (its mesh is in metres),
  * every part's place baked into its mesh; the main rotor hung from its hub (the hub's middle in plan, about y) and the
@@ -589,13 +690,16 @@ async function helicopter(kept: Uint8Array | null) {
   const fin = boxOf(tail);
   hangAt(doc, rotor, [middle(hub, 0), middle(blades, 1), middle(hub, 2)], "helicopter_rotor");
   hangAt(doc, tail, [middle(fin, 0), middle(fin, 1), middle(fin, 2)], "helicopter_tail_rotor");
-  named("cabine").setName("helicopter_body");
+  const body = named("cabine").setName("helicopter_body");
+  // The source's empty nodes go first, so the last prune can keep the cockpit's, which are empty too.
+  await doc.transform(prune());
+  await glazeHelicopter(doc, body);
   for (const material of doc.getRoot().listMaterials()) {
     material.setNormalTexture(null).setMetallicRoughnessTexture(null).setMetallicFactor(0).setRoughnessFactor(1);
     material.setOcclusionTexture(null).setEmissiveTexture(null);
   }
   await doc.transform(
-    prune(),
+    prune({ keepLeaves: true }),
     dedup(),
     weld(),
     textureCompress({ encoder: sharp, targetFormat: "webp", resize: [512, 512], quality: 85 }),
@@ -621,7 +725,7 @@ const CREDITS = `# Model credits
   https://duhgless.itch.io/another-psx-style-low-poly-bike
 - Helicopter: AS350 B2 by ArcheoteryxFr, CC BY 4.0,
   https://sketchfab.com/3d-models/as350-b2-76cf31c232bf4514ab1794d28a2b0ee1 (cut down: albedo only, at 512 px WebP;
-  geometry compressed)
+  geometry compressed; its panes made tinted glass, its cabin lined)
 `;
 
 const scratch = await mkdtemp(join(tmpdir(), "citymap-models-"));

@@ -4,7 +4,7 @@
 // On a bicycle or a motorbike the rider sits in its frame, leaning and pitching with it, hands round the grips, feet on
 // the pedals or the pegs, or a foot on the ground; a parked one stands on its kickstand, folded as its rider gets on. A
 // car is drawn by its whole turn, on its springs or on its side; the helicopter tilted as it flies, its rotors turning
-// with its rotor's speed, and the roofs it can land on marked "H".
+// with its rotor's speed, its pilot seen through its glass, and the roofs it can land on marked "H".
 import type { Theme } from "@citymap/themes";
 import { PerspectiveCamera } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -25,7 +25,7 @@ import { standAfter } from "../explore/models/kickstand";
 import { motionOf, paceOf } from "../explore/models/motion";
 import { figure, paletteOf } from "../explore/models/procedural";
 import { poseRun } from "../explore/models/run";
-import { figureOf, placeVehicle, release, seat, slotOf, type Rolled, type Slot } from "../explore/models/seat";
+import { figureOf, pilot, placeVehicle, release, seat, slotOf, type Rolled, type Slot } from "../explore/models/seat";
 import { poseStride, swingOf } from "../explore/models/stride";
 import { assignPool } from "../explore/pool";
 import { ROOFTOP_MOST } from "../explore/rooftops";
@@ -424,15 +424,18 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
       placeVehicle(slot, group, vehicle, rolled.current, stand);
     });
     const ridden = riding === null ? undefined : byId.get(riding);
-    // In a car or the helicopter, the walker is inside, out of sight.
-    walker.visible = ridden?.kind !== "car" && ridden?.kind !== "helicopter";
-    walker.scale.setScalar(METRE);
     const at = shows.findIndex((s) => s.id === riding);
     const ridingGroup = shows[at]?.group;
+    // In a car the walker is inside, out of sight; in the helicopter it is its pilot, once its model is drawn.
+    walker.visible = ridden?.kind !== "car" && (ridden?.kind !== "helicopter" || ridingGroup !== undefined);
+    walker.scale.setScalar(METRE);
     if ((ridden?.kind === "bicycle" || ridden?.kind === "motorbike") && ridingGroup) {
       const fallen = ridden.kind === "bicycle" ? ridden.cycle.fall : ridden.moto.fall;
       animator?.play(fallen ? "idle" : "drive", 1, seconds);
       seat(walker, rider, slots[at]!, ridingGroup, ridden);
+    } else if (ridden?.kind === "helicopter" && ridingGroup) {
+      animator?.play("drive", 1, seconds);
+      pilot(walker, rider, slots[at]!);
     } else if (!ridden) {
       if (rider) release(rider);
       // Drawn between its last two steps, so it moves as smoothly as the frames come.

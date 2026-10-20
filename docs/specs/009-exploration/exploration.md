@@ -72,7 +72,8 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
   of the street below.
 - Where a rider sits, holds on and rests their feet on a two-wheeler comes from its own model, measured once when the
   models are built, never set by eye: the saddle or seat, the grips (which turn with the bars), the pedals (which go
-  round with the crank) or the pegs.
+  round with the crank) or the pegs. The helicopter's pilot sits by its model the same way: its seat, cyclic, collective
+  and pedals (The helicopter, below).
 - **The car**, the motorbike and the helicopter handle as GTA's do: cars on suspension that grip, drift, crash, roll
   over and are put back on their wheels; the motorbike leans on the bicycle's single-track core, with an engine and a
   wheelie; the helicopter flies by collective and cyclic and lands on roofs.
@@ -126,6 +127,20 @@ around it behaves lives in the [viewer](../004-interface-design/viewer.md).
 - **Collision at any height.** Its rotor's disc is stopped by any building as high as the disc, its cabin by anything
   lower; it flies over what lies below its skids. Touching a wall it slides along it; a hard hit (from 5 m/s) strikes
   the rotor, which loses speed, and jolts it away.
+- **Its glass.** The cabin's panes (the windscreen, the chin windows, the doors' and the roof's) are glass: lightly
+  tinted, see-through from either side, so the pilot, the far panes and the street beyond show through, as readable on a
+  light theme as on a dark one. The hull keeps its paint outside and is lined inside in a dark grey, as a cabin is, so
+  the glass reads as glass. The panes are the model's own, found by how they are painted (blue panes on its one texture)
+  and cut from the hull when the models are built. Glass never flickers against the hull, and whatever lies behind it,
+  near or far, shows through it.
+- **The pilot.** Getting in seats the walker as its pilot, in the front right seat, where an Écureuil's pilot sits: hips
+  on the seat, the right hand on the cyclic, the left on the collective, the feet on the pedals, the knees bent. The
+  seat and the pedals are measured from the cabin when the models are built: the seat beside the pilot's door window,
+  halfway from the cabin's middle to its side, on its floor; the pedals ahead, where the floor rises into the nose. The
+  model has no cyclic or collective of its own, so where the hands rest is set from the seat, and the controls stay
+  still as it flies. No part of the pilot shows through the hull or the glass, at any pitch, roll or yaw. E gets in and
+  out as before. The stand-in helicopter, drawn when the model cannot load, has no cabin: its pilot is out of sight, as
+  before.
 - **The camera** follows from further back and higher, drawing back with speed, and swings behind it as it turns, even
   on the spot.
 - **The HUD**, while in the helicopter: its altitude above what lies below (the street or a roof) in metres, its climb

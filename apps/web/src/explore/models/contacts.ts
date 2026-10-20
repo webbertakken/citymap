@@ -179,9 +179,9 @@ export function topOf(points: readonly Point[], depth: number): Point {
   return [middle[0], highest, middle[2]];
 }
 
-/** The height of a mesh's surface straight above (x, z): its highest triangle over that point; null where there is none. */
-export function surfaceTopAt(positions: ArrayLike<number>, indices: ArrayLike<number>, x: number, z: number) {
-  let top: number | null = null;
+/** Every height of a mesh's surface over (x, z), in its triangles' order: each triangle that point lies under or over. */
+function surfacesAt(positions: ArrayLike<number>, indices: ArrayLike<number>, x: number, z: number): number[] {
+  const heights: number[] = [];
   const at = (i: number, k: number) => positions[indices[i]! * 3 + k]!;
   for (let t = 0; t < indices.length; t += 3) {
     const [ax, ay, az] = [at(t, 0), at(t, 1), at(t, 2)];
@@ -193,10 +193,21 @@ export function surfaceTopAt(positions: ArrayLike<number>, indices: ArrayLike<nu
     const u = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d;
     const v = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d;
     if (u < 0 || v < 0 || u + v > 1) continue;
-    const y = u * ay + v * by + (1 - u - v) * cy;
-    if (top === null || y > top) top = y;
+    heights.push(u * ay + v * by + (1 - u - v) * cy);
   }
-  return top;
+  return heights;
+}
+
+/** The height of a mesh's surface straight above (x, z): its highest triangle over that point; null where there is none. */
+export function surfaceTopAt(positions: ArrayLike<number>, indices: ArrayLike<number>, x: number, z: number) {
+  const heights = surfacesAt(positions, indices, x, z);
+  return heights.length > 0 ? Math.max(...heights) : null;
+}
+
+/** The height of a mesh's lowest surface over (x, z), a hull's floor under its roof; null where there is none. */
+export function surfaceBottomAt(positions: ArrayLike<number>, indices: ArrayLike<number>, x: number, z: number) {
+  const heights = surfacesAt(positions, indices, x, z);
+  return heights.length > 0 ? Math.min(...heights) : null;
 }
 
 /**

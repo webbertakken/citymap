@@ -46,13 +46,15 @@ the cars' garage and the descent), `apps/web/src/components` (`ExploreView`, `Ex
 | pad       | `Pad`, `padOf`, `PadPresses`                              | a gamepad's state as intents, look and presses                                     |
 | pedalling | `reachFor`, `tiltToReach`, `turnInWorld`                  | a limb bent to put its end on a target; how far the body leans to reach the bars   |
 | contacts  | `hubOf`, `axleOf`, `endsOf`, `topOf`, `seatOf`, `partsOf` | where a rider meets a model, and a wheel's hub and axle, measured from its meshes  |
-| seat      | `Figure`, `figureOf`, `seat`, `release`, `placeVehicle`   | a rider measured once, seated by a model's contacts; a pool model posed            |
+| seat      | `Figure`, `figureOf`, `seat`, `pilot`, `placeVehicle`     | a rider or pilot measured once, seated by a model's contacts; a pool model posed   |
+| cockpit   | `panesOf`, `isGlass`, `cockpitOf`, `Cockpit`, `COCKPIT`   | the helicopter's glass found by its paint; its seat, controls and pedals measured  |
+| pilot     | `Pilot` (`seat`, `cyclic`, `collective`, `pedals`)        | where a pilot meets a helicopter: the nodes of its seat, controls and pedals       |
 | kickstand | `Kickstand`, `kickstandOf`, `standAfter`, `leanOnStand`   | a two-wheeler's stand: how far down, the lean it holds the machine at              |
 | bell      | `ringBell`                                                | the bicycle's bell, rung by Web Audio                                              |
 | prompt    | `Prompt`, `promptOf`, `promptWords`                       | what E does now, and its words                                                     |
 | motion    | `Motion`, `CLIP_OF`, `motionOf`, `paceOf`                 | idle, walk, sprint, jump, fall, drive; their clips and paces                       |
 | sight     | `cityHits`, `sightOf`, `windowRows`, `inspector`          | what the crosshair meets: a roof, a wall, a window and its file                    |
-| rig       | `Rig`, `Rider`, `RIGS`, `PROCEDURAL_RIGS`, `poseVehicle`  | a model's moving parts, axes, rider's contacts and stand; a vehicle posed by them  |
+| rig       | `Rig`, `Rider`, `RIGS`, `PROCEDURAL_RIGS`, `poseVehicle`  | a model's moving parts, axes, rider's or pilot's contacts and stand; posed by them |
 | model     | `ModelFile`, `GLTF_MODELS`, `loadModel`, `Loaded`         | a model file, its size and facing; a loaded model's copies, clips and original     |
 | retarget  | `retargetClip`, `WOBBLE_FROM_UAL`, `QUATERNIUS_FROM_UAL`  | a clip carried onto another skeleton by turns from rest                            |
 
@@ -474,10 +476,26 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
     `helicopter_tail_rotor` likewise at its own middle (`hangAt`); a pivot carries no mesh, so meshopt's quantisation,
     which moves a mesh's node to its box, leaves it on the hub (the three blades' box is 1.23 m off it); the body named
     `helicopter_body`; normal, metallic, occlusion and emissive maps dropped, the albedo 512 px WebP (quality 85);
-    welded and meshopt-compressed (`EXT_meshopt_compression`, `meshoptimizer`): 108 KB, 5,740 triangles. Without a token
-    and with nothing cached, the committed file is kept as it is (said in the build's output).
+    welded and meshopt-compressed (`EXT_meshopt_compression`, `meshoptimizer`): 129 KB, 8,218 triangles (its lining
+    2,479 of them). Without a token and with nothing cached, the committed file is kept as it is (said in the build's
+    output).
+  - The helicopter glazed and seated (`glazeHelicopter`), before compression, in the file's frame (metres, ahead −z, the
+    pilot's right +x): the body's triangles painted as glass (`panesOf`, its albedo read at full size by sharp) split
+    off (`splitOff`, pivot at the origin) and moved to the scene as `helicopter_glass` (a sibling: quantisation moves
+    the mesh of a node with children onto a new unnamed child), its UVs and tangents dropped, its material
+    `helicopter_glass` (`GLASS_TINT` (0.45, 0.62, 0.72) linear at 0.35, `alphaMode` BLEND, double-sided, metallic 0,
+    roughness 1). The hull keeps the source's material cloned one-sided as `helicopter_paint` (the rotors, skids and the
+    rest keep the source's double-sided one), and gains a second primitive, its lining (`liningOf`): the hull's
+    triangles wound the other way, normals turned in, no UVs, material `helicopter_lining` (`LINING` (0.035, 0.04,
+    0.045) linear, opaque, one-sided), so from inside the cabin is dark and no face lies against its own back. The
+    cockpit (`cockpitOf`) marked as empty nodes in the scene (never under a mesh, so quantisation leaves them; the
+    source's empty nodes are pruned before, and the last prune keeps leaves): `helicopter_seat`, `helicopter_cyclic`,
+    `helicopter_collective`, `helicopter_pedal_left` and `_right`; a cockpit it cannot measure throws
+    `models/no-cockpit reason`. Logged:
+    `[models] helicopter glass of N triangles in P panes; seat …, cyclic …, collective …, pedals … …`.
   - `CREDITS.md`: one line per source, as their licences ask (the motorbike's: Duhgless, CC0 1.0, its page; the
-    helicopter's: ArcheoteryxFr, CC BY 4.0, its page, and that it was cut down).
+    helicopter's: ArcheoteryxFr, CC BY 4.0, its page, and that it was cut down, its panes made glass and its cabin
+    lined).
 - `uploadsIn(page)` reads an itch.io download page's uploads (id and file name) whichever order it writes the name's
   `title` and `class`.
 - `retargetClip(target, source, clip, rest, names, { hip, fps = 30 })`: names sanitised as three.js does; in each
@@ -489,7 +507,8 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   its x, `hub` 1.99 m ahead of the middle); `PROCEDURAL_RIGS.helicopter` the stand-in's `rotor-main` and `rotor-tail`
   (about z, hub −0.1 m). `poseHelicopter(model, rig, { blades, tail })` turns the main rotor by `−blades` (clockwise
   from above) and the tail by `tail`, the model moved by `−hub` so the mast stands over the group's origin; the group
-  takes `tiltedOf`. In the helicopter the walker is hidden.
+  takes `tiltedOf`. `RIGS.helicopter.pilot` (`Pilot`): `helicopter_seat`, `_cyclic`, `_collective`, `_pedal_*`; the
+  stand-in has none (no cabin).
 - `GLTF_MODELS` adds `motorbike` (2.36 m long, built facing +x, yaw 0) and `pickup` (drawn 4.6 m of its 5.2, so its
   wheels are the car's 0.32 m). `loadModel`: the file sized to `metres` by `measure`, turned by `yaw` to face +x, on y =
   0, centred; measured once per file (`framingOf`, on a copy, precisely as posed by its skeleton), every copy `framed`
@@ -548,6 +567,24 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   `seatOf(positions, indices, { from, to, step })` the lowest of those tops along z = 0, or null;
   `partsOf(positions, indices)` triangles joined by shared vertices or places (to 0.1 mm), in first-triangle order;
   `turnBetween`, `rotated`, `meanOf`.
+- The cockpit (`models/cockpit.ts`, pure, the file's frame: metres, ahead −z, the pilot's right +x).
+  `isGlass([r, g, b])`: blue at least `GLASS_PAINT.bluer` 30 over red and at least `GLASS_PAINT.blue` 90 (the panes'
+  paint is about (60, 120, 150); the hull's red, white, greys and near-black frames fail).
+  `panesOf(uvs, indices, paint)`: the triangles whose paint at their UVs' middle (each wrapped into [0, 1)) `isGlass`;
+  `paint(u, v)` the texel there. `cockpitOf(positions, hull, glass)` (the hull's and the glass's index lists into the
+  same positions) answers `{ cockpit }` or `{ missing }` (`door`, `floor` or `pedals`), by `COCKPIT`: the hull's middle
+  across (its box's); the panes `partsOf` the glass; a side pane faces across (its triangles' area-weighted mean `|n.x|`
+  at least `sideFacing` 0.7); the pilot's door window is the frontmost (least middle z) side pane whose middle lies
+  right of the hull's and which is at least `doorTall` 0.45 m tall (the lower door and chin windows are 0.32 to 0.43 m);
+  the seat at the door's middle z, halfway from the hull's middle to the door's middle x, `seatHeight` 0.5 m above the
+  hull's bottom there (`surfaceBottomAt`: the hull's lowest triangle over a point; its belly, under the cabin's floor);
+  the pedals where that bottom along the seat's line, looked for every `pedalStep` 0.02 m ahead, has risen `pedalRise`
+  0.1 m into the nose, `pedalApart` 0.26 m apart about the seat's line, each `pedalUp` 0.05 m above the bottom under it
+  (left −x); the model has no controls, so the cyclic is `cyclicAhead` 0.4 m ahead of the seat and `cyclicUp` 0.3 m
+  above it, between the knees, and the collective `collectiveIn` 0.3 m to its left (towards the middle),
+  `collectiveAhead` 0.15 m ahead and `collectiveUp` 0.12 m above. Measured on the AS350: 297 triangles in 12 panes; the
+  seat (0.513, 1.148, −3.576), the pedals at z −4.316. `surfaceTopAt` and `surfaceBottomAt` share `surfacesAt` (every
+  height of a mesh's surface over a point).
 - The rider (`models/seat.ts`). `figureOf(person)`, as made (before any clip): its `Hips`, `Spine`, `Head`, each side's
   arm and leg (`armsOf`, `legsOf`), `Middle1` (knuckles), `ToeBase` (the foot's ball), the `Thumb`, `Index` and `Middle`
   joints 1 to 3 and their rest turns (no clip moves them); `seat` the hips above the lower hip joint plus a tenth of the
@@ -584,6 +621,18 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   wanted and gives freed ones to newcomers; a model without a vehicle is hidden. A car's group takes its `attitude`; a
   two-wheeler's its heading, the model leaning and pitching by its `lean` and `pitch`.
 - The rider on a two-wheeler: `seat`, above. In a car the walker is hidden.
+- The pilot: `pilot(walker, figure, slot)`. Without a rig's `pilot`, a contact missing (`explore/no-contact name`, as
+  `seat`'s; the pilot's nodes read as a rider's by `asRider`) or a rigged figure, the walker is hidden (the stand-in
+  helicopter, or a figure that cannot sit); else turned as the machine and seated by the seat (`sitOn`, hips `seat`
+  above it), upright (the clip's own sitting, no lean or turn to the controls), the right palm on the cyclic and the
+  left on the collective by `reachWith`, elbows `ELBOW_OUT`, the fingers closed about the machine's across (`grip`), and
+  the feet's balls `sole` above the pedals (`restFeet`, never a foot down), knees `KNEE_AHEAD`. The canvas plays `drive`
+  and calls it each frame in the helicopter; the walker is shown for it, and `pilot` hides it where it cannot sit.
+- See-through parts (`models/gltf.ts`): `loadModel` gives every mesh with a transparent material `renderOrder`
+  `SEE_THROUGH_ORDER` 2, after the city's own transparent things (signs and roof markings 0, the helicopter's shadow 1),
+  so whatever lies behind glass is drawn before it; glass writes no depth (three's `GLTFLoader` for BLEND), so it never
+  hides what lies behind it and never fights the hull (it is cut from it, not laid on it). Logged once a file:
+  `explore/model-glass url meshes`.
 
 ## The crosshair
 
@@ -725,6 +774,8 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 | Stepping out on a roof's edge       | The side with a floor at the vehicle's level                                  |
 | No Sketchfab token for the build    | The committed helicopter is kept; said in the build's output                  |
 | A model without a rider's contact   | The rider left as it was; `explore/no-contact name` once a model and name     |
+| A helicopter without the cockpit    | The pilot hidden (as the stand-in's); `explore/no-contact name` once          |
+| A cockpit the build cannot measure  | The build fails: `models/no-cockpit reason` (`door`, `floor` or `pedals`)     |
 | A kickstand's extras unreadable     | No stand: the machine leans by its own lean; `explore/kickstand-unreadable`   |
 | A figure without the bones to ride  | Seated by its legs' tops, unbent; `explore/rider-unrigged reason`             |
 | Grips beyond the arms' reach        | Leant forward at most 1 rad, then forward along the saddle at most 0.12 m     |
@@ -742,8 +793,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
 (the speed thrown at) (cause `hit`, `grip` or `lean`), `explore/up`, `explore/bell`, `explore/bell-silent`,
 `explore/gamepad id` (once, when first read), `explore/helipad x z`, `explore/no-helipad`, `explore/heli-landed on y`
 (`on` `roof` or `street`), `explore/heli-lifted`, `explore/heli-hit lost`, `explore/rider-measured seat sole standing`,
-`explore/rider-unrigged reason`, `explore/no-contact name`, `explore/kickstand id to still`,
-`explore/kickstand-unreadable name`, and the loading card's `viewer/load-phase source=explore`.
+`explore/rider-unrigged reason`, `explore/no-contact name`, `explore/model-glass url meshes`,
+`explore/kickstand id to still`, `explore/kickstand-unreadable name`, and the loading card's
+`viewer/load-phase source=explore`.
 
 ## Performance and limits
 
@@ -766,8 +818,9 @@ Lean `φ` and steer `δ` positive to the left, turns anticlockwise; metres, seco
   limbs' reach, once a frame for the one ridden. Rapier's chunk: 1.6 MB gzipped, now loaded on every walk behind the
   card.
 - The helicopter (Bun, desktop): a flown step through 10,000 buildings 3.2 µs (its four wall moves and the ray down),
-  0.04 % of the time at 120 Hz. Its model 107 KB. Marked roofs among the same 10,000: the first ask works out the 1,100
-  within 300 m in 7.5 ms (once, on the first HUD refresh in the helicopter); each refresh after 0.44 ms.
+  0.04 % of the time at 120 Hz. Its model 129 KB, its glass and lining within it. Marked roofs among the same 10,000:
+  the first ask works out the 1,100 within 300 m in 7.5 ms (once, on the first HUD refresh in the helicopter); each
+  refresh after 0.44 ms.
 - Parking: `parkedIn` 1.8 ms for takken.io (115 kept) and 2.9 ms for livediagram (4,135 lots, 200 kept); at most
   `PARKED_MOST` 200 vehicles in the session (each step's `clearOfVehicles` and `reachable` skip a vehicle by its box
   first), and the canvas draws at most 16 models.
@@ -788,38 +841,44 @@ on the garage's Rapier walls (on the ground exactly, stopped and slid at a wall,
 off, through vehicles, pressing on a wall through a re-centring, the camera's line) and the session walking on them; the
 leg reaching its pedal; the bell with a stand-in context. The rider on the walk's own models (`seat.test.ts`, the files
 read from `public/models` without their textures by `testing/models.ts`): hips on the saddle, palms on the grips and the
-feet's balls on the pedals within 2 cm round the crank, steered and leaning either way, on the motorbike's seat, grips
-and pegs, the knees bent ahead, fingers closed and released, a foot on the ground at a stop, thrown, a figure without
-bones, a missing contact said once. Each wheel of each ride and stand-in true over a full turn (`wheels.test.ts`: hub
-held within 1 mm, axle within 0.002 rad of across, 24 steps; the pack's leaning bicycle fails it by 0.14 rad); the
-contacts marked; the kickstand on the ground parked, the bicycle leaning 8°, and folded clear of it ridden; the
-measuring functions (`contacts.test.ts`); the stand's swing and lean (`kickstand.test.ts`). The core: the benchmark's
-matrices from its parameters, the middle, the loads, the wheel lifting and coming down to exactly 0. The motorbike: the
-wheelie held in first until the red line, 0 to 100 km/h, top speed, the throttle's rate, changing down, both brakes,
-paddling back, a slide under braking leaned, tracking the lean at 6 to 40 m/s, riding straight, the foot, falls, the
-HUD. The engine and gearbox. The nearby streets: reach, ties, cells below zero, the plan, re-centring. The garage
-against real Rapier: counted opening, cancelling, a hull it cannot make, the budget, re-centring by a wall 600 m off,
-pulling away through the gears, braking then reversing, the handbrake's slide, a crash, righting, pushing a parked car,
-two-wheelers in the way, letting go and bringing back, traffic, keeping up. The descent's order and every failure; the
-HUD of each ride. The helicopter: spin-up to full in five seconds, staying down with the collective down, spin-down
-slower, blades turning with the rotor, no lift below `hoverShare`; ground effect's cushion and its fade; height held let
-go, the most climb and sink, a soft landing, the ceiling, height kept flying ahead; the cyclic's tilt, about 200 km/h,
-backwards, levelling to a hover; the tail rotor turning on the spot, holding its heading, a banked turn and its
-levelling; on its skids; thrust's axis and `tiltedOf`; contact (a slide, a hard hit, a landing, lifting off, held by its
-rotor); through walls (a wall as high as the rotor, a brush, over a low building, the cabin, a roof landing, perched and
-eased off, `belowOf`, `roomToLand`); the helipad (ahead, past buildings, clear of a parked car, behind, none); boarding,
-the prompt, the camera, landing and spinning down in the session; stepping out onto the roof's side; the view's Up and
-Down on a roof and a hit and landing by keys, logged. The landing assist: set down on the middle from inside and near
-the edge of its reach, sinking gently until centred, nothing pulled beyond it, turning or holding height; rooftops:
-marked with the margin, a taller neighbour within reach, the reach and the most, ties, worked out once. End to end: in,
-spun up, lifted to 30 m, a marked roof named; turned to it, flown at it (W only, as fast as letting go can stop it;
-faced afresh from a hover when it slips off the nose) until within 6 m and below 10 km/h; sunk and set down on it by the
-assist; out on the roof and in reach again, with the touch layout measured upright and on its side. Passes at 4× CPU
-throttling. End to end: loading once (its four phases), the motorbike (throttle, gears, both brakes, off), the car on
-Rapier (engine, gears, reverse, parked where it stopped), arcade cars without WebAssembly, and each ride's touch layout
-with nothing overlapping, upright and on its side. End to end (`e2e/explore.spec.ts`): walking by keys and by touch, the
-loading log, getting on the bicycle and off, riding it (pedal, shift, brake, stop with a foot down, the HUD), the Rapier
-prototype, Wobble Blocks loaded, axe light and dark.
+feet's balls on the pedals within 2 cm round the crank, the pilot (`pilot.test.ts`: hips on the seat, palms on the
+cyclic and collective and balls on the pedals within 2 cm, every vertex of the skinned figure inside the hull
+(`testing/hull.ts`: the hull's surface on both sides of a point along each of the machine's axes, triangles bucketed
+every 5 cm; it notices a figure lifted through the roof or slid through the windscreen), flat and at ±0.4 rad of pitch
+and ±0.5 of roll at three headings; hidden without the cockpit or a rigged figure), steered and leaning either way, on
+the motorbike's seat, grips and pegs, the knees bent ahead, fingers closed and released, a foot on the ground at a stop,
+thrown, a figure without bones, a missing contact said once. Each wheel of each ride and stand-in true over a full turn
+(`wheels.test.ts`: hub held within 1 mm, axle within 0.002 rad of across, 24 steps; the pack's leaning bicycle fails it
+by 0.14 rad); the contacts marked; the kickstand on the ground parked, the bicycle leaning 8°, and folded clear of it
+ridden; the measuring functions (`contacts.test.ts`); the cockpit (`cockpit.test.ts`: glass by its paint, the door pane,
+seat, pedals and controls on a made hull, each missing case); the committed helicopter's glass (blended, both sides, 250
+to 350 triangles), paint, lining and contacts inside the hull (`helicopter-file.test.ts`); the stand's swing and lean
+(`kickstand.test.ts`). The core: the benchmark's matrices from its parameters, the middle, the loads, the wheel lifting
+and coming down to exactly 0. The motorbike: the wheelie held in first until the red line, 0 to 100 km/h, top speed, the
+throttle's rate, changing down, both brakes, paddling back, a slide under braking leaned, tracking the lean at 6 to 40
+m/s, riding straight, the foot, falls, the HUD. The engine and gearbox. The nearby streets: reach, ties, cells below
+zero, the plan, re-centring. The garage against real Rapier: counted opening, cancelling, a hull it cannot make, the
+budget, re-centring by a wall 600 m off, pulling away through the gears, braking then reversing, the handbrake's slide,
+a crash, righting, pushing a parked car, two-wheelers in the way, letting go and bringing back, traffic, keeping up. The
+descent's order and every failure; the HUD of each ride. The helicopter: spin-up to full in five seconds, staying down
+with the collective down, spin-down slower, blades turning with the rotor, no lift below `hoverShare`; ground effect's
+cushion and its fade; height held let go, the most climb and sink, a soft landing, the ceiling, height kept flying
+ahead; the cyclic's tilt, about 200 km/h, backwards, levelling to a hover; the tail rotor turning on the spot, holding
+its heading, a banked turn and its levelling; on its skids; thrust's axis and `tiltedOf`; contact (a slide, a hard hit,
+a landing, lifting off, held by its rotor); through walls (a wall as high as the rotor, a brush, over a low building,
+the cabin, a roof landing, perched and eased off, `belowOf`, `roomToLand`); the helipad (ahead, past buildings, clear of
+a parked car, behind, none); boarding, the prompt, the camera, landing and spinning down in the session; stepping out
+onto the roof's side; the view's Up and Down on a roof and a hit and landing by keys, logged. The landing assist: set
+down on the middle from inside and near the edge of its reach, sinking gently until centred, nothing pulled beyond it,
+turning or holding height; rooftops: marked with the margin, a taller neighbour within reach, the reach and the most,
+ties, worked out once. End to end: in, spun up, lifted to 30 m, a marked roof named; turned to it, flown at it (W only,
+as fast as letting go can stop it; faced afresh from a hover when it slips off the nose) until within 6 m and below 10
+km/h; sunk and set down on it by the assist; out on the roof and in reach again, with the touch layout measured upright
+and on its side. Passes at 4× CPU throttling. End to end: loading once (its four phases), the motorbike (throttle,
+gears, both brakes, off), the car on Rapier (engine, gears, reverse, parked where it stopped), arcade cars without
+WebAssembly, and each ride's touch layout with nothing overlapping, upright and on its side. End to end
+(`e2e/explore.spec.ts`): walking by keys and by touch, the loading log, getting on the bicycle and off, riding it
+(pedal, shift, brake, stop with a foot down, the HUD), the Rapier prototype, Wobble Blocks loaded, axe light and dark.
 
 By eye: the run lab (`/lab/run?gait=before|after&phase=…&theme=…`, not linked) shows the figure side on at a phase of
 its stride before a wall lined every 10 cm, with ground marks every half metre;
@@ -829,4 +888,7 @@ https://commons.wikimedia.org/wiki/File:Man_in_pelvis_cloth_running_at_a_half-mi
 ride lab (`/lab/ride?ride=…&pose=parked|stopped|riding|steering&view=side|front|above|behind|grip|pedal`, with `theme`,
 `rolled`, `crank` and `marks=1` dotting the contacts; not linked) seats a rider as the walk does, on a plain ground;
 `apps/web/scripts/ride-shots.ts <origin> <dir> [wheel]` captures each ride, pose and view in a light and a dark theme,
-or the bicycle's wheel turning an eighth of a metre a frame.
+or the bicycle's wheel turning an eighth of a metre a frame. The heli lab
+(`/lab/heli?pose=ground|flight&view=front|side|above|behind|cabin`, with `theme` and `marks=1` dotting the cockpit; not
+linked) poses the helicopter as the walk does, its pilot seated, on the ground or 4 m up nose down 0.2 rad and banked
+0.3; `apps/web/scripts/heli-shots.ts <origin> <dir> [marks]` captures each pose and view in a light and a dark theme.

@@ -1,8 +1,9 @@
-// The rider on a two-wheeler and the vehicles the walk draws: each pool model posed by its vehicle (a two-wheeler's
-// kickstand down while it stands parked, the helicopter tilted with its rotors turning), and the rider seated in a ridden one by the nodes its model marks: hips on the saddle or
-// seat, the body leant forward to reach the bars, both hands closed round the grips, the feet on the pedals (going round
-// with the crank) or the pegs, the knees bent ahead. All of it in the machine's own frame, so it holds as the bars turn
-// and the machine leans.
+// The rider on a two-wheeler, the pilot in the helicopter, and the vehicles the walk draws: each pool model posed by its
+// vehicle (a two-wheeler's kickstand down while it stands parked, the helicopter tilted with its rotors turning), and
+// the rider seated in a ridden one by the nodes its model marks: hips on the saddle or seat, the body leant forward to
+// reach the bars, both hands closed round the grips, the feet on the pedals (going round with the crank) or the pegs,
+// the knees bent ahead; the pilot upright on the helicopter's seat, hands on the cyclic and collective, feet on the
+// pedals. All of it in the machine's own frame, so it holds as the bars turn and the machine leans or tilts.
 import type { Theme } from "@citymap/themes";
 import { PropertyBinding, Quaternion, Vector3, type Object3D } from "three";
 import { log } from "../../log";
@@ -24,7 +25,7 @@ import {
   type Leg,
 } from "./pedalling";
 import { bicycle, car, helicopter, motorbike, paletteOf } from "./procedural";
-import { PROCEDURAL_RIGS, RIGS, poseHelicopter, poseVehicle, type Rig, type Rider } from "./rig";
+import { PROCEDURAL_RIGS, RIGS, poseHelicopter, poseVehicle, type Pilot, type Rig, type Rider } from "./rig";
 
 /** A rider holds the bars at this share of their arms' full reach: the elbows a little bent. */
 export const REACH = 0.9;
@@ -295,6 +296,36 @@ export function seat(
   if (figure) seatFigure({ walker, figure, machine, contacts, turn, grounded }, single.footDown);
 }
 
+/** A pilot's contacts as a rider's: the seat for the saddle, the collective and cyclic for the left and right grips. */
+const asRider = (cockpit: Pilot): Rider => ({
+  saddle: cockpit.seat,
+  grips: { left: cockpit.collective, right: cockpit.cyclic },
+  feet: cockpit.pedals,
+});
+
+/**
+ * The pilot in the helicopter: turned as it is and seated by its model's cockpit, upright as the clip sits, the right
+ * palm on the cyclic and the left on the collective, the fingers closed, the feet on the pedals and the knees bent
+ * ahead. Out of sight where it cannot sit: a model without a cockpit (the stand-in, which has no cabin), one missing a
+ * contact (said once), or a figure without the bones to sit.
+ */
+export function pilot(walker: Object3D, figure: Figure | null, slot: Slot) {
+  const machine = slot.model;
+  const cockpit = slot.rig.pilot;
+  machine.updateMatrixWorld(true);
+  const contacts = cockpit ? contactsOf(machine, asRider(cockpit)) : null;
+  walker.visible = contacts !== null && figure !== null;
+  if (!contacts || !figure) return;
+  const turn = machine.getWorldQuaternion(new Quaternion());
+  walker.quaternion.copy(turn);
+  walker.position.copy(machine.localToWorld(inMachine(machine, contacts.saddle)));
+  walker.updateMatrixWorld(true);
+  const seating: Seating = { walker, figure, machine, contacts, turn, grounded: (at) => at };
+  sitOn(seating);
+  hold(seating, new Vector3(0, 0, 1).applyQuaternion(turn));
+  restFeet(seating, false);
+}
+
 /** A rider being seated: the figure, the machine and its contacts in the world, its turn there, and its ground. */
 interface Seating {
   readonly walker: Object3D;
@@ -380,17 +411,20 @@ function slideToBars(seating: Seating) {
   if (most > 0) shift(seating, new Vector3(Math.min(most, SLIDE_MOST), 0, 0));
 }
 
-/** Hands round the grips, the elbows down, back and out, the fingers closed round the bar's line. */
-function holdBars({ figure, contacts, turn }: Seating) {
+/** Hands round the grips, the fingers closed round the bar's line. */
+const holdBars = (seating: Seating) =>
+  hold(seating, seating.contacts.grips.right.clone().sub(seating.contacts.grips.left).normalize());
+
+/** Hands round the grips, the elbows down, back and out, the fingers closed round a line across (a unit direction). */
+function hold({ figure, contacts, turn }: Seating, across: Vector3) {
   release(figure);
-  const bar = contacts.grips.right.clone().sub(contacts.grips.left).normalize();
   for (const [side, at, elbow] of [
     [figure.left, contacts.grips.left, ELBOW_OUT.left],
     [figure.right, contacts.grips.right, ELBOW_OUT.right],
   ] as const) {
     const arm = [side.arm.upper, side.arm.fore, side.arm.hand] as const;
     reachWith(arm, () => palmOf(side), at, elbow.clone().applyQuaternion(turn));
-    grip(side, bar);
+    grip(side, across);
   }
 }
 

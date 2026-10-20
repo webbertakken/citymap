@@ -8,4 +8,4 @@
   https://duhgless.itch.io/another-psx-style-low-poly-bike
 - Helicopter: AS350 B2 by ArcheoteryxFr, CC BY 4.0,
   https://sketchfab.com/3d-models/as350-b2-76cf31c232bf4514ab1794d28a2b0ee1 (cut down: albedo only, at 512 px WebP;
-  geometry compressed)
+  geometry compressed; its panes made tinted glass, its cabin lined)
