@@ -23,7 +23,7 @@ export const COCKPIT = {
   /** The door window is at least this tall; the lower door and chin windows are 0.32 to 0.43 m. */
   doorTall: 0.45,
   /** The seat's cushion above the floor. */
-  seatHeight: 0.38,
+  seatHeight: 0.5,
   /** The pedals stand where the floor ahead of the seat has risen this far into the nose, looked for this often. */
   pedalRise: 0.1,
   pedalStep: 0.02,

@@ -1,13 +1,14 @@
 "use client";
 // The heli lab's scene: the helicopter on a plain ground or flying (nose down, banked right, its rotor turning), posed
-// as the walk poses it (`placeVehicle`), and a camera at a fixed side of it.
+// as the walk poses it (`placeVehicle`), its pilot seated as the walk seats them (`pilot`), and a camera at a fixed side
+// of it.
 import type { Theme, ThemeName } from "@citymap/themes";
 import { PerspectiveCamera } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
 import { Group, Mesh, MeshBasicMaterial, SphereGeometry } from "three";
 import { pose, type Loaded } from "../models/gltf";
-import { placeVehicle, slotOf, type Rolled } from "../models/seat";
+import { figureOf, pilot, placeVehicle, slotOf, type Rolled } from "../models/seat";
 import { METRE } from "../street";
 import { standing, type Helicopter } from "../vehicles";
 
@@ -66,6 +67,7 @@ export interface HeliLabProps {
 export default function HeliLab({ person, helicopter, asked, theme }: HeliLabProps) {
   const cast = useMemo(() => {
     const walker = person.make();
+    const figure = figureOf(walker);
     pose(walker, person.clips, "Driving_Loop", 0);
     const slot = slotOf("helicopter", helicopter, theme);
     const group = new Group();
@@ -75,10 +77,10 @@ export default function HeliLab({ person, helicopter, asked, theme }: HeliLabPro
     const rolled: Rolled = new Map();
     placeVehicle(slot, group, vehicle, rolled, 0);
     walker.scale.setScalar(METRE);
-    walker.visible = false;
-    const { rider } = slot.rig;
-    if (asked.marks && rider)
-      for (const name of [rider.saddle, rider.grips.left, rider.grips.right, rider.feet.left, rider.feet.right])
+    pilot(walker, figure, slot);
+    const cockpit = slot.rig.pilot;
+    if (asked.marks && cockpit)
+      for (const name of [cockpit.seat, cockpit.cyclic, cockpit.collective, cockpit.pedals.left, cockpit.pedals.right])
         slot.model.getObjectByName(name)?.add(dot());
     return { walker, group };
   }, [person, helicopter, asked, theme]);
