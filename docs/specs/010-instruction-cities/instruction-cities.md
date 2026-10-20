@@ -30,6 +30,8 @@ the engine sees it; the [ground plan](../006-ground-plan/ground-plan.md) then la
 - `--entry` without `--instructions` is refused, by name. So is an entry the repository does not track, and a repository
   with no entry at all.
 - Every other option keeps its meaning: `--no-history`, `--to`, `--lock`, `--svg`, `--out`, themes and toggles.
+- Both CLIs lay instruction cities, byte for byte alike (see [architecture](../003-system-architecture/architecture.md)
+  § Rust implementation); the projection lives in `packages/instructions` and its Rust mirror, `citymap-instructions`.
 
 ## References
 
