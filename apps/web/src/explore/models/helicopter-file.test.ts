@@ -3,9 +3,10 @@ import { join } from "node:path";
 import { NodeIO, type Node } from "@gltf-transform/core";
 import { EXTMeshoptCompression, EXTTextureWebP, KHRONOS_EXTENSIONS } from "@gltf-transform/extensions";
 import { MeshoptDecoder } from "meshoptimizer";
-import { Euler, Vector3 } from "three";
+import { Box3, Euler, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { GLTF_MODELS } from "./gltf";
+import { readPublicModel } from "../../testing/models";
+import { GLTF_MODELS, loadModel } from "./gltf";
 import { RIGS } from "./rig";
 
 // The committed helicopter as the walk poses it: each rotor turns about its own node, so that node must stand at the
@@ -85,5 +86,15 @@ describe("the committed helicopter", () => {
     expect(tailAt.x).toBeLessThan(middle.x - 4);
     expect(Math.abs(tailAt.z - middle.z)).toBeLessThan(0.5);
     expect(framed(hub.middle).x - middle.x).toBeCloseTo(RIGS.helicopter.rotors.hub, 1);
+  });
+});
+
+describe("the committed helicopter through the test reader", () => {
+  it("loads as the walk loads it, its compressed geometry decoded", async () => {
+    const loaded = await loadModel("", GLTF_MODELS.helicopter, readPublicModel);
+    const body = loaded.make().getObjectByName("helicopter_body");
+    expect(body).toBeDefined();
+    const box = new Box3().setFromObject(loaded.make());
+    expect(box.getSize(new Vector3()).x).toBeCloseTo(GLTF_MODELS.helicopter.metres, 1);
   });
 });
