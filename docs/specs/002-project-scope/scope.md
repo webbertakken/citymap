@@ -19,6 +19,8 @@ The first deliverable is the **ground plan**: the city without buildings, as def
   conventional folders) laid as towns of their own, a switch each; submodules read from their own git data.
 - **Local repositories**: a repository's folder on the person's machine, laid in the viewer as its single state, with
   nothing installed and nothing sent ([local repositories](../007-local-repositories/local-repositories.md)).
+- **Instruction cities**: a repository of agent instructions laid by the references between them, as towns of layers
+  (always, on demand, unreached) ([instruction cities](../010-instruction-cities/instruction-cities.md)).
 - **Rust CLI**: a second implementation of the command line, byte for byte the same output, many times faster.
 - **Exploration**: going down into the city on foot and by bicycle, motorbike, car and helicopter, with building names
   and a crosshair that reads buildings and windows ([exploration](../009-exploration/exploration.md)).
