@@ -179,7 +179,7 @@ rider is on a two-wheeler (#63). Branch `feat/helicopter-glass`.
 - [x] The canvas seats the pilot in the helicopter (hidden in the stand-in, which has no cabin); in and out on E as
       today
 - [x] After shots, light and dark, compared with the before; e2e/explore.spec.ts passes; `bun run check`
-- [ ] Fold-back: spec and blueprint reconciled to what shipped, every symbol, file and reference verified; PR with
+- [x] Fold-back: spec and blueprint reconciled to what shipped, every symbol, file and reference verified; PR #69 with
       before and after pictures (not merged)
 
 ## Phase 8: phones, gamepads and the hosted site
