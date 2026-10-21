@@ -49,8 +49,10 @@ projection, and the [buildings](../008-buildings/buildings.md) stand on it.
 - A source's files are what git tracks, less lock files, images and fonts; the home source holds only the entries and
   the harness settings named below. A symbolic link is its target: an entry that links into a repository is that
   repository's file.
-- A source given after the first lays only its own entry files (`AGENTS.md`, `CLAUDE.md`), the instructions they reach,
-  and code that names a file of another source; its other code is not instructions, and is not laid.
+- A source given after the first is a project: it lays its own entry files (`AGENTS.md`, `CLAUDE.md`) and code that
+  names a file of another source, and what they reach within two edges (`MAX_HOPS`; a project's documentation is often
+  indexed so densely that four edges reach nearly all of it); its other files are not laid. A library (the first source)
+  is laid whole.
 - Test code (`*.test.*`, `*.spec.*`, and files under `test`, `tests`, `__tests__`, `e2e` and `fixtures`) never counts as
   code that loads or uses a file.
 
@@ -70,7 +72,8 @@ projection, and the [buildings](../008-buildings/buildings.md) stand on it.
 
 - References inside fenced code blocks are examples, not references, and are not read.
 - A relative path resolves against the folder of the file that holds it; an inline-code path not found there resolves
-  from its source's root; a path to a folder means its index (`README.md`, `index.md`, `docs/index.md`).
+  from its source's root, and then from the root of each source the same file names (`~/Repositories/<name>`); a path to
+  a folder means its index (`README.md`, `index.md`, `docs/index.md`).
 - `~/` resolves to the home folder of the machine the city is laid on, so cross-repository references land in the
   sources given. The city file names sources and paths within them, never a path on the machine.
 - A reference to a file no source holds is outside, and is counted by kind; a reference into a source to a path it does
