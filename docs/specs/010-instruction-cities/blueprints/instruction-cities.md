@@ -4,8 +4,8 @@ Derived from [instruction cities](../instruction-cities.md), with the
 [ground plan](../../006-ground-plan/ground-plan.md) (separate towns), the [buildings](../../008-buildings/buildings.md),
 the [viewer](../../004-interface-design/viewer.md) (layout toggles, variants, hover and select) and the
 [architecture](../../003-system-architecture/architecture.md) (Rust implementation, boundaries). Values the spec leaves
-silent are in [DEFAULTS.md](DEFAULTS.md); questions it leaves open are listed at the end (§ Open questions) and carry a
-default until answered.
+silent are in [DEFAULTS.md](DEFAULTS.md); decisions taken where the spec was first silent are recorded in the spec and
+in the ledger.
 
 Code: `packages/instructions` (pure: the grammar, the walk, scopes, both projections, scenarios and stacks, the lint,
 duplicates, contradiction candidates, usage lines, hints, the bill, the sections), its Rust mirror
@@ -120,6 +120,7 @@ interface InstructionsCommand {
   readonly price: Price | null; // --price=<uncached>,<cached>
   readonly budget: number | null; // --budget=<tokens>
   readonly check: boolean; // --check
+  readonly contradictions: boolean; // --contradictions
   readonly verbose: boolean;
 }
 ```
@@ -133,6 +134,7 @@ interface InstructionsCommand {
 | `--price=<u>,<c>`        | per million input tokens, uncached then cached, decimals with at most six places            |
 | `--budget=<tokens>`      | a positive integer; fails the run when any stack exceeds it                                 |
 | `--check`                | fails the run when there is any finding                                                     |
+| `--contradictions`       | asks the local model to judge the contradiction candidates (§ Contradictions)               |
 | `--to`, `--lock`         | fold the first library's history to `--to`, and lock it (below)                             |
 | `--no-history`           | lay every source as it is now                                                               |
 | layout flags             | `--density`, `--jog`, `--toggles`, `--no-warp`, `--no-loops`, `--theme`, `--camera`, as now |
@@ -150,7 +152,7 @@ Rejections, each a `CitymapError` with its code, the same in both CLIs:
 | `instructions/duplicate-source` | two positionals resolving to one folder                                             | 1    |
 | `instructions/unknown-library`  | a `--library` that resolves to no positional                                        | 1    |
 | `instructions/entry-missing`    | an `--entry` the machine does not hold (detail `entry`, as given)                   | 1    |
-| `instructions/entry-outside`    | an `--entry` outside the home folder and outside every source (§ Open questions)    | 1    |
+| `instructions/entry-outside`    | an `--entry` outside the home folder and outside every source                       | 1    |
 | `instructions/no-entries`       | no `--entry` and none of the default harness entries exists                         | 1    |
 | `instructions/over-budget`      | `--budget` exceeded; the message lists every scenario over it with its tokens       | 1    |
 | `instructions/findings`         | `--check` and at least one finding; the message counts them by kind                 | 1    |
@@ -172,6 +174,7 @@ Instruction cities: citymap --instructions <repository>... [options]
   --price=<u>,<c>         input price per million tokens, uncached and cached
   --budget=<tokens>       fail when a scenario's stack exceeds this many estimated tokens
   --check                 fail when the lint finds anything
+  --contradictions        judge contradictions with studio-worker's default local model
 ```
 
 ## Sources and files (`apps/cli/src/instructions/read.ts`, `packages/history/src/tracked.ts`)
@@ -285,10 +288,10 @@ Code files of every source but test code are scanned once, in the walk's order.
 
 ## Harnesses and entries (`packages/instructions/src/harness.ts`)
 
-| Harness  | Entries (default)                      | Stacked file | Mount folders            | Settings                  |
-| -------- | -------------------------------------- | ------------ | ------------------------ | ------------------------- |
-| `pi`     | `~/.pi/agent/AGENTS.md`, `~/AGENTS.md` | `AGENTS.md`  | `~/.pi/agent/extensions` | none                      |
-| `claude` | `~/.claude/CLAUDE.md`                  | `CLAUDE.md`  | `~/.claude/agents`       | `~/.claude/settings.json` |
+| Harness  | Entries (default)                      | Stacked file | Mount folders                                                         | Settings                  |
+| -------- | -------------------------------------- | ------------ | --------------------------------------------------------------------- | ------------------------- |
+| `pi`     | `~/.pi/agent/AGENTS.md`, `~/AGENTS.md` | `AGENTS.md`  | `~/.pi/agent/extensions`, `~/.pi/agent/skills`, `~/.pi/agent/prompts` | none                      |
+| `claude` | `~/.claude/CLAUDE.md`                  | `CLAUDE.md`  | `~/.claude/agents`, `~/.claude/skills`, `~/.claude/commands`          | `~/.claude/settings.json` |
 
 - Default entries, in the spec's order: `~/.pi/agent/AGENTS.md`, `~/.claude/CLAUDE.md`, `~/AGENTS.md`, those that exist.
 - An entry's harnesses: the harness whose table row names it; a `--entry` named by no row belongs to every harness the
@@ -297,9 +300,11 @@ Code files of every source but test code are scanned once, in the walk's order.
 - Mounts: a mount folder that is itself a link into a source mounts every held file under its target; otherwise each
   link directly inside it whose target lies in a source mounts that file, or every held file under that folder. The edge
   runs from the harness's first entry that exists; a harness without one mounts nothing.
-- Stack edges: for each project, from `~/AGENTS.md` when it is an entry, else from the harness's first existing entry,
-  to the project's root `AGENTS.md` when held (pi). Claude's `CLAUDE.md` stacking is § Open questions; until answered,
-  the claude stack of a project holds its root `CLAUDE.md` with a stack edge from `~/.claude/CLAUDE.md`.
+- Mount folders hold agents, skills, commands and extensions; pi's commands are its prompt templates (`prompts`).
+- Stack edges: each harness loads its stacked file (`AGENTS.md` for pi, `CLAUDE.md` for Claude Code) from the working
+  folder up. For each project and each harness that applies, a stack edge runs to the project's root stacked file when
+  held, from the home folder's stacked file when it is an entry (`~/AGENTS.md` for pi), else from the harness's first
+  existing entry (`~/.claude/CLAUDE.md` for Claude Code).
 
 ## The walk (`packages/instructions/src/walk.ts`)
 
@@ -383,15 +388,20 @@ interface Projection {
   take the same share, so they hold the same lots.
 - Towns are declared by the projection: the snapshot the CLI builds names every town folder in `workspaces`, and the
   fold runs with `separate: ["workspaces"]`. No file lies at the projection's root, so the main town has no land and is
-  not laid; no manifest and no `apps` folder exists. The towns' order on the map is the engine's (§ Open questions).
+  not laid; no manifest and no `apps` folder exists.
+- Town order: the projection gives it (by source, `home` then the repositories as given; by scope, `SCOPE_RANK`), in
+  `Projection.towns`. The engine takes it from the snapshot: `Snapshot.townOrder` (optional, a list of town roots) puts
+  the parts whose roots it names first, in its order, ahead of the rest, which keep the engine's own order (first seen,
+  then name). Without it the engine lays as it does today, byte for byte. This is a ground plan change, specified there
+  before it is built (plan 0017, phase 6).
 
 ### The projection as engine input (`apps/cli/src/instructions/snapshot.ts`)
 
 - `projectionSnapshot(projection, { repository, commit, index, births })`: `files` are the pages, sorted, each with an
   identity kept for life (`births`: per layout, a page's identity is `<its projected path at birth>@<index at birth>`,
   keyed by the file's own identity and the page number), and `firstSeen` its birth index; `folderFirstSeen` the smallest
-  `firstSeen` beneath each folder; `workspaces` the towns; `repository` `INSTRUCTIONS_REPOSITORY` (`instructions`);
-  `commit` the first library's laid commit, else `worktree`.
+  `firstSeen` beneath each folder; `workspaces` the towns; `townOrder` `Projection.towns`; `repository`
+  `INSTRUCTIONS_REPOSITORY` (`instructions`); `commit` the first library's laid commit, else `worktree`.
 - A file's own identity: in the first library, the history reader's identity (it follows exact renames); elsewhere
   `<source>/<path>@0`.
 
@@ -406,8 +416,7 @@ interface Projection {
   by-source city and plat are the run's; the by-scope city rides beside it.
 - `--lock`: the by-source plat is saved to `citymap.lock.json` and the by-scope plat to `citymap.scope.lock.json`, both
   at the first library's root, on the same schedule as a repository's lock; a resume reads both and resumes only when
-  both are for these options and the same commit, else neither (`lock/ignored reason=…` as today, plus `reason=pair`). §
-  Open questions.
+  both are for these options and the same commit, else neither (`lock/ignored reason=…` as today, plus `reason=pair`).
 - Layout options: `--density`, `--jog`, `--toggles`, `--no-warp`, `--no-loops` as for a repository; land uses are the
   defaults; `order` centre-out.
 - The SVG draws the by-source city, with its arrows (§ Arrows).
@@ -431,7 +440,8 @@ const SECTION_KEYS = ["contradictions", "findings", "instructions", "usage"] as 
 - `serialiseCityFile` writes `canonicalJson({ ...city, measures?, layouts?, ...sections })`; a city with none of them is
   byte for byte today's file. `parseCityFile` splits each key off before the city is validated; a bad `layouts.scope` is
   `city/bad-shape` with its pointer under `/layouts/scope`.
-- An instruction city writes no `measures` section: its pages are not a repository's files (§ Open questions).
+- An instruction city writes no `measures` section (spec): its pages are not a repository's files, and its only size,
+  estimated tokens, lives in the `instructions` section.
 
 ### Sections (`packages/instructions/src/section.ts`)
 
@@ -554,7 +564,7 @@ interface ContradictionsSection {
 - Floors: a page of an instruction takes `floorsOf(tokens, scale)` of its whole instruction, the scale `cityScales` over
   the instructions' tokens (5th and 99th percentiles, nearest rank, one value per file); a code file's page 1 floor.
 - Lit share: the file's usage share (sessions that read it, over every scenario's sessions in the window); −1 (unknown)
-  without a usage section and for global, project and role files.
+  without a usage section and for global, injected, project and role files.
 - Flags: bit 1 size unknown (never set here); bit 2 `ROADWORKS`, the file has a finding. The shader reads both bits; a
   roadworks lot draws diagonal stripes of `ROADWORKS_COLOUR` `#E69F00` and its own colour, `ROADWORKS_STRIPE` 0.1 u
   wide, on its top (plan) and roof (Buildings), in every colour by.
@@ -585,20 +595,27 @@ interface ContradictionsSection {
 - `scenarioOf(harness, cwd)`: the project whose root equals or holds `cwd` (the deepest), else the home scenario; a
   harness the run does not apply is skipped.
 - `readUsage` gives sessions per scenario and, per file and scenario, the sessions that read it. A file of global,
-  project or role scope carries no reads: the viewer says "Inlined by the harness, so never read with a tool".
+  injected, project or role scope carries no reads: the viewer says "Inlined by the harness, so never read with a tool"
+  ("Inlined by code, so never read with a tool" for injected).
 - Nothing of a transcript is kept but these counts; transcripts are never copied, and their paths are not logged.
 
 ## Scenarios, stacks and the bill (`packages/instructions/src/scenario.ts`, `bill.ts`)
 
 - Scenarios: for each harness that applies (in order), the home folder, then each project (in order).
 - `stackOf(graph, harness, folder)`, each file once, in order:
-  1. the harness's entries that exist, in entry order (pi: `~/.pi/agent/AGENTS.md`, then the stacked files from the
-     outermost folder inwards: `~/AGENTS.md`, then the project's root `AGENTS.md` for a project scenario; claude:
-     `~/.claude/CLAUDE.md`, then the project's root `CLAUDE.md`);
+  1. the harness's entries that exist, in entry order, then its stacked files from the outermost folder inwards, each a
+     held file of the home folder (when an entry) or of the project (pi: `~/.pi/agent/AGENTS.md`, `~/AGENTS.md`, the
+     project's root `AGENTS.md`; Claude Code: `~/.claude/CLAUDE.md`, the project's root `CLAUDE.md`);
   2. after each file, what it includes, depth first in reading order, recursively;
   3. the files the harness's mounts load, and their includes;
   4. the injected files whose injecting code is reached from the harness (its settings' `run` edges, its code mounts,
-     and `depend` edges from those, transitively), and their includes.
+     and `depend` edges from those, transitively) and loads on this machine, and their includes.
+- Host-name checks (`hostChecks(text)` in `code.ts`): a line of code holding the word `hostname` (any case:
+  `os.hostname()`, `$HOSTNAME`, `socket.gethostname()`) checks the host; the names it checks are the string literals on
+  that line (`"…"`, `'…'`, or a backtick literal without `${`). Injecting code without such a line loads on every
+  machine; with them, it loads where one of its names equals this machine's host name (ASCII case-insensitive). This
+  machine's host name is `$CITYMAP_HOST` when set, else the system's (`os.hostname()`; Rust the `gethostname` crate). It
+  is never written or logged: only the scenario's `injected` list reflects it.
 - `tokens`: the sum of the stack's files' tokens.
 - `parsePrice("3,0.3")` → `{ uncached: 3_000_000, cached: 300_000 }` (micro-units; at most six decimals; no sign, no
   exponent). `billOf(scenario, price)`: tokens, and for a thousand calls `tokens × 1000 × price / 10¹²` in the price's
@@ -668,20 +685,23 @@ Shared definitions:
 - Candidates: pairs of rule sentences of opposite modality from files one stack loads (the same file included), sharing
   a subject; each unordered pair once, ordered by file then line; at most `MAX_CANDIDATES` 200 per run, the pairs
   sharing most subject words first (ties by order), logged when cut.
-- The model: local only, through studio-worker's local API. The discovery file is `$CITYMAP_STUDIO_WORKER` or
-  `$HOME/.config/minis-studio-worker/local-api.json` (`{ url, token }`); a `url` whose host is not `127.0.0.1`, `::1` or
-  `localhost` is refused (`instructions/model-not-local`, logged; no model). Each candidate is one
-  `POST <url>/v1/chat/completions` with the bearer token, `model` `CONTRADICTION_MODEL`, `temperature` 0, `max_tokens`
-  16, `deadline_ms` `MODEL_DEADLINE_MS` 30,000 and `promptOf(a, b)`: the system message "You judge whether two rules for
-  a coding agent contradict each other. Answer yes or no." and the user message "Rule A: {a}\nRule B: {b}\nDo they
-  contradict?". `parseVerdict`: the first word of the answer, lower case, `yes` or `no`; anything else is no verdict
-  (logged).
+- Only with `--contradictions`: without it no candidate is asked and no section is written (`status=off`).
+- The model: local only, through studio-worker's local API, its default chat model. The discovery file is
+  `$CITYMAP_STUDIO_WORKER` or `$HOME/.config/minis-studio-worker/local-api.json` (`{ url, token }`); a `url` whose host
+  is not `127.0.0.1`, `::1` or `localhost` is refused (`instructions/model-not-local`, logged; no model). The model is
+  the one studio-worker uses when none is named: `GET <url>/models`, the first entry of `kind` `llm` with `enabled`
+  true; its `id` names the model in every request and in the cache key (none: `status=no-model reason=no-default`). Each
+  candidate is one `POST <url>/v1/chat/completions` with the bearer token, `model` that `id`, `temperature` 0,
+  `max_tokens` 16, `deadline_ms` `MODEL_DEADLINE_MS` 30,000 and `promptOf(a, b)`: the system message "You judge whether
+  two rules for a coding agent contradict each other. Answer yes or no." and the user message "Rule A: {a}\nRule B:
+  {b}\nDo they contradict?". `parseVerdict`: the first word of the answer, lower case, `yes` or `no`; anything else is
+  no verdict (logged).
 - Cache: keyed by SHA-256 (hex) of `cacheText(a, b, model)`: the model name, then the two sentences in byte order, each
   on its own line. Kept at `$XDG_CACHE_HOME/citymap/contradictions/<key>.json` (else `$HOME/.cache/…`), mode 600, as
   `{"contradicts":true}` or `false`. A cached verdict is never asked again.
 - Outcome: when every candidate has a verdict (cached or answered), the `contradictions` section is written with the
-  pairs judged to contradict; otherwise (no discovery file, the model refused or unreachable, a verdict missing) none
-  is, and the run logs why. No candidates: an empty section (`judged: 0`).
+  pairs judged to contradict; otherwise (no flag, no discovery file, no default model, the model refused or unreachable,
+  a verdict missing) none is, and the run logs why. No candidates: an empty section (`judged: 0`).
 - Contradictions never shape the layout and are not findings; cards list them.
 
 ## Hints (`packages/instructions/src/hints.ts`)
@@ -729,8 +749,8 @@ Shared definitions:
   extension" for role, "Read when an agent follows a reference" for on demand, "Code that loads or uses instructions"
   for code, "No route reaches it" for unreached), "Estimated tokens", "Page" ("{n} of {m}"), "Usage" ("Read in {n} of
   {m} sessions", or "Not known" noted "Inlined by the harness, so never read with a tool" or "No transcripts read"),
-  "Findings" (each finding's fix), "Contradictions" (the other rule's file and line, or "Not judged: no local model
-  answered"). Search finds files by `source/path`.
+  "Findings" (each finding's fix), "Contradictions" (the other rule's file and line, or "Not judged" noted "Laid without
+  --contradictions, or no local model answered"). Search finds files by `source/path`.
 
 ## Behaviour and state
 
@@ -762,7 +782,7 @@ Shared definitions:
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | No entry exists and none named                        | `instructions/no-entries`                                                          |
 | An entry is a link into a repository                  | that repository's file; the home source does not hold it                           |
-| An entry outside home and every source                | `instructions/entry-outside` (§ Open questions)                                    |
+| An entry outside home and every source                | `instructions/entry-outside`                                                       |
 | A repository given twice (or two links to one)        | `instructions/duplicate-source`                                                    |
 | Two repositories with one folder name                 | the later named `-2`                                                               |
 | A source without a held instruction                   | laid with what it has; a town with no pages is not laid                            |
@@ -771,7 +791,7 @@ Shared definitions:
 | A file not valid UTF-8                                | decoded with replacement characters; tokens count the decoded text                 |
 | A reference cycle                                     | each file scanned once; edges kept; the walk ends                                  |
 | A reference into the home folder outside every source | outside, never broken                                                              |
-| An explicit reference to an ignored file that exists  | outside, never broken (§ Open questions)                                           |
+| An explicit reference to an ignored file that exists  | outside, never broken                                                              |
 | A folder reference without an index                   | outside                                                                            |
 | An include of a non-`.md` path                        | not an include (the pattern needs `.md`); a refer when it starts `./`, `../`, `~/` |
 | Settings that are not JSON                            | no commands; `instructions/settings-unreadable`                                    |
@@ -782,7 +802,10 @@ Shared definitions:
 | No transcripts                                        | no usage section; `instructions/usage-none reason=no-transcripts`                  |
 | Transcripts but none in the window                    | a usage section with 0 sessions; windows lit at share 0                            |
 | A model answer that is neither yes nor no             | no verdict; the section is not written; `instructions/verdict-unreadable`          |
+| Laid without `--contradictions`                       | no section; `instructions/contradictions status=off`                               |
 | Discovery file present, model unreachable             | no section; `instructions/contradictions status=no-model reason=…`                 |
+| studio-worker has no enabled `llm` model              | no section; `status=no-model reason=no-default`                                    |
+| Injecting code checks a host this machine is not      | its injected files leave this machine's stacks; they keep their `injected` scope   |
 | A city file with `findings` but no `instructions`     | `instructions/missing`; the file is refused as any bad city is                     |
 | A section index past its list                         | `<section>/bad-index`                                                              |
 | A city file from before (no sections)                 | opens as before; no layout switch, arrows, scenarios                               |
@@ -818,8 +841,8 @@ Both CLIs print the same `code key=value` lines, in this order (the walk's lines
 - `instructions/findings` with one count per kind and `total`.
 - `instructions/duplicates sentences paragraphs pairs`.
 - `instructions/usage days sessions reads outside skipped files` or `instructions/usage-none reason`.
-- `instructions/contradictions status candidates cached asked found model` (`status`: `judged`, `none`, `no-model`,
-  `incomplete`, `not-local`), with `reason` when not judged; `instructions/candidates-cut kept of` when cut.
+- `instructions/contradictions status candidates cached asked found model` (`status`: `off`, `judged`, `none`,
+  `no-model`, `incomplete`, `not-local`), with `reason` when not judged; `instructions/candidates-cut kept of` when cut.
 - `instructions/hints lazy eager`.
 - Failures and skips: `instructions/settings-unreadable file`, `instructions/unreadable path`,
   `instructions/not-scanned path bytes`, `instructions/verdict-unreadable`, `instructions/model-not-local`.
@@ -862,56 +885,59 @@ Both CLIs print the same `code key=value` lines, in this order (the walk's lines
 Unit tests at 100 % in `packages/instructions`, the CLI and the viewer; each TypeScript test has its Rust twin, named
 alike. Fixtures are the corpus below.
 
-| Spec rule                                                             | Test (TypeScript; Rust twin alike)                                              |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `--instructions`, `--library`, `--entry`, `--harness` and rejections  | `args.test.ts` instructions cases; `run.test.ts` each `instructions/*` code     |
-| History applies to the first library; `--no-history`                  | `fold.test.ts` folds the corpus library's two commits; single state alike       |
-| Files: git-held, less lock files, images, fonts; links are targets    | `read.test.ts` on the corpus (a linked entry, a skipped lock file)              |
-| A project lays its entry files and code naming another source, 2 hops | `walk.test.ts` "lays a project within two hops"                                 |
-| Test code never loads or uses                                         | `walk.test.ts` "skips test code"                                                |
-| Each edge kind found as the table says                                | `grammar.test.ts`, `code.test.ts`, `settings.test.ts`, `walk.test.ts` mounts    |
-| Fenced references are not read                                        | `text.test.ts` fences (closed, unclosed, tildes, longer closers)                |
-| Resolution order, folders as indexes, `~/` to home                    | `resolve.test.ts` each step                                                     |
-| Outside counted; broken only when explicit; placeholders              | `resolve.test.ts`, `grammar.test.ts` placeholders                               |
-| Citation of code not followed                                         | `walk.test.ts` "cites a project's code without laying it"                       |
-| No self edge; one edge per pair, first kind                           | `walk.test.ts`                                                                  |
-| Scopes: seeds, per edge, best route, cite sets none, unreached        | `scope.test.ts`                                                                 |
-| Breadth first, deterministic                                          | `walk.test.ts` "walks the same twice" and a shuffled-input property test        |
-| Both layouts kept; viewer switches                                    | `section.test.ts` round trip; `LayoutSwitch.test.tsx`; end to end               |
-| By source and by scope naming; first parent; entry beside children    | `project.test.ts`                                                               |
-| Towns declared by the projection; no root town                        | `snapshot.test.ts` lays the corpus: towns equal sources, no `instructions` town |
-| Reserved names suffixed; every lot source land                        | `project.test.ts`; CLI `snapshot.test.ts` against `classifyLandUse`             |
-| Page share from `PAGE_TOKEN_STEPS` and `MAX_LOTS`                     | `project.test.ts` each step's boundary                                          |
-| Arrows: which, strong and faint, legend defaults, selection           | `arrows.test.ts`; `ArrowLegend.test.tsx`; `ViewerInstructions.test.tsx`         |
-| Arrows in plan, SVG and over roofs                                    | `scene/arrows.test.ts`; `svg render.test.ts` arrows; end to end screenshot      |
-| Buildings: height from tokens, code one floor, windows by usage       | `instructions/table.test.ts`                                                    |
-| Colour by scope, source, usage, findings                              | `colour-by.test.ts`; `Legend.test.tsx`                                          |
-| Usage: both formats, window, inlined unknown, separate section        | `usage.test.ts` per line kind; `transcripts.test.ts`; same layout bytes         |
-| Scenarios and stacks in harness order                                 | `scenario.test.ts`                                                              |
-| Bill, `--price`, `--budget`                                           | `bill.test.ts`; `run.test.ts` over-budget lists every scenario                  |
-| Each lint finding and its fix                                         | `lint.test.ts`, one case per kind and per non-finding (placeholders)            |
-| Duplicates: normalisation, sentences, shingles at 80 %                | `duplicates.test.ts` at 79 % and 80 %                                           |
-| Contradictions: candidates, local only, cache by content and model    | `contradiction.test.ts`; `model.test.ts` with a fake loopback server            |
-| Without the model, none and says so                                   | `model.test.ts` no discovery file, refused URL, a missing verdict               |
-| Hints, largest first, never editing                                   | `hints.test.ts`                                                                 |
-| City file sections, optional, versions, validation                    | `section.test.ts` (both packages)                                               |
-| Observability lines                                                   | `run.test.ts` asserts the line sequence on the corpus                           |
-| Parity                                                                | `bun run parity --instructions` (below)                                         |
+| Spec rule                                                             | Test (TypeScript; Rust twin alike)                                                     |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `--instructions`, `--library`, `--entry`, `--harness` and rejections  | `args.test.ts` instructions cases; `run.test.ts` each `instructions/*` code            |
+| History applies to the first library; `--no-history`                  | `fold.test.ts` folds the corpus library's two commits; single state alike              |
+| Files: git-held, less lock files, images, fonts; links are targets    | `read.test.ts` on the corpus (a linked entry, a skipped lock file)                     |
+| A project lays its entry files and code naming another source, 2 hops | `walk.test.ts` "lays a project within two hops"                                        |
+| Test code never loads or uses                                         | `walk.test.ts` "skips test code"                                                       |
+| Each edge kind found as the table says                                | `grammar.test.ts`, `code.test.ts`, `settings.test.ts`, `walk.test.ts` mounts           |
+| Fenced references are not read                                        | `text.test.ts` fences (closed, unclosed, tildes, longer closers)                       |
+| Resolution order, folders as indexes, `~/` to home                    | `resolve.test.ts` each step                                                            |
+| Outside counted; broken only when explicit; placeholders              | `resolve.test.ts`, `grammar.test.ts` placeholders                                      |
+| Citation of code not followed                                         | `walk.test.ts` "cites a project's code without laying it"                              |
+| No self edge; one edge per pair, first kind                           | `walk.test.ts`                                                                         |
+| Scopes: seeds, per edge, best route, cite sets none, unreached        | `scope.test.ts`                                                                        |
+| Breadth first, deterministic                                          | `walk.test.ts` "walks the same twice" and a shuffled-input property test               |
+| Both layouts kept; viewer switches                                    | `section.test.ts` round trip; `LayoutSwitch.test.tsx`; end to end                      |
+| By source and by scope naming; first parent; entry beside children    | `project.test.ts`                                                                      |
+| Towns declared by the projection; no root town                        | `snapshot.test.ts` lays the corpus: towns equal sources, no `instructions` town        |
+| Reserved names suffixed; every lot source land                        | `project.test.ts`; CLI `snapshot.test.ts` against `classifyLandUse`                    |
+| Page share from `PAGE_TOKEN_STEPS` and `MAX_LOTS`                     | `project.test.ts` each step's boundary                                                 |
+| Arrows: which, strong and faint, legend defaults, selection           | `arrows.test.ts`; `ArrowLegend.test.tsx`; `ViewerInstructions.test.tsx`                |
+| Arrows in plan, SVG and over roofs                                    | `scene/arrows.test.ts`; `svg render.test.ts` arrows; end to end screenshot             |
+| Buildings: height from tokens, code one floor, windows by usage       | `instructions/table.test.ts`                                                           |
+| Colour by scope, source, usage, findings                              | `colour-by.test.ts`; `Legend.test.tsx`                                                 |
+| Usage: both formats, window, inlined unknown, separate section        | `usage.test.ts` per line kind; `transcripts.test.ts`; same layout bytes                |
+| Scenarios and stacks in harness order; both harnesses stack upwards   | `scenario.test.ts`                                                                     |
+| Injected files by this machine's host-name check                      | `code.test.ts` `hostChecks`; `scenario.test.ts` with `CITYMAP_HOST` set                |
+| Towns in the order the projection gives                               | ground plan `compose.test.ts` `townOrder`; CLI `snapshot.test.ts`                      |
+| Bill, `--price`, `--budget`                                           | `bill.test.ts`; `run.test.ts` over-budget lists every scenario                         |
+| Each lint finding and its fix                                         | `lint.test.ts`, one case per kind and per non-finding (placeholders)                   |
+| Duplicates: normalisation, sentences, shingles at 80 %                | `duplicates.test.ts` at 79 % and 80 %                                                  |
+| Contradictions: flag, default model, candidates, local, cache         | `contradiction.test.ts`; `model.test.ts` with a fake loopback server                   |
+| Without the model, none and says so                                   | `model.test.ts` no flag, no discovery file, refused URL, no default, a verdict missing |
+| Hints, largest first, never editing                                   | `hints.test.ts`                                                                        |
+| City file sections, optional, versions, validation                    | `section.test.ts` (both packages)                                                      |
+| Observability lines                                                   | `run.test.ts` asserts the line sequence on the corpus                                  |
+| Parity                                                                | `bun run parity --instructions` (below)                                                |
 
 - **Fixture corpus** (`packages/instructions/fixtures/corpus/`, invented content, the repository's licence): `home/`
   (`.pi/agent/AGENTS.md`, `.claude/CLAUDE.md`, `AGENTS.md`, `.claude/settings.json` with one good and one broken hook,
   `.claude/agents` and `.pi/agent/extensions` link plans, transcripts in both formats under `.pi/agent/sessions/` and
   `.claude/projects/`, a contradiction cache), `library/` (`guides/style.md`, an index `README.md` with a stale line, a
   `docs/` folder to suffix, a pointer include over 1,000 tokens, an example include in a fence, a duplicated paragraph,
-  a contradictory rule pair, conflict markers, an orphan, a script that injects an instruction), `project-a/`
-  (`AGENTS.md`, `CLAUDE.md`, code naming a library file, a test file naming one, a document three hops away),
-  `library-history.json` (two commits of the library: a rename and an edit). `scripts/ instruction-fixtures.ts` builds
-  them into a temporary folder: each repository `git init` and committed (the library's two commits in order, fixed
-  author and dates), links made, `$HOME` the built `home/`; `CITYMAP_NOW` fixed so the transcripts lie in the window.
+  a contradictory rule pair, conflict markers, an orphan, a script that injects an instruction, and one that injects
+  another only on a host named `machine-a`), `project-a/` (`AGENTS.md`, `CLAUDE.md`, code naming a library file, a test
+  file naming one, a document three hops away), `library-history.json` (two commits of the library: a rename and an
+  edit). `scripts/ instruction-fixtures.ts` builds them into a temporary folder: each repository `git init` and
+  committed (the library's two commits in order, fixed author and dates), links made, `$HOME` the built `home/`;
+  `CITYMAP_NOW` fixed so the transcripts lie in the window, and `CITYMAP_HOST` `machine-a`.
 - **Parity**: `bun run parity --instructions` builds the corpus, runs both CLIs with
-  `--instructions library project-a --library=library --out --svg --check --price=3,0.3 --budget=…` in single state and
-  folded (with `--lock`, then resumed), and compares city files, SVGs, locks and logs byte for byte (timings blanked);
-  usage and contradictions are compared too, the cache prefilled so no model is asked.
+  `--instructions library project-a --library=library --out --svg --check --contradictions --price=3,0.3 --budget=…` in
+  single state and folded (with `--lock`, then resumed), and compares city files, SVGs, locks and logs byte for byte
+  (timings blanked); usage and contradictions are compared too, the cache prefilled so no model is asked.
 - **End to end** (Playwright, dark and light): open the corpus city file; switch layouts from the keyboard; toggle each
   arrow kind; select a file and read its edges; select a scenario and read its bill and hints; colour by scope, source,
   usage, findings; roadworks visible; axe clean; no card overlap at every width; INP and CLS budgets on a 4x slowed
@@ -939,7 +965,6 @@ alike. Fixtures are the corpus below.
 | `SUBJECT_WORDS`           | 2                            | `contradiction.ts`                          | 1 to 4                 |
 | `MAX_CANDIDATES`          | 200                          | `contradiction.ts`                          | 50 to 1,000            |
 | `MODEL_DEADLINE_MS`       | 30,000                       | `apps/cli/src/instructions/model.ts`        | 5,000 to 120,000       |
-| `CONTRADICTION_MODEL`     | `qwen3.5-0.8b`               | `model.ts` (§ Open questions)               | a local chat model     |
 | `INSTRUCTIONS_REPOSITORY` | `instructions`               | `apps/cli/src/instructions/snapshot.ts`     | fixed                  |
 | `ARROW_BEND`              | 0.18                         | `arrows.ts`                                 | 0.1 to 0.3             |
 | `HEAD_ANGLE`, `HEAD_MAX`  | 0.4 rad, 0.6 u               | `arrows.ts`                                 | 0.3 to 0.6; 0.3 to 1 u |
@@ -970,36 +995,7 @@ alike. Fixtures are the corpus below.
 - `estimateTokens` counts UTF-16 units (`encode_utf16().count()`), as `.length`.
 - Sorting is `compareKeys` (byte order) everywhere; maps read in order are `IndexMap`.
 - JSON: `canonicalJson`; sections serialised from their types with fields in byte order of their names.
+- Host name: `os.hostname()` and the `gethostname` crate (latest at the time it is added); tests and parity set
+  `CITYMAP_HOST`, so neither reads the system's.
 - SHA-256: `node:crypto` and the `sha2` crate; HTTP: `fetch` and `ureq` (latest at the time it is added), both with the
   same body bytes (`canonicalJson` of the request).
-
-## Open questions
-
-Each carries the default the blueprint applies until the spec answers it (also in `AMBIGUITIES.md`).
-
-1. **Town order.** The spec lays towns "in the order given"; the engine orders towns by first commit, then name. Until
-   the ground plan learns a declared order, towns lie in the engine's order and the drawer lists them as given.
-2. **The city's name.** The spec names no title for an instruction city; default `instructions`.
-3. **Measures.** "Beside the measures" may mean an instruction city carries a measures section (the first library's
-   history could give recency and churn); default none.
-4. **Two locks.** `--lock` folds the first library's history, but there are two layouts; default two lock files,
-   `citymap.lock.json` and `citymap.scope.lock.json`, resumed only as a pair.
-5. **Claude's stacking.** The spec's stack edge is pi's (`AGENTS.md` from the working folder up); default: claude stacks
-   a project's root `CLAUDE.md`.
-6. **The machine of a scenario.** "Which injected files its machine loads": default, the injected files whose injecting
-   code the harness reaches; no machine name is written.
-7. **Entries outside home.** `--entry` may be anywhere, but the city file names no machine path; default refused when
-   outside the home folder and every source.
-8. **Ignored files.** An explicit reference to a file that exists but git does not track (a gitignored plan): default
-   outside, not broken.
-9. **Arrow legend states.** "Start off within a town": default a mixed state for refer, link and cite that shows them
-   between towns only.
-10. **Make lazy by subject.** "A stack where few sessions touch its subject" has no measure; default only the pointer
-    rule makes a file lazy.
-11. **Which model.** The spec says a local model through studio-worker but not which; default `CONTRADICTION_MODEL`,
-    overridable by `$CITYMAP_CONTRADICTION_MODEL`.
-12. **When to ask the model.** Default: on every run where studio-worker's discovery file exists; there is no flag.
-13. **Injected and usage.** The spec makes global, project and role usage unknown; injected files are also loaded by
-    code; default their usage is counted like on-demand files.
-14. **Mount folders.** The spec names `~/.claude/agents` and `~/.pi/agent/extensions`; skills and commands folders are
-    not mounted until named.

@@ -10,9 +10,10 @@ from a private repository enters this repository: tests, examples and screenshot
 
 ## Phase 1: answers and groundwork
 
-- [ ] Ask the operator the blueprint's open questions (§ Open questions); fold each answer into the spec, then the
-      blueprint and its defaults, and delete its `AMBIGUITIES.md` entry
-- [ ] Confirm the latest versions of `sha2` and `ureq` (Rust) and of three.js's line material, and record them
+- [x] Ask the operator the blueprint's open questions; fold each answer into the spec, then the blueprint and its
+      defaults, and delete its `AMBIGUITIES.md` entry
+- [ ] Confirm the latest versions of `sha2`, `ureq` and `gethostname` (Rust) and of three.js's line material, and record
+      them
 - [ ] Scaffold `packages/instructions` (pure, valibot only, Vitest project, 100 % coverage, `tsconfig` reference) and
       `rust/crates/instructions` (`citymap-instructions`: `regress`, `serde`, `serde_json`; workspace lints)
 - [ ] Architecture: add `citymap-instructions` to the Rust blueprint's workspace table and module map
@@ -56,6 +57,8 @@ from a private repository enters this repository: tests, examples and screenshot
 
 ## Phase 6: projections and the fold
 
+- [ ] Ground plan: a declared town order (`Snapshot.townOrder`), specified in the ground plan spec and blueprint first,
+      then built in both engines (tests first); every city laid without it byte-identical, proven by parity
 - [ ] `project`: neutral names, reserved suffix, collisions, by source, by scope, pages, page share at each step's
       boundary
 - [ ] `snapshot`: the projection as engine input, identities for life, towns as workspaces; prove on the corpus that the
@@ -74,8 +77,10 @@ from a private repository enters this repository: tests, examples and screenshot
 - [ ] `usage`: both line formats, the window with `CITYMAP_NOW`, scenario attribution, inlined unknown; CLI
       `transcripts` streaming with the modification-time skip; a city with and without transcripts lays the same layout
       bytes
-- [ ] `contradiction`: rule sentences, subjects, candidates and their cut, prompt, verdicts, cache text; CLI `model`
-      against a fake loopback server (answers, refusals, a non-loopback URL, a missing verdict, the cache's mode)
+- [ ] `code`: host-name checks; scenarios keep an injected file only where its code's check matches `CITYMAP_HOST`
+- [ ] `contradiction`: only with `--contradictions`; rule sentences, subjects, candidates and their cut, prompt,
+      verdicts, cache text; CLI `model` against a fake loopback server (the default model from `/models`, answers,
+      refusals, a non-loopback URL, a missing verdict, the cache's mode)
 - [ ] `hints`: make lazy and make eager, largest first
 - [ ] Observability: every `instructions/*` line in order, asserted on the corpus in both CLIs
 

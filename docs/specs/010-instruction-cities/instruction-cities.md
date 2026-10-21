@@ -33,14 +33,18 @@ projection, and the [buildings](../008-buildings/buildings.md) stand on it.
 - `citymap --instructions <repository>...` lays the given repositories as one instruction city, their towns in the order
   given. Each is a project, unless `--library=<repository>` (repeatable) names it a library: a repository of
   instructions in its own right, such as a set of shared rules or a knowledge wiki.
-- `--entry=<path>` names an entry, anywhere on the machine; it may be given more than once, and its order is the order
-  of the walk. Without it, the entries are the harness entries that exist: `~/.pi/agent/AGENTS.md`,
+- `--entry=<path>` names an entry, in the home folder or a given repository; it may be given more than once, and its
+  order is the order of the walk. Without it, the entries are the harness entries that exist: `~/.pi/agent/AGENTS.md`,
   `~/.claude/CLAUDE.md` and `~/AGENTS.md`, in that order.
 - `--harness=<name>` names the harnesses whose rules apply (`pi`, `claude`); without it, every harness whose entry
   exists.
-- An entry the machine does not hold, a repository that is not a git repository, and an empty list are refused, by name.
+- An entry the machine does not hold, an entry outside the home folder and every given repository, a repository that is
+  not a git repository, and an empty list are refused, by name.
 - History applies to the first library only: `--to` and `--lock` fold its history, with every other source at its
-  current state; `--no-history` lays all of them as they are.
+  current state; `--no-history` lays all of them as they are. `--lock` keeps a lock per layout, `citymap.lock.json` and
+  `citymap.scope.lock.json` at the library's root, and resumes only from both together.
+- `--contradictions` asks the local model for contradictions (below); without it none are judged.
+- The city is named `instructions`.
 - Both CLIs lay instruction cities, byte for byte alike (see [architecture](../003-system-architecture/architecture.md)
   § Rust implementation); the projection lives in `packages/instructions` and its Rust mirror, `citymap-instructions`.
   Usage, contradictions and prices are read on the machine and kept apart from the layout (below), so parity holds.
@@ -58,26 +62,29 @@ projection, and the [buildings](../008-buildings/buildings.md) stand on it.
 
 ## Edges
 
-| Kind    | From → to                       | How it is found                                                                                    | Loads it |
-| ------- | ------------------------------- | -------------------------------------------------------------------------------------------------- | -------- |
-| include | instruction → file              | `@path`, as the harness reads it: `@./x.md`, `@../x.md`, `@x.md`, `@~/x.md`, `@/x.md`              | yes      |
-| refer   | instruction → file              | a path starting `./`, `../` or `~/`, or a path in inline code (`` `docs/x.md` ``)                  | on read  |
-| link    | instruction → instruction       | a Markdown link to a `.md` file                                                                    | on read  |
-| stack   | entry → a project's `AGENTS.md` | the harness loads every `AGENTS.md` from the working folder up (pi)                                | yes      |
-| mount   | entry → each file in a folder   | a symbolic link from a harness folder (`~/.claude/agents`, `~/.pi/agent/extensions`) into a source | yes      |
-| inject  | code → instruction              | code names the instruction's path in a string, its pieces joined (`path.join("a", "b.md")`)        | yes      |
-| run     | settings → code                 | a harness setting runs the file (a hook command in `~/.claude/settings.json`)                      | runs it  |
-| depend  | code → file                     | a relative import, or code that names another source's file by path and source                     | uses it  |
-| cite    | code → instruction              | code names an instruction outside a string (a comment pointing at a spec)                          | no       |
+| Kind    | From → to                       | How it is found                                                                                   | Loads it |
+| ------- | ------------------------------- | ------------------------------------------------------------------------------------------------- | -------- |
+| include | instruction → file              | `@path`, as the harness reads it: `@./x.md`, `@../x.md`, `@x.md`, `@~/x.md`, `@/x.md`             | yes      |
+| refer   | instruction → file              | a path starting `./`, `../` or `~/`, or a path in inline code (`` `docs/x.md` ``)                 | on read  |
+| link    | instruction → instruction       | a Markdown link to a `.md` file                                                                   | on read  |
+| stack   | entry → a project's entry files | the harness loads every `AGENTS.md` (pi) or `CLAUDE.md` (Claude) from the working folder up       | yes      |
+| mount   | entry → each file in a folder   | a symbolic link from a harness folder (agents, skills, commands, extensions: below) into a source | yes      |
+| inject  | code → instruction              | code names the instruction's path in a string, its pieces joined (`path.join("a", "b.md")`)       | yes      |
+| run     | settings → code                 | a harness setting runs the file (a hook command in `~/.claude/settings.json`)                     | runs it  |
+| depend  | code → file                     | a relative import, or code that names another source's file by path and source                    | uses it  |
+| cite    | code → instruction              | code names an instruction outside a string (a comment pointing at a spec)                         | no       |
 
+- The harness folders are `~/.claude/agents`, `~/.claude/skills`, `~/.claude/commands`, `~/.pi/agent/extensions`,
+  `~/.pi/agent/skills` and `~/.pi/agent/prompts` (pi's commands).
 - References inside fenced code blocks are examples, not references, and are not read.
 - A relative path resolves against the folder of the file that holds it; an inline-code path not found there resolves
   from its source's root, and then from the root of each source the same file names (`~/Repositories/<name>`); a path to
   a folder means its index (`README.md`, `index.md`, `docs/index.md`).
 - `~/` resolves to the home folder of the machine the city is laid on, so cross-repository references land in the
   sources given. The city file names sources and paths within them, never a path on the machine.
-- A reference to a file no source holds is outside, and is counted by kind; a reference into a source to a path it does
-  not hold is broken, and is a finding (below) when it was explicit (`@`, `./`, `../`, `~/`, a link, a setting).
+- A reference to a file no source holds is outside, and is counted by kind, as is a reference to a file the machine
+  holds but git does not track (an ignored file); a reference into a source to a path that does not exist is broken, and
+  is a finding (below) when it was explicit (`@`, `./`, `../`, `~/`, a link, a setting).
 - An instruction's reference to a project's code is a citation of code: it is not followed and the code is not laid.
 - A file reaching itself is not an edge; two files are joined by at most one edge, its kind the first found.
 
@@ -105,7 +112,9 @@ Both layouts are laid and kept in the city file, and the viewer switches between
   beside its children. Source is the lots' colour. A file moves when its first route changes.
 - An instruction's pages fill one folder named by its file name without `.md` (by source) or by its whole path, slashes
   as dashes (by scope); a code file is one lot.
-- Towns are declared by the projection itself, not by folders named `apps` or a manifest: nothing scaffolds them.
+- Towns are declared by the projection itself, not by folders named `apps` or a manifest: nothing scaffolds them. The
+  projection also gives their order, which the engine lays them in: by source, `home` and then the repositories in the
+  order given; by scope, the scopes' order.
 - A name the engine reads as a land use of its own (`docs`, `tests`, `specs`, `examples`, `fixtures`, `vendor` and the
   like) is suffixed, so every lot is source land; an instruction city has no parks and nothing off the map.
 - A page holds a fixed share of estimated tokens, the smallest of 40, 100, 200, 400 and 1,000 (`PAGE_TOKEN_STEPS`) at
@@ -118,7 +127,8 @@ Both layouts are laid and kept in the city file, and the viewer switches between
   kind; an edge between towns is drawn strong, an edge within a town faint, except include, stack, mount, inject, run
   and depend, which are always strong.
 - Arrows lie over the lots in plan view and the SVG, and arc over the roofs in the Buildings view.
-- The legend names each kind, and switches it on and off; refer, link and cite start off within a town.
+- The legend names each kind, and switches it on and off; refer, link and cite start mixed: on across towns, off within
+  a town.
 - Selecting a file draws only its own edges, in and out, strong, and lists them on its card.
 
 ## Buildings
@@ -134,16 +144,17 @@ Both layouts are laid and kept in the city file, and the viewer switches between
 - Usage is read from the transcripts harnesses keep on the machine (pi's session files; Claude Code's transcripts), over
   the last 30 days (`USAGE_DAYS`): for each file, how many sessions read it with a tool, and how many sessions there
   were per scenario.
-- Instructions a harness inlines (global, project and role scopes) are never read with a tool, so their usage is
-  unknown, not zero, and says why.
+- Instructions a harness or its code inlines (global, injected, project and role scopes) are never read with a tool, so
+  their usage is unknown, not zero, and says why.
 - Usage is a section of its own beside the layout; a city laid without transcripts has none, and lays the same bytes.
 
 ## Stacks and the bill
 
 - The city lists its scenarios: each harness, with the home folder and each given project's folder as the working
-  folder, on this machine; a scenario says which injected files its machine loads.
-- A stack is what the scenario loads before its first turn, in the harness's order: its entries, the `AGENTS.md` files
-  it stacks, everything they include, recursively, what its mounts and injections load, each once.
+  folder, on this machine; a scenario says which injected files its machine loads: those whose code's host-name check
+  matches this machine.
+- A stack is what the scenario loads before its first turn, in the harness's order: its entries, the `AGENTS.md` or
+  `CLAUDE.md` files it stacks, everything they include, recursively, what its mounts and injections load, each once.
 - Selecting a scenario lights its stack on the map and dims the rest; its card gives the stack's files and estimated
   tokens, largest first.
 - The bill is a stack's estimated tokens, paid on every model call of every session in that scenario; with `--price`
@@ -156,8 +167,8 @@ Both layouts are laid and kept in the city file, and the viewer switches between
 Each finding has a kind, a file, a line, and a fix in one sentence; the map shows a file with findings as roadworks, and
 `--check` fails the run when there is any.
 
-- **Broken reference**: an explicit reference to a path its source does not hold. A placeholder is not a reference:
-  `path/file.md`, `x.md`, `<…>`, `[…]` and paths with `*`.
+- **Broken reference**: an explicit reference into a source to a path that does not exist. A placeholder is not a
+  reference: `path/file.md`, `x.md`, `<…>`, `[…]` and paths with `*`.
 - **Broken setting**: a harness setting that runs or loads a file that does not exist.
 - **Stale index entry**: a `README.md` index line naming a file that does not exist, or a file in its folder that no
   index line names.
@@ -174,24 +185,25 @@ Each finding has a kind, a file, a line, and a fix in one sentence; the map show
 - **Duplicates** are found without a model: sentences that read the same once case, Markdown and whitespace are removed,
   and paragraphs whose word shingles (five words) overlap by 80% or more (`DUPLICATE_SHARE`); each pair is a duplicate
   arrow and a finding.
-- **Contradictions** are judged by a local model, never a hosted one: the candidates are pairs of rule sentences from
-  files one stack loads that share a subject and differ in modality (always and never, must and must not); the model's
-  verdict is cached by the pair's content and model name. Contradictions are a section of their own, never shaping the
-  layout, and a city laid without the model has none and says so.
+- **Contradictions** are judged only with `--contradictions`, by the model studio-worker serves as its default, never a
+  hosted one: the candidates are pairs of rule sentences from files one stack loads that share a subject and differ in
+  modality (always and never, must and must not); the model's verdict is cached by the pair's content and model name.
+  Contradictions are a section of their own, never shaping the layout, and a city laid without the flag or the model has
+  none and says so.
 
 ## Hints
 
-- **Make lazy**: an eager file (global, project or role scope) over `POINTER_TOKENS`, written as a pointer or in a stack
-  where few sessions touch its subject; the hint gives the tokens every call saves.
+- **Make lazy**: an eager file (global, project or role scope) over `POINTER_TOKENS`, written as a pointer; the hint
+  gives the tokens every call saves.
 - **Make eager**: an on-demand file read in more than half the sessions of a scenario (`EAGER_SHARE`); the hint gives
   the tokens it adds and the reads it saves.
 - Hints are listed on the scenario's card, largest saving first; the city never edits a file.
 
 ## The city file
 
-- Beside the measures, an `instructions` section names the sources, entries and scenarios, and for each file its source,
-  path, kind, scope, estimated tokens, pages and edges; a `findings` section, a `usage` section and a `contradictions`
-  section are optional, each written only when it was read.
+- An instruction city has no measures section: beside the layout, an `instructions` section names the sources, entries
+  and scenarios, and for each file its source, path, kind, scope, estimated tokens (its only size), pages and edges; a
+  `findings` section, a `usage` section and a `contradictions` section are optional, each written only when it was read.
 - A city file without the `instructions` section is not an instruction city; one with it opens in any viewer that reads
   city files.
 
