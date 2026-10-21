@@ -20,5 +20,5 @@ Follow the references below only as needed; never upfront.
 - ./009-exploration/exploration.md - when working on going down into the city: walking, vehicles, physics, cameras,
   models
 - ./009-exploration/blueprints/README.md - when implementing the walk, its physics, its vehicles or its models
-- ./010-instruction-cities/instruction-cities.md - when laying a repository of agent instructions by its references:
-  entries, layers, the walk and the projection
+- ./010-instruction-cities/instruction-cities.md - when laying agent instructions: sources, edges and arrows, scopes,
+  layouts, usage, stacks and their bill, the lint, duplicates and contradictions, hints

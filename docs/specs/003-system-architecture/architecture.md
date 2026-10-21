@@ -33,8 +33,9 @@ git repository ──history──▶ snapshots ──ground-plan fold──▶ 
       └──history: contents, file history; coverage reports──measures──▶ measures section (beside the city) ──▶ scene
 ```
 
-- **Instructions**: with `--instructions`, each laid commit's instructions are projected into a tree of pages by their
-  references before the fold sees it, and an `instructions` section goes beside the measures; see
+- **Instructions**: with `--instructions`, the files of several sources and their edges are projected into a tree of
+  pages, one per layout, before the fold sees it; an `instructions` section goes beside the measures, and usage,
+  findings and contradictions in sections of their own; see
   [instruction cities](../010-instruction-cities/instruction-cities.md).
 - **Measures**: each lot's files and their values (size, tested, history, comments), read where the city came from, in
   their own section of the city file beside the layout; see [buildings](../008-buildings/buildings.md).
