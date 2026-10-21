@@ -30,15 +30,16 @@ projection, and the [buildings](../008-buildings/buildings.md) stand on it.
 
 ## Asking for one
 
-- `citymap --instructions <repository>...` lays the given repositories as one instruction city. The first is the library
-  the entries point into; the order of the rest is the order of their towns.
+- `citymap --instructions <repository>...` lays the given repositories as one instruction city, their towns in the order
+  given. Each is a project, unless `--library=<repository>` (repeatable) names it a library: a repository of
+  instructions in its own right, such as a set of shared rules or a knowledge wiki.
 - `--entry=<path>` names an entry, anywhere on the machine; it may be given more than once, and its order is the order
   of the walk. Without it, the entries are the harness entries that exist: `~/.pi/agent/AGENTS.md`,
   `~/.claude/CLAUDE.md` and `~/AGENTS.md`, in that order.
 - `--harness=<name>` names the harnesses whose rules apply (`pi`, `claude`); without it, every harness whose entry
   exists.
 - An entry the machine does not hold, a repository that is not a git repository, and an empty list are refused, by name.
-- History applies to the first repository only: `--to` and `--lock` fold its history, with every other source at its
+- History applies to the first library only: `--to` and `--lock` fold its history, with every other source at its
   current state; `--no-history` lays all of them as they are.
 - Both CLIs lay instruction cities, byte for byte alike (see [architecture](../003-system-architecture/architecture.md)
   § Rust implementation); the projection lives in `packages/instructions` and its Rust mirror, `citymap-instructions`.
@@ -49,10 +50,9 @@ projection, and the [buildings](../008-buildings/buildings.md) stand on it.
 - A source's files are what git tracks, less lock files, images and fonts; the home source holds only the entries and
   the harness settings named below. A symbolic link is its target: an entry that links into a repository is that
   repository's file.
-- A source given after the first is a project: it lays its own entry files (`AGENTS.md`, `CLAUDE.md`) and code that
-  names a file of another source, and what they reach within two edges (`MAX_HOPS`; a project's documentation is often
-  indexed so densely that four edges reach nearly all of it); its other files are not laid. A library (the first source)
-  is laid whole.
+- A project lays its own entry files (`AGENTS.md`, `CLAUDE.md`) and code that names a file of another source, and what
+  they reach within two edges (`MAX_HOPS`; a project's documentation is often indexed so densely that four edges reach
+  nearly all of it); its other files are not laid. A library is laid whole.
 - Test code (`*.test.*`, `*.spec.*`, and files under `test`, `tests`, `__tests__`, `e2e` and `fixtures`) never counts as
   code that loads or uses a file.
 
