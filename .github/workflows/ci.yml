@@ -34,7 +34,7 @@ jobs:
 
       # Node runs the tools' launchers (oxfmt, oxlint, tsc, vitest); its version is pinned in mise.toml.
       - name: Set up Node
-        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
           install_args: node
 
@@ -69,7 +69,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
           install_args: node
 
@@ -110,7 +110,7 @@ jobs:
 
       # Rust, with rustfmt and clippy, is pinned in mise.toml (and in rust/rust-toolchain.toml for rustup).
       - name: Set up Rust
-        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
           install_args: rust
 
@@ -121,7 +121,7 @@ jobs:
 
       # Builds are cached per lockfile; only runs on main write the cache, so pull requests share one.
       - name: Cache Rust builds
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: rust
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -147,7 +147,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node and Rust
-        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
         with:
           install_args: node rust
 
@@ -172,7 +172,7 @@ jobs:
 
       - name: Cache Rust builds
         if: steps.cities.outputs.cache-hit != 'true'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: rust
           save-if: ${{ github.ref == 'refs/heads/main' }}
