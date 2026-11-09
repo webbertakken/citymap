@@ -28,7 +28,7 @@ import { poseRun } from "../explore/models/run";
 import { figureOf, pilot, placeVehicle, release, seat, slotOf, type Rolled, type Slot } from "../explore/models/seat";
 import { poseStride, swingOf } from "../explore/models/stride";
 import { assignPool } from "../explore/pool";
-import { ROOFTOP_MOST } from "../explore/rooftops";
+import { ROOFTOP_MOST, type Rooftop } from "../explore/rooftops";
 import { BASE, FLOOR } from "../explore/sight";
 import { SIGN_POOL, middleOf, nearestLots, wallFacing, type Wall } from "../explore/signs";
 import { METRE } from "../explore/street";
@@ -93,6 +93,17 @@ function helipadMark(): ThreeMesh<PlaneGeometry, MeshBasicMaterial> {
   const mesh = new ThreeMesh(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2), material);
   mesh.visible = false;
   return mesh;
+}
+
+/** Lays each marking on its roof, the walk's marked roofs in order; the markings left over are hidden. */
+function placeMarks(marks: readonly ThreeMesh[], roofs: readonly Rooftop[]): void {
+  marks.forEach((mark, i) => {
+    const roof = roofs[i];
+    mark.visible = roof !== undefined;
+    if (!roof) return;
+    mark.position.set(roof.at.x * METRE, (roof.at.y + HELIPAD_ABOVE) * METRE, roof.at.z * METRE);
+    mark.scale.setScalar(HELIPAD_SIZE * METRE);
+  });
 }
 
 /** One sign of the pool: its plane, the canvas its words are drawn on, and the building it names (−1 for none). */
@@ -456,13 +467,7 @@ function Walk({ theme, frame }: { readonly theme: Theme; readonly frame: Explore
         }
       } else poseStride(walker, swingOf(walked, speed));
     }
-    marks.forEach((mark, i) => {
-      const roof = now.rooftops[i];
-      mark.visible = roof !== undefined;
-      if (!roof) return;
-      mark.position.set(roof.at.x * METRE, (roof.at.y + HELIPAD_ABOVE) * METRE, roof.at.z * METRE);
-      mark.scale.setScalar(HELIPAD_SIZE * METRE);
-    });
+    placeMarks(marks, now.rooftops);
     const { eye, target } = now.camera;
     state.camera.position.set(eye.x * METRE, eye.y * METRE, eye.z * METRE);
     state.camera.lookAt(target.x * METRE, target.y * METRE, target.z * METRE);
