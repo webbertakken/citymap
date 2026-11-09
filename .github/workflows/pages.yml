@@ -30,7 +30,7 @@ jobs:
 
       # Node for Next.js, and Rust (pinned in mise.toml) for the CLI that lays the bundled cities.
       - name: Set up Node and Rust
-        uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           install_args: node rust
 
