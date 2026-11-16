@@ -19,6 +19,25 @@ test.beforeEach(async ({ page }) => {
 const drawn = (page: Page) =>
   page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
+/** Waits until a search's flight has landed: its marker holds still from one frame to the next, as a key cuts it short. */
+const landed = (page: Page) =>
+  expect
+    .poll(() =>
+      page.locator(".marker").evaluate(
+        (marker) =>
+          new Promise<number>((resolve) => {
+            const before = marker.getBoundingClientRect();
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                const after = marker.getBoundingClientRect();
+                resolve(Math.hypot(after.x - before.x, after.y - before.y));
+              }),
+            );
+          }),
+      ),
+    )
+    .toBe(0);
+
 /** The legend, opened first on a phone, where it folds behind a button. */
 async function openLegend(page: Page, isMobile: boolean) {
   if (isMobile) await page.getByRole("button", { name: "Legend" }).click();
@@ -183,6 +202,7 @@ test("turns and tilts the Buildings view by keys, names the roofs close up, and 
   await page.keyboard.press("Enter");
   const map = page.getByRole("application", { name: /^Map of takken\.io/ });
   await expect(map).toHaveAttribute("aria-label", /Q and E turn/);
+  await landed(page);
   const name = page.locator(".label:not(.roof)").first();
   const before = await name.boundingBox();
   await map.focus();
