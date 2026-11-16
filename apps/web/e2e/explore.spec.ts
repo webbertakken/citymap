@@ -139,7 +139,7 @@ test("gets on the bicycle parked by the road with E, rides it, and gets off once
   await expect(page.getByRole("region", { name: "On the bicycle" })).toBeVisible();
   await holdUntil(page, ["KeyW"], () => expect(slow).toBeVisible({ timeout: 30_000 }));
   await expect(slow).toBeDisabled();
-  const off = page.getByRole("button", { name: "Get off the bicycle" });
+  const off = page.getByRole("button", { name: "Get off the bicycle", exact: true });
   await holdUntil(page, ["Space"], () => expect(off).toBeVisible({ timeout: 30_000 }));
   await page.keyboard.press("KeyE");
   await expect(page.getByRole("region", { name: "On foot" })).toBeVisible();
