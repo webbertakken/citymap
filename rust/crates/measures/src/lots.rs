@@ -37,16 +37,13 @@ pub fn lot_files(city: &City, plat: &Plat, files: &[FileEntry]) -> LotFiles {
             let shares: HashMap<&str, Vec<&str>> = if town.old {
                 HashMap::new()
             } else {
-                plat.towns
-                    .get(&town.key)
-                    .map(|t| {
-                        t.shares
-                            .values()
-                            .flatten()
-                            .map(|lot| (&*lot.key, lot.members.iter().map(|m| &**m).collect()))
-                            .collect()
-                    })
-                    .unwrap_or_default()
+                plat.towns.get(&town.key).map_or_default(|t| {
+                    t.shares
+                        .values()
+                        .flatten()
+                        .map(|lot| (&*lot.key, lot.members.iter().map(|m| &**m).collect()))
+                        .collect()
+                })
             };
             let lots = town
                 .lots
@@ -55,8 +52,7 @@ pub fn lot_files(city: &City, plat: &Plat, files: &[FileEntry]) -> LotFiles {
                 .map(|lot| {
                     let members: Vec<&str> = if town.old {
                         old.get(lot.key.as_str())
-                            .map(|ids| ids.iter().map(String::as_str).collect())
-                            .unwrap_or_default()
+                            .map_or_default(|ids| ids.iter().map(String::as_str).collect())
                     } else {
                         shares.get(lot.key.as_str()).cloned().unwrap_or_default()
                     };

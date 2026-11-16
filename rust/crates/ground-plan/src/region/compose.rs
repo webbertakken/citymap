@@ -122,8 +122,7 @@ fn members_of(snapshot: &Snapshot, separate: &[Separation], kept: Option<&mut Op
         });
     }
     kept.as_ref()
-        .map(|k| k.members.iter().map(|m| m.folder.clone()).collect())
-        .unwrap_or_default()
+        .map_or_default(|k| k.members.iter().map(|m| m.folder.clone()).collect())
 }
 
 /// A part's last tree, the files it was built from, and where they lay in the snapshot it was last checked against.
